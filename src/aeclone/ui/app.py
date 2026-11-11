@@ -228,7 +228,7 @@ class App:
             start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch(start % 10)
+        self._switch(start % 11)
         page.update()
 
     # ---------- 壳 ----------
@@ -239,6 +239,7 @@ class App:
                  ("内容审查", ft.Icons.FACT_CHECK_OUTLINED), ("图片处理", ft.Icons.IMAGE_OUTLINED),
                  ("价格设置", ft.Icons.SELL_OUTLINED), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED),
                  ("设置", ft.Icons.SETTINGS_OUTLINED),
+                 ("图片工作台", ft.Icons.GRID_VIEW),
                  ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED)]
         col = ft.Column(spacing=4)
         for i, (label, icon) in enumerate(items):
@@ -271,7 +272,7 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_logs]
+                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench, self._p_logs]
         self.content.controls = pages[idx]()
         self.page.update()
 
@@ -514,6 +515,87 @@ class App:
                                    ft.ElevatedButton("生成映射", on_click=preview), self.map_out], spacing=10))
         view = self._render("变种设置", schema_variant())
         return [view[0], card_map] + view[1:]
+
+    def _p_workbench(self):
+        self._current = 9
+        self.wb_urls = ft.TextField(label="图片 URL（每行一个）", multiline=True, min_lines=4, max_lines=8,
+                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.wb_status = ft.Text("未加载图片", color=MUTED, size=12)
+        self.wb_results = ft.Column(spacing=4)
+        self.wb_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
+
+        def load(e):
+            urls = [u.strip() for u in (self.wb_urls.value or "").splitlines() if u.strip()]
+            if not urls:
+                self.toast("请输入图片 URL", False); return
+            self.wb_status.value = f"共 {len(urls)} 个链接，开始下载…"
+            self.page.update()
+            threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
+
+        def run(kind):
+            if not self.picked:
+                self.toast("请先加载图片", False); return
+            if not self.cfg.api_key:
+                self.toast("请先设置 API Key", False); return
+            self.wb_busy.visible = True; self.page.update()
+            threading.Thread(target=self._wb_process, args=(kind,), daemon=True).start()
+
+        return [h1("图片工作台"), muted("批量白底 / 去水印 / 编辑（走你的 API 站点计费）"),
+                card(ft.Column([self.wb_urls,
+                                ft.Row([ft.ElevatedButton("加载图片", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=load),
+                                        ft.ElevatedButton("白底", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
+                                        ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
+                                        ft.ElevatedButton("编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
+                                        self.wb_busy], spacing=10),
+                                self.wb_status], spacing=10)),
+                card(self.wb_results)]
+
+    def _download_images(self, urls):
+        import requests as _rq
+        from pathlib import Path as _P
+        import tempfile as _tf
+        d = _P(_tf.gettempdir()) / "aurora-workbench"
+        d.mkdir(parents=True, exist_ok=True)
+        got = []
+        for i, u in enumerate(urls):
+            try:
+                r = _rq.get(u, timeout=30)
+                r.raise_for_status()
+                p = d / f"img_{i:03d}.png"
+                p.write_bytes(r.content)
+                got.append(p)
+            except Exception as ex:
+                self._log(f"下载失败 {u[:60]}: {ex}")
+        self.picked = got
+        self.wb_status.value = f"已下载 {len(got)}/{len(urls)} 张"
+        self.wb_status.color = ACCENT_2 if got else "#FF6B6B"
+        self.page.update()
+
+    def _wb_process(self, kind):
+        svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout))
+        runner = BatchRunner(self.cfg.concurrency)
+        self.wb_results.controls = []
+
+        def job(idx, path):
+            if kind == "white":
+                return svc.white_background(Path(path))
+            if kind == "watermark":
+                return svc.remove_watermark(Path(path))
+            return svc.edit(Path(path), self.cfg.edit_prompt or "clean product photo")
+
+        def done(res):
+            icon = ft.Icons.CHECK_CIRCLE if res.ok else ft.Icons.ERROR_OUTLINE
+            color = ACCENT_2 if res.ok else "#FF6B6B"
+            self.wb_results.controls.append(ft.Row([ft.Icon(icon, size=15, color=color),
+                                                    ft.Text(res.value if res.ok else res.error, size=11,
+                                                            color=MUTED, selectable=True)], spacing=8))
+            self.page.update()
+
+        results = runner.run(list(self.picked), job, done)
+        ok = sum(1 for r in results if r.ok)
+        self.wb_status.value = f"处理完成：成功 {ok} / {len(results)}"
+        self.wb_busy.visible = False
+        self.page.update()
 
     def _p_logs(self):
         self._current = 9
