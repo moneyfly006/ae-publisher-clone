@@ -741,6 +741,8 @@ class App:
                                         ft.OutlinedButton("暂停", on_click=lambda e: self._wb_ctl("pause")),
                                         ft.OutlinedButton("继续", on_click=lambda e: self._wb_ctl("resume")),
                                         ft.OutlinedButton("取消", on_click=lambda e: self._wb_ctl("cancel")),
+                                        ft.ElevatedButton("上传结果到相册", icon=ft.Icons.CLOUD_UPLOAD, bgcolor="#F0A020", color="#1A1200",
+                                                          on_click=lambda e: threading.Thread(target=self._upload_results, daemon=True).start()),
                                         self.wb_busy], spacing=10),
                                 self.wb_status], spacing=10)),
                 card(self.wb_results)]
@@ -811,6 +813,27 @@ class App:
         self.wb_status.value = f"已下载 {len(got)}/{len(urls)} 张"
         self.wb_status.color = ACCENT_2 if got else "#FF6B6B"
         self.page.update()
+
+    def _upload_results(self):
+        urls = [c.controls[1].value for c in self.wb_results.controls
+                if len(c.controls) > 1 and isinstance(c.controls[1], ft.Text) and str(c.controls[1].value).startswith("http")]
+        if not urls:
+            self.toast("没有可上传的结果", False); return
+        try:
+            import asyncio
+            ck = self._cookies()
+            client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            ok = 0
+            for u in urls[:20]:
+                try:
+                    client.upload_image_from_url(u)
+                    ok += 1
+                except Exception as ex:
+                    self._log(f"上传失败 {u[:50]}: {ex}")
+            self.toast(f"已上传 {ok}/{len(urls)} 张到相册")
+            self._log(f"图片上传完成：{ok}/{len(urls)}")
+        except Exception as ex:
+            self.toast(f"上传失败：{ex}", False)
 
     def _wb_ctl(self, action):
         r = getattr(self, "wb_runner", None)

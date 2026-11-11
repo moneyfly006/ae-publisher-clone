@@ -85,6 +85,18 @@ class Publisher:
             else:
                 res.steps.append(Step("AI 标题", True, "未启用，跳过"))
 
+            if not dry_run and self.dxm and p.get("images"):
+                uploaded, failed = 0, 0
+                for u in p["images"][:20]:
+                    try:
+                        self.dxm.upload_image_from_url(str(u))
+                        uploaded += 1
+                    except Exception as ex:  # noqa: BLE001
+                        failed += 1
+                        p.setdefault("upload_errors", []).append(str(ex)[:120])
+                res.steps.append(Step("图片上传", uploaded > 0 or failed == 0,
+                                      f"成功 {uploaded} / 失败 {failed}"))
+
             p = self._price(p)
             r = p["price_result"]
             res.steps.append(Step("价格计算", True, f"¥{r.final}（{r.note}）"))
