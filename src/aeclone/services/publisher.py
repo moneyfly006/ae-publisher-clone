@@ -46,11 +46,12 @@ class Publisher:
         p = dict(product)
         p["title"] = (p.get("title") or "").strip()
         prefix = (getattr(self.cfg, "custom_sku_prefix", "") or "").strip()
+        only_prefix = getattr(self.cfg, "only_sku_prefix_checkbox", False)
         split_ch = getattr(self.cfg, "sku_split_char", "-") or "-"
         stock = getattr(self.cfg, "stock_quantity", "") or ""
         for i, sku in enumerate(p.get("skus") or [], 1):
             name = str(sku.get("sku") or sku.get("name") or "").strip()
-            if prefix and not name.startswith(prefix):
+            if prefix and not name.startswith(prefix) and not only_prefix:
                 name = f"{prefix}{split_ch}{name}" if name else f"{prefix}{split_ch}{i}"
             if getattr(self.cfg, "auto_generate_sku_code", False):
                 name = f"{prefix}{split_ch}{i:03d}" if prefix else f"SKU{split_ch}{i:03d}"
@@ -229,6 +230,27 @@ class Publisher:
                 p["detail_images"] = detail
                 res.steps.append(Step("详情图处理", done > 0, f"{done}/{len(out)} 张"))
 
+        # 主图文字翻译
+        if getattr(self.cfg, "translate_main_pic_enable", False) and main:
+            from .image_index import pick as _pk
+            expr = getattr(self.cfg, "translate_main_pic_indices", "") or ""
+            targets = _pk(main, expr) if expr else main[:2]
+            n = 0
+            for i, u in enumerate(main):
+                if u in targets:
+                    try:
+                        ip = self.image_pipeline
+                        old_p = ip.cfg.edit_prompt
+                        ip.cfg.edit_prompt = getattr(self.cfg, "translate_prompt", "") or old_p
+                        main[i] = self._run_ops(u, False, False, True)
+                        ip.cfg.edit_prompt = old_p
+                        n += 1
+                    except Exception:
+                        pass
+            if n:
+                p["images"] = main
+                res.steps.append(Step("主图翻译", True, f"{n} 张"))
+
         # 详情图文字翻译
         if getattr(self.cfg, "translate_detail_pic_enable", False) and detail:
             from .image_index import pick as _pick
@@ -269,6 +291,25 @@ class Publisher:
                     pass
             if done:
                 res.steps.append(Step("SKU图处理", True, f"{done} 张"))
+
+        # SKU 图文字翻译
+        if getattr(self.cfg, "translate_sku_pic", False):
+            n = 0
+            for sku in (p.get("skus") or [])[:6]:
+                img = sku.get("processed_image") or sku.get("image")
+                if not img:
+                    continue
+                try:
+                    ip = self.image_pipeline
+                    old_p = ip.cfg.edit_prompt
+                    ip.cfg.edit_prompt = getattr(self.cfg, "translate_prompt", "") or old_p
+                    sku["processed_image"] = self._run_ops(str(img), False, False, True)
+                    ip.cfg.edit_prompt = old_p
+                    n += 1
+                except Exception:
+                    pass
+            if n:
+                res.steps.append(Step("SKU图翻译", True, f"{n} 张"))
 
         # 背景生成（AI 换背景）
         rules_raw = (getattr(self.cfg, "background_gen_rules", "") or "").strip()
@@ -451,7 +492,22 @@ class Publisher:
                         or getattr(self.cfg, "img_sku_remove_wm", False)
                         or getattr(self.cfg, "img_sku_edit", False)
                         or (getattr(self.cfg, "background_gen_rules", "") or "").strip() not in ("", "[]")
-                        or getattr(self.cfg, "translate_detail_pic_enable", False))
+                        or getattr(self.cfg, "translate_detail_pic_enable", False)
+                        or getattr(self.cfg, "translate_main_pic_enable", False)
+                        or getattr(self.cfg, "translate_sku_pic", False))
+            if getattr(self.cfg, "pad_main_images_from_extra", False):
+                try:
+                    need = int(getattr(self.cfg, "main_pic_count", "6") or 6)
+                    imgs = p.get("images") or []
+                    extras = [u for u in (p.get("detail_images") or []) if u not in imgs]
+                    while len(imgs) < need and extras:
+                        imgs.append(extras.pop(0))
+                    if imgs:
+                        p["images"] = imgs
+                        res.steps.append(Step("主图补齐", True, f"{len(imgs)} 张"))
+                except Exception:
+                    pass
+
             if (p.get("images") or p.get("detail_images") or p.get("skus")) and _img_ops:
                 try:
                     p = self._ai_images(p, res)
@@ -493,6 +549,14 @@ class Publisher:
                     res.steps.append(Step("详情图审查", True, verdict[:50].replace("\n", " ")))
                 except Exception as ex:  # noqa: BLE001
                     res.steps.append(Step("详情图审查", False, str(ex)[:80]))
+
+            if getattr(self.cfg, "copy_sku_to_detail", False) and p.get("skus") and p.get("detail_html"):
+                names = " / ".join(str(s.get("sku") or "") for s in p["skus"][:20])
+                p["detail_html"] = p["detail_html"] + f"<p>SKU: {names}</p>"
+                res.steps.append(Step("SKU写入详情", True, f"{len(p['skus'])} 个"))
+
+            if getattr(self.cfg, "pack_weight", ""):
+                p.setdefault("specs", {})["Pack Weight"] = self.cfg.pack_weight
 
             if self.cfg.review_text_enable and p.get("detail_html"):
                 try:
@@ -563,6 +627,12 @@ class Publisher:
                             res.steps.append(Step("主图视频", True, str(out)))
                 except Exception as ex:  # noqa: BLE001
                     res.steps.append(Step("主图视频", False, str(ex)[:80]))
+
+            if getattr(self.cfg, "schedule_publish", False) and (getattr(self.cfg, "schedule_time", "") or ""):
+                p["scheduled_at"] = self.cfg.schedule_time
+                res.steps.append(Step("定时发布", True, f"已排定 {self.cfg.schedule_time}"))
+                res.steps.append(Step("保存到店小秘", True, "定时任务已登记"))
+                return res
 
             if dry_run:
                 res.steps.append(Step("保存到店小秘", True, "dry-run：未写入"))

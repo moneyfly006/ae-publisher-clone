@@ -104,12 +104,17 @@ def schema_store():
 def schema_advanced():
     return [
         ("基础", [Field("edit_sum", "编辑产品数量"), Field("watermark", "水印图片路径")]),
+        ("定时发布", [Field("schedule_publish", "启用定时发布", "bool"),
+                      Field("schedule_time", "发布时间（如 2026-11-12 09:00）")]),
         ("SKU", [Field("max_sku_count", "SKU 数量上限"),
                  Field("custom_sku_prefix", "SKU 前缀"),
                  Field("sku_split_char", "SKU 分隔符"),
                  Field("auto_generate_sku_code", "自动生成 SKU 编码", "bool"),
                  Field("modify_stock_999", "库存改为 999", "bool"),
-                 Field("stock_quantity", "库存数量")]),
+                 Field("stock_quantity", "库存数量"),
+                 Field("only_sku_prefix_checkbox", "只检查前缀不重排", "bool"),
+                 Field("copy_sku_to_detail", "SKU 写入详情", "bool"),
+                 Field("pack_weight", "包装重量")]),
         ("规格", [Field("spec_weight", "重量"), Field("spec_length", "长"),
                   Field("spec_width", "宽"), Field("spec_height", "高"),
                   Field("product_type", "商品类型"), Field("declared_value", "申报价值")]),
@@ -161,6 +166,11 @@ def schema_image():
                         Field("remove_watermark_pic_2", "去水印结束序号")]),
         ("精细索引", [Field("single_edit_main_pic_indices", "主图编辑序号（如 1,3）"),
                       Field("single_edit_detail_pic_indices", "详情图编辑序号")]),
+        ("主图/SKU图翻译", [Field("translate_main_pic_enable", "主图文字翻译", "bool"),
+                            Field("translate_main_pic_indices", "主图索引（如 1-2）"),
+                            Field("translate_sku_pic", "SKU 图文字翻译", "bool")]),
+        ("素材补齐", [Field("pad_main_images_from_extra", "主图不足时用详情图补", "bool"),
+                      Field("main_pic_count", "主图目标数量")]),
         ("详情图翻译", [Field("translate_detail_pic_enable", "启用详情图文字翻译", "bool"),
                         Field("translate_detail_pic_indices", "翻译图序号（如 1-3）"),
                         Field("translate_prompt", "翻译提示词", "multiline")]),
@@ -712,7 +722,8 @@ class App:
             ft.Row([ft.ElevatedButton("读取并同步", icon=ft.Icons.SYNC, bgcolor=ACCENT, color="white", on_click=sync),
                     ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self._paste_cookie()),
                     ft.OutlinedButton("启动浏览器（兜底）", icon=ft.Icons.OPEN_IN_BROWSER,
-                                      on_click=lambda e: threading.Thread(target=self._connect_browser, daemon=True).start())],
+                                      on_click=lambda e: threading.Thread(target=self._connect_browser, daemon=True).start()),
+                    ft.OutlinedButton("从链接采集", icon=ft.Icons.LINK, on_click=lambda e: self._collect_dialog())],
                    spacing=10),
             self.store_status,
         ], spacing=10))
@@ -767,6 +778,33 @@ class App:
                                    on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))
 
     # ---------- 对接动作 ----------
+    def _collect_dialog(self):
+        url_field = ft.TextField(label="商品链接（1688 / 阿里国际 / 其它）", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        out = ft.TextField(label="采集结果", multiline=True, min_lines=6, read_only=True,
+                           bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+        def run(e):
+            out.value = "采集中…"; self.page.update()
+            def go():
+                try:
+                    from ..services.collector import collect
+                    r = collect((url_field.value or "").strip())
+                    if r.ok:
+                        out.value = f"标题：{r.title}\n图片：{len(r.images)} 张\n价格：{r.price or '-'}\n\n" + "\n".join(r.images[:8])
+                        self._log(f"采集成功：{r.title[:30]} / {len(r.images)} 张图")
+                    else:
+                        out.value = f"采集失败（可能需要登录或页面需 JS）：{r.error}"
+                except Exception as ex:
+                    out.value = f"异常：{ex}"
+                self.page.update()
+            threading.Thread(target=go, daemon=True).start()
+
+        dlg = ft.AlertDialog(title=ft.Text("从链接采集商品"),
+                             content=ft.Column([url_field, out], spacing=10, width=560),
+                             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
+                                      ft.ElevatedButton("开始采集", bgcolor=ACCENT, color="white", on_click=run)])
+        self.page.dialog = dlg; dlg.open = True; self.page.update()
+
     def _paste_cookie(self):
         field = ft.TextField(label="Cookie", multiline=True, min_lines=4, bgcolor=CARD_2,
                              border_color=CARD_2, color=TEXT,

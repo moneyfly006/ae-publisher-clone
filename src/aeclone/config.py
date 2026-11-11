@@ -104,6 +104,23 @@ DEFAULTS: dict = {
     # 详情图审查范围
     "detail_review_first_count": 0,
     "detail_review_last_count": 0,
+    # 翻译扩展
+    "translate_main_pic_enable": False,
+    "translate_main_pic_indices": "",
+    "translate_sku_pic": False,
+    "translate_image_understanding": False,
+    # SKU 增强
+    "only_sku_prefix_checkbox": False,
+    "copy_sku_to_detail": False,
+    "pack_weight": "",
+    # 素材补齐
+    "pad_main_images_from_extra": False,
+    "main_pic_checkbox": False,
+    "main_pic_count": "6",
+    # 定时发布
+    "schedule_publish": False,
+    "schedule_time": "",
+
 
 
     "review_text_enable": False,
