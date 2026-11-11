@@ -45,6 +45,9 @@ def read_snapshot(ws_endpoint: str, product_id: str, timeout: int = 60000) -> Te
     try:
         page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
         page.wait_for_timeout(10000)
+        url_now = page.url or ""
+        if "login" in url_now.lower() or "index.htm" in url_now.lower():
+            raise RuntimeError("浏览器未登录店小秘，请先点「启动浏览器（兜底）」登录一次")
         data = page.evaluate("""() => {
             const out = {items: [], attrs: [], title: ''};
             document.querySelectorAll('.ant-form-item').forEach(fi => {

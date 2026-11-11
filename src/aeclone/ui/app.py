@@ -252,6 +252,7 @@ class App:
         self.picked: list[Path] = []
         self.logs: list[str] = []
         self.products: list[dict] = []
+        self.ws_endpoint = ""
         self.field_refs: list[Field] = []
         self.file_picker = ft.FilePicker(on_result=self._on_files)
 
@@ -942,7 +943,17 @@ class App:
         self.page.update()
         try:
             from ..integrations.template_reader import read_snapshot
+            if not self.ws_endpoint:
+                try:
+                    info = launch_browser("chrome")
+                    self.ws_endpoint = info.get("ws", "")
+                except Exception as be:
+                    self.tpl_snapshot_text.value = f"读取失败：需要浏览器（{be}）"
+                    self.page.update(); return
             snap = read_snapshot(self.ws_endpoint, str(pid))
+            if not snap.fields:
+                self.tpl_snapshot_text.value = "读取失败：浏览器未登录店小秘，请先点「启动浏览器（兜底）」登录一次"
+                self.page.update(); return
             self.cfg.template_product_id = str(pid)
             self.cfg.template_product_title = snap.title
             self.cfg.template_snapshot = snap.to_json()

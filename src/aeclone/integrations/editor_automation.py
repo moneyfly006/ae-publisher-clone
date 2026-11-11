@@ -229,23 +229,41 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
                     return True
             return False
 
-        # 类目：点选择分类 → 搜索 → 点选
+        # 类目：点选择分类 → 搜索分类名称 → 点搜索结果项
         cat = (fields.get("category") or "").strip()
+        if cat:
+            try:
+                cur_cat = page.evaluate("""() => {
+                    const fi = Array.from(document.querySelectorAll('.ant-form-item')).find(x=>x.innerText.includes('产品分类'));
+                    return fi ? fi.innerText.replace(/\n/g,' ') : '';
+                }""")
+                if "选择分类" in (cur_cat or "") and cur_cat.replace("产品分类", "").replace("选择分类", "").replace("自动识别分类", "").strip():
+                    applied.append("类目已存在(跳过)")
+                    cat = ""
+            except Exception:
+                pass
         if cat:
             try:
                 cat_name = cat.split("(")[0].strip()
                 page.get_by_role("button", name="选择分类", exact=False).first.click(timeout=5000)
-                page.wait_for_timeout(1800)
-                search = page.locator("input[placeholder*='搜索'], input[placeholder*='请输入']").first
+                page.wait_for_timeout(2000)
+                search = page.locator('input[placeholder="搜索分类名称"]').first
                 if search.count() > 0:
-                    search.fill(cat_name); search.dispatch_event("input"); page.wait_for_timeout(2500)
-                node = page.locator(".ant-tree-treenode").first
-                if node.count() > 0:
-                    node.click(timeout=4000); page.wait_for_timeout(800)
-                ok = page.get_by_role("button", name="确定", exact=True).first
-                if ok.count() > 0:
-                    ok.click(timeout=4000); page.wait_for_timeout(1200)
+                    search.fill(cat_name)
+                    page.get_by_role("button", name="搜索", exact=True).first.click(timeout=4000)
+                    page.wait_for_timeout(3500)
+                item = page.locator(".search-result-item").first
+                if item.count() > 0:
+                    item.click(timeout=5000); page.wait_for_timeout(1500)
                     applied.append(f"类目 {cat_name}")
+                # 关闭弹层
+                for lbl in ("选择", "确定", "关闭"):
+                    try:
+                        b2 = page.get_by_role("button", name=lbl, exact=True).first
+                        if b2.count() > 0:
+                            b2.click(timeout=2500); page.wait_for_timeout(800); break
+                    except Exception:
+                        continue
             except Exception:
                 pass
 
@@ -403,6 +421,17 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
 
         # 类目：点击「选择分类」→ 弹层搜索 → 点选第一个
         cat = (fields.get("category") or "").strip()
+        if cat:
+            try:
+                cur_cat = page.evaluate("""() => {
+                    const fi = Array.from(document.querySelectorAll('.ant-form-item')).find(x=>x.innerText.includes('产品分类'));
+                    return fi ? fi.innerText.replace(/\n/g,' ') : '';
+                }""")
+                if "选择分类" in (cur_cat or "") and cur_cat.replace("产品分类", "").replace("选择分类", "").replace("自动识别分类", "").strip():
+                    applied.append("类目已存在(跳过)")
+                    cat = ""
+            except Exception:
+                pass
         if cat:
             try:
                 cat_name = cat.split("(")[0].strip()
