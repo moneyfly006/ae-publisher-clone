@@ -24,6 +24,7 @@ from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
 from ..services import history
 from ..services.queue import TaskQueue
+from ..services.scheduler import Scheduler
 from ..services.text_pipeline import TextPipeline
 from ..services.image_pipeline import ImagePipeline
 
@@ -106,6 +107,12 @@ def schema_advanced():
         ("基础", [Field("edit_sum", "编辑产品数量"), Field("watermark", "水印图片路径")]),
         ("定时发布", [Field("schedule_publish", "启用定时发布", "bool"),
                       Field("schedule_time", "发布时间（如 2026-11-12 09:00）")]),
+        ("套装", [Field("combo_enable", "生成套装 SKU", "bool"),
+                  Field("combo_prefix", "套装前缀"), Field("combo_multiplier", "套装倍率")]),
+        ("水印叠加", [Field("overlay_watermark_enable", "叠加水印到主图", "bool"),
+                      Field("overlay_position", "位置（bottom-right/center…）"),
+                      Field("overlay_opacity", "透明度 0-1")]),
+        ("SKU 图替换", [Field("sku_image_replace", "替换表 JSON（SKU→图片URL）", "multiline")]),
         ("SKU", [Field("max_sku_count", "SKU 数量上限"),
                  Field("custom_sku_prefix", "SKU 前缀"),
                  Field("sku_split_char", "SKU 分隔符"),
@@ -296,6 +303,11 @@ class App:
                                                     padding=ft.padding.only(left=24, right=24, top=18, bottom=18))],
                              expand=True, spacing=0))
         threading.Thread(target=self._check_license, daemon=True).start()
+        try:
+            self.scheduler = Scheduler()
+            self.scheduler.start(self._run_scheduled)
+        except Exception as ex:
+            self._log(f"调度器启动失败：{ex}", "WARN")
         try:
             from ..integrations.browser_cookies import read_best
             src = read_best("dianxiaomi.com")
@@ -595,6 +607,24 @@ class App:
         self._switch(10)
         self._log("开始执行…")
         threading.Thread(target=self._run_pipeline, daemon=True).start()
+
+    def _run_scheduled(self, job):
+        self._log(f"定时任务触发：{job.product_id}", "INFO")
+        try:
+            ck = self._cookies()
+            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            prods = dxm.drafts(limit=200, shop_id=self.cfg.store_id or None)
+            prod = next((p for p in prods if p["id"] == job.product_id), None)
+            if not prod:
+                raise RuntimeError("产品不在待发布列表")
+            res = Publisher(self.cfg, dxm=dxm, ws_endpoint=self.ws_endpoint).run(
+                prod, dry_run=not self.cfg.auto_save_products)
+            for line in res.log().splitlines():
+                self._log("   " + line)
+            self._log(f"定时任务完成：{job.product_id}", "INFO")
+        except Exception as ex:
+            self._log(f"定时任务失败：{ex}", "ERROR")
+            raise
 
     def _run_pipeline(self):
         try:
@@ -1815,7 +1845,15 @@ class App:
             ft.ElevatedButton("清空", icon=ft.Icons.DELETE_OUTLINE, bgcolor=CARD_2, color=TEXT,
                               on_click=lambda e: (self.log_rows.clear(), self.logs.clear(), self._refresh_log_table())),
         ], spacing=10))
-        return [h1("任务与日志"), bar, card(ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO, height=420))]
+        try:
+            jobs = self.scheduler.pending() if hasattr(self, "scheduler") else []
+        except Exception:
+            jobs = []
+        sched_rows = [ft.Text(f"{j.product_id} · {time.strftime('%m-%d %H:%M', time.localtime(j.run_at))} · {j.title[:20]}",
+                              size=11, color=TEXT) for j in jobs[:8]] or [ft.Text("暂无定时任务", size=11, color=MUTED)]
+        return [h1("任务与日志"), bar,
+                card(ft.Column([h1("定时任务", 14)] + sched_rows, spacing=6)),
+                card(ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO, height=360))]
 
     def _log(self, msg, level="INFO"):
         ts = time.strftime("%H:%M:%S")

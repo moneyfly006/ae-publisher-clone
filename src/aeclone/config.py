@@ -120,6 +120,15 @@ DEFAULTS: dict = {
     # 定时发布
     "schedule_publish": False,
     "schedule_time": "",
+    # 套装 / 水印叠加 / SKU 图替换
+    "combo_enable": False,
+    "combo_prefix": "套装",
+    "combo_multiplier": "2",
+    "overlay_watermark_enable": False,
+    "overlay_position": "bottom-right",
+    "overlay_opacity": "0.7",
+    "sku_image_replace": "{}",
+
 
 
 

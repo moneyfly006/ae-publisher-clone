@@ -52,3 +52,37 @@ def collect(url: str, timeout: int = 30) -> Collected:
     if pm:
         res.price = pm.group(1)
     return res
+
+
+def collect_via_cdp(ws_endpoint: str, url: str, wait_ms: int = 9000) -> Collected:
+    """用已连接的浏览器渲染页面后采集（适配需要 JS 的站点）。"""
+    from playwright.sync_api import sync_playwright
+
+    res = Collected(url=url)
+    pw = sync_playwright().start()
+    try:
+        browser = pw.chromium.connect_over_cdp(ws_endpoint, timeout=30000)
+        ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+        page = ctx.new_page()
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(wait_ms)
+        data = page.evaluate("""() => {
+            const t = document.querySelector('meta[property="og:title"]')?.content || document.title || '';
+            const imgs = [];
+            document.querySelectorAll('img').forEach(i => {
+                const s = i.currentSrc || i.src || '';
+                if (s.startsWith('http')) imgs.push(s);
+            });
+            const og = document.querySelector('meta[property="og:image"]')?.content;
+            if (og) imgs.unshift(og);
+            return {title: t, imgs: Array.from(new Set(imgs)).slice(0, 15)};
+        }""")
+        res.title = (data.get("title") or "")[:200]
+        res.images = [u for u in (data.get("imgs") or []) if u.startswith("http")][:12]
+        page.close()
+        browser.close()
+    except Exception as e:  # noqa: BLE001
+        res.error = f"{type(e).__name__}: {e}"
+    finally:
+        pw.stop()
+    return res

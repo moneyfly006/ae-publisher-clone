@@ -60,6 +60,25 @@ class Publisher:
                 sku["stock"] = 999
             elif stock:
                 sku["stock"] = stock
+        if getattr(self.cfg, "combo_enable", False):
+            try:
+                factor = float(getattr(self.cfg, "combo_multiplier", "2") or 2)
+            except Exception:
+                factor = 2.0
+            pref = getattr(self.cfg, "combo_prefix", "套装") or "套装"
+            base_skus = list(p.get("skus") or [])
+            combo = []
+            for sku in base_skus:
+                c = dict(sku)
+                name = str(sku.get("sku") or sku.get("name") or "")
+                c["sku"] = f"{pref}-{name}" if name else f"{pref}-{len(combo)+1}"
+                try:
+                    if sku.get("price") is not None:
+                        c["price"] = round(float(sku["price"]) * factor, 2)
+                except Exception:
+                    pass
+                combo.append(c)
+            p["skus"] = base_skus + combo
         try:
             limit = int(self.cfg.max_sku_count or 256)
             p["skus"] = (p.get("skus") or [])[:limit]
@@ -276,8 +295,17 @@ class Publisher:
         if self.cfg.white_background_sku_pic:
             skus = p.get("skus") or []
             done = 0
+            try:
+                import json as _j3
+                repl = _j3.loads(getattr(self.cfg, "sku_image_replace", "") or "{}")
+            except Exception:
+                repl = {}
             for sku in skus[:12]:
                 img = sku.get("image") or sku.get("imageUrl")
+                name = str(sku.get("sku") or "")
+                if name in repl and repl[name]:
+                    sku["image"] = repl[name]
+                    img = repl[name]
                 if not img:
                     continue
                 try:
@@ -513,6 +541,30 @@ class Publisher:
                     p = self._ai_images(p, res)
                 except Exception as ex:  # noqa: BLE001
                     res.steps.append(Step("图片AI处理", False, str(ex)[:100]))
+
+            if getattr(self.cfg, "overlay_watermark_enable", False) and (self.cfg.watermark or "").strip():
+                try:
+                    import tempfile as _tf3
+                    from pathlib import Path as _P3
+                    import requests as _rq3
+                    from .image_ops import add_watermark
+                    from .hosting import upload as _host3
+                    d3 = _P3(_tf3.mkdtemp()); n3 = 0
+                    for i, u in enumerate((p.get("images") or [])[:6]):
+                        try:
+                            raw = _rq3.get(str(u), timeout=60).content
+                            src = d3 / f"w{i}.png"; src.write_bytes(raw)
+                            out = d3 / f"wo{i}.png"
+                            add_watermark(src, self.cfg.watermark, out,
+                                          position=getattr(self.cfg, "overlay_position", "bottom-right"),
+                                          opacity=float(getattr(self.cfg, "overlay_opacity", "0.7") or 0.7))
+                            p["images"][i] = _host3(out); n3 += 1
+                        except Exception:
+                            continue
+                    if n3:
+                        res.steps.append(Step("水印叠加", True, f"{n3} 张"))
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("水印叠加", False, str(ex)[:80]))
 
             if p.get("images"):
                 try:
