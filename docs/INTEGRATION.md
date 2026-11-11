@@ -16,6 +16,8 @@
 | 会员信息 | GET | `/api/getVipActiveTime.json` | 200 |
 | 相册分类 | GET | `/api/album/index.json` | 200 `data.categoryTree[]` |
 | 产品列表 | GET | `/api/smtProduct/list.json?page=1&pageSize=N` | 200 `data.page.list[]` |
+| **产品保存** | POST | `/api/smtProduct/add.json` | 实测（form-data，编辑器「保存」触发） |
+| 品牌历史 | POST | `/api/smtProduct/addProductBrandHistory.json` | 实测 |
 
 产品字段：`id`、`productId`、`subject`（标题）、`imageURLs`（图片）、`productPrice`、`productStatusType`、`categoryId`。
 
@@ -38,6 +40,6 @@ products: 100
 
 | 功能 | 候选 | 状态 |
 |---|---|---|
-| 产品保存 | - | 未找到（需从编辑页抓包） |
+| 产品保存 | `/api/smtProduct/add.json` | ✅ 已实测 |
 | 上传签名参数 | `/api/cos/getSign.json` | 路径对，参数缺 |
 | 上传回调 | `/api/cos_dxm_call_back.json` | 未验证 |

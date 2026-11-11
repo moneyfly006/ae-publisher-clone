@@ -24,7 +24,7 @@ ENDPOINTS = {
     "upload_sign": "/api/cos/getSign.json",
     "upload_callback": "/api/cos_dxm_call_back.json",
     "video_callback": "/api/smtmedia/callback.json",
-    "product_save": "",
+    "product_save": "/api/smtProduct/add.json",   # 实测：编辑器保存
     "product_detail": "",
     "category": "",
 }
