@@ -860,6 +860,48 @@ class App:
                                       ft.ElevatedButton("开始采集", bgcolor=ACCENT, color="white", on_click=run)])
         self.page.dialog = dlg; dlg.open = True; self.page.update()
 
+    def _sku_replace_dialog(self):
+        import json as _j
+        try:
+            mapping = _j.loads(self.cfg.sku_image_replace or "{}")
+        except Exception:
+            mapping = {}
+        if not isinstance(mapping, dict):
+            mapping = {}
+        rows = ft.Column(spacing=4, height=300, scroll=ft.ScrollMode.AUTO)
+        state = {"map": dict(mapping)}
+
+        def add(sku="", url=""):
+            a = ft.TextField(value=sku, hint_text="SKU 名", width=180, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            b = ft.TextField(value=url, hint_text="新图片 URL", expand=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            rows.controls.append(ft.Row([a, b], spacing=8))
+            self.page.update()
+            return a, b
+
+        pairs = [add(k, v) for k, v in mapping.items()]
+
+        def save(e):
+            out = {}
+            for a, b in pairs:
+                if (a.value or "").strip():
+                    out[a.value.strip()] = (b.value or "").strip()
+            self.cfg.sku_image_replace = _j.dumps(out, ensure_ascii=False)
+            save_config(self.cfg)
+            self.toast(f"已保存 {len(out)} 条 SKU 图替换")
+            dlg.open = False
+            self.page.update()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("SKU 图批量替换"),
+            content=ft.Column([ft.Text("SKU 名 → 新图片 URL，保存后发布时生效", size=11, color=MUTED),
+                               rows,
+                               ft.ElevatedButton("新增一行", icon=ft.Icons.ADD,
+                                                 on_click=lambda e: add())], spacing=8, width=620),
+            actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
+                     ft.ElevatedButton("保存", bgcolor=ACCENT, color="white", on_click=save)],
+        )
+        self.page.dialog = dlg; dlg.open = True; self.page.update()
+
     def _paste_cookie(self):
         field = ft.TextField(label="Cookie", multiline=True, min_lines=4, bgcolor=CARD_2,
                              border_color=CARD_2, color=TEXT,

@@ -62,3 +62,34 @@ def probe(ffmpeg: str | None = None) -> dict:
     except Exception:
         out = ""
     return {"available": True, "path": exe, "version": out}
+
+
+def run_ffmpeg(cmd: list[str]) -> None:
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg 失败：{proc.stderr[-400:]}")
+
+
+def clip_video(src: Path, out: Path, start: float = 0.0, duration: float | None = None) -> Path:
+    """剪辑视频：截取 start 起、duration 长的片段。"""
+    info = probe()
+    if not info["available"]:
+        raise RuntimeError("未找到 ffmpeg")
+    cmd = [info["path"], "-y", "-ss", str(start)]
+    if duration is not None:
+        cmd += ["-t", str(duration)]
+    cmd += ["-i", str(src), "-c", "copy", str(out)]
+    run_ffmpeg(cmd)
+    return out
+
+
+def extract_frames(src: Path, out_dir: Path, fps: float = 1.0) -> list[Path]:
+    """从视频按帧率提取帧图片，供 AI 处理。"""
+    info = probe()
+    if not info["available"]:
+        raise RuntimeError("未找到 ffmpeg")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pat = out_dir / "frame_%03d.png"
+    cmd = [info["path"], "-y", "-i", str(src), "-vf", f"fps={fps}", str(pat)]
+    run_ffmpeg(cmd)
+    return sorted(out_dir.glob("frame_*.png"))
