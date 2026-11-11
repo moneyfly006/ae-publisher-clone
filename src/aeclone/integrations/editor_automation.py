@@ -87,19 +87,29 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
 
         if not try_click():
             raise RuntimeError("未找到保存/更新按钮")
-        page.wait_for_timeout(12000)
+        page.wait_for_timeout(4000)
+        # 处理确认弹窗（欧盟合规 / 发布确认等）
+        for txt in ("继续发布", "确定", "确认", "继续", "知道了"):
+            try:
+                btn = page.get_by_role("button", name=txt, exact=True).first
+                if btn.count() > 0:
+                    btn.click(timeout=3000)
+                    page.wait_for_timeout(2500)
+                    break
+            except Exception:
+                continue
+        page.wait_for_timeout(9000)
 
-        # 未捕获到保存请求时：关闭可能出现的弹窗后重试一次
         if not seen.get("save"):
-            for txt in ("确定", "确认", "知道了"):
-                try:
-                    btn = page.get_by_role("button", name=txt, exact=True).first
-                    if btn.count() > 0:
-                        btn.click(timeout=3000); page.wait_for_timeout(1000)
-                except Exception:
-                    pass
             if try_click():
-                page.wait_for_timeout(6000)
+                page.wait_for_timeout(3000)
+                for txt in ("继续发布", "确定", "确认"):
+                    try:
+                        btn = page.get_by_role("button", name=txt, exact=True).first
+                        if btn.count() > 0:
+                            btn.click(timeout=3000); page.wait_for_timeout(6000); break
+                    except Exception:
+                        continue
 
         text = ""
         try:

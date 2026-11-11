@@ -30,6 +30,22 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
+def find_chrome() -> str | None:
+    cands = [
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+    ]
+    for c in cands:
+        if Path(c).exists():
+            return c
+    for name in ("google-chrome", "chrome", "chromium"):
+        p = shutil.which(name)
+        if p:
+            return p
+    return None
+
+
 def find_edge() -> str | None:
     cands = [
         r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
@@ -47,13 +63,30 @@ def find_edge() -> str | None:
     return None
 
 
+def launch_browser(kind: str = "chrome", user_data_dir: str | None = None,
+                   port: int | None = None, headless: bool = False,
+                   url: str | None = None) -> dict:
+    """启动 Chrome/Edge 并返回 CDP 端点（默认 Chrome）。"""
+    exe = find_chrome() if kind == "chrome" else find_edge()
+    if not exe and kind == "chrome":
+        exe = find_edge()
+    if not exe:
+        raise BrowserError("未找到 Chrome/Edge")
+    return _launch_exe(exe, user_data_dir, port, headless, url)
+
+
 def launch_edge(user_data_dir: str | None = None, port: int | None = None, headless: bool = False) -> dict:
     """启动独立 Edge 并返回 CDP 端点。"""
     exe = find_edge()
     if not exe:
         raise BrowserError("未找到 Edge/Chrome，可执行文件不存在")
+    return _launch_exe(exe, user_data_dir, port, headless, None)
+
+
+def _launch_exe(exe: str, user_data_dir: str | None = None, port: int | None = None,
+                headless: bool = False, url: str | None = None) -> dict:
     port = port or _free_port()
-    profile = user_data_dir or str(Path(tempfile.gettempdir()) / "aurora-edge-profile")
+    profile = user_data_dir or str(Path(tempfile.gettempdir()) / "aurora-chrome-profile")
     args = [
         exe,
         f"--remote-debugging-port={port}",

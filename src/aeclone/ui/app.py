@@ -14,7 +14,7 @@ from ..license import verify as verify_license
 from ..services import BatchRunner, ImageService, TextService
 from ..services.pricing import calc_multiplier, calc_free_shipping
 from ..services.variants import auto_map, parse_mapping_json
-from ..integrations.cdp import launch_edge, cookies_via_cdp, open_url_via_cdp, BrowserError
+from ..integrations.cdp import launch_edge, launch_browser, cookies_via_cdp, open_url_via_cdp, BrowserError
 from ..integrations.bitbrowser import BitBrowser
 from ..integrations.zhanfu import ZhanfuBrowser
 from ..services.publisher import Publisher, demo_product
@@ -31,7 +31,7 @@ ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
 TEXT, MUTED = "#E8EAF2", "#8B92A8"
 
-BROWSERS = ["本机Edge", "比特浏览器", "站斧浏览器"]
+BROWSERS = ["本机Chrome", "本机Edge", "比特浏览器", "站斧浏览器"]
 CURRENCIES = ["USD", "EUR", "GBP", "CNY", "RUB", "BRL"]
 
 
@@ -384,7 +384,7 @@ class App:
         self.page.update()
 
     def _wz_open(self, e):
-        self.wz_status.value = "正在启动浏览器…"
+        self.wz_status.value = "正在启动 Chrome…"
         self.cfg.browser_type = self.wz_browser.value
         save_config(self.cfg)
         self.page.update()
@@ -392,14 +392,42 @@ class App:
         def go():
             try:
                 self._connect_browser()
-                if self.ws_endpoint:
-                    try:
-                        open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/smt/smtProductList/offline")
-                    except Exception:
-                        pass
-                    self.wz_status.value = "浏览器已打开。请在浏览器里手动登录店小秘，登录后点「读取店铺信息」"
-                else:
+                if not self.ws_endpoint:
                     self.wz_status.value = "浏览器已启动，但未拿到调试端点"
+                    self.page.update(); return
+                try:
+                    open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/smt/smtProductList/offline")
+                except Exception:
+                    pass
+                self.wz_status.value = "请在浏览器里登录店小秘，登录后会自动检测并同步…"
+                self.page.update()
+                # 自动等待登录（最多 5 分钟）
+                for _ in range(100):
+                    time.sleep(3)
+                    try:
+                        ck = self._cookies()
+                    except Exception:
+                        continue
+                    if not ck:
+                        continue
+                    try:
+                        c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+                        shops = c.shops()
+                        if not shops:
+                            continue
+                        prods = c.drafts(limit=50) if self.wz_source.value == "draft" else c.online(limit=50)
+                        self.wz_store.options = [ft.dropdown.Option(str(x["id"]), x["name"]) for x in shops]
+                        self.wz_store.value = str(shops[0]["id"])
+                        self.cfg.store_id, self.cfg.store_name = str(shops[0]["id"]), shops[0]["name"]
+                        self.wz_tpl.options = [ft.dropdown.Option(str(x["id"]), (x.get("title") or x["id"])[:44]) for x in prods]
+                        if prods:
+                            self.wz_tpl.value = str(prods[0]["id"])
+                        self.wz_status.value = f"已检测到登录：{len(shops)} 个店铺 / {len(prods)} 个模板候选，点「完成」即可"
+                        self.page.update()
+                        return
+                    except Exception:
+                        continue
+                self.wz_status.value = "等待登录超时，请点「读取店铺信息」重试"
             except Exception as ex:
                 self.wz_status.value = f"启动失败：{ex}"
             self.page.update()
@@ -751,8 +779,11 @@ class App:
                 port = int(self.cfg.zhanfu_port or 9222)
                 self.ws_endpoint = zf.ws_endpoint(port)
                 self.store_status.value = f"站斧浏览器已连接 · 端口 {port}"
-            else:
+            elif kind == "本机Edge":
                 info = launch_edge()
+                self.ws_endpoint = info["ws"]
+            else:
+                info = launch_browser("chrome", url="https://www.dianxiaomi.com/web/smt/smtProductList/offline")
                 self.ws_endpoint = info["ws"]
                 self.store_status.value = f"Edge 已启动 · 端口 {info['port']} · {info['browser']}"
             self.store_status.color = ACCENT_2

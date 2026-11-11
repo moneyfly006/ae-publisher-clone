@@ -16,7 +16,7 @@ DEFAULTS: dict = {
     "concurrency": 3,
     "timeout": 180,
     # ---- 店铺 / 浏览器 / 模板 ----
-    "browser_type": "本机Edge",
+    "browser_type": "本机Chrome",
     "bit_browser_id": "",
     "bit_browser_name": "",
     "zhanfu_port": "9222",
