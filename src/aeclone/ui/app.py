@@ -780,7 +780,8 @@ class App:
             h1("3 · 选择模板", 15),
             muted("后续产品沿用模板的类目、运费模板、属性、重量尺寸；标题/SKU/图片仍按新生成"),
             ft.Row([self.tpl_source_dd,
-                    ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick)], spacing=10),
+                    ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick),
+                    ft.OutlinedButton("模板库", icon=ft.Icons.LIBRARY_BOOKS, on_click=lambda e: self._template_library_dialog())], spacing=10),
             self.tpl_preview_box,
             ft.Row([ft.ElevatedButton("读取模板参数", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=CARD_2, color=TEXT,
                                       on_click=lambda e: threading.Thread(target=self._read_template, daemon=True).start()),
@@ -858,6 +859,92 @@ class App:
                                       ft.TextButton("加入队列", on_click=to_queue),
                                       ft.ElevatedButton("开始采集", bgcolor=ACCENT, color="white", on_click=run)])
         self.page.dialog = dlg; dlg.open = True; self.page.update()
+
+    def _template_library_dialog(self):
+        import json as _j
+        try:
+            lib = _j.loads(self.cfg.template_library or "{}")
+        except Exception:
+            lib = {}
+        if not isinstance(lib, dict):
+            lib = {}
+        list_col = ft.Column(spacing=4, height=280, scroll=ft.ScrollMode.AUTO)
+
+        def persist():
+            self.cfg.template_library = _j.dumps(lib, ensure_ascii=False)
+            save_config(self.cfg)
+            render()
+
+        def apply_item(name, item):
+            self.cfg.template_snapshot = _j.dumps({"fields": item.get("fields") or {},
+                                                   "attributes": item.get("attributes") or []},
+                                                  ensure_ascii=False)
+            self.cfg.template_product_title = name
+            self.cfg.template_product_id = item.get("product_id") or ""
+            save_config(self.cfg)
+            self._set_tpl_preview(None)
+            f = (item.get("fields") or {})
+            self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
+                                            f" · 属性 {len(item.get('attributes') or [])} 项")
+            self.toast(f"已应用模板：{name}")
+            dlg.open = False
+            self.page.update()
+
+        def rename_item(name, item):
+            field = ft.TextField(label="新名称", value=name, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+            def do(e):
+                nn = (field.value or "").strip()
+                if nn and nn != name:
+                    lib[nn] = lib.pop(name, item)
+                    persist()
+                    self.toast(f"已重命名为 {nn}")
+                d2.open = False
+                self.page.update()
+
+            d2 = ft.AlertDialog(title=ft.Text("重命名模板"), content=field,
+                                actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(d2)),
+                                         ft.ElevatedButton("确定", on_click=do)])
+            self.page.dialog = d2; d2.open = True; self.page.update()
+
+        def delete_item(name):
+            lib.pop(name, None)
+            persist()
+            self.toast(f"已删除 {name}")
+
+        def render():
+            rows = []
+            for name, item in lib.items():
+                rows.append(ft.Row([
+                    ft.Text(name[:28], size=12, color=TEXT, expand=True),
+                    ft.TextButton("应用", on_click=lambda e, n=name, i=item: apply_item(n, i)),
+                    ft.TextButton("重命名", on_click=lambda e, n=name, i=item: rename_item(n, i)),
+                    ft.TextButton("删除", on_click=lambda e, n=name: delete_item(n)),
+                ], spacing=6))
+            list_col.controls = rows or [ft.Text("模板库为空，先点「保存当前模板」", size=12, color=MUTED)]
+            self.page.update()
+
+        def save_current(e):
+            try:
+                snap = _j.loads(self.cfg.template_snapshot or "{}")
+            except Exception:
+                snap = {}
+            if not snap.get("fields"):
+                self.toast("当前没有可保存的模板参数，请先读取模板", False); return
+            name = (self.cfg.template_product_title or "未命名模板")[:40]
+            lib[name] = {"fields": snap.get("fields"), "attributes": snap.get("attributes"),
+                         "product_id": self.cfg.template_product_id}
+            persist()
+            self.toast(f"已保存模板：{name}")
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("模板库"),
+            content=ft.Column([ft.ElevatedButton("保存当前模板", icon=ft.Icons.SAVE, on_click=save_current),
+                               ft.Divider(color=CARD_2), list_col], spacing=8, width=560),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+        )
+        self.page.dialog = dlg; dlg.open = True
+        render()
 
     def _sku_replace_dialog(self):
         import json as _j

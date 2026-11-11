@@ -64,6 +64,7 @@ DEFAULTS: dict = {
     "template_product_id": "",
     "template_product_title": "",
     "template_snapshot": "",
+    "template_library": "{}",
     "apply_template_on_save": True,
     # AI 主图生成 / 指定图片编辑
     "main_image_generate_enable": False,

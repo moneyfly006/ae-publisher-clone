@@ -464,6 +464,16 @@ class Publisher:
                 p["specs"] = specs
                 res.steps.append(Step("规格属性", True, ", ".join(f"{k}={v}" for k, v in specs.items())[:80]))
 
+            try:
+                from .image_task_plan import build_plan
+                plan = build_plan(self.cfg, p)
+                if plan.steps:
+                    res.steps.append(Step("图片计划", not plan.blockers, "；".join(plan.steps[:4])))
+                if plan.blockers:
+                    res.steps.append(Step("计划阻断", False, "；".join(plan.blockers[:3])))
+            except Exception:
+                pass
+
             p = self._apply_template(p, res)
             p = self._map_variants(p)
             res.steps.append(Step("变种映射", True, f"{len(p.get('attr_mapping') or {})} 项映射"
