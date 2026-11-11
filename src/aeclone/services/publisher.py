@@ -53,6 +53,30 @@ class Publisher:
         p["images"] = p.get("images") or []
         return p
 
+    def _apply_template(self, p: dict, res) -> dict:
+        """套用模板快照：类目/运费/属性（属性缺失时用模板的）。"""
+        import json as _j
+        try:
+            snap = _j.loads(getattr(self.cfg, "template_snapshot", "") or "{}")
+        except Exception:
+            snap = {}
+        fields = snap.get("fields") or {}
+        if not fields:
+            res.steps.append(Step("模板参数", True, "未设置模板，跳过"))
+            return p
+        p["template_fields"] = fields
+        p["template_attributes"] = snap.get("attributes") or []
+        if not p.get("attributes_map"):
+            amap = {}
+            for a in p["template_attributes"]:
+                if "=" in a:
+                    k, v = a.split("=", 1)
+                    amap[k.strip()] = v.strip()
+            p["attributes_map"] = amap
+        res.steps.append(Step("模板参数", True,
+                              f"类目 {fields.get('category','-')} / 运费 {fields.get('freight','-')} / 属性 {len(p['template_attributes'])} 项"))
+        return p
+
     def _map_variants(self, p: dict) -> dict:
         attrs = [a.get("name", "") for a in (p.get("attributes") or []) if isinstance(a, dict)]
         target = [a.get("name", "") for a in (p.get("target_attributes") or [])]
@@ -170,6 +194,7 @@ class Publisher:
             res.steps.append(Step("标准化", True,
                                   f"{len(p['skus'])} 个 SKU / {len(p['images'])} 张图（上限 {self.cfg.max_sku_count}）"))
 
+            p = self._apply_template(p, res)
             p = self._map_variants(p)
             res.steps.append(Step("变种映射", True, f"{len(p.get('attr_mapping') or {})} 项映射"
                                                     + (f"，{len(p['sku_issues'])} 个问题" if p.get("sku_issues") else "")))

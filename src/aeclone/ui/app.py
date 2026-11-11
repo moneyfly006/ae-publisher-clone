@@ -631,6 +631,7 @@ class App:
         self.ws_endpoint = ""
         self.products: list[dict] = []
 
+        self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
         self.shop_dd = ft.Dropdown(label="店铺", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                    options=[], value=None)
         self.tpl_dd = ft.Dropdown(label="模板产品", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
@@ -680,6 +681,9 @@ class App:
                     ft.ElevatedButton("⑦ 真实保存(测试)", icon=ft.Icons.SAVE_AS, bgcolor="#F0A020", color="#1A1200", on_click=lambda e: threading.Thread(target=self._real_save, daemon=True).start()),
                     ft.ElevatedButton("⑥ 图片空间", icon=ft.Icons.PHOTO_LIBRARY, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._show_albums, daemon=True).start())], spacing=10),
             ft.Row([self.shop_dd, self.tpl_dd], spacing=12),
+            ft.Row([ft.ElevatedButton("读取模板参数", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE,
+                                      bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._read_template, daemon=True).start()),
+                    self.tpl_snapshot_text], spacing=10),
             self.store_status], spacing=10))
         self.shop_dd.on_change = on_shop
         self.tpl_dd.on_change = on_tpl
@@ -687,6 +691,27 @@ class App:
         return [view[0], bar] + view[1:]
 
     # ---------- 对接动作 ----------
+    def _read_template(self):
+        pid = self.tpl_dd.value or self.cfg.template_product_id
+        if not pid:
+            self.toast("请先选择模板产品", False); return
+        self.tpl_snapshot_text.value = "正在读取模板参数…"
+        self.page.update()
+        try:
+            from ..integrations.template_reader import read_snapshot
+            snap = read_snapshot(self.ws_endpoint, str(pid))
+            self.cfg.template_product_id = str(pid)
+            self.cfg.template_product_title = snap.title
+            self.cfg.template_snapshot = snap.to_json()
+            save_config(self.cfg)
+            f = snap.fields
+            self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
+                                            f" · 属性 {len(snap.attributes)} 项 · 重量 {f.get('weight','-')}")
+            self._log(f"模板参数已读取：{pid}")
+        except Exception as ex:
+            self.tpl_snapshot_text.value = f"读取失败：{ex}"
+        self.page.update()
+
     def _sync_shops(self):
         try:
             ck = self._cookies()
