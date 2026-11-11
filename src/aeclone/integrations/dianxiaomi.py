@@ -32,8 +32,12 @@ class DianxiaomiError(RuntimeError):
 
 
 class DianxiaomiClient:
-    def __init__(self, cookies: dict[str, str], base: str = BASE, timeout: int = 20):
+    def __init__(self, cookies: dict[str, str], base: str = BASE, timeout: int = 20,
+                 overrides: dict | None = None):
         self.base = base.rstrip("/")
+        self.endpoints = dict(ENDPOINTS)
+        if overrides:
+            self.endpoints.update({k: v for k, v in overrides.items() if v})
         self.timeout = timeout
         self.session = requests.Session()
         self.session.cookies.update(cookies)
@@ -46,7 +50,7 @@ class DianxiaomiClient:
 
     # ---------- 基础 ----------
     def _url(self, key: str) -> str:
-        return self.base + ENDPOINTS[key]
+        return self.base + self.endpoints.get(key, ENDPOINTS.get(key, "/"))
 
     def _get(self, key: str, params: dict | None = None) -> Any:
         r = self.session.get(self._url(key), params=params, timeout=self.timeout)
@@ -126,5 +130,6 @@ class DianxiaomiClient:
         return dict(self.session.cookies)
 
 
-def from_browser_cookies(cookies: dict[str, str]) -> DianxiaomiClient:
-    return DianxiaomiClient({k: v for k, v in cookies.items() if k in ("dxm_i", "dxm_t")} or cookies)
+def from_browser_cookies(cookies: dict[str, str], overrides: dict | None = None) -> DianxiaomiClient:
+    return DianxiaomiClient({k: v for k, v in cookies.items() if k in ("dxm_i", "dxm_t")} or cookies,
+                            overrides=overrides)

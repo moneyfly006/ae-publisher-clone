@@ -18,7 +18,7 @@ from ..integrations.cdp import launch_edge, cookies_via_cdp, BrowserError
 from ..integrations.bitbrowser import BitBrowser
 from ..integrations.zhanfu import ZhanfuBrowser
 from ..services.publisher import Publisher, demo_product
-from ..integrations.dianxiaomi import DianxiaomiClient
+from ..integrations.dianxiaomi import DianxiaomiClient, ENDPOINTS
 from ..services.video import build_slideshow, probe as video_probe
 from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
@@ -528,11 +528,51 @@ class App:
                 self.price_out.value = f"计算失败：{ex}"
             self.page.update()
 
+        self.tpl_kw = ft.TextField(label="模板关键词", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.tpl_list = ft.Column(spacing=4)
+        self.tpl_status = ft.Text("", size=12, color=MUTED)
+
+        def search(e):
+            self.tpl_status.value = "搜索中…"; self.page.update()
+            threading.Thread(target=self._search_templates, daemon=True).start()
+
+        tpl_card = card(ft.Column([h1("区域调价模板", 15),
+                                   ft.Row([self.tpl_kw, ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, on_click=search)], spacing=10),
+                                   self.tpl_status, self.tpl_list], spacing=10))
+
         calc_card = card(ft.Column([h1("价格试算", 15), ft.Row([self.base_input,
                                                                  ft.ElevatedButton("计算", on_click=calc),
                                                                  self.price_out], spacing=14)], spacing=10))
         view = self._render("价格设置", schema_price())
-        return [view[0], calc_card] + view[1:]
+        return [view[0], calc_card, tpl_card] + view[1:]
+
+    def _search_templates(self):
+        try:
+            ck = self._cookies()
+            client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            data = client.search_price_templates(self.tpl_kw.value or "")
+            items = (data.get("data") or {})
+            items = items.get("list") if isinstance(items, dict) else items
+            items = items or []
+            rows = []
+            for t in items[:30]:
+                name = t.get("name") or t.get("templateName") or str(t.get("id", ""))
+                tid = str(t.get("id", ""))
+
+                def apply(e, _tid=tid, _name=name):
+                    self.cfg.adjust_price_template_id = _tid
+                    self.cfg.adjust_price_template_name = _name
+                    save_config(self.cfg)
+                    self.toast(f"已应用模板：{_name}")
+
+                rows.append(ft.ListTile(title=ft.Text(name, size=13, color=TEXT),
+                                        subtitle=ft.Text(tid, size=10, color=MUTED), on_click=apply))
+            self.tpl_list.controls = rows or [ft.Text("无结果（接口路径可能需校正）", size=12, color="#FFB020")]
+            self.tpl_status.value = f"共 {len(rows)} 个模板"
+        except Exception as ex:
+            self.tpl_status.value = f"搜索失败：{ex}"
+            self.tpl_list.controls = []
+        self.page.update()
 
     def _p_variant(self):
         self._current = 7
@@ -585,6 +625,9 @@ class App:
                                         ft.ElevatedButton("白底", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
                                         ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
                                         ft.ElevatedButton("编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
+                                        ft.OutlinedButton("暂停", on_click=lambda e: self._wb_ctl("pause")),
+                                        ft.OutlinedButton("继续", on_click=lambda e: self._wb_ctl("resume")),
+                                        ft.OutlinedButton("取消", on_click=lambda e: self._wb_ctl("cancel")),
                                         self.wb_busy], spacing=10),
                                 self.wb_status], spacing=10)),
                 card(self.wb_results)]
@@ -610,9 +653,18 @@ class App:
         self.wb_status.color = ACCENT_2 if got else "#FF6B6B"
         self.page.update()
 
+    def _wb_ctl(self, action):
+        r = getattr(self, "wb_runner", None)
+        if not r:
+            self.toast("当前没有运行中的任务", False); return
+        getattr(r, action)()
+        self._log(f"任务控制：{action}")
+        self.toast({"pause": "已暂停", "resume": "已继续", "cancel": "已取消"}[action])
+
     def _wb_process(self, kind):
         svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout))
-        runner = BatchRunner(self.cfg.concurrency)
+        runner = BatchRunner(self.cfg.concurrency, retries=1)
+        self.wb_runner = runner
         self.wb_results.controls = []
 
         def job(idx, path):
@@ -732,7 +784,60 @@ class App:
                               ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
                                                         on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
                              spacing=8))
-        return [view[0], upd, inst_card] + view[1:]
+        self.dbg_key = ft.Dropdown(label="接口", width=260, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                   options=[ft.dropdown.Option(k) for k in ENDPOINTS], value="album")
+        self.dbg_path = ft.TextField(label="路径覆盖（留空用默认）", value="", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.dbg_method = ft.Dropdown(label="方法", width=120, value="GET", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                      options=[ft.dropdown.Option("GET"), ft.dropdown.Option("POST")])
+        self.dbg_payload = ft.TextField(label="请求体 JSON（POST）", value="{}", multiline=True, min_lines=2,
+                                        bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.dbg_out = ft.TextField(label="响应", multiline=True, min_lines=4, read_only=True,
+                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+        def save_override(e):
+            ov = dict(self.cfg.endpoint_overrides or {})
+            if self.dbg_path.value.strip():
+                ov[self.dbg_key.value] = self.dbg_path.value.strip()
+            else:
+                ov.pop(self.dbg_key.value, None)
+            self.cfg.endpoint_overrides = ov
+            save_config(self.cfg)
+            self.toast("端点已保存")
+
+        def send(e):
+            self.dbg_out.value = "请求中…"; self.page.update()
+            threading.Thread(target=self._debug_call, daemon=True).start()
+
+        dbg = card(ft.Column([h1("接口调试 / 端点校正", 15),
+                              muted("登录店小秘后，用这里试真实接口并把正确路径保存下来"),
+                              ft.Row([self.dbg_key, self.dbg_method], spacing=10),
+                              self.dbg_path,
+                              self.dbg_payload,
+                              ft.Row([ft.ElevatedButton("发送", icon=ft.Icons.SEND, bgcolor=ACCENT, color="white", on_click=send),
+                                      ft.ElevatedButton("保存端点", icon=ft.Icons.SAVE, on_click=save_override)], spacing=10),
+                              self.dbg_out], spacing=10))
+        return [view[0], upd, inst_card, dbg] + view[1:]
+
+    def _debug_call(self):
+        import json as _json
+        try:
+            ck = self._cookies()
+            client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            key = self.dbg_key.value
+            if self.dbg_method.value == "POST":
+                try:
+                    payload = _json.loads(self.dbg_payload.value or "{}")
+                except Exception:
+                    payload = {}
+                resp = client._post(key, payload)
+            else:
+                resp = client._get(key)
+            self.dbg_out.value = _json.dumps(resp, ensure_ascii=False)[:2000]
+            self._log(f"调试 {key} 成功")
+        except Exception as ex:
+            self.dbg_out.value = f"失败：{ex}"
+            self._log(f"调试失败：{ex}")
+        self.page.update()
 
     def _refresh_instances(self):
         try:

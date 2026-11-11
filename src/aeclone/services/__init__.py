@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -78,10 +79,36 @@ class ImageService:
 
 
 class BatchRunner:
-    """并发执行任务，带进度回调。"""
+    """并发执行任务：支持暂停/恢复/取消、失败重试。"""
 
-    def __init__(self, concurrency: int = 3):
+    def __init__(self, concurrency: int = 3, retries: int = 1, retry_delay: float = 1.0):
         self.concurrency = max(1, concurrency)
+        self.retries = max(0, retries)
+        self.retry_delay = retry_delay
+        self._paused = threading.Event()
+        self._paused.set()
+        self._cancelled = threading.Event()
+
+    # ---- 控制 ----
+    def pause(self):
+        self._paused.clear()
+
+    def resume(self):
+        self._paused.set()
+
+    def cancel(self):
+        self._cancelled.set()
+        self._paused.set()
+
+    @property
+    def cancelled(self) -> bool:
+        return self._cancelled.is_set()
+
+    def _wait(self):
+        while not self._paused.wait(0.2):
+            if self._cancelled.is_set():
+                return
+        return
 
     def run(
         self,
@@ -93,11 +120,21 @@ class BatchRunner:
         lock = threading.Lock()
 
         def work(idx: int, item):
-            try:
-                value = fn(idx, item)
-                res = JobResult(idx, True, value)
-            except Exception as e:  # noqa: BLE001
-                res = JobResult(idx, False, "", str(e)[:300])
+            self._wait()
+            if self._cancelled.is_set():
+                return JobResult(idx, False, "", "已取消")
+            last = ""
+            for attempt in range(self.retries + 1):
+                try:
+                    value = fn(idx, item)
+                    res = JobResult(idx, True, value)
+                    break
+                except Exception as e:  # noqa: BLE001
+                    last = str(e)[:300]
+                    if attempt < self.retries:
+                        time.sleep(self.retry_delay * (attempt + 1))
+            else:
+                res = JobResult(idx, False, "", last)
             with lock:
                 results.append(res)
                 if on_done:

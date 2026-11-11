@@ -135,6 +135,7 @@ DEFAULTS: dict = {
     "market_white_bg_pic_no": "2",
     "market_scene_pic_no": "",
     "verify_mode": "local",
+    "endpoint_overrides": {},
 }
 
 
