@@ -11,6 +11,10 @@ from ..api import ApiClient
 from ..config import AppConfig, get_config, save_config
 from ..license import verify as verify_license
 from ..services import BatchRunner, ImageService, TextService
+from ..services.pricing import calc_multiplier, calc_free_shipping
+from ..services.variants import auto_map, parse_mapping_json
+from ..integrations.cdp import launch_edge, cookies_via_cdp, BrowserError
+from ..integrations.dianxiaomi import DianxiaomiClient
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
@@ -318,7 +322,105 @@ class App:
 
     def _p_store(self):
         self._current = 1
-        return self._render("店铺与模板", schema_store())
+        self.store_status = ft.Text("未连接浏览器", color=MUTED, size=12)
+        self.ws_endpoint = ""
+        self.products: list[dict] = []
+
+        def connect(e):
+            self.store_status.value = "正在启动浏览器…"; self.page.update()
+            threading.Thread(target=self._connect_browser, daemon=True).start()
+
+        def login(e):
+            threading.Thread(target=self._check_dxm_login, daemon=True).start()
+
+        def fetch(e):
+            threading.Thread(target=self._fetch_products, daemon=True).start()
+
+        def picker(e):
+            self._open_template_dialog()
+
+        bar = card(ft.Column([
+            h1("对接操作", 15),
+            ft.Row([ft.ElevatedButton("① 启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=connect),
+                    ft.ElevatedButton("② 检测店小秘登录", icon=ft.Icons.LOGIN, bgcolor=CARD_2, color=TEXT, on_click=login),
+                    ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
+                    ft.ElevatedButton("④ 选择模板", icon=ft.Icons.CHECKLIST, bgcolor=ACCENT_2, color="#04231C", on_click=picker)], spacing=10),
+            self.store_status], spacing=10))
+        view = self._render("店铺与模板", schema_store())
+        return [view[0], bar] + view[1:]
+
+    # ---------- 对接动作 ----------
+    def _connect_browser(self):
+        try:
+            info = launch_edge()
+            self.ws_endpoint = info["ws"]
+            self.store_status.value = f"浏览器已启动 · 端口 {info['port']} · {info['browser']}"
+            self.store_status.color = ACCENT_2
+        except BrowserError as e:
+            self.store_status.value = f"启动失败：{e}"; self.store_status.color = "#FF6B6B"
+        except Exception as e:
+            self.store_status.value = f"启动异常：{e}"; self.store_status.color = "#FF6B6B"
+        self.page.update()
+
+    def _cookies(self):
+        if not self.ws_endpoint:
+            raise RuntimeError("请先启动浏览器")
+        return cookies_via_cdp(self.ws_endpoint, domains=["dianxiaomi"])
+
+    def _check_dxm_login(self):
+        try:
+            ck = self._cookies()
+            if not ck:
+                self.store_status.value = "未读取到店小秘 Cookie，请先在浏览器登录店小秘"
+                self.store_status.color = "#FFB020"
+            else:
+                client = DianxiaomiClient(ck)
+                ok = client.check_login()
+                self.store_status.value = ("店小秘登录有效" if ok else "登录已失效，请在浏览器重新登录")
+                self.store_status.color = ACCENT_2 if ok else "#FF6B6B"
+        except Exception as e:
+            self.store_status.value = f"检测失败：{e}"; self.store_status.color = "#FF6B6B"
+        self.page.update()
+
+    def _fetch_products(self):
+        try:
+            client = DianxiaomiClient(self._cookies())
+            data = client.product_list(page=1, size=50)
+            items = (data.get("data") or {}).get("list") or data.get("data") or []
+            self.products = items if isinstance(items, list) else []
+            self.store_status.value = f"已拉取 {len(self.products)} 个产品"
+            self.store_status.color = ACCENT_2
+        except Exception as e:
+            self.store_status.value = f"拉取失败：{e}"; self.store_status.color = "#FF6B6B"
+        self.page.update()
+
+    def _open_template_dialog(self):
+        rows = []
+        for p in self.products[:50]:
+            title = p.get("title") or p.get("name") or p.get("productTitle") or str(p.get("id", ""))
+
+            def choose(e, prod=p):
+                self.cfg.product_template_id = str(prod.get("id", ""))
+                self.cfg.product_template_name = title
+                self.cfg.product_id_title = title
+                save_config(self.cfg)
+                self.dlg.open = False
+                self.page.update()
+                self._switch(1)
+                self.toast("模板已设置")
+
+            rows.append(ft.ListTile(title=ft.Text(title[:60], color=TEXT, size=13), on_click=choose))
+        if not rows:
+            rows = [ft.ListTile(title=ft.Text("暂无产品，请先点击「拉取产品」", color=MUTED, size=13))]
+        self.dlg = ft.AlertDialog(title=ft.Text("选择模板产品"), content=ft.Column(rows, scroll=ft.ScrollMode.AUTO, height=420),
+                                  actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())])
+        self.page.dialog = self.dlg
+        self.dlg.open = True
+        self.page.update()
+
+    def _close_dialog(self):
+        self.dlg.open = False
+        self.page.update()
 
     def _p_advanced(self):
         self._current = 2
@@ -362,11 +464,51 @@ class App:
 
     def _p_price(self):
         self._current = 6
-        return self._render("价格设置", schema_price())
+        self.base_input = ft.TextField(label="原始价格（试算）", value="100", width=180,
+                                       bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.price_out = ft.Text("—", color=ACCENT_2, size=16, weight=ft.FontWeight.BOLD)
+
+        def calc(e):
+            try:
+                base = float(self.base_input.value or 0)
+                mult = float(self.cfg.price_multiplier or 1.2)
+                add = float(self.cfg.price_fixed_add or 0)
+                if self.cfg.price_mode == "free_shipping":
+                    r = calc_free_shipping(base, float(self.cfg.default_express_price or 0),
+                                           float(self.cfg.sales_profit or 0) / 100)
+                else:
+                    r = calc_multiplier(base, mult, add)
+                self.price_out.value = f"¥{r.final}（{r.note}）"
+            except Exception as ex:
+                self.price_out.value = f"计算失败：{ex}"
+            self.page.update()
+
+        calc_card = card(ft.Column([h1("价格试算", 15), ft.Row([self.base_input,
+                                                                 ft.ElevatedButton("计算", on_click=calc),
+                                                                 self.price_out], spacing=14)], spacing=10))
+        view = self._render("价格设置", schema_price())
+        return [view[0], calc_card] + view[1:]
 
     def _p_variant(self):
         self._current = 7
-        return self._render("变种设置", schema_variant())
+        self.src_attrs = ft.TextField(label="源属性（逗号分隔）", value="Model Number, Power (W)",
+                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.tgt_attrs = ft.TextField(label="目标属性（逗号分隔）", value="型号, 功率",
+                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.map_out = ft.Column(spacing=4)
+
+        def preview(e):
+            src = [x.strip() for x in (self.src_attrs.value or "").split(",") if x.strip()]
+            tgt = [x.strip() for x in (self.tgt_attrs.value or "").split(",") if x.strip()]
+            mapping = auto_map(src, tgt)
+            self.map_out.controls = [ft.Text(f"{k}  →  {v}", size=12, color=MUTED) for k, v in mapping.items()] or \
+                                    [ft.Text("无匹配结果", size=12, color="#FFB020")]
+            self.page.update()
+
+        card_map = card(ft.Column([h1("自动映射预览", 15), self.src_attrs, self.tgt_attrs,
+                                   ft.ElevatedButton("生成映射", on_click=preview), self.map_out], spacing=10))
+        view = self._render("变种设置", schema_variant())
+        return [view[0], card_map] + view[1:]
 
     def _p_settings(self):
         self._current = 8

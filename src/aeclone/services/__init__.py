@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
 
-from .api import ApiClient, ApiError
-from .config import AppConfig
+from ..api import ApiClient, ApiError
+from ..config import AppConfig
 
 TEXT_MODEL = "qwen-plus"
 IMAGE_MODEL = "qwen-image-2.1-turbo"
