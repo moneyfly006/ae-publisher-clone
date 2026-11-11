@@ -1,0 +1,50 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Syntax check
+        run: python -m compileall -q src main.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller --noconfirm --clean app.spec
+
+      - name: Package portable zip
+        run: Compress-Archive -Path dist/AEPublisher/* -DestinationPath dist/AEPublisher-windows.zip -Force
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AEPublisher-windows
+          path: dist/AEPublisher-windows.zip
+
+      - name: Attach to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/AEPublisher-windows.zip
+          generate_release_notes: true
