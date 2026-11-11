@@ -273,8 +273,7 @@ class App:
             ("", [("概览", ft.Icons.DASHBOARD_OUTLINED, 0)]),
             ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("高级设置", ft.Icons.TUNE, 2)]),
             ("AI 设置", [("AI 智能填写", ft.Icons.AUTO_FIX_HIGH, 3), ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4)]),
-            ("图片处理", [("图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("AI 处理", ft.Icons.AUTO_AWESOME, 9),
-                        ("图片工作台", ft.Icons.GRID_VIEW, 10)]),
+            ("图片处理", [("图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 10)]),
             ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
             ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 11)]),
         ]
@@ -435,24 +434,33 @@ class App:
         try:
             ck = self._cookies()
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            prods = dxm.product_list(page=1, size=50)
+            all_prods = dxm.product_list(page=1, size=100)
+            blocked = [p for p in all_prods if (p.get("status_type") or "") in ("auditing", "onSelling")]
+            self._log(f"共 {len(all_prods)} 个产品，跳过审核中/已发布 {len(blocked)} 个", "INFO")
+            limit = int(self.cfg.edit_sum or 0) or 0
+            prods = dxm.pending_products(limit=limit)
             self.products = prods
-            self._log(f"已拉取 {len(prods)} 个产品")
-            target = None
-            if self.cfg.product_template_id:
-                target = next((p for p in prods if p["id"] == str(self.cfg.product_template_id)), None)
-            target = target or (prods[0] if prods else None)
-            if not target:
-                self._log("没有可处理的产品"); return
+            if not prods:
+                self._log("没有可编辑（待发布）的产品", "WARN"); return
+            self._log(f"本次待处理 {len(prods)} 个产品", "INFO")
             pub = Publisher(self.cfg, dxm=dxm, ws_endpoint=self.ws_endpoint)
-            self._log(f"处理产品：{target['id']}")
-            res = pub.run(target, dry_run=True)
-            for line in res.log().splitlines():
-                self._log(line)
-            self._log("完成" if res.ok else f"失败：{res.error}")
-            history.record("pipeline", 1 if res.ok else 0, 0 if res.ok else 1)
+            ok_n = fail_n = 0
+            for i, prod in enumerate(prods, 1):
+                self._log(f"[{i}/{len(prods)}] {prod['id']} {(prod.get('title') or '')[:40]}", "INFO")
+                try:
+                    res = pub.run(prod, dry_run=not self.cfg.auto_save_products)
+                    for line in res.log().splitlines():
+                        self._log("   " + line, "INFO" if "✓" in line else "WARN")
+                    ok_n += 1 if res.ok else 0
+                    fail_n += 0 if res.ok else 1
+                    if self.cfg.auto_save_products and res.ok:
+                        history.record("publish", 1, 0, prod["id"])
+                except Exception as ex:  # noqa: BLE001
+                    fail_n += 1
+                    self._log(f"   失败：{ex}", "ERROR")
+            self._log(f"完成：成功 {ok_n} / 失败 {fail_n}", "INFO")
         except Exception as ex:
-            self._log(f"运行异常：{ex}")
+            self._log(f"运行异常：{ex}", "ERROR")
 
     def _self_test(self):
         from ..services.text_pipeline import TextPipeline
@@ -778,11 +786,21 @@ class App:
 
     def _p_advanced(self):
         self._current = 2
-        return self._render("高级设置", schema_advanced())
+        # 去重：其他页面已有的字段不在高级设置重复出现
+        others = set()
+        for fn in (schema_store, schema_ai, schema_review, schema_image, schema_price, schema_variant):
+            for _sec, fields in fn():
+                others.update(f.key for f in fields)
+        deduped = []
+        for sec_name, fields in schema_advanced():
+            kept = [f for f in fields if f.key not in others]
+            if kept:
+                deduped.append((sec_name, kept))
+        return self._render("高级设置", deduped)
 
     def _p_ai(self):
         self._current = 3
-        return self._render("AI 智能填写", schema_ai())
+        return self._render("AI 智能填写", schema_ai()) + [self._text_bench()]
 
     def _p_review(self):
         self._current = 4
@@ -936,45 +954,67 @@ class App:
         view = self._render("变种设置", schema_variant())
         return [view[0], card_map, editor] + view[1:]
 
-    def _p_ai_work(self):
-        self._current = 10
+    def _text_bench(self):
         self.aw_title = ft.TextField(label="中文标题", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                      value="3 吨迷你蜘蛛吊车 20 米臂长 无线遥控")
         self.aw_skus = ft.TextField(label="SKU 名称（每行一个）", multiline=True, min_lines=3,
                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                     value="手机壳适用于iPhone 15 Pro Max\n红色-2024新款")
-        self.aw_img = ft.TextField(label="图片 URL", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.aw_out = ft.TextField(label="结果", multiline=True, min_lines=10, read_only=True,
+        self.aw_out = ft.TextField(label="结果", multiline=True, min_lines=8, read_only=True,
                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.aw_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
+        return card(ft.Column([h1("文本测试台", 15),
+                               muted("填写中文标题/SKU，直接看 AI 输出（消耗你的额度）"),
+                               self.aw_title, self.aw_skus,
+                               ft.Row([ft.ElevatedButton("生成标题", on_click=lambda e: self._run_bench("title")),
+                                       ft.ElevatedButton("生成描述", on_click=lambda e: self._run_bench("detail")),
+                                       ft.ElevatedButton("优化 SKU", on_click=lambda e: self._run_bench("sku")),
+                                       ft.ElevatedButton("估重", on_click=lambda e: self._run_bench("weight")),
+                                       self.aw_busy], spacing=10),
+                               self.aw_out], spacing=12))
 
-        def run(kind):
-            self.aw_busy.visible = True; self.page.update()
-            threading.Thread(target=self._ai_run, args=(kind,), daemon=True).start()
+    def _image_bench(self):
+        self.aw_img = ft.TextField(label="图片 URL", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.img_out = ft.TextField(label="处理结果", multiline=True, min_lines=6, read_only=True,
+                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        return card(ft.Column([h1("图片测试台", 15),
+                               muted("贴一张图片 URL，按当前开关跑流水线或审查"),
+                               self.aw_img,
+                               ft.Row([ft.ElevatedButton("跑流水线", on_click=lambda e: self._run_bench("image")),
+                                       ft.ElevatedButton("图片审查", on_click=lambda e: self._run_bench("review")),
+                                       ft.ElevatedButton("读图估重", on_click=lambda e: self._run_bench("weight"))], spacing=10),
+                               self.img_out], spacing=12))
 
-        return [h1("AI 处理"), muted("标题 / 描述 / SKU / 图片流水线 / 估重（走你的 API 站点）"),
-                card(ft.Column([self.aw_title, self.aw_skus, self.aw_img,
-                                ft.Row([ft.ElevatedButton("生成标题", on_click=lambda e: run("title")),
-                                        ft.ElevatedButton("生成描述", on_click=lambda e: run("detail")),
-                                        ft.ElevatedButton("优化 SKU", on_click=lambda e: run("sku")),
-                                        ft.ElevatedButton("图片流水线", on_click=lambda e: run("image")),
-                                        ft.ElevatedButton("估重", on_click=lambda e: run("weight")),
-                                        self.aw_busy], spacing=10),
-                                self.aw_out], spacing=12))]
+    def _run_bench(self, kind):
+        self.aw_busy.visible = True
+        try:
+            self.page.update()
+        except Exception:
+            pass
+        threading.Thread(target=self._ai_run, args=(kind,), daemon=True).start()
 
     def _ai_run(self, kind):
         try:
             if not self.cfg.api_key:
-                self.aw_out.value = "请先在设置里填写 API Key"; return
+                self.aw_out.value = "请先在设置里填写 API Key"
+                self.img_out.value = "请先在设置里填写 API Key"
+                return
             if kind == "image":
                 pipe = ImagePipeline(self.cfg)
                 res = pipe.run(self.aw_img.value.strip())
                 lines = [f"{'✓' if s.ok else '✗'} {s.name}: {s.url or s.error}" for s in res.steps]
-                self.aw_out.value = "\n".join(lines)
+                self.img_out.value = "\n".join(lines)
+                return
+            if kind == "review":
+                pipe = ImagePipeline(self.cfg)
+                self.img_out.value = pipe.review(self.aw_img.value.strip(), "main")
+                return
             elif kind == "weight":
                 tp = TextPipeline(self.cfg)
                 r = tp.estimate_weight(self.aw_img.value.strip(), self.aw_title.value)
-                self.aw_out.value = r.value if r.ok else f"失败: {r.error}"
+                out = r.value if r.ok else f"失败: {r.error}"
+                self.aw_out.value = out
+                self.img_out.value = out
             else:
                 tp = TextPipeline(self.cfg)
                 if kind == "title":
@@ -1195,9 +1235,17 @@ class App:
         self.page.update()
 
     def _p_logs(self):
-        self._current = 12
-        self.log_view = ft.Column(spacing=3, scroll=ft.ScrollMode.AUTO, height=360)
-        self._refresh_logs()
+        self._current = 11
+        self.log_level = ft.Dropdown(width=120, value="全部", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                     options=[ft.dropdown.Option(x) for x in ("全部","INFO","WARN","ERROR")],
+                                     on_change=lambda e: self._refresh_log_table())
+        self.log_table = ft.DataTable(
+            columns=[ft.DataColumn(ft.Text("时间", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("级别", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("内容", size=11, color=MUTED))],
+            rows=[], column_spacing=14, heading_row_height=28, data_row_min_height=24,
+        )
+        self._refresh_log_table()
 
         def build_video(e):
             if not self.picked:
@@ -1224,27 +1272,42 @@ class App:
 
         def export(e):
             out = Path(tempfile.gettempdir()) / "aurora-logs.txt"
-            out.write_text("\n".join(self.logs), encoding="utf-8")
+            rows = getattr(self, "log_rows", [])
+            out.write_text("\n".join(f"{t} [{lv}] {m}" for t, lv, m in rows), encoding="utf-8")
             self.toast(f"已导出：{out}")
 
         bar = card(ft.Row([
             ft.ElevatedButton("生成主图视频", icon=ft.Icons.MOVIE, bgcolor=ACCENT, color="white", on_click=build_video),
             ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE, bgcolor=CARD_2, color=TEXT, on_click=check_update),
             ft.ElevatedButton("导出日志", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=export),
+            self.log_level,
             ft.ElevatedButton("清空", icon=ft.Icons.DELETE_OUTLINE, bgcolor=CARD_2, color=TEXT,
-                              on_click=lambda e: (self.logs.clear(), self._refresh_logs())),
+                              on_click=lambda e: (self.log_rows.clear(), self.logs.clear(), self._refresh_log_table())),
         ], spacing=10))
-        return [h1("任务与日志"), bar, card(self.log_view)]
+        return [h1("任务与日志"), bar, card(ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO, height=420))]
 
-    def _log(self, msg):
-        self.logs.append(f"[{time.strftime('%H:%M:%S')}] {msg}")
-        self.logs = self.logs[-500:]
-        if getattr(self, "log_view", None) is not None:
-            self._refresh_logs()
+    def _log(self, msg, level="INFO"):
+        ts = time.strftime("%H:%M:%S")
+        if not hasattr(self, "log_rows"):
+            self.log_rows = []
+        self.log_rows.append((ts, level, str(msg)))
+        self.log_rows = self.log_rows[-1000:]
+        self.logs = [f"{t} [{lv}] {m}" for t, lv, m in self.log_rows]
+        if getattr(self, "log_table", None) is not None:
+            self._refresh_log_table()
 
-    def _refresh_logs(self):
-        self.log_view.controls = [ft.Text(l, size=11, color=MUTED, font_family="monospace") for l in self.logs] or \
-                                 [ft.Text("暂无日志", size=12, color=MUTED)]
+    def _refresh_log_table(self):
+        rows = getattr(self, "log_rows", [])
+        lv = getattr(self, "log_level", None)
+        want = lv.value if lv is not None else "全部"
+        shown = [(t, x, m) for t, x, m in rows if want == "全部" or x == want]
+        self.log_table.rows = [
+            ft.DataRow(cells=[
+                ft.DataCell(ft.Text(t, size=11, color=MUTED)),
+                ft.DataCell(ft.Text(x, size=11, color=ACCENT_2 if x == "INFO" else ("#FFB020" if x == "WARN" else "#FF6B6B"))),
+                ft.DataCell(ft.Text(m, size=11, color=TEXT)),
+            ]) for t, x, m in reversed(shown[-300:])
+        ]
         try:
             self.page.update()
         except Exception:

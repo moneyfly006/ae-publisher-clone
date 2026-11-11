@@ -145,6 +145,24 @@ class DianxiaomiClient:
         data = self._get("vip")
         return data.get("data") or {}
 
+    EDITABLE_STATUS = {"editingRequired", "offline", "publishFail", "draft", "waitPublish"}
+    BLOCKED_STATUS = {"auditing", "onSelling", "published", "online"}
+
+    def pending_products(self, limit: int = 0, pages: int = 2) -> list[dict]:
+        """只返回可编辑（待发布/需修改/下架）的产品，跳过审核中与已发布。"""
+        out: list[dict] = []
+        for page in range(1, pages + 1):
+            for it in self.product_list(page=page, size=100):
+                st = (it.get("status_type") or "").strip()
+                if st in self.BLOCKED_STATUS:
+                    continue
+                if it.get("status_type") not in self.EDITABLE_STATUS and st:
+                    continue
+                out.append(it)
+                if limit and len(out) >= limit:
+                    return out
+        return out
+
     def product_list(self, page: int = 1, size: int = 100, keyword: str = "") -> list[dict]:
         """返回产品列表（已实测结构：data.page.list）。"""
         params = {"page": page, "pageSize": size}
@@ -176,6 +194,7 @@ class DianxiaomiClient:
                 "shop_id": it.get("shopId"),
                 "price": it.get("productPrice"),
                 "status": it.get("productStatusType"),
+                "status_type": it.get("productStatusType"),
                 "images": [str(x) for x in imgs if x],
                 "image": (str(imgs[0]) if imgs else "") or "",
                 "raw": it,
