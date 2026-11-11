@@ -118,14 +118,23 @@ class Publisher:
         p["price_result"] = r
         return p
 
-    def _process_urls(self, urls: list[str], limit: int = 8) -> tuple[list[str], int]:
-        from .image_index import pick
+    def _run_ops(self, url: str, white_bg: bool, remove_wm: bool, edit: bool) -> str:
+        ip = self.image_pipeline
+        old = (ip.cfg.white_bg_enable, ip.cfg.watermark_enable, ip.cfg.edit_enable)
+        try:
+            ip.cfg.white_bg_enable, ip.cfg.watermark_enable, ip.cfg.edit_enable = white_bg, remove_wm, edit
+            r = ip.run(str(url))
+            return r.last_url() or str(url)
+        finally:
+            ip.cfg.white_bg_enable, ip.cfg.watermark_enable, ip.cfg.edit_enable = old
+
+    def _process_urls(self, urls: list[str], limit: int = 8, white_bg: bool = True,
+                      remove_wm: bool = False, edit: bool = False) -> tuple[list[str], int]:
         out, done = [], 0
         for u in urls[:limit]:
             try:
-                r = self.image_pipeline.run(str(u))
-                out.append(r.last_url() or str(u))
-                done += 1 if r.ok else 0
+                nu = self._run_ops(u, white_bg, remove_wm, edit)
+                out.append(nu); done += 1
             except Exception:
                 out.append(str(u))
         return out, done
@@ -136,13 +145,18 @@ class Publisher:
 
         # 主图
         main = p.get("images", [])
-        if main:
+        main_ops = (self.cfg.white_bg_enable or self.cfg.watermark_enable
+                    or getattr(self.cfg, "img_main_edit", False))
+        if main and main_ops:
             expr = ""
             if self.cfg.white_background_pic_1 or self.cfg.white_background_pic_2:
                 expr = f"{self.cfg.white_background_pic_1}-{self.cfg.white_background_pic_2}"
             selected = pick(main, expr) if expr else main
             if selected:
-                out, done = self._process_urls(selected)
+                out, done = self._process_urls(selected,
+                                               white_bg=self.cfg.white_bg_enable,
+                                               remove_wm=self.cfg.watermark_enable,
+                                               edit=getattr(self.cfg, "img_main_edit", False))
                 idx = [i for i, u in enumerate(main) if u in selected]
                 for i, u in zip(idx, out):
                     main[i] = u
@@ -151,10 +165,16 @@ class Publisher:
 
         # 详情图
         detail = p.get("detail_images") or []
-        if detail and self.cfg.white_background_detail_pic_indices:
+        detail_ops = (getattr(self.cfg, "img_detail_white_bg", False)
+                      or getattr(self.cfg, "img_detail_remove_wm", False)
+                      or getattr(self.cfg, "img_detail_edit", False))
+        if detail and detail_ops:
             selected = pick(detail, self.cfg.white_background_detail_pic_indices)
             if selected:
-                out, done = self._process_urls(selected, limit=20)
+                out, done = self._process_urls(selected, limit=20,
+                                               white_bg=getattr(self.cfg, "img_detail_white_bg", False),
+                                               remove_wm=getattr(self.cfg, "img_detail_remove_wm", False),
+                                               edit=getattr(self.cfg, "img_detail_edit", False))
                 idx = [i for i, u in enumerate(detail) if u in selected]
                 for i, u in zip(idx, out):
                     detail[i] = u
@@ -170,9 +190,12 @@ class Publisher:
                 if not img:
                     continue
                 try:
-                    r = self.image_pipeline.run(str(img))
-                    sku["processed_image"] = r.last_url() or str(img)
-                    done += 1 if r.ok else 0
+                    sku["processed_image"] = self._run_ops(
+                        str(img),
+                        white_bg=getattr(self.cfg, "img_sku_white_bg", True),
+                        remove_wm=getattr(self.cfg, "img_sku_remove_wm", False),
+                        edit=getattr(self.cfg, "img_sku_edit", False))
+                    done += 1
                 except Exception:
                     pass
             if done:
@@ -303,7 +326,15 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     res.steps.append(Step("本地图片处理", False, str(ex)[:120]))
 
-            if p.get("images") and (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable):
+            _img_ops = (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable
+                        or getattr(self.cfg, "img_main_edit", False)
+                        or getattr(self.cfg, "img_detail_white_bg", False)
+                        or getattr(self.cfg, "img_detail_remove_wm", False)
+                        or getattr(self.cfg, "img_detail_edit", False)
+                        or getattr(self.cfg, "img_sku_white_bg", False)
+                        or getattr(self.cfg, "img_sku_remove_wm", False)
+                        or getattr(self.cfg, "img_sku_edit", False))
+            if p.get("images") and _img_ops:
                 try:
                     p = self._ai_images(p, res)
                 except Exception as ex:  # noqa: BLE001
@@ -355,7 +386,10 @@ class Publisher:
                     verdict = ip.review(str(p["images"][0]), "main")
                     p["image_review"] = verdict[:300]
                     bad = any(k in verdict for k in ("不符合", "违规", "建议删除", "不建议", "含厂家", "含联系方式"))
-                    if bad and self.cfg.review_block_on_fail:
+                    if bad and self.cfg.review_block_on_fail and len(p["images"]) > 1:
+                        p["images"] = p["images"][1:]
+                        res.steps.append(Step("图片审查", False, "不合规，已剔除该图"))
+                    elif bad and self.cfg.review_block_on_fail:
                         res.steps.append(Step("图片审查", False, "不合规，已拦截：" + verdict[:50].replace("\n", " ")))
                         res.ok = False
                         res.error = "图片审查不合规"

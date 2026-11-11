@@ -95,6 +95,98 @@ def section(title, fields, cfg, cols=2):
 # ---------------- 页面 schema ----------------
 def schema_store():
     return [
+        ("店铺", [Field("browser_type", "浏览器窗口", "select", BROWSERS),
+                  Field("store_name", "店铺名称"), Field("store_id", "店铺 ID")]),
+        ("模板", [Field("product_template_name", "模板名称"), Field("product_template_id", "模板 ID")]),
+    ]
+
+
+def schema_advanced():
+    return [
+        ("基础", [Field("edit_sum", "编辑产品数量"), Field("watermark", "水印图片路径")]),
+        ("SKU", [Field("max_sku_count", "SKU 数量上限")]),
+        ("详情文字", [Field("detail_text_info", "详情文字（头部）", "multiline"),
+                      Field("detail_text_info_tail", "详情文字（尾部）", "multiline"),
+                      Field("detail_text_position", "插入位置（head/tail/both）")]),
+        ("运行", [Field("auto_save_products", "自动保存到店小秘（关闭=只试跑）", "bool")]),
+    ]
+
+
+def schema_ai():
+    return [
+        ("标题", [Field("enable_ai_title", "启用 AI 标题", "bool"),
+                  Field("title_prompt", "标题提示词", "multiline"),
+                  Field("title_prefix", "标题前缀"), Field("title_suffix", "标题后缀")]),
+        ("详情", [Field("enable_ai_detail", "启用 AI 详情", "bool"),
+                  Field("detail_prompt", "详情提示词", "multiline")]),
+        ("SKU", [Field("enable_ai_sku", "启用 AI 优化 SKU", "bool"),
+                 Field("sku_prompt", "SKU 提示词", "multiline")]),
+        ("读图估重", [Field("enable_ai_weight", "启用 AI 估重", "bool"),
+                      Field("weight_prompt", "估重提示词", "multiline")]),
+    ]
+
+
+def schema_review():
+    return [
+        ("文本审查", [Field("review_text_enable", "启用文本审查", "bool"),
+                      Field("review_text_prompt", "文本审查提示词", "multiline"),
+                      Field("check_banned_word", "违禁词检查", "bool")]),
+        ("图片审查", [Field("review_main_img_enable", "主图审查", "bool"),
+                      Field("review_main_img_prompt", "主图审查提示词", "multiline"),
+                      Field("review_detail_img_enable", "详情图审查", "bool"),
+                      Field("review_detail_img_prompt", "详情图审查提示词", "multiline"),
+                      Field("review_block_on_fail", "不合规时拦截发布", "bool")]),
+    ]
+
+
+def schema_image():
+    return [
+        ("主图", [Field("white_bg_enable", "白底图", "bool"),
+                  Field("watermark_enable", "去水印", "bool"),
+                  Field("white_background_pic_1", "主图起始序号"),
+                  Field("white_background_pic_2", "主图结束序号")]),
+        ("描述图", [Field("white_background_detail_pic_indices", "详情图序号（如 1-5,8）")]),
+        ("SKU 图", [Field("white_background_sku_pic", "处理 SKU 图", "bool")]),
+        ("精细处理", [Field("edit_enable", "启用通用编辑", "bool"),
+                      Field("edit_prompt", "编辑提示词", "multiline"),
+                      Field("four_in_one", "四合一拼图", "bool")]),
+    ]
+
+
+def schema_price():
+    return [
+        ("模式", [Field("price_mode", "价格模式（multiplier/free_shipping/commission）"),
+                  Field("price_multiplier", "价格倍率"),
+                  Field("price_fixed_add", "固定加价"),
+                  Field("regional_pricing", "区域调价", "bool")]),
+        ("成本", [Field("goods_cost", "商品成本"),
+                  Field("platform_commission", "平台佣金%"),
+                  Field("sales_profit", "期望利润%"),
+                  Field("default_express_price", "默认运费")]),
+        ("阶梯", [Field("tuoguan_price_tiered_enabled", "启用阶梯倍率", "bool"),
+                  Field("tuoguan_price_tiers", "阶梯规则 JSON", "multiline")]),
+    ]
+
+
+def schema_variant():
+    return [("映射", [Field("variant_mappings", "属性映射 JSON", "multiline")])]
+
+
+def section(title, fields, cfg, cols=2):
+    rows, controls = [], []
+    for f in fields:
+        c = f.build(cfg)
+        controls.append(f)
+        if f.kind in ("multiline",):
+            rows.append(c)
+        else:
+            rows.append(c)
+    return card(ft.Column([h1(title, 15), *rows], spacing=12)), controls
+
+
+# ---------------- 页面 schema ----------------
+def schema_store():
+    return [
         ("店铺设置", [Field("browser_type", "浏览器窗口", "select", BROWSERS),
                       Field("store_name", "店铺名称", hint="从店小秘拉取"),
                       Field("store_id", "店铺 ID"),
@@ -776,6 +868,13 @@ class App:
         return [h1("店铺设置"), muted("三步：读 Cookie → 选店铺 → 选模板"), connect_card, shop_card, tpl_card]
 
     def _on_shop_change(self):
+        self.cfg.template_product_id = ""
+        self.cfg.template_product_title = ""
+        self.cfg.template_snapshot = ""
+        save_config(self.cfg)
+        self.tpl_preview_box.content = self._template_preview_row()
+        self.tpl_snapshot_text.value = "模板参数：未读取（已切换店铺，请重新选择模板）"
+        self.toast("已切换店铺，请重新选择模板")
         sid = self.shop_dd.value
         name = next((o.text for o in self.shop_dd.options if o.key == sid), "")
         self.cfg.store_id = str(sid or "")
@@ -956,7 +1055,7 @@ class App:
             prod = self.products[0] if self.products else demo_product()
             pub = Publisher(self.cfg, dxm=None,
                             text_service=TextService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg))
-            res = pub.run(prod, dry_run=True)
+            res = pub.run(prod, dry_run=not self.cfg.auto_save_products)
             for line in res.log().splitlines():
                 self._log(line)
             self.store_status.value = ("试跑完成" if res.ok else f"试跑失败：{res.error}")
@@ -1674,7 +1773,7 @@ class App:
                     "skus": base.get("skus") or [],
                     "images": base.get("images") or [],
                     "cost": 0}
-            res = pub.run(prod, dry_run=True)
+            res = pub.run(prod, dry_run=not self.cfg.auto_save_products)
             self.q.mark(item.product_id, "done" if res.ok else "failed", res.error)
             ok += 1 if res.ok else 0
             fail += 0 if res.ok else 1

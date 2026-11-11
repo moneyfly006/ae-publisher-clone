@@ -71,7 +71,11 @@ def optimize_sku_names(raw: list[str], limit: int = 20) -> list[str]:
         v = re.sub(r"[^A-Za-z0-9 \-.()]", "", v)
         v = re.sub(r"\s+", " ", v).strip()
         if len(v) > limit:
-            v = v[:limit].rsplit(" ", 1)[0].strip()
+            cut = v[:limit]
+            if " " in cut:
+                v = cut.rsplit(" ", 1)[0].strip()
+            else:
+                v = cut.strip()
         if v and v not in out:
             out.append(v)
     return out
