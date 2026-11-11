@@ -96,6 +96,24 @@ class ApiClient:
                 if delta.get("content"):
                     yield delta["content"]
 
+    # ---------- 价格 ----------
+    def pricing(self) -> list[dict]:
+        """公开价格表（无需鉴权）。"""
+        try:
+            r = self.session.get(self._url("/api/pricing"), timeout=20)
+            data = (r.json() or {}).get("data") or []
+            out = []
+            for m in data:
+                name = m.get("model_name") or ""
+                if not name:
+                    continue
+                per_call = float(m.get("model_price") or 0)
+                ratio = float(m.get("model_ratio") or 0)
+                out.append({"model": name, "per_call": per_call, "ratio": ratio})
+            return out
+        except Exception:
+            return []
+
     # ---------- 图片 ----------
     def images_edit(self, model: str, prompt: str, images: Iterable[Path | bytes], size: str = "1024x1024") -> str:
         files = []
