@@ -22,7 +22,8 @@ ENDPOINTS = {
     "comment": "/api/comm/comment.json",
     "banned_word": "/api/bannedWord/smtCheckB.json",
     "upload_sign": "/api/cos/getSign.json",
-    "upload_callback": "/api/cos_dxm_call_back.json",
+    "upload_callback": "/api/cos/cosDxmCallBack.json",
+    "album_upload_url": "/api/album/toUploadPicFromNet.json",   # 实测：按 URL 上传图片
     "video_callback": "/api/smtmedia/callback.json",
     "product_save": "/api/smtProduct/add.json",   # 实测：编辑器保存
     "product_detail": "",
@@ -179,6 +180,14 @@ class DianxiaomiClient:
 
     def save_product(self, product: dict) -> Any:
         return self._post("product_save", product)
+
+    def upload_image_from_url(self, image_url: str, full_cid: str = "") -> dict:
+        """按 URL 上传图片到店小秘相册（实测可用）。"""
+        payload = {"urls": image_url}
+        if full_cid:
+            payload["fullCid"] = full_cid
+        data = self._post("album_upload_url", payload)
+        return data.get("data") or {}
 
     def upload_sign(self, file_name: str, file_size: int) -> dict:
         data = self._post("upload_sign", {"fileName": file_name, "fileSize": file_size})

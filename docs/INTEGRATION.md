@@ -17,6 +17,8 @@
 | 相册分类 | GET | `/api/album/index.json` | 200 `data.categoryTree[]` |
 | 产品列表 | GET | `/api/smtProduct/list.json?page=1&pageSize=N` | 200 `data.page.list[]` |
 | **产品保存** | POST | `/api/smtProduct/add.json` | 实测（form-data，编辑器「保存」触发） |
+| **图片上传(URL)** | POST | `/api/album/toUploadPicFromNet.json` | 实测 200，参数名 `urls` |
+| 上传回调 | POST | `/api/cos/cosDxmCallBack.json` | 从 JS 提取 |
 | 品牌历史 | POST | `/api/smtProduct/addProductBrandHistory.json` | 实测 |
 
 产品字段：`id`、`productId`、`subject`（标题）、`imageURLs`（图片）、`productPrice`、`productStatusType`、`categoryId`。

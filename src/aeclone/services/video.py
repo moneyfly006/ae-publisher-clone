@@ -30,6 +30,7 @@ def build_slideshow(images: list[Path], out_path: Path, seconds_per_image: float
     if not images:
         raise VideoError("没有图片")
 
+    size = size.replace("x", ":").replace("*", ":")   # ffmpeg 需要 W:H
     with tempfile.TemporaryDirectory() as td:
         listfile = Path(td) / "list.txt"
         lines = []
@@ -39,12 +40,13 @@ def build_slideshow(images: list[Path], out_path: Path, seconds_per_image: float
         lines.append(f"file '{Path(images[-1]).as_posix()}'")
         listfile.write_text("\n".join(lines), encoding="utf-8")
 
-        vf = f"scale={size}:force_original_aspect_ratio=decrease,pad={size}:(ow-iw)/2:(oh-ih)/2"
+        vf = (f"scale={size}:force_original_aspect_ratio=decrease,"
+              f"pad={size}:(ow-iw)/2:(oh-ih)/2:color=white,fps=30,format=yuv420p")
         if fade:
             vf += ",fade=t=in:st=0:d=0.4"
         cmd = [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listfile),
-               "-vsync", "vfr", "-vf", vf, "-c:v", "libx264", "-pix_fmt", "yuv420p",
-               str(out_path)]
+               "-r", "30", "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
+               "-movflags", "+faststart", str(out_path)]
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode != 0:
             raise VideoError(f"ffmpeg 失败：{proc.stderr[-400:]}")
