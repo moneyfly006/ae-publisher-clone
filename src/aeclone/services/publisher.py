@@ -31,11 +31,12 @@ class PublishResult:
 
 
 class Publisher:
-    def __init__(self, cfg, dxm=None, text_service=None, image_service=None):
+    def __init__(self, cfg, dxm=None, text_service=None, image_service=None, ws_endpoint: str = ""):
         self.cfg = cfg
         self.dxm = dxm
         self.text = text_service
         self.image = image_service
+        self.ws_endpoint = ws_endpoint
 
     # ---------- 单步 ----------
     def _normalize(self, product: dict) -> dict:
@@ -91,10 +92,14 @@ class Publisher:
             if dry_run:
                 res.steps.append(Step("保存到店小秘", True, "dry-run：未写入"))
             else:
-                if not self.dxm:
-                    raise RuntimeError("未连接店小秘")
-                self.dxm.save_product(p)
-                res.steps.append(Step("保存到店小秘", True, "已提交"))
+                if not self.ws_endpoint:
+                    raise RuntimeError("未连接浏览器（缺少 CDP 端点）")
+                from ..integrations.editor_automation import update_and_save
+                r = update_and_save(self.ws_endpoint, str(p.get("id", "")),
+                                    p.get("title_en") or None)
+                if not r.ok:
+                    raise RuntimeError(r.message)
+                res.steps.append(Step("保存到店小秘", True, r.message))
             return res
         except Exception as e:  # noqa: BLE001
             res.ok = False

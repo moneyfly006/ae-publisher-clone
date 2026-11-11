@@ -36,7 +36,25 @@ albums: 1 first: 未分类
 products: 100
 ```
 
-## 五、待校正接口
+## 五、保存（已打通，页面自动化）
+
+API 保存是 `multipart/form-data`，Playwright 无法直接复放 body，因此采用与老软件一致的**页面自动化**：
+
+```
+打开 https://www.dianxiaomi.com/web/smt/edit?id=<productId>
+ → 定位标题输入框（input[type=text] 第一个）
+ → 填入新标题（或原值触发变更）
+ → 点击「保存」
+ → 监听 /api/smtProduct/add.json 响应
+```
+
+实测结果：
+
+```
+SaveResult(ok=True, message='保存接口 HTTP 200', title='Durable Rotary Water Well Drilling Equipment ...')
+```
+
+## 六、待校正接口
 
 | 功能 | 候选 | 状态 |
 |---|---|---|

@@ -366,6 +366,7 @@ class App:
                     ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
                     ft.ElevatedButton("④ 选择模板", icon=ft.Icons.CHECKLIST, bgcolor=ACCENT_2, color="#04231C", on_click=picker),
                     ft.ElevatedButton("⑤ 试跑发布(dry-run)", icon=ft.Icons.PLAY_CIRCLE_OUTLINE, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._dry_run, daemon=True).start()),
+                    ft.ElevatedButton("⑦ 真实保存(测试)", icon=ft.Icons.SAVE_AS, bgcolor="#F0A020", color="#1A1200", on_click=lambda e: threading.Thread(target=self._real_save, daemon=True).start()),
                     ft.ElevatedButton("⑥ 图片空间", icon=ft.Icons.PHOTO_LIBRARY, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._show_albums, daemon=True).start())], spacing=10),
             self.store_status], spacing=10))
         view = self._render("店铺与模板", schema_store())
@@ -453,6 +454,25 @@ class App:
         except Exception as e:
             self.store_status.value = f"试跑异常：{e}"; self.store_status.color = "#FF6B6B"
             self._log(f"试跑异常：{e}")
+        self.page.update()
+
+    def _real_save(self):
+        if not self.ws_endpoint:
+            self.toast("请先启动浏览器", False); return
+        if not self.products:
+            self.toast("请先拉取产品", False); return
+        pid = self.products[0]["id"]
+        self.store_status.value = f"正在保存 {pid} …"; self.page.update()
+        try:
+            pub = Publisher(self.cfg, ws_endpoint=self.ws_endpoint)
+            res = pub.run({"id": pid, "title": self.products[0].get("title", ""),
+                           "skus": [], "images": []}, dry_run=False)
+            for line in res.log().splitlines():
+                self._log(line)
+            self.store_status.value = "保存成功" if res.ok else f"保存失败：{res.error}"
+            self.store_status.color = ACCENT_2 if res.ok else "#FF6B6B"
+        except Exception as ex:
+            self.store_status.value = f"保存异常：{ex}"; self.store_status.color = "#FF6B6B"
         self.page.update()
 
     def _show_albums(self):
