@@ -38,6 +38,25 @@ class ApiClient:
             raise ApiError(f"获取模型失败: {r.status_code}", r.status_code, r.text[:300])
         return [m.get("id", "") for m in r.json().get("data", [])]
 
+    # ---------- 账务 ----------
+    def billing_subscription(self) -> dict:
+        r = self.session.get(self._url("/v1/dashboard/billing/subscription"),
+                             headers=self._headers(), timeout=30)
+        return r.json() if r.ok else {}
+
+    def billing_usage(self, start: str = "2024-01-01", end: str = "2030-12-31") -> dict:
+        r = self.session.get(self._url("/v1/dashboard/billing/usage"),
+                             headers=self._headers(),
+                             params={"start_date": start, "end_date": end}, timeout=30)
+        return r.json() if r.ok else {}
+
+    def balance(self) -> dict:
+        sub = self.billing_subscription()
+        use = self.billing_usage()
+        limit = float(sub.get("hard_limit_usd") or 0)
+        used = float(use.get("total_usage") or 0) / 100.0
+        return {"limit": limit, "used": used, "remain": max(0.0, limit - used)}
+
     # ---------- 文本 ----------
     def chat(self, model: str, messages: list[dict], temperature: float = 0.6, max_tokens: int = 2048) -> str:
         payload = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}

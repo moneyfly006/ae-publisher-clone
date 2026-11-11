@@ -264,7 +264,7 @@ class App:
             start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch(start % 12)
+        self._switch(start % 13)
         page.update()
 
     # ---------- 壳 ----------
@@ -274,6 +274,7 @@ class App:
                  ("高级设置", ft.Icons.TUNE), ("AI 智能填写", ft.Icons.AUTO_FIX_HIGH),
                  ("内容审查", ft.Icons.FACT_CHECK_OUTLINED), ("图片处理", ft.Icons.IMAGE_OUTLINED),
                  ("价格设置", ft.Icons.SELL_OUTLINED), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED),
+                 ("API 站点", ft.Icons.CLOUD_OUTLINED),
                  ("设置", ft.Icons.SETTINGS_OUTLINED),
                  ("AI 处理", ft.Icons.AUTO_AWESOME),
                  ("图片工作台", ft.Icons.GRID_VIEW),
@@ -309,7 +310,7 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_ai_work, self._p_workbench, self._p_logs]
+                 self._p_image, self._p_price, self._p_variant, self._p_api, self._p_settings, self._p_ai_work, self._p_workbench, self._p_logs]
         self.content.controls = pages[idx]()
         self.page.update()
 
@@ -752,7 +753,7 @@ class App:
         return [view[0], card_map, editor] + view[1:]
 
     def _p_ai_work(self):
-        self._current = 9
+        self._current = 10
         self.aw_title = ft.TextField(label="中文标题", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                      value="3 吨迷你蜘蛛吊车 20 米臂长 无线遥控")
         self.aw_skus = ft.TextField(label="SKU 名称（每行一个）", multiline=True, min_lines=3,
@@ -809,7 +810,7 @@ class App:
             self.page.update()
 
     def _p_workbench(self):
-        self._current = 10
+        self._current = 11
         self.wb_urls = ft.TextField(label="图片 URL（每行一个）", multiline=True, min_lines=4, max_lines=8,
                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.wb_status = ft.Text("未加载图片", color=MUTED, size=12)
@@ -995,7 +996,7 @@ class App:
         self.page.update()
 
     def _p_logs(self):
-        self._current = 11
+        self._current = 12
         self.log_view = ft.Column(spacing=3, scroll=ft.ScrollMode.AUTO, height=360)
         self._refresh_logs()
 
@@ -1050,8 +1051,41 @@ class App:
         except Exception:
             pass
 
-    def _p_settings(self):
+    def _p_api(self):
         self._current = 8
+        self.api_balance = ft.Text("—", color=ACCENT_2, size=22, weight=ft.FontWeight.BOLD)
+        self.api_used = ft.Text("—", color=MUTED, size=12)
+        self.api_models = ft.Column(spacing=4)
+
+        def refresh(e=None):
+            threading.Thread(target=self._refresh_api, daemon=True).start()
+
+        return [h1("API 站点"), muted(f"当前站点：{self.cfg.api_base}"),
+                card(ft.Row([ft.Column([muted("剩余额度 (USD)"), self.api_balance], spacing=4),
+                             ft.Column([muted("已用"), self.api_used], spacing=4),
+                             ft.ElevatedButton("刷新", icon=ft.Icons.REFRESH, on_click=refresh)], spacing=40)),
+                card(ft.Column([h1("可用模型", 15), self.api_models], spacing=8))] + \
+               [ft.Row([ft.ElevatedButton("刷新", on_click=refresh)])]
+
+    def _refresh_api(self):
+        try:
+            c = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
+            b = c.balance()
+            self.api_balance.value = f"${b['remain']:,.2f}"
+            self.api_used.value = f"${b['used']:,.4f}"
+            models = c.models()
+            self.api_models.controls = [
+                ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE, size=14, color=ACCENT_2),
+                        ft.Text(m, size=12, color=TEXT)], spacing=8) for m in models
+            ] or [ft.Text("未返回模型", size=12, color=MUTED)]
+            self.toast(f"已刷新：{len(models)} 个模型")
+        except Exception as ex:
+            self.api_balance.value = "查询失败"
+            self.api_used.value = str(ex)[:80]
+        self.page.update()
+
+    def _p_settings(self):
+        self._current = 9
         view = self._render("设置", schema_settings(self.cfg))
         self.inst_name = ft.TextField(label="新实例名称", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.inst_list = ft.Column(spacing=4)

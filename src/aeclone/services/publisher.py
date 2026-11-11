@@ -118,6 +118,15 @@ class Publisher:
                 res.steps.append(Step("图片上传", uploaded > 0 or failed == 0,
                                       f"成功 {uploaded} / 失败 {failed}"))
 
+            if (self.cfg.review_main_img_enable or self.cfg.review_detail_img_enable) and p.get("images"):
+                ip = ImagePipeline(self.cfg)
+                try:
+                    verdict = ip.review(str(p["images"][0]), "main")
+                    p["image_review"] = verdict[:300]
+                    res.steps.append(Step("图片审查", True, verdict[:60].replace("\n", " ")))
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("图片审查", False, str(ex)[:120]))
+
             p = self._price(p)
             r = p["price_result"]
             res.steps.append(Step("价格计算", True, f"¥{r.final}（{r.note}）"))
