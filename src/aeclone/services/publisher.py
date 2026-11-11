@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .pricing import calc_free_shipping, calc_multiplier
+from .pricing import calc_free_shipping, calc_multiplier, calc_with_commission
 from .text_pipeline import TextPipeline
 from .image_pipeline import ImagePipeline
 from .variants import auto_map, check_consistency, limit_skus
@@ -88,13 +88,33 @@ class Publisher:
         return p
 
     def _price(self, p: dict) -> dict:
+        import json as _j
         base = float(p.get("cost") or self.cfg.goods_cost or 0)
-        if self.cfg.price_mode == "free_shipping":
+        mode = self.cfg.price_mode
+        if mode == "commission":
+            r = calc_with_commission(base, float(self.cfg.price_multiplier or 1.2),
+                                     float(self.cfg.price_fixed_add or 0),
+                                     float(self.cfg.platform_commission or 0) / 100,
+                                     float(self.cfg.sales_profit or 0) / 100)
+        elif mode == "free_shipping":
             r = calc_free_shipping(base, float(self.cfg.default_express_price or 0),
                                    float(self.cfg.sales_profit or 0) / 100)
-        else:
+            if self.cfg.regional_pricing:
+                from .pricing import regional_prices
+                p["regional"] = regional_prices(r.final, {"USD": 1.0, "EUR": 0.92, "GBP": 0.79})
+        elif mode == "multiplier" or True:
             r = calc_multiplier(base, float(self.cfg.price_multiplier or 1.2),
                                 float(self.cfg.price_fixed_add or 0))
+            if self.cfg.tuoguan_price_tiered_enabled:
+                try:
+                    tiers = _j.loads(self.cfg.tuoguan_price_tiers or "[]")
+                    if tiers:
+                        from .pricing import apply_tier
+                        new_final = apply_tier(base, tiers)
+                        if new_final != base:
+                            r = type(r)(r.base, r.multiplier, r.fixed_add, new_final, "阶梯倍率")
+                except Exception:
+                    pass
         p["price_result"] = r
         return p
 
@@ -323,7 +343,10 @@ class Publisher:
 
             p = self._price(p)
             r = p["price_result"]
-            res.steps.append(Step("价格计算", True, f"¥{r.final}（{r.note}）"))
+            extra = ""
+            if p.get("regional"):
+                extra = " · 区域 " + " ".join(f"{k}{v}" for k, v in list(p['regional'].items())[:3])
+            res.steps.append(Step("价格计算", True, f"¥{r.final}（{r.note}）{extra}"))
 
             if dry_run:
                 res.steps.append(Step("保存到店小秘", True, "dry-run：未写入"))
