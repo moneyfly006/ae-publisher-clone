@@ -88,6 +88,12 @@ class TextPipeline:
         try:
             en = self.text.translate_title(title)
             en = add_brand_for(_clean(en), brands or [])
+            prefix = (getattr(self.cfg, "title_prefix", "") or "").strip()
+            suffix = (getattr(self.cfg, "title_suffix", "") or "").strip()
+            if prefix:
+                en = f"{prefix} {en}"
+            if suffix:
+                en = f"{en} {suffix}"
             en = enforce_title_length(self.client, en, 125)
             notes = []
             banned = find_banned(en, BANNED_DEFAULT)

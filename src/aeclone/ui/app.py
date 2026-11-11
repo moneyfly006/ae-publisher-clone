@@ -173,6 +173,7 @@ def schema_image():
                       Field("translate_sku_pic", "翻译 SKU 图", "bool")]),
         ("图片范围", [Field("white_background_pic_1", "白底 起始图"), Field("white_background_pic_2", "白底 结束图"),
                       Field("white_background_sku_pic", "白底含 SKU 图", "bool"),
+                      Field("white_background_detail_pic_indices", "详情图索引（如 1-5,8）"),
                       Field("remove_watermark_pic_1", "去水印 起始图"), Field("remove_watermark_pic_2", "去水印 结束图"),
                       Field("remove_watermark_sku_pic", "去水印含 SKU 图", "bool"),
                       Field("single_edit_main_pic_indices", "编辑主图索引"), Field("single_edit_detail_pic_indices", "编辑详情图索引"),
@@ -329,8 +330,38 @@ class App:
         self.content.controls = pages[idx]()
         self.page.update()
 
+    def _implemented_keys(self):
+        if getattr(self, "_impl_keys", None):
+            return self._impl_keys
+        import re as _re, pathlib as _pl
+        root = _pl.Path(__file__).resolve().parents[1]
+        code = ""
+        for py in root.rglob("*.py"):
+            try:
+                code += py.read_text()
+            except Exception:
+                continue
+        from ..config import DEFAULTS
+        keys = set()
+        for k in DEFAULTS:
+            if _re.search(rf"\.{_re.escape(k)}\b", code):
+                keys.add(k)
+        self._impl_keys = keys
+        return keys
+
     def _render(self, title, schemas, extra=None):
         out = [h1(title), muted("所有配置自动保存到本地 config.json")]
+        impl = self._implemented_keys()
+        hidden = 0
+        filtered = []
+        for name, fields in schemas:
+            keep = [f for f in fields if f.key in impl]
+            hidden += len(fields) - len(keep)
+            if keep:
+                filtered.append((name, keep))
+        schemas = filtered
+        if hidden:
+            out.append(muted(f"（已隐藏 {hidden} 项尚未实现的设置，避免误导）"))
         for name, fields in schemas:
             c, refs = section(name, fields, self.cfg)
             self.field_refs.extend(refs)

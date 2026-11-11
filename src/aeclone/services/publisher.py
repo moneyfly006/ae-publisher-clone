@@ -281,9 +281,10 @@ class Publisher:
                     html = r.value
                     head = (self.cfg.detail_text_info or "").strip()
                     tail = (self.cfg.detail_text_info_tail or "").strip()
-                    if head:
+                    pos = (self.cfg.detail_text_position or "head").lower()
+                    if head and pos in ("head", "both"):
                         html = f"<p>{head}</p>" + html
-                    if tail:
+                    if tail and pos in ("tail", "both"):
                         html = html + f"<p>{tail}</p>"
                     p["detail_html"] = html
 
@@ -325,6 +326,28 @@ class Publisher:
                         p.setdefault("upload_errors", []).append(str(ex)[:120])
                 res.steps.append(Step("图片上传", uploaded > 0 or failed == 0,
                                       f"成功 {uploaded} / 失败 {failed}"))
+
+            if self.cfg.review_text_enable and p.get("detail_html"):
+                try:
+                    cleaned = TextPipeline(self.cfg).review_text(p["detail_html"]).value
+                    if cleaned:
+                        p["detail_html"] = cleaned
+                    res.steps.append(Step("文本审查", True, (cleaned or "")[:40].replace("\n", " ")))
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("文本审查", False, str(ex)[:80]))
+
+            if self.cfg.check_banned_word and p.get("title_en"):
+                from .text_pipeline import find_banned, BANNED_DEFAULT
+                hits = find_banned(p["title_en"], BANNED_DEFAULT)
+                res.steps.append(Step("违禁词检查", not hits, ("发现：" + ", ".join(hits)) if hits else "未发现"))
+
+            if self.cfg.enable_ai_weight and p.get("images"):
+                try:
+                    rw = TextPipeline(self.cfg).estimate_weight(str(p["images"][0]), p.get("title_en") or p.get("title", ""))
+                    p["ai_weight"] = rw.value[:200]
+                    res.steps.append(Step("AI 估重", rw.ok, rw.value[:40].replace("\n", " ")))
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("AI 估重", False, str(ex)[:80]))
 
             if (self.cfg.review_main_img_enable or self.cfg.review_detail_img_enable) and p.get("images"):
                 ip = ImagePipeline(self.cfg)
