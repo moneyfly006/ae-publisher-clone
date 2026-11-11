@@ -39,12 +39,17 @@ class Publisher:
         self.text = text_service
         self.image = image_service
         self.ws_endpoint = ws_endpoint
+        self.image_pipeline = ImagePipeline(cfg)
 
     # ---------- 单步 ----------
     def _normalize(self, product: dict) -> dict:
         p = dict(product)
         p["title"] = (p.get("title") or "").strip()
-        p["skus"] = p.get("skus") or []
+        try:
+            limit = int(self.cfg.max_sku_count or 256)
+            p["skus"] = (p.get("skus") or [])[:limit]
+        except Exception:
+            p["skus"] = p.get("skus") or []
         p["images"] = p.get("images") or []
         return p
 
@@ -67,6 +72,23 @@ class Publisher:
             r = calc_multiplier(base, float(self.cfg.price_multiplier or 1.2),
                                 float(self.cfg.price_fixed_add or 0))
         p["price_result"] = r
+        return p
+
+    def _ai_images(self, p: dict, res) -> dict:
+        """按开关对产品图执行 白底/去水印/编辑。"""
+        out = []
+        done = 0
+        for u in p.get("images", [])[:6]:
+            try:
+                r = self.image_pipeline.run(str(u))
+                last = r.last_url() or str(u)
+                out.append(last)
+                done += 1 if r.ok else 0
+            except Exception:
+                out.append(str(u))
+        if out:
+            p["images"] = out
+            res.steps.append(Step("图片AI处理", done > 0, f"{done}/{len(out)} 张已处理"))
         return p
 
     def _publicize_images(self, p: dict, res) -> dict:
@@ -145,7 +167,8 @@ class Publisher:
         res = PublishResult(product_id=str(product.get("id", "")), ok=True)
         try:
             p = self._normalize(product)
-            res.steps.append(Step("标准化", True, f"{len(p['skus'])} 个 SKU / {len(p['images'])} 张图"))
+            res.steps.append(Step("标准化", True,
+                                  f"{len(p['skus'])} 个 SKU / {len(p['images'])} 张图（上限 {self.cfg.max_sku_count}）"))
 
             p = self._map_variants(p)
             res.steps.append(Step("变种映射", True, f"{len(p.get('attr_mapping') or {})} 项映射"
@@ -189,6 +212,12 @@ class Publisher:
                     p = self._local_image_ops(p, res)
                 except Exception as ex:  # noqa: BLE001
                     res.steps.append(Step("本地图片处理", False, str(ex)[:120]))
+
+            if p.get("images") and (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable):
+                try:
+                    p = self._ai_images(p, res)
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("图片AI处理", False, str(ex)[:100]))
 
             if p.get("images"):
                 try:
