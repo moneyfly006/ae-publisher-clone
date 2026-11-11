@@ -23,6 +23,7 @@ from ..services.video import build_slideshow, probe as video_probe
 from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
 from ..services import history
+from ..services.queue import TaskQueue
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
@@ -364,7 +365,8 @@ class App:
                     ft.ElevatedButton("② 检测店小秘登录", icon=ft.Icons.LOGIN, bgcolor=CARD_2, color=TEXT, on_click=login),
                     ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
                     ft.ElevatedButton("④ 选择模板", icon=ft.Icons.CHECKLIST, bgcolor=ACCENT_2, color="#04231C", on_click=picker),
-                    ft.ElevatedButton("⑤ 试跑发布(dry-run)", icon=ft.Icons.PLAY_CIRCLE_OUTLINE, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._dry_run, daemon=True).start())], spacing=10),
+                    ft.ElevatedButton("⑤ 试跑发布(dry-run)", icon=ft.Icons.PLAY_CIRCLE_OUTLINE, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._dry_run, daemon=True).start()),
+                    ft.ElevatedButton("⑥ 图片空间", icon=ft.Icons.PHOTO_LIBRARY, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._show_albums, daemon=True).start())], spacing=10),
             self.store_status], spacing=10))
         view = self._render("店铺与模板", schema_store())
         return [view[0], bar] + view[1:]
@@ -446,6 +448,31 @@ class App:
         except Exception as e:
             self.store_status.value = f"试跑异常：{e}"; self.store_status.color = "#FF6B6B"
             self._log(f"试跑异常：{e}")
+        self.page.update()
+
+    def _show_albums(self):
+        try:
+            client = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+            data = client.album_index()
+            items = (data.get("data") or {})
+            cats = items.get("list") if isinstance(items, dict) else items
+            cats = cats or []
+            rows = []
+            for c in cats[:40]:
+                name = c.get("name") or c.get("albumName") or str(c.get("id", ""))
+                cid = c.get("id") or c.get("albumId") or ""
+                rows.append(ft.ListTile(title=ft.Text(name, size=13, color=TEXT),
+                                        subtitle=ft.Text(str(cid), size=10, color=MUTED)))
+            if not rows:
+                rows = [ft.ListTile(title=ft.Text("未取到相册（接口路径可能需校正）", color=MUTED, size=12))]
+            dlg = ft.AlertDialog(title=ft.Text("图片空间 / 相册"), content=ft.Column(rows, scroll=ft.ScrollMode.AUTO, height=400),
+                                 actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
+            self.page.dialog = dlg; dlg.open = True; self.page.update()
+        except Exception as ex:
+            self.toast(f"读取相册失败：{ex}", False)
+
+    def _close_dlg(self, dlg):
+        dlg.open = False
         self.page.update()
 
     def _open_template_dialog(self):
@@ -660,7 +687,26 @@ class App:
             self.wb_busy.visible = True; self.page.update()
             threading.Thread(target=self._wb_process, args=(kind,), daemon=True).start()
 
-        return [h1("图片工作台"), muted("批量白底 / 去水印 / 编辑（走你的 API 站点计费）"),
+        self.q = TaskQueue()
+        self.q_text = ft.Text("", size=12, color=MUTED)
+        self._refresh_queue()
+
+        def enqueue(e):
+            n = self.q.add_many(self.products)
+            self._refresh_queue()
+            self.toast(f"已入队 {n} 个产品")
+
+        def process(e):
+            items = self.q.pending()
+            if not items:
+                self.toast("队列为空", False); return
+            threading.Thread(target=self._process_queue, daemon=True).start()
+
+        self.q_panel = card(ft.Column([h1("任务队列", 15), self.q_text,
+                                       ft.Row([ft.ElevatedButton("产品入队", icon=ft.Icons.ADD_TASK, on_click=enqueue),
+                                               ft.ElevatedButton("处理队列(dry-run)", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white", on_click=process),
+                                               ft.OutlinedButton("清理已完成", on_click=lambda e: (self.q.clear_done(), self._refresh_queue()))], spacing=10)], spacing=8))
+        return [h1("图片工作台"), muted("批量白底 / 去水印 / 编辑（走你的 API 站点计费）"), self.q_panel,
                 card(ft.Column([self.wb_urls,
                                 ft.Row([ft.ElevatedButton("加载图片", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=load),
                                         ft.OutlinedButton("从已拉取产品取图", icon=ft.Icons.INVENTORY_2, on_click=lambda e: self._images_from_products()),
@@ -673,6 +719,30 @@ class App:
                                         self.wb_busy], spacing=10),
                                 self.wb_status], spacing=10)),
                 card(self.wb_results)]
+
+    def _refresh_queue(self):
+        st = self.q.stats()
+        self.q_text.value = f"待处理 {st['pending']} · 处理中 {st['running']} · 完成 {st['done']} · 失败 {st['failed']}"
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _process_queue(self):
+        pub = Publisher(self.cfg, dxm=None,
+                        text_service=TextService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg))
+        ok = fail = 0
+        for item in self.q.pending():
+            self.q.mark(item.product_id, "running")
+            self._refresh_queue()
+            res = pub.run({"id": item.product_id, "title": item.title, "skus": [], "images": []}, dry_run=True)
+            self.q.mark(item.product_id, "done" if res.ok else "failed", res.error)
+            ok += 1 if res.ok else 0
+            fail += 0 if res.ok else 1
+            self._log(f"队列 {item.product_id}: {'完成' if res.ok else '失败 ' + res.error}")
+            self._refresh_queue()
+        history.record("queue", ok, fail)
+        self.toast(f"队列处理完成：成功 {ok} / 失败 {fail}")
 
     def _images_from_products(self):
         urls: list[str] = []
@@ -876,12 +946,35 @@ class App:
             self.dbg_out.value = "请求中…"; self.page.update()
             threading.Thread(target=self._debug_call, daemon=True).start()
 
+        self.curl_text = ft.TextField(label="粘贴 cURL（自动识别路径）", multiline=True, min_lines=2,
+                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+        def parse_curl(e):
+            import re as _re
+            txt = self.curl_text.value or ""
+            m = _re.search(r"curl\s+['\"](https?://[^'\"]+)['\"]", txt)
+            if not m:
+                m = _re.search(r"(https?://[^\s'\"]+)", txt)
+            if not m:
+                self.toast("未识别到 URL", False); return
+            url = m.group(1)
+            path = url.split("?")[0]
+            self.dbg_path.value = path
+            for k, v in ENDPOINTS.items():
+                if path.endswith(v.split("/")[-1]):
+                    self.dbg_key.value = k
+                    break
+            self.toast(f"已识别：{path}")
+            self.page.update()
+
         dbg = card(ft.Column([h1("接口调试 / 端点校正", 15),
                               muted("登录店小秘后，用这里试真实接口并把正确路径保存下来"),
                               ft.Row([self.dbg_key, self.dbg_method], spacing=10),
                               self.dbg_path,
                               self.dbg_payload,
-                              ft.Row([ft.ElevatedButton("发送", icon=ft.Icons.SEND, bgcolor=ACCENT, color="white", on_click=send),
+                              self.curl_text,
+                              ft.Row([ft.ElevatedButton("解析 cURL", icon=ft.Icons.CONTENT_PASTE, on_click=parse_curl),
+                                      ft.ElevatedButton("发送", icon=ft.Icons.SEND, bgcolor=ACCENT, color="white", on_click=send),
                                       ft.ElevatedButton("保存端点", icon=ft.Icons.SAVE, on_click=save_override)], spacing=10),
                               self.dbg_out], spacing=10))
         return [view[0], upd, inst_card, dbg] + view[1:]
