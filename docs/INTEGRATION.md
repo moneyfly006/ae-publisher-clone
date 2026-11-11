@@ -23,6 +23,9 @@
 
 产品字段：`id`、`productId`、`subject`（标题）、`imageURLs`（图片）、`productPrice`、`productStatusType`、`categoryId`。
 
+> **重要**：`imageURLs` 是**分号拼接的多张图**（`url1;url2;...`），必须按 `;` 拆分，
+> 否则会拿到 404 占位图（1080 字节的灰色 jpeg）。已修复。
+
 ## 三、注意事项
 
 - **频率限制**：同一接口连续调用会返回 `code=2005 系统繁忙`，客户端已内置 2.5s 重试

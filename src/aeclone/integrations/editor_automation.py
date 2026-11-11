@@ -72,7 +72,16 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
             title_input.dispatch_event("input")
         page.wait_for_timeout(800)
 
-        page.get_by_role("button", name="保存", exact=True).first.click(timeout=10000)
+        clicked = False
+        for label in ("保存", "更新", "保存并发布", "提交"):
+            try:
+                loc = page.get_by_role("button", name=label, exact=True).first
+                if loc.count() > 0:
+                    loc.click(timeout=8000); clicked = True; break
+            except Exception:
+                continue
+        if not clicked:
+            raise RuntimeError("未找到保存/更新按钮")
         page.wait_for_timeout(6000)
 
         text = ""

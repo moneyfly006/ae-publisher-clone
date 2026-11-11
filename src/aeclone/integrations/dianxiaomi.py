@@ -144,11 +144,15 @@ class DianxiaomiClient:
         for it in items:
             imgs = it.get("imageURLs")
             if isinstance(imgs, str):
-                try:
-                    import json as _j
-                    imgs = _j.loads(imgs)
-                except Exception:
-                    imgs = [imgs] if imgs.startswith("http") else []
+                raw = imgs.strip()
+                if raw.startswith("["):
+                    try:
+                        import json as _j
+                        imgs = _j.loads(raw)
+                    except Exception:
+                        imgs = []
+                else:
+                    imgs = [x.strip() for x in raw.split(";") if x.strip().startswith("http")]
             imgs = imgs if isinstance(imgs, list) else []
             out.append({
                 "id": str(it.get("id") or it.get("productId") or ""),

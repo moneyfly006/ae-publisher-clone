@@ -69,6 +69,32 @@ class Publisher:
         p["price_result"] = r
         return p
 
+    def _publicize_images(self, p: dict, res) -> dict:
+        """把私有图片下载后转存到我们的服务器，得到公网可访问 URL。"""
+        import tempfile
+        from pathlib import Path as _P
+        from .hosting import upload as host_upload
+        d = _P(tempfile.mkdtemp())
+        cookies = None
+        if self.dxm is not None:
+            try:
+                cookies = self.dxm.cookies_dict()
+            except Exception:
+                cookies = None
+        out = []
+        for i, u in enumerate(p.get("images", [])[:8]):
+            try:
+                r = __import__("requests").get(str(u), timeout=60, cookies=cookies)
+                r.raise_for_status()
+                fp = d / f"pub_{i}.png"; fp.write_bytes(r.content)
+                out.append(host_upload(fp))
+            except Exception:
+                out.append(str(u))
+        if out:
+            p["images"] = out
+            res.steps.append(Step("图片转存", True, f"{len(out)} 张已转公网"))
+        return p
+
     def _local_image_ops(self, p: dict, res) -> dict:
         """水印 / 四合一：下载 → 本地处理 → 托管 → 回填 URL。"""
         import tempfile
@@ -164,6 +190,12 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     res.steps.append(Step("本地图片处理", False, str(ex)[:120]))
 
+            if p.get("images"):
+                try:
+                    p = self._publicize_images(p, res)
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("图片转存", False, str(ex)[:100]))
+
             if not dry_run and self.dxm and p.get("images"):
                 uploaded, failed = 0, 0
                 for u in p["images"][:20]:
@@ -189,7 +221,7 @@ class Publisher:
                         return res
                     res.steps.append(Step("图片审查", True, ("⚠ " if bad else "") + verdict[:60].replace("\n", " ")))
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("图片审查", False, str(ex)[:120]))
+                    res.steps.append(Step("图片审查", False, "跳过：" + str(ex)[:100]))
 
             p = self._price(p)
             r = p["price_result"]
