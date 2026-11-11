@@ -110,9 +110,13 @@ def schema_advanced():
                  Field("auto_generate_sku_code", "自动生成 SKU 编码", "bool"),
                  Field("modify_stock_999", "库存改为 999", "bool"),
                  Field("stock_quantity", "库存数量")]),
+        ("规格", [Field("spec_weight", "重量"), Field("spec_length", "长"),
+                  Field("spec_width", "宽"), Field("spec_height", "高"),
+                  Field("product_type", "商品类型"), Field("declared_value", "申报价值")]),
         ("详情文字", [Field("detail_text_info", "详情文字（头部）", "multiline"),
                       Field("detail_text_info_tail", "详情文字（尾部）", "multiline"),
-                      Field("detail_text_position", "插入位置（head/tail/both）")]),
+                      Field("detail_text_position", "插入位置（head/tail/both）"),
+                      Field("move_detail_text", "详情文字并入头部", "bool")]),
         ("运行", [Field("auto_save_products", "自动保存到店小秘（关闭=只试跑）", "bool")]),
     ]
 
@@ -140,6 +144,8 @@ def schema_review():
                       Field("review_main_img_prompt", "主图审查提示词", "multiline"),
                       Field("review_detail_img_enable", "详情图审查", "bool"),
                       Field("review_detail_img_prompt", "详情图审查提示词", "multiline"),
+                      Field("detail_review_first_count", "详情图审查前 N 张"),
+                      Field("detail_review_last_count", "详情图审查后 N 张"),
                       Field("review_block_on_fail", "不合规时拦截发布", "bool")]),
     ]
 
@@ -155,6 +161,9 @@ def schema_image():
                         Field("remove_watermark_pic_2", "去水印结束序号")]),
         ("精细索引", [Field("single_edit_main_pic_indices", "主图编辑序号（如 1,3）"),
                       Field("single_edit_detail_pic_indices", "详情图编辑序号")]),
+        ("详情图翻译", [Field("translate_detail_pic_enable", "启用详情图文字翻译", "bool"),
+                        Field("translate_detail_pic_indices", "翻译图序号（如 1-3）"),
+                        Field("translate_prompt", "翻译提示词", "multiline")]),
         ("背景生成", [Field("background_gen_rules", "规则 JSON（position/prompt）", "multiline"),
                       Field("background_gen_sku_prompt", "SKU 背景提示词", "multiline")]),
         ("SKU 图", [Field("white_background_sku_pic", "处理 SKU 图", "bool")]),

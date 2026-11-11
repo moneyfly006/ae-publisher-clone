@@ -80,6 +80,21 @@ class Publisher:
             return p
         p["template_fields"] = fields
         p["template_attributes"] = snap.get("attributes") or []
+        specs = getattr(self, "_pending_specs", {}) or {}
+        for key, label in (("spec_weight", "Weight"), ("spec_length", "Length"),
+                           ("spec_width", "Width"), ("spec_height", "Height")):
+            v = (getattr(self.cfg, key, "") or "").strip()
+            if v:
+                specs[label] = v
+        if getattr(self.cfg, "product_type", ""):
+            specs["Product Type"] = self.cfg.product_type
+        if getattr(self.cfg, "declared_value", ""):
+            specs["Declared Value"] = self.cfg.declared_value
+        if specs:
+            p["specs"] = specs
+            amap = dict(p.get("attributes_map") or {})
+            amap.update(specs)
+            p["attributes_map"] = amap
         if not p.get("attributes_map"):
             amap = {}
             for a in p["template_attributes"]:
@@ -199,7 +214,8 @@ class Publisher:
         detail = p.get("detail_images") or []
         detail_ops = (getattr(self.cfg, "img_detail_white_bg", False)
                       or getattr(self.cfg, "img_detail_remove_wm", False)
-                      or getattr(self.cfg, "img_detail_edit", False))
+                      or getattr(self.cfg, "img_detail_edit", False)
+                      or getattr(self.cfg, "translate_detail_pic_enable", False))
         if detail and detail_ops:
             selected = pick(detail, self.cfg.white_background_detail_pic_indices)
             if selected:
@@ -212,6 +228,27 @@ class Publisher:
                     detail[i] = u
                 p["detail_images"] = detail
                 res.steps.append(Step("详情图处理", done > 0, f"{done}/{len(out)} 张"))
+
+        # 详情图文字翻译
+        if getattr(self.cfg, "translate_detail_pic_enable", False) and detail:
+            from .image_index import pick as _pick
+            idx_expr = getattr(self.cfg, "translate_detail_pic_indices", "") or ""
+            targets = _pick(detail, idx_expr) if idx_expr else detail[:3]
+            tr_done = 0
+            for i, u in enumerate(detail):
+                if u in targets:
+                    try:
+                        ip = self.image_pipeline
+                        old = ip.cfg.edit_prompt
+                        ip.cfg.edit_prompt = getattr(self.cfg, "translate_prompt", "") or old
+                        detail[i] = self._run_ops(u, False, False, True)
+                        ip.cfg.edit_prompt = old
+                        tr_done += 1
+                    except Exception:
+                        pass
+            if tr_done:
+                p["detail_images"] = detail
+                res.steps.append(Step("详情图翻译", True, f"{tr_done} 张"))
 
         # SKU 图
         if self.cfg.white_background_sku_pic:
@@ -344,6 +381,20 @@ class Publisher:
                 res.steps.append(Step("SKU 处理", True,
                                       f"{sample.get('sku')} · 库存 {sample.get('stock', '-')}"))
 
+            specs = {}
+            for key, label in (("spec_weight", "Weight"), ("spec_length", "Length"),
+                               ("spec_width", "Width"), ("spec_height", "Height")):
+                v = (getattr(self.cfg, key, "") or "").strip()
+                if v:
+                    specs[label] = v
+            if getattr(self.cfg, "product_type", ""):
+                specs["Product Type"] = self.cfg.product_type
+            if getattr(self.cfg, "declared_value", ""):
+                specs["Declared Value"] = self.cfg.declared_value
+            if specs:
+                p["specs"] = specs
+                res.steps.append(Step("规格属性", True, ", ".join(f"{k}={v}" for k, v in specs.items())[:80]))
+
             p = self._apply_template(p, res)
             p = self._map_variants(p)
             res.steps.append(Step("变种映射", True, f"{len(p.get('attr_mapping') or {})} 项映射"
@@ -368,6 +419,8 @@ class Publisher:
                     head = (self.cfg.detail_text_info or "").strip()
                     tail = (self.cfg.detail_text_info_tail or "").strip()
                     pos = (self.cfg.detail_text_position or "head").lower()
+                    if getattr(self.cfg, "move_detail_text", False) and head:
+                        pos = "head"
                     if head and pos in ("head", "both"):
                         html = f"<p>{head}</p>" + html
                     if tail and pos in ("tail", "both"):
@@ -397,8 +450,9 @@ class Publisher:
                         or getattr(self.cfg, "img_sku_white_bg", False)
                         or getattr(self.cfg, "img_sku_remove_wm", False)
                         or getattr(self.cfg, "img_sku_edit", False)
-                        or (getattr(self.cfg, "background_gen_rules", "") or "").strip() not in ("", "[]"))
-            if p.get("images") and _img_ops:
+                        or (getattr(self.cfg, "background_gen_rules", "") or "").strip() not in ("", "[]")
+                        or getattr(self.cfg, "translate_detail_pic_enable", False))
+            if (p.get("images") or p.get("detail_images") or p.get("skus")) and _img_ops:
                 try:
                     p = self._ai_images(p, res)
                 except Exception as ex:  # noqa: BLE001
@@ -421,6 +475,24 @@ class Publisher:
                         p.setdefault("upload_errors", []).append(str(ex)[:120])
                 res.steps.append(Step("图片上传", uploaded > 0 or failed == 0,
                                       f"成功 {uploaded} / 失败 {failed}"))
+
+            if (self.cfg.review_detail_img_enable and p.get("detail_images")):
+                try:
+                    ip2 = ImagePipeline(self.cfg)
+                    n_first = int(getattr(self.cfg, "detail_review_first_count", 0) or 0)
+                    n_last = int(getattr(self.cfg, "detail_review_last_count", 0) or 0)
+                    imgs = p["detail_images"]
+                    subset = []
+                    if n_first:
+                        subset += imgs[:n_first]
+                    if n_last:
+                        subset += imgs[-n_last:]
+                    if not subset:
+                        subset = imgs[:2]
+                    verdict = ip2.review(str(subset[0]), "detail")
+                    res.steps.append(Step("详情图审查", True, verdict[:50].replace("\n", " ")))
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("详情图审查", False, str(ex)[:80]))
 
             if self.cfg.review_text_enable and p.get("detail_html"):
                 try:

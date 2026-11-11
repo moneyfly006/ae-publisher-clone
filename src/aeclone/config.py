@@ -88,6 +88,23 @@ DEFAULTS: dict = {
     "overwrite_existing_video": False,
     # 区域调价模板（本地）
     "adjust_price_template_detail": "{}",
+    # 详情文字 / 属性
+    "move_detail_text": False,
+    "declared_value": "",
+    "product_type": "普货",
+    "amount": "",
+    "spec_weight": "",
+    "spec_length": "",
+    "spec_width": "",
+    "spec_height": "",
+    # 详情图翻译
+    "translate_detail_pic_enable": False,
+    "translate_detail_pic_indices": "",
+    "translate_prompt": "把图片中的所有文字翻译成英文，保持排版和商品不变",
+    # 详情图审查范围
+    "detail_review_first_count": 0,
+    "detail_review_last_count": 0,
+
 
     "review_text_enable": False,
     "review_detail_img_enable": False,
