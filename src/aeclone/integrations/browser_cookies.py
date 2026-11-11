@@ -17,10 +17,21 @@ def _collect(jar) -> dict:
 
 
 def read_from(browser: str, domain: str = "dianxiaomi.com") -> CookieSource:
+    # 1) 自带解密器（无第三方依赖）
     try:
-        import browser_cookie3 as bc
+        from .chrome_cookies import read_cookies
+        ck = read_cookies(browser, domain)
+        if ck:
+            return CookieSource(browser, True, ck, "")
+    except Exception as e:  # noqa: BLE001
+        first_err = f"{type(e).__name__}: {e}"
+    else:
+        first_err = "未读到 Cookie"
+    # 2) 回退到 browser_cookie3（如果打包里有）
+    try:
+        import browser_cookie3 as bc  # type: ignore
     except ImportError:
-        return CookieSource(browser, False, {}, "缺少 browser_cookie3 依赖")
+        return CookieSource(browser, False, {}, first_err)
 
     fn = {
         "chrome": bc.chrome,

@@ -305,6 +305,14 @@ class App:
                              expand=True, spacing=0))
         threading.Thread(target=self._check_license, daemon=True).start()
         try:
+            from ..integrations.browser_cookies import read_best
+            src = read_best("dianxiaomi.com")
+            self._log(f"Cookie 源：{src.name} · {len(src.cookies)} 个" + ("" if src.ok else f"（{src.error[:60]}）"),
+                      "INFO" if src.ok else "WARN")
+        except Exception as ex:
+            self._log(f"Cookie 检测异常：{ex}", "WARN")
+
+        try:
             self._maybe_wizard()
         except Exception as ex:
             self._log(f"引导弹窗异常：{ex}")
@@ -672,6 +680,7 @@ class App:
 
         self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
         self.tpl_preview_box = ft.Container(content=self._template_preview_row())
+        self.cookie_status = ft.Text("Cookie：检测中…", size=11, color=MUTED)
         self.shop_dd = ft.Dropdown(label="店铺", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                    options=[], value=None)
         self.tpl_dd = ft.Dropdown(label="模板产品", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
@@ -713,6 +722,7 @@ class App:
             h1("对接操作", 15),
             ft.Row([ft.ElevatedButton("从 Chrome 读取并同步", icon=ft.Icons.SYNC, bgcolor=ACCENT_2, color="#04231C", on_click=sync_shops),
                     ft.ElevatedButton("启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=CARD_2, color=TEXT, on_click=connect),
+                    ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self._paste_cookie()),
                     ft.ElevatedButton("① 启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=connect),
                     ft.ElevatedButton("② 检测店小秘登录", icon=ft.Icons.LOGIN, bgcolor=CARD_2, color=TEXT, on_click=login),
                     ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
@@ -729,13 +739,47 @@ class App:
             ft.Row([ft.ElevatedButton("读取模板参数", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE,
                                       bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._read_template, daemon=True).start()),
                     self.tpl_snapshot_text], spacing=10),
-            self.store_status], spacing=10))
+            self.store_status, self.cookie_status], spacing=10))
         self.shop_dd.on_change = on_shop
         self.tpl_dd.on_change = on_tpl
+        try:
+            from ..integrations.browser_cookies import read_best
+            src = read_best("dianxiaomi.com")
+            self.cookie_status.value = f"Cookie：{src.name} · {len(src.cookies)} 个" + ("" if src.ok else "（读取失败，可点粘贴 Cookie）")
+            self.cookie_status.color = ACCENT_2 if src.ok else "#FFB020"
+        except Exception as ex:
+            self.cookie_status.value = f"Cookie：读取异常 {ex}"
         view = self._render("店铺与模板", schema_store())
         return [view[0], bar] + view[1:]
 
     # ---------- 对接动作 ----------
+    def _paste_cookie(self):
+        field = ft.TextField(label="Cookie", multiline=True, min_lines=4, bgcolor=CARD_2,
+                             border_color=CARD_2, color=TEXT,
+                             hint_text="从 Chrome 开发者工具 Network → 任意请求 → Request Headers → Cookie 复制整行")
+
+        def save(e):
+            raw = (field.value or "").strip()
+            ck = {}
+            for part in raw.split(";"):
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    ck[k.strip()] = v.strip()
+            if not ck:
+                self.toast("Cookie 解析为空", False); return
+            self.cfg.manual_cookies = ck
+            save_config(self.cfg)
+            self.toast(f"已保存 {len(ck)} 个 Cookie")
+            dlg.open = False
+            self.page.update()
+            threading.Thread(target=self._sync_shops, daemon=True).start()
+
+        dlg = ft.AlertDialog(title=ft.Text("手动粘贴 Cookie"),
+                             content=ft.Column([field], width=560, height=200),
+                             actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
+                                      ft.ElevatedButton("保存并同步", bgcolor=ACCENT, color="white", on_click=save)])
+        self.page.dialog = dlg; dlg.open = True; self.page.update()
+
     def _set_tpl_preview(self, images=None):
         self.tpl_preview_box.content = self._template_preview_row(images)
         try:
@@ -818,6 +862,10 @@ class App:
         self.page.update()
 
     def _cookies(self):
+        # 0) 手动粘贴的 Cookie（最高优先级）
+        manual = getattr(self.cfg, "manual_cookies", None)
+        if isinstance(manual, dict) and manual:
+            return dict(manual)
         # 1) 优先直接读本机浏览器（已登录的 Chrome/Edge），无需 CDP
         try:
             from ..integrations.browser_cookies import read_best, is_logged_in

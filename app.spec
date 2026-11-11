@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 from pathlib import Path
 
 block_cipher = None
@@ -9,7 +10,7 @@ a = Analysis(
     pathex=[str(Path("src").resolve())],
     binaries=[],
     datas=[("assets", "assets")],
-    hiddenimports=["aeclone", "aeclone.ui", "aeclone.ui.app", "browser_cookie3", "Crypto.Cipher.AES", "Crypto.Protocol.KDF"],
+    hiddenimports=["aeclone", "aeclone.ui", "aeclone.ui.app", "browser_cookie3", "Crypto", "Crypto.Cipher", "Crypto.Cipher.AES", "Crypto.Protocol", "Crypto.Protocol.KDF"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

@@ -76,6 +76,7 @@ DEFAULTS: dict = {
     "review_block_on_fail": False,
     "auto_save_products": False,
     "onboarded": False,
+    "manual_cookies": {},
     "template_source": "draft",
     "template_product_id": "",
     "template_product_title": "",
