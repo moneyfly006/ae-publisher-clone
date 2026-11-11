@@ -136,6 +136,70 @@ DEFAULTS: dict = {
     "market_scene_pic_no": "",
     "verify_mode": "local",
     "endpoint_overrides": {},
+    # ---- 详情文字 ----
+    "detail_text_info": "",
+    "detail_text_info_tail": "",
+    "detail_text_position": "head",
+    "add_custom_detail": False,
+    # ---- 主图/图片位置 ----
+    "main_pic_checkbox": False,
+    "pad_main_images_from_extra": True,
+    "offline_checkbox": False,
+    "white_background_pic_1": "1",
+    "white_background_pic_2": "3",
+    "white_background_detail_pic_sum": "",
+    "white_background_detail_pic_indices": "",
+    "white_background_sku_pic": True,
+    "remove_watermark_pic_1": "1",
+    "remove_watermark_pic_2": "5",
+    "remove_watermark_detail_pic_sum": "",
+    "remove_watermark_detail_pic_indices": "",
+    "remove_watermark_sku_pic": False,
+    "single_edit_pic_1": "",
+    "single_edit_pic_2": "",
+    "single_edit_detail_pic_sum": "",
+    "single_edit_main_pic_indices": "",
+    "single_edit_detail_pic_indices": "",
+    "single_edit_sku_pic": False,
+    "background_gen_sku_pic": False,
+    "background_gen_rules": "[]",
+    "background_gen_sku_prompt": "",
+    "background_gen_detail_replace": False,
+    "translate_detail_pic_sum": "",
+    "translate_detail_pic_indices": "",
+    "translate_image_understanding": False,
+    "white_background_image_understanding": True,
+    "remove_watermark_image_understanding": False,
+    "single_edit_image_understanding": False,
+    "single_edit_review_prompt": "",
+    # ---- 规格 / 商品属性 ----
+    "spec_weight": "",
+    "spec_length": "",
+    "spec_width": "",
+    "spec_height": "",
+    "prefer_collected_weight_size": False,
+    "product_type": "普货",
+    "amount": "",
+    "cost_category_id": "",
+    "quote_product_id": "",
+    "selected_option": "",
+    "selected_bit_browser": "local-edge",
+    "upload_full_cid": "",
+    "upload_category_name": "",
+    # ---- 审查数量 ----
+    "detail_review_first_count": 0,
+    "detail_review_last_count": 0,
+    # ---- 价格扩展 ----
+    "tuoguan_price_tiered_enabled": False,
+    "tuoguan_price_tiers": "[]",
+    "adjust_price_template_detail": "",
+    "free_shipping_regional_pricing_mode": "auto",
+    "free_shipping_adjust_price_template_id": "",
+    "free_shipping_adjust_price_template_name": "",
+    "free_shipping_adjust_price_template_detail": "",
+    "product_id": "",
+    "product_id_history": "[]",
+
 }
 
 
@@ -158,13 +222,37 @@ def _base_dir() -> Path:
     return base / APP_NAME
 
 
+ALIASES = {
+    "ai_prompt": "title_prompt",
+    "detail_ai_prompt": "detail_prompt",
+    "ai_sku_optimize_prompt": "sku_prompt",
+    "ai_weight_size_prompt": "weight_prompt",
+    "enable_ai_sku_optimize": "enable_ai_sku",
+    "enable_ai_weight_size": "enable_ai_weight",
+    "enable_detail_text_review": "review_text_enable",
+    "enable_detail_image_review": "review_detail_img_enable",
+    "enable_main_image_review": "review_main_img_enable",
+    "detail_review_prompt": "review_text_prompt",
+    "main_image_review_prompt": "review_main_img_prompt",
+    "white_background_enable": "white_bg_enable",
+    "remove_watermark_enable": "watermark_enable",
+    "single_edit_enable": "edit_enable",
+    "single_edit_prompt": "edit_prompt",
+    "Offline_checkbox": "offline_checkbox",
+}
+
+
 class AppConfig:
     """字典式配置对象：cfg.xxx 读写，自动持久化。"""
 
     DEFAULTS = DEFAULTS
 
     def __init__(self, data: dict | None = None):
-        object.__setattr__(self, "_d", {**DEFAULTS, **(data or {})})
+        src = dict(data or {})
+        for old, new in ALIASES.items():
+            if old in src and new not in src:
+                src[new] = src[old]
+        object.__setattr__(self, "_d", {**DEFAULTS, **src})
 
     def __getattr__(self, name):
         d = object.__getattribute__(self, "_d")

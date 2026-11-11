@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .pricing import calc_free_shipping, calc_multiplier
+from .text_pipeline import TextPipeline
+from .image_pipeline import ImagePipeline
 from .variants import auto_map, check_consistency, limit_skus
 
 
@@ -78,12 +80,31 @@ class Publisher:
             res.steps.append(Step("变种映射", True, f"{len(p.get('attr_mapping') or {})} 项映射"
                                                     + (f"，{len(p['sku_issues'])} 个问题" if p.get("sku_issues") else "")))
 
-            if self.cfg.enable_ai_title and self.text and p["title"]:
-                new_title = self.text.translate_title(p["title"])
-                p["title_en"] = new_title
-                res.steps.append(Step("AI 标题", True, new_title[:60]))
+            tp = TextPipeline(self.cfg)
+            if self.cfg.enable_ai_title and p["title"]:
+                r = tp.make_title(p["title"], p.get("brands"))
+                if r.ok:
+                    p["title_en"] = r.value
+                    res.steps.append(Step("AI 标题", True, r.value[:70]))
+                else:
+                    res.steps.append(Step("AI 标题", False, r.error))
             else:
                 res.steps.append(Step("AI 标题", True, "未启用，跳过"))
+
+            if self.cfg.enable_ai_detail and p["title"]:
+                r = tp.make_detail(p.get("title_en") or p["title"], p.get("attributes_map"))
+                res.steps.append(Step("AI 详情", r.ok, (r.value[:60] if r.ok else r.error)))
+                if r.ok:
+                    p["detail_html"] = r.value
+
+            if self.cfg.enable_ai_sku and p.get("skus"):
+                names = [str(s.get("sku") or s.get("name") or "") for s in p["skus"]]
+                r = tp.make_skus(names)
+                if r.ok:
+                    new_names = r.value.splitlines()
+                    for sku, nm in zip(p["skus"], new_names):
+                        sku["optimized_name"] = nm
+                res.steps.append(Step("AI SKU", r.ok, (r.value[:50].replace("\n", " ") if r.ok else r.error)))
 
             if not dry_run and self.dxm and p.get("images"):
                 uploaded, failed = 0, 0
