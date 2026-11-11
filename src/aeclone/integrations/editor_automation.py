@@ -133,12 +133,24 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
 
 
 def publish_product(ws_endpoint: str, product_id: str, confirm: bool = False,
-                    timeout: int = 90000) -> SaveResult:
+                    dry_run: bool = True, timeout: int = 90000) -> SaveResult:
     """点击编辑器「发布」。confirm=False 时拒绝执行（防止误发）。"""
     if not confirm:
         return SaveResult(ok=False, message="未确认：发布操作被拒绝（需显式 confirm=True）")
     pw, browser, ctx = _connect(ws_endpoint)
     page = ctx.new_page()
+    captured = {}
+    if dry_run:
+        def _route(route):
+            req = route.request
+            if req.method in ("POST", "PUT") and "/api/" in req.url and \
+               any(k in req.url.lower() for k in ("publish", "submit", "online", "add")):
+                captured["url"] = req.url.split("dianxiaomi.com")[-1]
+                captured["len"] = len(req.post_data or "")
+                route.abort()
+            else:
+                route.continue_()
+        page.route("**/api/**", _route)
     seen = {}
     def _on_resp(resp):
         try:
@@ -153,7 +165,17 @@ def publish_product(ws_endpoint: str, product_id: str, confirm: bool = False,
         page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
         page.wait_for_timeout(10000)
         page.get_by_role("button", name="发布", exact=True).first.click(timeout=12000)
-        page.wait_for_timeout(15000)
+        page.wait_for_timeout(6000)
+        for txt in ("继续发布", "确定", "确认"):
+            try:
+                btn = page.get_by_role("button", name=txt, exact=True).first
+                if btn.count() > 0:
+                    btn.click(timeout=3000); page.wait_for_timeout(3000); break
+            except Exception:
+                continue
+        page.wait_for_timeout(9000)
+        if dry_run and captured.get("url"):
+            return SaveResult(ok=True, message=f"演练：已捕获发布接口 {captured['url']}（{captured['len']} 字节，未提交）")
         if seen:
             return SaveResult(ok=seen.get("status", 500) < 400,
                               message=f"发布接口 {seen['url']} HTTP {seen.get('status')}")

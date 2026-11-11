@@ -399,7 +399,7 @@ class App:
                     open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/smt/smtProductList/offline")
                 except Exception:
                     pass
-                self.wz_status.value = "请在浏览器里登录店小秘，登录后会自动检测并同步…"
+                self.wz_status.value = "请在弹出的 Chrome 窗口登录店小秘（一次即可，之后记住登录），登录后自动同步…"
                 self.page.update()
                 # 自动等待登录（最多 5 分钟）
                 for _ in range(100):

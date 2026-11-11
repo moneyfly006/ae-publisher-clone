@@ -63,16 +63,46 @@ def find_edge() -> str | None:
     return None
 
 
+def default_chrome_profile() -> str | None:
+    """返回用户日常 Chrome 配置目录（复用已有登录态）。"""
+    import os
+    cands = [
+        os.path.expanduser("~/Library/Application Support/Google/Chrome"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data"),
+        os.path.expanduser("~/.config/google-chrome"),
+    ]
+    for c in cands:
+        if Path(c).exists():
+            return c
+    return None
+
+
 def launch_browser(kind: str = "chrome", user_data_dir: str | None = None,
                    port: int | None = None, headless: bool = False,
-                   url: str | None = None) -> dict:
+                   url: str | None = None, use_default_profile: bool = True) -> dict:
     """启动 Chrome/Edge 并返回 CDP 端点（默认 Chrome）。"""
     exe = find_chrome() if kind == "chrome" else find_edge()
     if not exe and kind == "chrome":
         exe = find_edge()
     if not exe:
         raise BrowserError("未找到 Chrome/Edge")
-    return _launch_exe(exe, user_data_dir, port, headless, url)
+    profile = user_data_dir
+    if not profile and use_default_profile:
+        # 独立持久配置：登录一次后长期复用（Chrome 136+ 禁止默认配置开调试端口）
+        from ..config import config_dir
+        profile = str(config_dir() / "chrome-profile")
+        Path(profile).mkdir(parents=True, exist_ok=True)
+    # 固定端口便于复用已开的窗口
+    if port is None:
+        port = 9333
+        try:
+            import requests as _rq
+            if _rq.get(f"http://127.0.0.1:{port}/json/version", timeout=2).ok:
+                return {"ws": f"ws://127.0.0.1:{port}/devtools/browser", "port": port,
+                        "exe": exe, "profile": profile, "reused": True}
+        except Exception:
+            pass
+    return _launch_exe(exe, profile, port, headless, url)
 
 
 def launch_edge(user_data_dir: str | None = None, port: int | None = None, headless: bool = False) -> dict:
