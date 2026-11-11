@@ -229,10 +229,8 @@ def schema_variant():
 
 def schema_settings(cfg):
     return [
-        ("API 与并发", [Field("api_base", "API 地址"), Field("api_key", "API Key"),
-                        Field("concurrency", "并发数"), Field("timeout", "超时(秒)")]),
-        ("授权", [Field("verify_mode", "验证模式（local / shop）"),
-                  Field("license_server", "授权服务器")]),
+        ("API 配置", [Field("api_key", "API Key"),
+                      Field("concurrency", "并发数"), Field("timeout", "超时(秒)")]),
         ("通用", [Field("image_upload_category", "图片上传分类"),
                   Field("market_white_bg_pic_no", "营销白底图取第几张"),
                   Field("publish_destination", "发布目标"),
@@ -264,7 +262,7 @@ class App:
             start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch(start % 13)
+        self._switch(start % 12)
         page.update()
 
     # ---------- 壳 ----------
@@ -274,7 +272,6 @@ class App:
                  ("高级设置", ft.Icons.TUNE), ("AI 智能填写", ft.Icons.AUTO_FIX_HIGH),
                  ("内容审查", ft.Icons.FACT_CHECK_OUTLINED), ("图片处理", ft.Icons.IMAGE_OUTLINED),
                  ("价格设置", ft.Icons.SELL_OUTLINED), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED),
-                 ("API 站点", ft.Icons.CLOUD_OUTLINED),
                  ("设置", ft.Icons.SETTINGS_OUTLINED),
                  ("AI 处理", ft.Icons.AUTO_AWESOME),
                  ("图片工作台", ft.Icons.GRID_VIEW),
@@ -310,7 +307,7 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_api, self._p_settings, self._p_ai_work, self._p_workbench, self._p_logs]
+                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_ai_work, self._p_workbench, self._p_logs]
         self.content.controls = pages[idx]()
         self.page.update()
 
@@ -805,6 +802,7 @@ class App:
         except Exception as ex:
             self.aw_out.value = f"异常: {ex}"
             self._log(f"AI {kind} 异常: {ex}")
+            self._maybe_quota(str(ex))
         finally:
             self.aw_busy.visible = False
             self.page.update()
@@ -980,6 +978,8 @@ class App:
         def done(res):
             icon = ft.Icons.CHECK_CIRCLE if res.ok else ft.Icons.ERROR_OUTLINE
             color = ACCENT_2 if res.ok else "#FF6B6B"
+            if not res.ok:
+                self._maybe_quota(res.error)
             self.wb_results.controls.append(ft.Row([ft.Icon(icon, size=15, color=color),
                                                     ft.Text(res.value if res.ok else res.error, size=11,
                                                             color=MUTED, selectable=True)], spacing=8))
@@ -1051,41 +1051,20 @@ class App:
         except Exception:
             pass
 
-    def _p_api(self):
-        self._current = 8
-        self.api_balance = ft.Text("—", color=ACCENT_2, size=22, weight=ft.FontWeight.BOLD)
-        self.api_used = ft.Text("—", color=MUTED, size=12)
-        self.api_models = ft.Column(spacing=4)
-
-        def refresh(e=None):
-            threading.Thread(target=self._refresh_api, daemon=True).start()
-
-        return [h1("API 站点"), muted(f"当前站点：{self.cfg.api_base}"),
-                card(ft.Row([ft.Column([muted("剩余额度 (USD)"), self.api_balance], spacing=4),
-                             ft.Column([muted("已用"), self.api_used], spacing=4),
-                             ft.ElevatedButton("刷新", icon=ft.Icons.REFRESH, on_click=refresh)], spacing=40)),
-                card(ft.Column([h1("可用模型", 15), self.api_models], spacing=8))] + \
-               [ft.Row([ft.ElevatedButton("刷新", on_click=refresh)])]
-
-    def _refresh_api(self):
-        try:
-            c = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
-            b = c.balance()
-            self.api_balance.value = f"${b['remain']:,.2f}"
-            self.api_used.value = f"${b['used']:,.4f}"
-            models = c.models()
-            self.api_models.controls = [
-                ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE, size=14, color=ACCENT_2),
-                        ft.Text(m, size=12, color=TEXT)], spacing=8) for m in models
-            ] or [ft.Text("未返回模型", size=12, color=MUTED)]
-            self.toast(f"已刷新：{len(models)} 个模型")
-        except Exception as ex:
-            self.api_balance.value = "查询失败"
-            self.api_used.value = str(ex)[:80]
-        self.page.update()
-
     def _p_settings(self):
         self._current = 9
+        def recharge(e):
+            try:
+                self.page.launch_url("https://api.moneyfly.club")
+            except Exception:
+                self.toast("请在浏览器打开 https://api.moneyfly.club", False)
+
+        recharge_card = card(ft.Column([
+            h1("额度", 15),
+            muted("额度不足时，点击下面按钮登录站点充值后回到本页即可继续使用（无需改任何配置）"),
+            ft.Row([ft.ElevatedButton("额度不足？去充值", icon=ft.Icons.ACCOUNT_BALANCE_WALLET,
+                                      bgcolor="#F0A020", color="#1A1200", on_click=recharge)], spacing=10),
+        ], spacing=10))
         view = self._render("设置", schema_settings(self.cfg))
         self.inst_name = ft.TextField(label="新实例名称", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.inst_list = ft.Column(spacing=4)
@@ -1179,7 +1158,7 @@ class App:
                                       ft.ElevatedButton("发送", icon=ft.Icons.SEND, bgcolor=ACCENT, color="white", on_click=send),
                                       ft.ElevatedButton("保存端点", icon=ft.Icons.SAVE, on_click=save_override)], spacing=10),
                               self.dbg_out], spacing=10))
-        return [view[0], upd, inst_card, dbg] + view[1:]
+        return [view[0], recharge_card, upd, inst_card, dbg] + view[1:]
 
     def _debug_call(self):
         import json as _json
@@ -1230,9 +1209,9 @@ class App:
 
     def _test(self):
         try:
-            n = len(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout).models())
-            self.stat_api.value = f"正常 · {n} 个模型"; self.stat_api.color = ACCENT_2
-            self.toast(f"连接成功，{n} 个模型")
+            ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout).models()
+            self.stat_api.value = "正常"; self.stat_api.color = ACCENT_2
+            self.toast("连接成功")
         except Exception as e:
             self.stat_api.value = "连接失败"; self.stat_api.color = "#FF6B6B"
             self.toast(str(e), False)
@@ -1270,6 +1249,14 @@ class App:
             self.picked = [Path(f.path) for f in e.files]
             self.img_status.value = f"已选择 {len(self.picked)} 张图"
             self.page.update()
+
+    def _maybe_quota(self, msg: str) -> None:
+        if any(k in str(msg) for k in ("额度", "余额", "quota", "insufficient", "欠费")):
+            try:
+                self.page.launch_url("https://api.moneyfly.club")
+            except Exception:
+                pass
+            self.toast("额度不足，已打开充值页面", False)
 
     def toast(self, msg, ok=True):
         self.page.snack_bar.content = ft.Text(msg, color=TEXT)

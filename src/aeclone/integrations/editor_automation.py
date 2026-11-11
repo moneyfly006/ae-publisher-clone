@@ -22,6 +22,25 @@ def _connect(ws: str):
     return pw, browser, ctx
 
 
+def read_title(ws_endpoint: str, product_id: str, timeout: int = 60000) -> str:
+    """读取编辑器里的当前标题（用于保存后校验）。"""
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    try:
+        page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
+        page.wait_for_timeout(9000)
+        return page.locator("input[type=text]").first.input_value(timeout=8000)
+    except Exception:
+        return ""
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        browser.close()
+        pw.stop()
+
+
 def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = None,
                     timeout: int = 60000) -> SaveResult:
     pw, browser, ctx = _connect(ws_endpoint)

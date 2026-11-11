@@ -26,6 +26,7 @@ ENDPOINTS = {
     "album_upload_url": "/api/album/toUploadPicFromNet.json",   # 实测：按 URL 上传图片
     "video_callback": "/api/smtmedia/callback.json",
     "product_save": "/api/smtProduct/add.json",   # 实测：编辑器保存
+    "product_detail": "/api/smtProduct/edit.json",  # 实测：编辑器加载
     "product_detail": "",
     "category": "",
 }
@@ -57,7 +58,10 @@ class DianxiaomiClient:
         return self.base + self.endpoints.get(key, ENDPOINTS.get(key, "/"))
 
     def _get(self, key: str, params: dict | None = None) -> Any:
-        r = self.session.get(self._url(key), params=params, timeout=self.timeout)
+        headers = None
+        if key == "product_detail" and params and params.get("id"):
+            headers = {"Referer": f"https://www.dianxiaomi.com/web/smt/edit?id={params['id']}"}
+        r = self.session.get(self._url(key), params=params, timeout=self.timeout, headers=headers)
         data = self._parse(r)
         if isinstance(data, dict) and str(data.get("code")) == "2005":
             import time as _t
@@ -160,8 +164,10 @@ class DianxiaomiClient:
             })
         return out
 
-    def product_detail(self, product_id: str) -> Any:
-        return self._get("product_detail", {"id": product_id})
+    def product_detail(self, product_id: str) -> dict:
+        data = self._get("product_detail", {"id": product_id})
+        inner = data.get("data") or {}
+        return inner.get("product") or inner
 
     def category_tree(self) -> Any:
         return self._get("category")
