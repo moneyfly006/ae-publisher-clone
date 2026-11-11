@@ -67,12 +67,12 @@ DEFAULTS: dict = {
     "apply_template_on_save": True,
     # AI 主图生成 / 指定图片编辑
     "main_image_generate_enable": False,
-    "main_image_generate_prompt": "",
+    "main_image_generate_prompt": "专业电商主图：{标题}，纯白背景，商品居中，无任何文字、水印、logo",
     "main_image_generate_count": "1",
     "image_gen_model": "qwen-image-3.0",
     "designated_edit_enable": False,
     "designated_edit_indices": "",
-    "designated_edit_prompt": "",
+    "designated_edit_prompt": "清理并本地化这张商品图：去除水印、logo、二维码和促销标签，保持商品主体不变",
 
     # 库存 / SKU
     "modify_stock_999": False,
@@ -88,7 +88,7 @@ DEFAULTS: dict = {
     "single_edit_detail_pic_indices": "",
     # 背景生成
     "background_gen_rules": "[]",
-    "background_gen_sku_prompt": "",
+    "background_gen_sku_prompt": "把商品图背景替换为简约纯白摄影棚背景，保持商品主体和颜色不变",
     "background_gen_detail_replace": False,
     # 上传 / 视频
     "upload_full_cid": "",

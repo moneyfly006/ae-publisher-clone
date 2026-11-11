@@ -164,39 +164,56 @@ def schema_review():
 
 def schema_image():
     return [
-        ("AI主图生成", [Field("main_image_generate_enable", "启用文生图主图", "bool"),
-                        Field("image_gen_model", "生图模型"),
-                        Field("main_image_generate_prompt", "生成提示词", "multiline"),
-                        Field("main_image_generate_count", "生成数量")]),
-        ("指定图片编辑", [Field("designated_edit_enable", "启用指定编辑", "bool"),
-                          Field("designated_edit_indices", "编辑序号（如 1,3）"),
-                          Field("designated_edit_prompt", "编辑提示词", "multiline")]),
-        ("主图", [Field("white_bg_enable", "白底图", "bool"),
-                  Field("watermark_enable", "去水印", "bool"),
-                  Field("white_background_pic_1", "主图起始序号"),
-                  Field("white_background_pic_2", "主图结束序号")]),
-        ("描述图", [Field("white_background_detail_pic_indices", "详情图序号（如 1-5,8）")]),
-        ("去水印范围", [Field("remove_watermark_pic_1", "去水印起始序号"),
-                        Field("remove_watermark_pic_2", "去水印结束序号")]),
-        ("精细索引", [Field("single_edit_main_pic_indices", "主图编辑序号（如 1,3）"),
-                      Field("single_edit_detail_pic_indices", "详情图编辑序号")]),
-        ("主图/SKU图翻译", [Field("translate_main_pic_enable", "主图文字翻译", "bool"),
-                            Field("translate_main_pic_indices", "主图索引（如 1-2）"),
-                            Field("translate_sku_pic", "SKU 图文字翻译", "bool")]),
-        ("素材补齐", [Field("pad_main_images_from_extra", "主图不足时用详情图补", "bool"),
-                      Field("main_pic_count", "主图目标数量")]),
-        ("详情图翻译", [Field("translate_detail_pic_enable", "启用详情图文字翻译", "bool"),
-                        Field("translate_detail_pic_indices", "翻译图序号（如 1-3）"),
-                        Field("translate_prompt", "翻译提示词", "multiline")]),
-        ("背景生成", [Field("background_gen_rules", "规则 JSON（position/prompt）", "multiline"),
-                      Field("background_gen_sku_prompt", "SKU 背景提示词", "multiline")]),
-        ("SKU 图", [Field("white_background_sku_pic", "处理 SKU 图", "bool")]),
-        ("精细处理", [Field("edit_enable", "启用通用编辑", "bool"),
-                      Field("edit_prompt", "编辑提示词", "multiline"),
-                      Field("four_in_one", "四合一拼图", "bool")]),
+        ("主图", [
+            Field("main_image_generate_enable", "AI 生成主图（文生图）", "bool"),
+            Field("image_gen_model", "生图模型"),
+            Field("main_image_generate_prompt", "生成提示词", "multiline"),
+            Field("main_image_generate_count", "生成数量"),
+            Field("white_bg_enable", "主图白底", "bool"),
+            Field("white_background_pic_1", "白底起始序号"),
+            Field("white_background_pic_2", "白底结束序号"),
+            Field("watermark_enable", "主图去水印/去Logo", "bool"),
+            Field("remove_watermark_pic_1", "去水印起始序号"),
+            Field("remove_watermark_pic_2", "去水印结束序号"),
+            Field("translate_main_pic_enable", "主图文字翻译", "bool"),
+            Field("translate_main_pic_indices", "翻译序号"),
+            Field("designated_edit_enable", "主图指定编辑", "bool"),
+            Field("designated_edit_indices", "编辑序号"),
+            Field("designated_edit_prompt", "编辑提示词", "multiline"),
+        ]),
+        ("描述图", [
+            Field("white_background_detail_pic_indices", "描述图序号（白底/去水印/编辑共用）"),
+            Field("img_detail_white_bg", "描述图白底", "bool"),
+            Field("img_detail_remove_wm", "描述图去水印", "bool"),
+            Field("img_detail_edit", "描述图精细编辑", "bool"),
+            Field("translate_detail_pic_enable", "描述图文字翻译", "bool"),
+            Field("translate_detail_pic_indices", "翻译序号"),
+            Field("detail_review_first_count", "审查前 N 张"),
+            Field("detail_review_last_count", "审查后 N 张"),
+        ]),
+        ("SKU 图", [
+            Field("white_background_sku_pic", "处理 SKU 图", "bool"),
+            Field("img_sku_white_bg", "SKU 图白底", "bool"),
+            Field("img_sku_remove_wm", "SKU 图去水印", "bool"),
+            Field("img_sku_edit", "SKU 图精细编辑", "bool"),
+            Field("translate_sku_pic", "SKU 图文字翻译", "bool"),
+        ]),
+        ("通用", [
+            Field("four_in_one", "四合一拼图", "bool"),
+            Field("pad_main_images_from_extra", "主图不足用描述图补", "bool"),
+            Field("main_pic_count", "主图目标数量"),
+            Field("overlay_watermark_enable", "叠加水印", "bool"),
+            Field("overlay_position", "水印位置"),
+            Field("overlay_opacity", "水印透明度"),
+            Field("background_gen_rules", "背景生成规则 JSON", "multiline"),
+        ]),
+        ("精细编辑提示词", [
+            Field("edit_enable", "启用通用编辑", "bool"),
+            Field("edit_prompt", "通用编辑提示词", "multiline"),
+            Field("translate_prompt", "翻译提示词", "multiline"),
+            Field("background_gen_sku_prompt", "SKU 背景提示词", "multiline"),
+        ]),
     ]
-
-
 def schema_price():
     return [
         ("模式", [Field("price_mode", "价格模式（multiplier/free_shipping/commission）"),
@@ -301,9 +318,9 @@ class App:
             ft.Row([ft.Container(width=32, height=32, border_radius=10, bgcolor=ACCENT,
                                  content=ft.Text("A", size=15, weight=ft.FontWeight.BOLD, color="#0B0D12")),
                     ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
-                               muted("极光上架 v0.2")], spacing=0)], spacing=10),
+                               muted("极光上架")], spacing=0)], spacing=10),
             ft.Container(height=14), col, ft.Container(expand=True),
-            card(ft.Column([muted("授权状态"), self.license_text], spacing=4), padding=10),
+
         ]))
         self.content = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14)
         self.page.add(ft.Row([sidebar, ft.Container(expand=True, content=self.content,
@@ -360,7 +377,7 @@ class App:
         return keys
 
     def _render(self, title, schemas, extra=None):
-        out = [h1(title), muted("所有配置自动保存到本地 config.json")]
+        out = [h1(title)]
         for name, fields in schemas:
             c, refs = section(name, fields, self.cfg)
             self.field_refs.extend(refs)
@@ -553,8 +570,8 @@ class App:
                         stat("授权状态", ft.Text("见左下角", color=MUTED, size=12), ft.Icons.VERIFIED_OUTLINED, ACCENT_2),
                         stat("图片服务", ft.Text("~15 秒/张", color=ACCENT_2, size=12), ft.Icons.BOLT_OUTLINED, "#FFB020")],
                        spacing=12),
-                card(ft.Column([h1("配置概览", 15),
-                                muted(f"共 {len(self.cfg.as_dict())} 项配置 · 浏览器：{self.cfg.browser_type} · 店铺：{self.cfg.store_name or '未绑定'}"),
+                card(ft.Column([h1("快速开始", 15),
+                                muted("三步完成上架：读 Cookie → 选店铺与模板 → 启动"),
                                 ft.Row([ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
                                                           on_click=lambda e: threading.Thread(target=self._test, daemon=True).start()),
                                         ft.ElevatedButton("启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color="white",
@@ -686,7 +703,6 @@ class App:
         cfg = self.cfg
         c = ApiClient(cfg.api_base, cfg.api_key, cfg.timeout)
         tp = TextPipeline(cfg, c)
-        step("模型列表", lambda: f"{len(c.models())} models")
         step("标题生成", lambda: tp.make_title("3 吨迷你蜘蛛吊车 20 米臂长").value[:50])
         step("详情生成", lambda: tp.make_detail("3-Ton Mini Spider Crane").value[:40])
         step("SKU 优化", lambda: tp.make_skus(["手机壳适用于iPhone 15 Pro Max"]).value)
@@ -2001,84 +2017,6 @@ class App:
                               ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
                                                         on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
                              spacing=8))
-        self.dbg_key = ft.Dropdown(label="接口", width=260, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                   options=[ft.dropdown.Option(k) for k in ENDPOINTS], value="album")
-        self.dbg_path = ft.TextField(label="路径覆盖（留空用默认）", value="", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.dbg_method = ft.Dropdown(label="方法", width=120, value="GET", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                      options=[ft.dropdown.Option("GET"), ft.dropdown.Option("POST")])
-        self.dbg_payload = ft.TextField(label="请求体 JSON（POST）", value="{}", multiline=True, min_lines=2,
-                                        bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.dbg_out = ft.TextField(label="响应", multiline=True, min_lines=4, read_only=True,
-                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-
-        def save_override(e):
-            ov = dict(self.cfg.endpoint_overrides or {})
-            if self.dbg_path.value.strip():
-                ov[self.dbg_key.value] = self.dbg_path.value.strip()
-            else:
-                ov.pop(self.dbg_key.value, None)
-            self.cfg.endpoint_overrides = ov
-            save_config(self.cfg)
-            self.toast("端点已保存")
-
-        def send(e):
-            self.dbg_out.value = "请求中…"; self.page.update()
-            threading.Thread(target=self._debug_call, daemon=True).start()
-
-        self.curl_text = ft.TextField(label="粘贴 cURL（自动识别路径）", multiline=True, min_lines=2,
-                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-
-        def parse_curl(e):
-            import re as _re
-            txt = self.curl_text.value or ""
-            m = _re.search(r"curl\s+['\"](https?://[^'\"]+)['\"]", txt)
-            if not m:
-                m = _re.search(r"(https?://[^\s'\"]+)", txt)
-            if not m:
-                self.toast("未识别到 URL", False); return
-            url = m.group(1)
-            path = url.split("?")[0]
-            self.dbg_path.value = path
-            for k, v in ENDPOINTS.items():
-                if path.endswith(v.split("/")[-1]):
-                    self.dbg_key.value = k
-                    break
-            self.toast(f"已识别：{path}")
-            self.page.update()
-
-        dbg = card(ft.Column([h1("接口调试 / 端点校正", 15),
-                              muted("登录店小秘后，用这里试真实接口并把正确路径保存下来"),
-                              ft.Row([self.dbg_key, self.dbg_method], spacing=10),
-                              self.dbg_path,
-                              self.dbg_payload,
-                              self.curl_text,
-                              ft.Row([ft.ElevatedButton("解析 cURL", icon=ft.Icons.CONTENT_PASTE, on_click=parse_curl),
-                                      ft.ElevatedButton("发送", icon=ft.Icons.SEND, bgcolor=ACCENT, color="white", on_click=send),
-                                      ft.ElevatedButton("保存端点", icon=ft.Icons.SAVE, on_click=save_override)], spacing=10),
-                              self.dbg_out], spacing=10))
-        return [view[0], recharge_card, upd, inst_card, dbg] + view[1:]
-
-    def _debug_call(self):
-        import json as _json
-        try:
-            ck = self._cookies()
-            client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            key = self.dbg_key.value
-            if self.dbg_method.value == "POST":
-                try:
-                    payload = _json.loads(self.dbg_payload.value or "{}")
-                except Exception:
-                    payload = {}
-                resp = client._post(key, payload)
-            else:
-                resp = client._get(key)
-            self.dbg_out.value = _json.dumps(resp, ensure_ascii=False)[:2000]
-            self._log(f"调试 {key} 成功")
-        except Exception as ex:
-            self.dbg_out.value = f"失败：{ex}"
-            self._log(f"调试失败：{ex}")
-        self.page.update()
-
     def _refresh_instances(self):
         try:
             items = list_instances()
