@@ -674,83 +674,89 @@ class App:
 
     def _p_store(self):
         self._current = 1
-        self.store_status = ft.Text("未连接浏览器", color=MUTED, size=12)
-        self.ws_endpoint = ""
-        self.products: list[dict] = []
+        from ..integrations.browser_cookies import read_best
+        try:
+            src = read_best("dianxiaomi.com")
+            ck_ok, ck_text = src.ok, f"{src.name} · {len(src.cookies)} 个"
+        except Exception:
+            ck_ok, ck_text = False, "读取异常"
 
-        self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
+        cnt = getattr(self, "store_counts", {}) or {}
+        status_chip = lambda label, value, color=MUTED: ft.Column([
+            ft.Text(label, size=10, color=MUTED), ft.Text(str(value), size=16, color=color, weight=ft.FontWeight.BOLD)
+        ], spacing=0)
+
+        self.shop_dd = ft.Dropdown(label="当前店铺", width=340, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                   options=[ft.dropdown.Option(key=self.cfg.store_id, text=self.cfg.store_name)] if self.cfg.store_id else [],
+                                   value=self.cfg.store_id or None,
+                                   on_change=lambda e: self._on_shop_change())
         self.tpl_preview_box = ft.Container(content=self._template_preview_row())
-        self.cookie_status = ft.Text("Cookie：检测中…", size=11, color=MUTED)
-        self.shop_dd = ft.Dropdown(label="店铺", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                   options=[], value=None)
-        self.tpl_dd = ft.Dropdown(label="模板产品", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                  options=[], value=None)
+        self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
+        self.tpl_source_dd = ft.Dropdown(label="模板来源", width=140, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                         value=self.cfg.template_source or "draft",
+                                         options=[ft.dropdown.Option("draft", "待发布"), ft.dropdown.Option("online", "在线")],
+                                         on_change=lambda e: self._on_tpl_source())
+        self.cookie_status = ft.Text(f"Cookie：{ck_text}" if ck_ok else f"Cookie：{ck_text}（读取失败，可粘贴）",
+                                     size=11, color=ACCENT_2 if ck_ok else "#FFB020")
+        self.store_status = ft.Text("点击「读取并同步」获取店铺与模板", size=12, color=MUTED)
 
-        def on_shop(e):
-            sid = self.shop_dd.value
-            name = next((o.key for o in self.shop_dd.options if o.key == sid), "")
-            self.cfg.store_id = str(sid or "")
-            self.cfg.store_name = name or ""
-            save_config(self.cfg)
-            self.toast(f"已选择店铺：{name}")
-
-        def on_tpl(e):
-            pid = self.tpl_dd.value
-            title = next((o.text for o in self.tpl_dd.options if o.key == pid), "") if hasattr(self.tpl_dd.options[0], "text") else ""
-            self.cfg.product_template_id = str(pid or "")
-            self.cfg.product_template_name = title or ""
-            save_config(self.cfg)
-            self.toast("模板已选择")
-
-        def sync_shops(e):
+        def sync(e):
+            self.store_status.value = "正在读取…"; self.page.update()
             threading.Thread(target=self._sync_shops, daemon=True).start()
 
-        def connect(e):
-            self.store_status.value = "正在启动浏览器…"; self.page.update()
-            threading.Thread(target=self._connect_browser, daemon=True).start()
-
-        def login(e):
-            threading.Thread(target=self._check_dxm_login, daemon=True).start()
-
-        def fetch(e):
-            threading.Thread(target=self._fetch_products, daemon=True).start()
-
-        def picker(e):
-            self._open_template_dialog()
-
-        bar = card(ft.Column([
-            h1("对接操作", 15),
-            ft.Row([ft.ElevatedButton("从 Chrome 读取并同步", icon=ft.Icons.SYNC, bgcolor=ACCENT_2, color="#04231C", on_click=sync_shops),
-                    ft.ElevatedButton("启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=CARD_2, color=TEXT, on_click=connect),
+        connect_card = card(ft.Column([
+            h1("1 · 连接店小秘", 15),
+            muted("直接读取本机 Chrome/Edge 里已登录的 Cookie，无需启动浏览器"),
+            self.cookie_status,
+            ft.Row([ft.ElevatedButton("读取并同步", icon=ft.Icons.SYNC, bgcolor=ACCENT, color="white", on_click=sync),
                     ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self._paste_cookie()),
-                    ft.ElevatedButton("① 启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=connect),
-                    ft.ElevatedButton("② 检测店小秘登录", icon=ft.Icons.LOGIN, bgcolor=CARD_2, color=TEXT, on_click=login),
-                    ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
-                    ft.ElevatedButton("④ 选择模板", icon=ft.Icons.CHECKLIST, bgcolor=ACCENT_2, color="#04231C", on_click=picker),
-                    ft.ElevatedButton("⑤ 试跑发布(dry-run)", icon=ft.Icons.PLAY_CIRCLE_OUTLINE, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._dry_run, daemon=True).start()),
-                    ft.ElevatedButton("⑧ 发布(需确认)", icon=ft.Icons.ROCKET_LAUNCH, bgcolor="#D9534F", color="white", on_click=lambda e: self._confirm_publish()),
-                    ft.ElevatedButton("⑦ 真实保存(测试)", icon=ft.Icons.SAVE_AS, bgcolor="#F0A020", color="#1A1200", on_click=lambda e: threading.Thread(target=self._real_save, daemon=True).start()),
-                    ft.ElevatedButton("⑥ 图片空间", icon=ft.Icons.PHOTO_LIBRARY, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._show_albums, daemon=True).start())], spacing=10),
-            ft.Row([self.shop_dd,
-                    ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT,
-                                      on_click=lambda e: self._open_template_picker(self.cfg.template_source or "draft",
-                                                                                    on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))),
-                    self.tpl_preview_box], spacing=12),
-            ft.Row([ft.ElevatedButton("读取模板参数", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE,
-                                      bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._read_template, daemon=True).start()),
+                    ft.OutlinedButton("启动浏览器（兜底）", icon=ft.Icons.OPEN_IN_BROWSER,
+                                      on_click=lambda e: threading.Thread(target=self._connect_browser, daemon=True).start())],
+                   spacing=10),
+            self.store_status,
+        ], spacing=10))
+
+        shop_card = card(ft.Column([
+            h1("2 · 选择店铺", 15),
+            self.shop_dd,
+            ft.Row([status_chip("在线", cnt.get("onSelling", "—"), ACCENT_2),
+                    status_chip("待发布", cnt.get("editingRequired", "—"), "#6EC6FF"),
+                    status_chip("审核中", cnt.get("auditing", "—"), "#FFB020")], spacing=28),
+        ], spacing=12))
+
+        def pick(e):
+            self._open_template_picker(self.tpl_source_dd.value,
+                                       on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))
+
+        tpl_card = card(ft.Column([
+            h1("3 · 选择模板", 15),
+            muted("后续产品沿用模板的类目、运费模板、属性、重量尺寸；标题/SKU/图片仍按新生成"),
+            ft.Row([self.tpl_source_dd,
+                    ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick)], spacing=10),
+            self.tpl_preview_box,
+            ft.Row([ft.ElevatedButton("读取模板参数", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=CARD_2, color=TEXT,
+                                      on_click=lambda e: threading.Thread(target=self._read_template, daemon=True).start()),
                     self.tpl_snapshot_text], spacing=10),
-            self.store_status, self.cookie_status], spacing=10))
-        self.shop_dd.on_change = on_shop
-        self.tpl_dd.on_change = on_tpl
-        try:
-            from ..integrations.browser_cookies import read_best
-            src = read_best("dianxiaomi.com")
-            self.cookie_status.value = f"Cookie：{src.name} · {len(src.cookies)} 个" + ("" if src.ok else "（读取失败，可点粘贴 Cookie）")
-            self.cookie_status.color = ACCENT_2 if src.ok else "#FFB020"
-        except Exception as ex:
-            self.cookie_status.value = f"Cookie：读取异常 {ex}"
-        view = self._render("店铺与模板", schema_store())
-        return [view[0], bar] + view[1:]
+        ], spacing=10))
+
+        if not getattr(self, "_store_autosynced", False):
+            self._store_autosynced = True
+            threading.Thread(target=self._sync_shops, daemon=True).start()
+        return [h1("店铺设置"), muted("三步：读 Cookie → 选店铺 → 选模板"), connect_card, shop_card, tpl_card]
+
+    def _on_shop_change(self):
+        sid = self.shop_dd.value
+        name = next((o.text for o in self.shop_dd.options if o.key == sid), "")
+        self.cfg.store_id = str(sid or "")
+        self.cfg.store_name = name or self.cfg.store_name
+        save_config(self.cfg)
+        threading.Thread(target=self._sync_shops, daemon=True).start()
+
+    def _on_tpl_source(self):
+        self.cfg.template_source = self.tpl_source_dd.value
+        save_config(self.cfg)
+        self._open_template_picker(self.tpl_source_dd.value,
+                                   on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))
 
     # ---------- 对接动作 ----------
     def _paste_cookie(self):
@@ -813,10 +819,12 @@ class App:
             ck = self._cookies()
             c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
             shops = c.shops()
-            self.shop_dd.options = [ft.dropdown.Option(str(s["id"]), s["name"]) for s in shops]
+            self.shop_dd.options = [ft.dropdown.Option(key=str(s["id"]), text=s["name"]) for s in shops]
             if shops and not self.cfg.store_id:
                 self.cfg.store_id = shops[0]["id"]; self.cfg.store_name = shops[0]["name"]
                 save_config(self.cfg)
+            if shops:
+                self.shop_dd.value = str(self.cfg.store_id or shops[0]["id"])
             sid = self.cfg.store_id or (shops[0]["id"] if shops else None)
             cnt = c.counts(sid) if sid else {}
             self.store_counts = cnt
