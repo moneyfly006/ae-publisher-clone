@@ -1,6 +1,7 @@
 """AuroraList · 现代化界面（schema 驱动，覆盖老软件全部设置项）。"""
 from __future__ import annotations
 
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -15,6 +16,8 @@ from ..services.pricing import calc_multiplier, calc_free_shipping
 from ..services.variants import auto_map, parse_mapping_json
 from ..integrations.cdp import launch_edge, cookies_via_cdp, BrowserError
 from ..integrations.dianxiaomi import DianxiaomiClient
+from ..services.video import build_slideshow, probe as video_probe
+from ..core import updater
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
@@ -209,6 +212,7 @@ class App:
         self.page = page
         self.cfg: AppConfig = get_config()
         self.picked: list[Path] = []
+        self.logs: list[str] = []
         self.field_refs: list[Field] = []
         self.file_picker = ft.FilePicker(on_result=self._on_files)
 
@@ -224,7 +228,7 @@ class App:
             start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch(start % 9)
+        self._switch(start % 10)
         page.update()
 
     # ---------- 壳 ----------
@@ -234,7 +238,8 @@ class App:
                  ("高级设置", ft.Icons.TUNE), ("AI 智能填写", ft.Icons.AUTO_FIX_HIGH),
                  ("内容审查", ft.Icons.FACT_CHECK_OUTLINED), ("图片处理", ft.Icons.IMAGE_OUTLINED),
                  ("价格设置", ft.Icons.SELL_OUTLINED), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED),
-                 ("设置", ft.Icons.SETTINGS_OUTLINED)]
+                 ("设置", ft.Icons.SETTINGS_OUTLINED),
+                 ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED)]
         col = ft.Column(spacing=4)
         for i, (label, icon) in enumerate(items):
             b = ft.Container(
@@ -266,7 +271,7 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_settings]
+                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_logs]
         self.content.controls = pages[idx]()
         self.page.update()
 
@@ -510,9 +515,78 @@ class App:
         view = self._render("变种设置", schema_variant())
         return [view[0], card_map] + view[1:]
 
+    def _p_logs(self):
+        self._current = 9
+        self.log_view = ft.Column(spacing=3, scroll=ft.ScrollMode.AUTO, height=360)
+        self._refresh_logs()
+
+        def build_video(e):
+            if not self.picked:
+                self.toast("请先在「图片处理」选择图片", False); return
+            info = video_probe()
+            if not info["available"]:
+                self.toast("未检测到 ffmpeg，请先安装", False); return
+            out = Path(tempfile.gettempdir()) / "aurora-main-video.mp4"
+            try:
+                build_slideshow(list(self.picked), out)
+                self._log(f"视频已生成：{out}")
+                self.toast(f"视频已生成：{out}")
+            except Exception as ex:
+                self._log(f"视频生成失败：{ex}")
+                self.toast(str(ex), False)
+
+        def check_update(e):
+            r = updater.check(self.cfg.license_server)
+            if not r.get("ok"):
+                self.toast(f"检查失败：{r.get('error')}", False); return
+            msg = f"最新版本 {r['latest']}" if r.get("has_update") else "已是最新版本"
+            self._log(f"更新检查：{msg}")
+            self.toast(msg)
+
+        def export(e):
+            out = Path(tempfile.gettempdir()) / "aurora-logs.txt"
+            out.write_text("\n".join(self.logs), encoding="utf-8")
+            self.toast(f"已导出：{out}")
+
+        bar = card(ft.Row([
+            ft.ElevatedButton("生成主图视频", icon=ft.Icons.MOVIE, bgcolor=ACCENT, color="white", on_click=build_video),
+            ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE, bgcolor=CARD_2, color=TEXT, on_click=check_update),
+            ft.ElevatedButton("导出日志", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=export),
+            ft.ElevatedButton("清空", icon=ft.Icons.DELETE_OUTLINE, bgcolor=CARD_2, color=TEXT,
+                              on_click=lambda e: (self.logs.clear(), self._refresh_logs())),
+        ], spacing=10))
+        return [h1("任务与日志"), bar, card(self.log_view)]
+
+    def _log(self, msg):
+        self.logs.append(f"[{time.strftime('%H:%M:%S')}] {msg}")
+        self.logs = self.logs[-500:]
+        if getattr(self, "log_view", None) is not None:
+            self._refresh_logs()
+
+    def _refresh_logs(self):
+        self.log_view.controls = [ft.Text(l, size=11, color=MUTED, font_family="monospace") for l in self.logs] or \
+                                 [ft.Text("暂无日志", size=12, color=MUTED)]
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
     def _p_settings(self):
         self._current = 8
-        return self._render("设置", schema_settings(self.cfg))
+        view = self._render("设置", schema_settings(self.cfg))
+        upd = card(ft.Column([h1("版本更新", 15),
+                              ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
+                                                        on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
+                             spacing=8))
+        return [view[0], upd] + view[1:]
+
+    def _check_update(self):
+        r = updater.check(self.cfg.license_server)
+        if not r.get("ok"):
+            self.toast(f"检查失败：{r.get('error')}", False); return
+        msg = f"发现新版本 {r['latest']}" if r.get("has_update") else "已是最新版本"
+        self._log(msg)
+        self.toast(msg)
 
     # ---------- 行为 ----------
     def _check_license(self):
