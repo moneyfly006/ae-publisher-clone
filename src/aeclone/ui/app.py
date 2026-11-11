@@ -14,7 +14,7 @@ from ..license import verify as verify_license
 from ..services import BatchRunner, ImageService, TextService
 from ..services.pricing import calc_multiplier, calc_free_shipping
 from ..services.variants import auto_map, parse_mapping_json
-from ..integrations.cdp import launch_edge, cookies_via_cdp, BrowserError
+from ..integrations.cdp import launch_edge, cookies_via_cdp, open_url_via_cdp, BrowserError
 from ..integrations.bitbrowser import BitBrowser
 from ..integrations.zhanfu import ZhanfuBrowser
 from ..services.publisher import Publisher, demo_product
@@ -304,6 +304,10 @@ class App:
                                                     padding=ft.padding.only(left=24, right=24, top=18, bottom=18))],
                              expand=True, spacing=0))
         threading.Thread(target=self._check_license, daemon=True).start()
+        try:
+            self._maybe_wizard()
+        except Exception as ex:
+            self._log(f"引导弹窗异常：{ex}")
 
     def _switch(self, idx):
         for page_idx, b in self.nav_buttons:
@@ -347,6 +351,110 @@ class App:
         self.toast("已恢复默认")
 
     # ---------- 页面 ----------
+    def _maybe_wizard(self):
+        if getattr(self.cfg, "onboarded", False):
+            return
+        self._wizard_step = 1
+        self.wz_browser = ft.Dropdown(label="浏览器", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                      value=self.cfg.browser_type or "本机Edge",
+                                      options=[ft.dropdown.Option(x) for x in BROWSERS])
+        self.wz_store = ft.Dropdown(label="店铺", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
+        self.wz_source = ft.Dropdown(label="模板来源", width=140, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                     value="draft", options=[ft.dropdown.Option("draft", "草稿"), ft.dropdown.Option("online", "在线")])
+        self.wz_tpl = ft.Dropdown(label="模板产品", width=380, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
+        self.wz_status = ft.Text("① 选择浏览器后点击「打开浏览器」", size=12, color=MUTED)
+        self.wz_btn = ft.ElevatedButton("打开浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=self._wz_open)
+
+        self.wz_dlg = ft.AlertDialog(
+            title=ft.Text("欢迎使用 AuroraList · 首次设置"),
+            content=ft.Column([
+                ft.Text("第 1 步：选择并打开浏览器，手动登录店小秘后回到这里点击「读取店铺信息」", size=12, color=TEXT),
+                ft.Row([self.wz_browser, self.wz_btn], spacing=10),
+                ft.ElevatedButton("读取店铺信息（我已登录）", icon=ft.Icons.SYNC, on_click=self._wz_sync),
+                ft.Divider(color=CARD_2),
+                ft.Row([self.wz_store, self.wz_source], spacing=10),
+                self.wz_tpl,
+                self.wz_status,
+            ], spacing=12, width=520),
+            actions=[ft.TextButton("稍后设置", on_click=lambda e: self._wz_close(False)),
+                     ft.ElevatedButton("完成", bgcolor=ACCENT_2, color="#04231C", on_click=self._wz_finish)],
+        )
+        self.page.dialog = self.wz_dlg
+        self.wz_dlg.open = True
+        self.page.update()
+
+    def _wz_open(self, e):
+        self.wz_status.value = "正在启动浏览器…"
+        self.cfg.browser_type = self.wz_browser.value
+        save_config(self.cfg)
+        self.page.update()
+
+        def go():
+            try:
+                self._connect_browser()
+                if self.ws_endpoint:
+                    try:
+                        open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/smt/smtProductList/offline")
+                    except Exception:
+                        pass
+                    self.wz_status.value = "浏览器已打开。请在浏览器里手动登录店小秘，登录后点「读取店铺信息」"
+                else:
+                    self.wz_status.value = "浏览器已启动，但未拿到调试端点"
+            except Exception as ex:
+                self.wz_status.value = f"启动失败：{ex}"
+            self.page.update()
+        threading.Thread(target=go, daemon=True).start()
+
+    def _wz_sync(self, e):
+        self.wz_status.value = "正在读取 Cookie 与店铺…"
+        self.page.update()
+
+        def go():
+            try:
+                ck = self._cookies()
+                if not ck:
+                    self.wz_status.value = "未读取到 Cookie，请确认已在浏览器登录店小秘"
+                    self.page.update(); return
+                c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+                shops = c.shops()
+                self.wz_store.options = [ft.dropdown.Option(str(s["id"]), s["name"]) for s in shops]
+                if shops:
+                    self.wz_store.value = str(shops[0]["id"])
+                    self.cfg.store_id, self.cfg.store_name = str(shops[0]["id"]), shops[0]["name"]
+                prods = c.drafts(limit=50) if self.wz_source.value == "draft" else c.online(limit=50)
+                self.wz_tpl.options = [ft.dropdown.Option(str(p["id"]), (p.get("title") or p["id"])[:44]) for p in prods]
+                if prods:
+                    self.wz_tpl.value = str(prods[0]["id"])
+                self.cfg.template_source = self.wz_source.value
+                save_config(self.cfg)
+                self.wz_status.value = f"已同步：{len(shops)} 个店铺 / {len(prods)} 个模板候选"
+            except Exception as ex:
+                self.wz_status.value = f"读取失败：{ex}"
+            self.page.update()
+        threading.Thread(target=go, daemon=True).start()
+
+    def _wz_finish(self, e):
+        if self.wz_store.value:
+            self.cfg.store_id = str(self.wz_store.value)
+            name = next((o.text for o in self.wz_store.options if o.key == self.wz_store.value), "")
+            self.cfg.store_name = name or self.cfg.store_name
+        if self.wz_tpl.value:
+            self.cfg.template_product_id = str(self.wz_tpl.value)
+            title = next((o.text for o in self.wz_tpl.options if o.key == self.wz_tpl.value), "")
+            self.cfg.template_product_title = title or ""
+        self.cfg.template_source = self.wz_source.value
+        self.cfg.browser_type = self.wz_browser.value
+        self.cfg.onboarded = True
+        save_config(self.cfg)
+        self.wz_dlg.open = False
+        self._log(f"首次设置完成：店铺 {self.cfg.store_name} / 模板 {self.cfg.template_product_title[:30]}")
+        self.page.update()
+        self._switch(0)
+
+    def _wz_close(self, mark):
+        self.wz_dlg.open = False
+        self.page.update()
+
     def _p_overview(self):
         self.stat_api = ft.Text("未检测", color=MUTED, size=12)
         self._current = 0

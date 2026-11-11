@@ -48,8 +48,10 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
     seen = {"save": None}
     def _on_resp(resp):
         try:
-            if "/api/smtProduct/add.json" in resp.url:
+            u = resp.url
+            if "/api/smtProduct/add.json" in u or "/api/smtProduct/update.json" in u:
                 seen["save"] = resp.status
+                seen["url"] = u.split("dianxiaomi.com")[-1]
         except Exception:
             pass
     page.on("response", _on_resp)
@@ -72,17 +74,32 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
             title_input.dispatch_event("input")
         page.wait_for_timeout(800)
 
-        clicked = False
-        for label in ("保存", "更新", "保存并发布", "提交"):
-            try:
-                loc = page.get_by_role("button", name=label, exact=True).first
-                if loc.count() > 0:
-                    loc.click(timeout=8000); clicked = True; break
-            except Exception:
-                continue
-        if not clicked:
+        def try_click() -> bool:
+            for label in ("保存", "更新", "保存并发布", "提交"):
+                try:
+                    loc = page.get_by_role("button", name=label, exact=True).first
+                    if loc.count() > 0:
+                        loc.click(timeout=8000)
+                        return True
+                except Exception:
+                    continue
+            return False
+
+        if not try_click():
             raise RuntimeError("未找到保存/更新按钮")
-        page.wait_for_timeout(6000)
+        page.wait_for_timeout(12000)
+
+        # 未捕获到保存请求时：关闭可能出现的弹窗后重试一次
+        if not seen.get("save"):
+            for txt in ("确定", "确认", "知道了"):
+                try:
+                    btn = page.get_by_role("button", name=txt, exact=True).first
+                    if btn.count() > 0:
+                        btn.click(timeout=3000); page.wait_for_timeout(1000)
+                except Exception:
+                    pass
+            if try_click():
+                page.wait_for_timeout(6000)
 
         text = ""
         try:
@@ -91,7 +108,7 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
             pass
         if seen["save"]:
             return SaveResult(ok=(seen["save"] < 400),
-                              message=f"保存接口 HTTP {seen['save']}", title=target)
+                              message=f"保存接口 {seen.get('url','')} HTTP {seen['save']}", title=target)
         ok = "成功" in text or "保存" in text
         return SaveResult(ok=ok, message=text or "已点击保存（未捕获到保存接口）", title=target)
     except Exception as e:  # noqa: BLE001

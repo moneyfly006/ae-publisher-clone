@@ -75,6 +75,10 @@ DEFAULTS: dict = {
     # ---- 内容审查 ----
     "review_block_on_fail": False,
     "auto_save_products": False,
+    "onboarded": False,
+    "template_source": "draft",
+    "template_product_id": "",
+    "template_product_title": "",
     "review_text_enable": False,
     "review_detail_img_enable": False,
     "review_main_img_enable": False,

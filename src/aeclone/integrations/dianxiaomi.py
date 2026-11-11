@@ -148,6 +148,17 @@ class DianxiaomiClient:
     EDITABLE_STATUS = {"editingRequired", "offline", "publishFail", "draft", "waitPublish"}
     BLOCKED_STATUS = {"auditing", "onSelling", "published", "online"}
 
+    def drafts(self, limit: int = 100) -> list[dict]:
+        """草稿/待发布（可编辑）。"""
+        out = [p for p in self.product_list(page=1, size=limit)
+               if (p.get("status_type") or "") in ("editingRequired", "offline", "publishFail", "draft")]
+        return out
+
+    def online(self, limit: int = 100) -> list[dict]:
+        """在线商品（仅作模板参考）。"""
+        return [p for p in self.product_list(page=1, size=limit)
+                if (p.get("status_type") or "") in ("onSelling",)]
+
     def pending_products(self, limit: int = 0, pages: int = 2) -> list[dict]:
         """只返回可编辑（待发布/需修改/下架）的产品，跳过审核中与已发布。"""
         out: list[dict] = []
