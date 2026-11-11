@@ -42,6 +42,33 @@ class AppConfig:
         "只能使用英文字母、数字、空格、连字符、小数点和圆括号。"
     )
     route: list = field(default_factory=list)
+    # ---- AI 智能填写 ----
+    enable_ai_title: bool = False
+    enable_ai_detail: bool = False
+    enable_ai_sku: bool = False
+    enable_ai_weight: bool = False
+    weight_prompt: str = (
+        "我是一名电商运营者，这个产品我只有图片、没有实物，请根据产品图片和名称，"
+        "估算该产品重量（kg）和长宽高（cm）。不需要分析，只需要结果。"
+    )
+    # ---- 内容审查 ----
+    review_text_enable: bool = False
+    review_text_prompt: str = (
+        "请审查内容，删除非商品本身的信息：厂家信息、联系方式、广告促销、引导关注、物流售后；"
+        "保留商品名称、规格参数、材质工艺、功能特点、尺寸重量。"
+    )
+    review_detail_img_enable: bool = False
+    review_detail_img_prompt: str = "请审查详情图，删除含厂家信息、联系方式、广告促销、二维码的图片。"
+    review_main_img_enable: bool = False
+    review_main_img_prompt: str = "请审查主图，删除含厂家信息、联系方式、广告促销、二维码的图片。"
+    # ---- 图片处理 ----
+    white_bg_enable: bool = True
+    white_bg_range: str = "1-2"
+    watermark_enable: bool = True
+    watermark_range: str = "1-2"
+    edit_enable: bool = False
+    edit_prompt: str = "清理并本地化这张商品图：去除水印、logo、二维码和促销标签，保持商品主体不变。"
+
 
     # ---------- 持久化 ----------
     @classmethod
