@@ -262,28 +262,34 @@ class App:
             start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch(start % 12)
+        self._switch([0,1,2,3,4,5,6,7,8,9,10,11][start % 12])
         page.update()
 
     # ---------- 壳 ----------
     def _build_shell(self):
         self.nav_buttons = []
-        items = [("概览", ft.Icons.DASHBOARD_OUTLINED), ("店铺与模板", ft.Icons.STORE_OUTLINED),
-                 ("高级设置", ft.Icons.TUNE), ("AI 智能填写", ft.Icons.AUTO_FIX_HIGH),
-                 ("内容审查", ft.Icons.FACT_CHECK_OUTLINED), ("图片处理", ft.Icons.IMAGE_OUTLINED),
-                 ("价格设置", ft.Icons.SELL_OUTLINED), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED),
-                 ("设置", ft.Icons.SETTINGS_OUTLINED),
-                 ("AI 处理", ft.Icons.AUTO_AWESOME),
-                 ("图片工作台", ft.Icons.GRID_VIEW),
-                 ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED)]
-        col = ft.Column(spacing=4)
-        for i, (label, icon) in enumerate(items):
-            b = ft.Container(
-                content=ft.Row([ft.Icon(icon, size=17, color=MUTED), ft.Text(label, color=MUTED, size=13)], spacing=10),
-                padding=ft.padding.symmetric(horizontal=12, vertical=9), border_radius=10,
-                on_click=lambda e, idx=i: self._switch(idx), ink=True)
-            self.nav_buttons.append(b)
-            col.controls.append(b)
+        groups = [
+            ("", [("概览", ft.Icons.DASHBOARD_OUTLINED, 0)]),
+            ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("高级设置", ft.Icons.TUNE, 2)]),
+            ("AI 设置", [("AI 智能填写", ft.Icons.AUTO_FIX_HIGH, 3), ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4)]),
+            ("图片处理", [("图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("AI 处理", ft.Icons.AUTO_AWESOME, 9),
+                        ("图片工作台", ft.Icons.GRID_VIEW, 10)]),
+            ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
+            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 11)]),
+        ]
+        col = ft.Column(spacing=3)
+        for group, items in groups:
+            if group:
+                col.controls.append(ft.Container(
+                    content=ft.Text(group, size=10, color="#5D6478", weight=ft.FontWeight.BOLD),
+                    padding=ft.padding.only(left=12, top=10, bottom=2)))
+            for label, icon, page_idx in items:
+                b = ft.Container(
+                    content=ft.Row([ft.Icon(icon, size=16, color=MUTED), ft.Text(label, color=MUTED, size=13)], spacing=10),
+                    padding=ft.padding.symmetric(horizontal=12, vertical=8), border_radius=10,
+                    on_click=lambda e, idx=page_idx: self._switch(idx), ink=True)
+                self.nav_buttons.append((page_idx, b))
+                col.controls.append(b)
         self.license_text = ft.Text("检测中…", color=MUTED, size=12, weight=ft.FontWeight.BOLD)
         sidebar = ft.Container(width=216, bgcolor=CARD, padding=16, content=ft.Column([
             ft.Row([ft.Container(width=32, height=32, border_radius=10, bgcolor=ACCENT,
@@ -300,8 +306,8 @@ class App:
         threading.Thread(target=self._check_license, daemon=True).start()
 
     def _switch(self, idx):
-        for i, b in enumerate(self.nav_buttons):
-            on = i == idx
+        for page_idx, b in self.nav_buttons:
+            on = page_idx == idx
             b.bgcolor = CARD_2 if on else None
             b.content.controls[0].color = ACCENT if on else MUTED
             b.content.controls[1].color = TEXT if on else MUTED
