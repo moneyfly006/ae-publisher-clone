@@ -206,6 +206,174 @@ def publish_product(ws_endpoint: str, product_id: str, confirm: bool = False,
 
 def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
                           timeout: int = 60000) -> SaveResult:
+    """把模板字段按表单标签写入编辑器：类目/运费/重量/尺寸/品牌/产地/单位/属性。"""
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    applied = []
+    try:
+        page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
+        page.wait_for_timeout(10000)
+        fields = (snapshot or {}).get("fields") or {}
+        attrs = (snapshot or {}).get("attributes") or []
+
+        def fill_by_label(label, value):
+            item = page.locator(".ant-form-item", has_text=label).first
+            if item.count() == 0:
+                return False
+            inp = item.locator("input").first
+            if inp.count() > 0:
+                cur = inp.input_value() or ""
+                if not cur.strip():
+                    inp.fill(value); inp.dispatch_event("input")
+                    page.wait_for_timeout(300)
+                    return True
+            return False
+
+        # 类目：点选择分类 → 搜索 → 点选
+        cat = (fields.get("category") or "").strip()
+        if cat:
+            try:
+                cat_name = cat.split("(")[0].strip()
+                page.get_by_role("button", name="选择分类", exact=False).first.click(timeout=5000)
+                page.wait_for_timeout(1800)
+                search = page.locator("input[placeholder*='搜索'], input[placeholder*='请输入']").first
+                if search.count() > 0:
+                    search.fill(cat_name); search.dispatch_event("input"); page.wait_for_timeout(2500)
+                node = page.locator(".ant-tree-treenode").first
+                if node.count() > 0:
+                    node.click(timeout=4000); page.wait_for_timeout(800)
+                ok = page.get_by_role("button", name="确定", exact=True).first
+                if ok.count() > 0:
+                    ok.click(timeout=4000); page.wait_for_timeout(1200)
+                    applied.append(f"类目 {cat_name}")
+            except Exception:
+                pass
+
+        # 运费模板：点击运费下拉选择
+        freight = (fields.get("freight") or "").strip()
+        if freight:
+            try:
+                sel = page.locator(".ant-form-item", has_text="运费模板").locator(".ant-select").first
+                if sel.count() > 0:
+                    sel.click(timeout=4000); page.wait_for_timeout(1500)
+                    opt = page.locator(".ant-select-item-option-content", has_text=freight[:10]).first
+                    if opt.count() > 0:
+                        opt.click(timeout=4000); page.wait_for_timeout(1200)
+                        applied.append(f"运费 {freight[:16]}")
+            except Exception:
+                pass
+
+        label_map = [("包装后重量", "weight"),
+                     ("包装后尺寸", "size"), ("品牌", "brand"), ("产地", "origin"), ("计件单位", "unit")]
+        for label, key in label_map:
+            v = (fields.get(key) or "").strip()
+            if v and fill_by_label(label, v):
+                applied.append(f"{label}={v[:16]}")
+
+        # 自定义属性：按「属性名=值」匹配
+        for pair in attrs[:24]:
+            if "=" not in pair:
+                continue
+            k, v = pair.split("=", 1)
+            try:
+                name_input = page.locator(f'input[placeholder^="属性名"][value="{k.strip()}"]').first
+                if name_input.count() == 0:
+                    continue
+                row = name_input.locator("xpath=../..")
+                val_input = row.locator('input[placeholder^="属性值"]').first
+                if val_input.count() > 0 and not (val_input.input_value() or "").strip():
+                    val_input.fill(v.strip()); val_input.dispatch_event("input")
+                    applied.append(f"属性 {k.strip()}")
+            except Exception:
+                continue
+
+        # 保存
+        if applied:
+            for label in ("保存", "更新"):
+                try:
+                    btn = page.get_by_role("button", name=label, exact=True).first
+                    if btn.count() > 0:
+                        btn.click(timeout=8000); page.wait_for_timeout(4000); break
+                except Exception:
+                    continue
+        return SaveResult(ok=bool(applied), message=("已写入：" + ", ".join(applied[:8])) if applied else "没有可写入的字段")
+    except Exception as e:  # noqa: BLE001
+        return SaveResult(ok=False, message=f"模板写回失败：{e}")
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        browser.close()
+        pw.stop()
+
+
+def publish_product(ws_endpoint: str, product_id: str, confirm: bool = False,
+                    dry_run: bool = True, timeout: int = 90000) -> SaveResult:
+    """点击编辑器「发布」。confirm=False 时拒绝执行（防止误发）。"""
+    if not confirm:
+        return SaveResult(ok=False, message="未确认：发布操作被拒绝（需显式 confirm=True）")
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    captured = {}
+    if dry_run:
+        def _route(route):
+            req = route.request
+            if req.method in ("POST", "PUT") and "/api/" in req.url and \
+               any(k in req.url.lower() for k in ("publish", "submit", "online", "add")):
+                captured["url"] = req.url.split("dianxiaomi.com")[-1]
+                captured["len"] = len(req.post_data or "")
+                route.abort()
+            else:
+                route.continue_()
+        page.route("**/api/**", _route)
+    seen = {}
+    def _on_resp(resp):
+        try:
+            u = resp.url
+            if "/api/" in u and any(k in u.lower() for k in ("publish", "submit", "online")):
+                seen["url"] = u.replace("https://www.dianxiaomi.com", "")
+                seen["status"] = resp.status
+        except Exception:
+            pass
+    page.on("response", _on_resp)
+    try:
+        page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
+        page.wait_for_timeout(10000)
+        page.get_by_role("button", name="发布", exact=True).first.click(timeout=12000)
+        page.wait_for_timeout(6000)
+        for txt in ("继续发布", "确定", "确认"):
+            try:
+                btn = page.get_by_role("button", name=txt, exact=True).first
+                if btn.count() > 0:
+                    btn.click(timeout=3000); page.wait_for_timeout(3000); break
+            except Exception:
+                continue
+        page.wait_for_timeout(9000)
+        if dry_run and captured.get("url"):
+            return SaveResult(ok=True, message=f"演练：已捕获发布接口 {captured['url']}（{captured['len']} 字节，未提交）")
+        if seen:
+            return SaveResult(ok=seen.get("status", 500) < 400,
+                              message=f"发布接口 {seen['url']} HTTP {seen.get('status')}")
+        text = ""
+        try:
+            text = page.get_by_text("发布成功", exact=False).first.inner_text(timeout=3000)
+        except Exception:
+            pass
+        return SaveResult(ok=bool(text), message=text or "已点击发布（未捕获接口）")
+    except Exception as e:  # noqa: BLE001
+        return SaveResult(ok=False, message=f"发布自动化失败：{e}")
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        browser.close()
+        pw.stop()
+
+
+def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
+                          timeout: int = 60000) -> SaveResult:
     """把模板的类目/运费/属性写入编辑器表单（尽力而为）。"""
     pw, browser, ctx = _connect(ws_endpoint)
     page = ctx.new_page()
@@ -233,10 +401,37 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
             except Exception:
                 continue
 
-        # 类目/运费：仅记录（下拉交互依赖具体组件）
-        for key in ("category", "freight"):
-            if fields.get(key):
-                applied.append(f"{key}={fields[key][:18]}")
+        # 类目：点击「选择分类」→ 弹层搜索 → 点选第一个
+        cat = (fields.get("category") or "").strip()
+        if cat:
+            try:
+                cat_name = cat.split("(")[0].strip()
+                btn = page.get_by_role("button", name="选择分类", exact=False).first
+                if btn.count() > 0:
+                    btn.click(timeout=4000); page.wait_for_timeout(1500)
+                    search = page.locator("input[placeholder*='搜索'], input[placeholder*='分类']").first
+                    if search.count() > 0:
+                        search.fill(cat_name); search.dispatch_event("input"); page.wait_for_timeout(2000)
+                    first = page.locator(".ant-tree-treenode, .ant-select-item-option").first
+                    if first.count() > 0:
+                        first.click(timeout=4000); page.wait_for_timeout(1500)
+                        applied.append(f"类目 {cat_name}")
+            except Exception:
+                pass
+
+        # 运费模板：点「运费模板」下拉 → 选择匹配项
+        freight = (fields.get("freight") or "").strip()
+        if freight:
+            try:
+                sel = page.locator(".ant-select", has_text="运费").first
+                if sel.count() > 0:
+                    sel.click(timeout=4000); page.wait_for_timeout(1500)
+                    opt = page.locator(".ant-select-item-option", has_text=freight[:12]).first
+                    if opt.count() > 0:
+                        opt.click(timeout=4000); page.wait_for_timeout(1500)
+                        applied.append(f"运费 {freight[:16]}")
+            except Exception:
+                pass
 
         if applied:
             for label in ("保存", "更新"):
