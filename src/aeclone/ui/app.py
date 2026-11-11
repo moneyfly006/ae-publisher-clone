@@ -1,4 +1,4 @@
-"""AuroraList · 现代化 Flet 界面。"""
+"""AuroraList · 现代化界面（schema 驱动，覆盖老软件全部设置项）。"""
 from __future__ import annotations
 
 import threading
@@ -7,57 +7,206 @@ from pathlib import Path
 
 import flet as ft
 
-from ..api import ApiClient, ApiError
+from ..api import ApiClient
 from ..config import AppConfig, get_config, save_config
 from ..license import verify as verify_license
 from ..services import BatchRunner, ImageService, TextService
 
-ACCENT = "#7C5CFF"
-ACCENT_2 = "#00D2A8"
-BG = "#0B0D12"
-CARD = "#141824"
-CARD_2 = "#1B2030"
-TEXT = "#E8EAF2"
-MUTED = "#8B92A8"
+ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
+BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
+TEXT, MUTED = "#E8EAF2", "#8B92A8"
 
-NAV = [
-    ("概览", ft.Icons.DASHBOARD_OUTLINED),
-    ("AI 智能填写", ft.Icons.AUTO_FIX_HIGH),
-    ("内容审查", ft.Icons.FACT_CHECK_OUTLINED),
-    ("图片处理", ft.Icons.IMAGE_OUTLINED),
-    ("价格与变种", ft.Icons.ATTACH_MONEY),
-    ("设置", ft.Icons.SETTINGS_OUTLINED),
-]
+BROWSERS = ["本机Edge", "比特浏览器", "站斧浏览器"]
+CURRENCIES = ["USD", "EUR", "GBP", "CNY", "RUB", "BRL"]
 
 
-def card(content, padding=20, expand=False, width=None):
+def card(content, padding=20, expand=False):
     return ft.Container(content=content, bgcolor=CARD, border_radius=16, padding=padding,
-                        expand=expand, width=width, border=ft.border.all(1, CARD_2))
+                        expand=expand, border=ft.border.all(1, CARD_2))
 
 
-def h1(text):
-    return ft.Text(text, size=22, weight=ft.FontWeight.BOLD, color=TEXT)
+def h1(t, s=20):
+    return ft.Text(t, size=s, weight=ft.FontWeight.BOLD, color=TEXT)
 
 
-def muted(text, size=12):
-    return ft.Text(text, size=size, color=MUTED)
+def muted(t, s=12):
+    return ft.Text(t, size=s, color=MUTED)
 
 
-def field(label, value, multiline=False, password=False):
-    return ft.TextField(label=label, value=value, multiline=multiline,
-                        min_lines=2 if multiline else 1, max_lines=6 if multiline else 1,
-                        password=password, can_reveal_password=password,
-                        bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+class Field:
+    """把配置项渲染成控件。"""
+
+    def __init__(self, key, label, kind="text", options=None, hint=""):
+        self.key, self.label, self.kind, self.options, self.hint = key, label, kind, options or [], hint
+        self.ctrl = None
+
+    def build(self, cfg):
+        val = cfg.get(self.key, "")
+        if self.kind == "bool":
+            self.ctrl = ft.Switch(label=self.label, value=bool(val), active_color=ACCENT)
+        elif self.kind == "select":
+            self.ctrl = ft.Dropdown(label=self.label, value=str(val) if val not in ("", None) else None,
+                                    options=[ft.dropdown.Option(o) for o in self.options], width=240,
+                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        elif self.kind == "multiline":
+            self.ctrl = ft.TextField(label=self.label, value=str(val), multiline=True, min_lines=2, max_lines=6,
+                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT, helper_text=self.hint or None)
+        else:
+            self.ctrl = ft.TextField(label=self.label, value=str(val), bgcolor=CARD_2, border_color=CARD_2,
+                                     color=TEXT, helper_text=self.hint or None)
+        return self.ctrl
+
+    def read(self):
+        v = self.ctrl.value
+        if self.kind == "bool":
+            cfg_val = bool(v)
+        else:
+            cfg_val = v
+        return self.key, cfg_val
+
+
+def section(title, fields, cfg, cols=2):
+    rows, controls = [], []
+    for f in fields:
+        c = f.build(cfg)
+        controls.append(f)
+        if f.kind in ("multiline",):
+            rows.append(c)
+        else:
+            rows.append(c)
+    return card(ft.Column([h1(title, 15), *rows], spacing=12)), controls
+
+
+# ---------------- 页面 schema ----------------
+def schema_store():
+    return [
+        ("店铺设置", [Field("browser_type", "浏览器窗口", "select", BROWSERS),
+                      Field("store_name", "店铺名称", hint="从店小秘拉取"),
+                      Field("store_id", "店铺 ID"),
+                      Field("use_template_category", "使用模板分类", "bool")]),
+        ("产品模板", [Field("product_template_name", "模板产品名称"),
+                      Field("product_template_id", "模板产品 ID / 链接"),
+                      Field("product_id_title", "模板标题"),
+                      Field("product_id_image", "模板主图 URL")]),
+    ]
+
+
+def schema_advanced():
+    return [
+        ("基础", [Field("edit_sum", "编辑产品数量"), Field("watermark", "水印图片路径"),
+                  Field("declared_value", "货值默认值"), Field("title_prefix", "标题前缀"),
+                  Field("title_suffix", "标题后缀")]),
+        ("库存与 SKU", [Field("modify_stock_999", "库存改为 999", "bool"),
+                        Field("stock_quantity", "固定库存数量"),
+                        Field("max_sku_count", "SKU 数量上限"),
+                        Field("custom_sku_prefix", "SKU 自定义前缀"),
+                        Field("sku_split_char", "SKU 分隔符"),
+                        Field("auto_generate_sku_code", "自动生成 SKU 编码", "bool"),
+                        Field("use_number_replace_sku", "数字替换 SKU", "bool"),
+                        Field("only_sku_prefix_checkbox", "仅 SKU 前缀", "bool"),
+                        Field("copy_sku_to_detail", "SKU 复制到详情", "bool")]),
+        ("其他", [Field("move_detail_text", "移动详情文字", "bool"),
+                  Field("original_box", "原箱发货", "bool"),
+                  Field("keep_temp_images", "保留临时图片", "bool"),
+                  Field("check_banned_word", "违禁词检查", "bool")]),
+    ]
+
+
+def schema_ai():
+    return [
+        ("标题生成", [Field("enable_ai_title", "启用 AI 标题", "bool"),
+                      Field("title_prompt", "标题提示词", "multiline")]),
+        ("详情描述", [Field("enable_ai_detail", "启用 AI 详情", "bool"),
+                      Field("detail_prompt", "详情提示词", "multiline")]),
+        ("SKU 优化", [Field("enable_ai_sku", "启用 AI 优化 SKU", "bool"),
+                      Field("sku_prompt", "SKU 提示词", "multiline")]),
+        ("读图估算", [Field("enable_ai_weight", "启用读图估算", "bool"),
+                      Field("weight_prompt", "重量规格提示词", "multiline"),
+                      Field("weight_keep_existing", "保留已有重量", "bool"),
+                      Field("pack_weight", "包装重量(kg)")]),
+    ]
+
+
+def schema_review():
+    return [
+        ("文本审查", [Field("review_text_enable", "启用文本审查", "bool"),
+                      Field("review_text_prompt", "文本审查提示词", "multiline")]),
+        ("图片审查", [Field("review_detail_img_enable", "详情图审查", "bool"),
+                      Field("review_detail_img_prompt", "详情图审查提示词", "multiline"),
+                      Field("review_main_img_enable", "主图审查", "bool"),
+                      Field("review_main_img_prompt", "主图审查提示词", "multiline")]),
+    ]
+
+
+def schema_image():
+    return [
+        ("简单编辑", [Field("white_bg_enable", "白底图", "bool"),
+                      Field("white_bg_range", "白底范围（如 1-2）"),
+                      Field("watermark_enable", "去水印", "bool"),
+                      Field("watermark_range", "去水印范围"),
+                      Field("translate_enable", "图片翻译", "bool"),
+                      Field("translate_sku_pic", "翻译 SKU 图", "bool")]),
+        ("通用编辑 / 背景生成", [Field("edit_enable", "启用通用编辑", "bool"),
+                                 Field("edit_prompt", "通用编辑提示词", "multiline"),
+                                 Field("background_gen_main_enable", "主图背景生成", "bool"),
+                                 Field("background_gen_detail_enable", "详情图背景生成", "bool"),
+                                 Field("background_gen_model", "背景生成模型"),
+                                 Field("single_edit_model", "编辑模型")]),
+    ]
+
+
+def schema_price():
+    return [
+        ("价格模式", [Field("price_mode", "模式（multiplier / free_shipping）"),
+                      Field("price_multiplier", "价格倍率"), Field("price_fixed_add", "固定加价"),
+                      Field("regional_pricing", "启用区域调价", "bool")]),
+        ("成本与汇率", [Field("currency", "目标币种", "select", CURRENCIES),
+                        Field("exchange_rate", "汇率"), Field("goods_cost", "商品成本"),
+                        Field("goods_cost_unit", "成本单位"),
+                        Field("platform_commission", "平台佣金%"),
+                        Field("sales_profit", "期望利润%"),
+                        Field("single_item_discount_rate", "单品折扣%"),
+                        Field("affiliate_commission", "联盟佣金%"),
+                        Field("default_express_price", "默认运费")]),
+        ("托管与模板", [Field("tuoguan_price_multiplier", "托管倍率"),
+                        Field("tuoguan_price_fixed_addition", "托管固定加价"),
+                        Field("adjust_price_template_id", "调价模板 ID"),
+                        Field("adjust_price_template_name", "调价模板名称")]),
+    ]
+
+
+def schema_variant():
+    return [
+        ("映射方式", [Field("variant_mode", "模式（auto / manual）"),
+                      Field("keep_custom_attributes", "保留自定义属性", "bool"),
+                      Field("variant_mappings", "属性映射表（JSON）", "multiline",
+                            hint='示例：[{"from":"Model Number","to":"型号"}]')]),
+    ]
+
+
+def schema_settings(cfg):
+    return [
+        ("API 与并发", [Field("api_base", "API 地址"), Field("api_key", "API Key"),
+                        Field("concurrency", "并发数"), Field("timeout", "超时(秒)")]),
+        ("授权", [Field("verify_mode", "验证模式（local / shop）"),
+                  Field("license_server", "授权服务器")]),
+        ("通用", [Field("image_upload_category", "图片上传分类"),
+                  Field("market_white_bg_pic_no", "营销白底图取第几张"),
+                  Field("publish_destination", "发布目标"),
+                  Field("folder_path", "本地素材目录")]),
+        ("视频与发布", [Field("generate_main_video", "生成主图视频", "bool"),
+                        Field("use_template_video", "使用模板视频", "bool"),
+                        Field("overwrite_existing_video", "覆盖已有视频", "bool")]),
+    ]
 
 
 class App:
     def __init__(self, page: ft.Page):
         self.page = page
         self.cfg: AppConfig = get_config()
-        self.logs: list[str] = []
-        self.file_picker = ft.FilePicker(on_result=self._on_files)
         self.picked: list[Path] = []
-        self.save_handlers: dict[str, callable] = {}
+        self.field_refs: list[Field] = []
+        self.file_picker = ft.FilePicker(on_result=self._on_files)
 
         page.title = "AuroraList · 极光上架"
         page.bgcolor = BG
@@ -65,60 +214,45 @@ class App:
         page.theme_mode = ft.ThemeMode.DARK
         page.overlay.append(self.file_picker)
         page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
-
         self._build_shell()
-        import os as _os
+        import os
         try:
-            start = int(_os.environ.get('AURORA_PAGE', '0'))
+            start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch(start % len(NAV))
+        self._switch(start % 9)
         page.update()
-
-    # ---------- 基础 ----------
-    def toast(self, msg, ok=True):
-        self.page.snack_bar.content = ft.Text(msg, color=TEXT)
-        self.page.snack_bar.bgcolor = "#1F5137" if ok else "#5A1F28"
-        self.page.snack_bar.open = True
-        self.page.update()
-
-    def client(self):
-        return ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
-
-    def run_bg(self, fn, *a):
-        threading.Thread(target=fn, args=a, daemon=True).start()
-
-    def persist(self):
-        for fn in self.save_handlers.values():
-            fn()
-        save_config(self.cfg)
 
     # ---------- 壳 ----------
     def _build_shell(self):
         self.nav_buttons = []
-        col = ft.Column(spacing=6)
-        for i, (label, icon) in enumerate(NAV):
-            btn = ft.Container(
-                content=ft.Row([ft.Icon(icon, size=18, color=MUTED), ft.Text(label, color=MUTED, size=14)], spacing=12),
-                padding=ft.padding.symmetric(horizontal=14, vertical=11), border_radius=12,
+        items = [("概览", ft.Icons.DASHBOARD_OUTLINED), ("店铺与模板", ft.Icons.STORE_OUTLINED),
+                 ("高级设置", ft.Icons.TUNE), ("AI 智能填写", ft.Icons.AUTO_FIX_HIGH),
+                 ("内容审查", ft.Icons.FACT_CHECK_OUTLINED), ("图片处理", ft.Icons.IMAGE_OUTLINED),
+                 ("价格设置", ft.Icons.SELL_OUTLINED), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED),
+                 ("设置", ft.Icons.SETTINGS_OUTLINED)]
+        col = ft.Column(spacing=4)
+        for i, (label, icon) in enumerate(items):
+            b = ft.Container(
+                content=ft.Row([ft.Icon(icon, size=17, color=MUTED), ft.Text(label, color=MUTED, size=13)], spacing=10),
+                padding=ft.padding.symmetric(horizontal=12, vertical=9), border_radius=10,
                 on_click=lambda e, idx=i: self._switch(idx), ink=True)
-            self.nav_buttons.append(btn)
-            col.controls.append(btn)
-
-        self.license_text = ft.Text("检测中…", color=MUTED, size=13, weight=ft.FontWeight.BOLD)
-        sidebar = ft.Container(width=232, bgcolor=CARD, padding=18, content=ft.Column([
-            ft.Row([ft.Container(width=34, height=34, border_radius=11,
-                                 bgcolor=ACCENT, content=ft.Text("A", size=16, weight=ft.FontWeight.BOLD, color="#0B0D12")),
-                    ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=15),
-                               muted("极光上架 v0.1")], spacing=0)], spacing=10),
-            ft.Container(height=18), col, ft.Container(expand=True),
-            card(ft.Column([muted("授权状态"), self.license_text], spacing=4), padding=12),
+            self.nav_buttons.append(b)
+            col.controls.append(b)
+        self.license_text = ft.Text("检测中…", color=MUTED, size=12, weight=ft.FontWeight.BOLD)
+        sidebar = ft.Container(width=216, bgcolor=CARD, padding=16, content=ft.Column([
+            ft.Row([ft.Container(width=32, height=32, border_radius=10, bgcolor=ACCENT,
+                                 content=ft.Text("A", size=15, weight=ft.FontWeight.BOLD, color="#0B0D12")),
+                    ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
+                               muted("极光上架 v0.2")], spacing=0)], spacing=10),
+            ft.Container(height=14), col, ft.Container(expand=True),
+            card(ft.Column([muted("授权状态"), self.license_text], spacing=4), padding=10),
         ]))
-        self.content = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=18)
+        self.content = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14)
         self.page.add(ft.Row([sidebar, ft.Container(expand=True, content=self.content,
-                                                    padding=ft.padding.only(left=28, right=28, top=22, bottom=22))],
+                                                    padding=ft.padding.only(left=24, right=24, top=18, bottom=18))],
                              expand=True, spacing=0))
-        self.run_bg(self._check_license)
+        threading.Thread(target=self._check_license, daemon=True).start()
 
     def _switch(self, idx):
         for i, b in enumerate(self.nav_buttons):
@@ -126,89 +260,84 @@ class App:
             b.bgcolor = CARD_2 if on else None
             b.content.controls[0].color = ACCENT if on else MUTED
             b.content.controls[1].color = TEXT if on else MUTED
-        pages = [self._p_overview, self._p_ai, self._p_review, self._p_image, self._p_price, self._p_settings]
+        self.field_refs = []
+        pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
+                 self._p_image, self._p_price, self._p_variant, self._p_settings]
         self.content.controls = pages[idx]()
         self.page.update()
 
-    def _save_btn(self):
-        def go(e):
-            for fn in self.save_handlers.values():
-                fn()
+    def _render(self, title, schemas, extra=None):
+        out = [h1(title), muted("所有配置自动保存到本地 config.json")]
+        for name, fields in schemas:
+            c, refs = section(name, fields, self.cfg)
+            self.field_refs.extend(refs)
+            out.append(c)
+        if extra:
+            out.append(extra)
+        out.append(self._save_row())
+        return out
+
+    def _save_row(self):
+        def save(e):
+            for f in self.field_refs:
+                k, v = f.read()
+                self.cfg.set(k, v)
             save_config(self.cfg)
-            self.toast("已保存")
-        return ft.ElevatedButton("保存配置", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white", on_click=go)
+            self.toast("配置已保存")
+
+        return ft.Row([ft.ElevatedButton("保存配置", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white", on_click=save),
+                       ft.OutlinedButton("恢复默认", icon=ft.Icons.RESTART_ALT,
+                                         on_click=lambda e: self._reset())], spacing=12)
+
+    def _reset(self):
+        self.cfg = AppConfig()
+        save_config(self.cfg)
+        self._switch(self._current)
+        self.toast("已恢复默认")
 
     # ---------- 页面 ----------
     def _p_overview(self):
-        self.stat_api = ft.Text("未检测", color=MUTED, size=13)
+        self.stat_api = ft.Text("未检测", color=MUTED, size=12)
+        self._current = 0
 
         def stat(label, ctrl, icon, color):
-            return card(ft.Column([ft.Row([ft.Icon(icon, size=18, color=color), muted(label)], spacing=8), ctrl],
-                                  spacing=10), padding=18, expand=True)
+            return card(ft.Column([ft.Row([ft.Icon(icon, size=17, color=color), muted(label)], spacing=8), ctrl],
+                                  spacing=8), padding=16, expand=True)
 
-        return [
-            h1("概览"), muted("AI 能力接入自建站点，所有调用按站点价格计费"),
-            ft.Row([stat("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT),
-                    stat("授权状态", ft.Text("见左下角", color=MUTED, size=13), ft.Icons.VERIFIED_OUTLINED, ACCENT_2),
-                    stat("图片服务", ft.Text("~15 秒/张", color=ACCENT_2, size=13), ft.Icons.BOLT_OUTLINED, "#FFB020")],
-                   spacing=14),
-            card(ft.Column([h1("快速开始"), muted("1. 设置里填 Key  2. AI 智能填写配提示词  3. 图片处理跑白底/去水印"),
-                            ft.Row([ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
-                                                      on_click=lambda e: self.run_bg(self._test)),
-                                    ft.OutlinedButton("去设置", icon=ft.Icons.SETTINGS,
-                                                      on_click=lambda e: self._switch(5))], spacing=12)], spacing=12)),
-        ]
+        return [h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
+                ft.Row([stat("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT),
+                        stat("授权状态", ft.Text("见左下角", color=MUTED, size=12), ft.Icons.VERIFIED_OUTLINED, ACCENT_2),
+                        stat("图片服务", ft.Text("~15 秒/张", color=ACCENT_2, size=12), ft.Icons.BOLT_OUTLINED, "#FFB020")],
+                       spacing=12),
+                card(ft.Column([h1("配置概览", 15),
+                                muted(f"共 {len(self.cfg.as_dict())} 项配置 · 浏览器：{self.cfg.browser_type} · 店铺：{self.cfg.store_name or '未绑定'}"),
+                                ft.Row([ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
+                                                          on_click=lambda e: threading.Thread(target=self._test, daemon=True).start()),
+                                        ft.OutlinedButton("去设置", icon=ft.Icons.SETTINGS,
+                                                          on_click=lambda e: self._switch(8))], spacing=10)], spacing=10))]
+
+    def _p_store(self):
+        self._current = 1
+        return self._render("店铺与模板", schema_store())
+
+    def _p_advanced(self):
+        self._current = 2
+        return self._render("高级设置", schema_advanced())
 
     def _p_ai(self):
-        c = self.cfg
-        self.sw_title = ft.Switch(label="启用 AI 标题", value=c.enable_ai_title, active_color=ACCENT)
-        self.f_title = field("标题提示词", c.title_prompt, True)
-        self.sw_detail = ft.Switch(label="启用 AI 详情", value=c.enable_ai_detail, active_color=ACCENT)
-        self.f_detail = field("详情提示词", c.detail_prompt, True)
-        self.sw_sku = ft.Switch(label="启用 AI 优化 SKU", value=c.enable_ai_sku, active_color=ACCENT)
-        self.f_sku = field("SKU 提示词", c.sku_prompt, True)
-        self.sw_weight = ft.Switch(label="启用读图估算重量规格", value=c.enable_ai_weight, active_color=ACCENT)
-        self.f_weight = field("重量规格提示词", c.weight_prompt, True)
-
-        def save():
-            c.enable_ai_title, c.title_prompt = self.sw_title.value, self.f_title.value
-            c.enable_ai_detail, c.detail_prompt = self.sw_detail.value, self.f_detail.value
-            c.enable_ai_sku, c.sku_prompt = self.sw_sku.value, self.f_sku.value
-            c.enable_ai_weight, c.weight_prompt = self.sw_weight.value, self.f_weight.value
-
-        self.save_handlers["ai"] = save
-        return [h1("AI 智能填写"), muted("对应老软件的 4 组提示词，全部可调"),
-                card(ft.Column([self.sw_title, self.f_title, self.sw_detail, self.f_detail], spacing=12)),
-                card(ft.Column([self.sw_sku, self.f_sku, self.sw_weight, self.f_weight], spacing=12)),
-                self._save_btn()]
+        self._current = 3
+        return self._render("AI 智能填写", schema_ai())
 
     def _p_review(self):
-        c = self.cfg
-        self.sw_rt = ft.Switch(label="详情文本审查", value=c.review_text_enable, active_color=ACCENT)
-        self.f_rt = field("文本审查提示词", c.review_text_prompt, True)
-        self.sw_rd = ft.Switch(label="详情图审查", value=c.review_detail_img_enable, active_color=ACCENT)
-        self.f_rd = field("详情图审查提示词", c.review_detail_img_prompt, True)
-        self.sw_rm = ft.Switch(label="主图审查", value=c.review_main_img_enable, active_color=ACCENT)
-        self.f_rm = field("主图审查提示词", c.review_main_img_prompt, True)
-
-        def save():
-            c.review_text_enable, c.review_text_prompt = self.sw_rt.value, self.f_rt.value
-            c.review_detail_img_enable, c.review_detail_img_prompt = self.sw_rd.value, self.f_rd.value
-            c.review_main_img_enable, c.review_main_img_prompt = self.sw_rm.value, self.f_rm.value
-
-        self.save_handlers["review"] = save
-        return [h1("内容审查"), muted("过滤厂家信息、联系方式、促销、二维码等非商品内容"),
-                card(ft.Column([self.sw_rt, self.f_rt, self.sw_rd, self.f_rd, self.sw_rm, self.f_rm], spacing=12)),
-                self._save_btn()]
+        self._current = 4
+        return self._render("内容审查", schema_review())
 
     def _p_image(self):
-        c = self.cfg
+        self._current = 5
+        view = self._render("图片处理", schema_image())
         self.img_status = ft.Text("未选择图片", color=MUTED, size=12)
         self.img_results = ft.Column(spacing=6)
         self.img_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
-        self.f_edit = field("通用编辑提示词", c.edit_prompt, True)
-        self.sw_white = ft.Switch(label="白底图", value=c.white_bg_enable, active_color=ACCENT_2)
-        self.sw_wm = ft.Switch(label="去水印", value=c.watermark_enable, active_color=ACCENT_2)
 
         def pick(e):
             self.file_picker.pick_files(allow_multiple=True, allowed_extensions=["png", "jpg", "jpeg", "webp"])
@@ -219,72 +348,44 @@ class App:
             if not self.cfg.api_key:
                 self.toast("请先在设置里填写 API Key", False); return
             self.img_busy.visible = True; self.page.update()
-            self.run_bg(self._do_image, kind)
+            threading.Thread(target=self._do_image, args=(kind,), daemon=True).start()
 
-        return [h1("图片处理"),
-                card(ft.Column([
-                    ft.Row([ft.OutlinedButton("选择图片", icon=ft.Icons.UPLOAD_FILE, on_click=pick),
-                            ft.ElevatedButton("白底图", icon=ft.Icons.WB_SUNNY_OUTLINED, bgcolor=ACCENT, color="white",
-                                              on_click=lambda e: run("white")),
-                            ft.ElevatedButton("去水印", icon=ft.Icons.AUTO_FIX_HIGH, bgcolor=ACCENT_2, color="#04231C",
-                                              on_click=lambda e: run("watermark")),
-                            self.img_busy], spacing=12),
-                    self.f_edit,
-                    ft.Row([ft.ElevatedButton("通用编辑", icon=ft.Icons.EDIT, bgcolor=CARD_2, color=TEXT,
-                                              on_click=lambda e: run("edit"))]),
-                    self.img_status, self.img_results], spacing=14))]
+        tool = card(ft.Column([
+            h1("图片工具", 15),
+            ft.Row([ft.OutlinedButton("选择图片", icon=ft.Icons.UPLOAD_FILE, on_click=pick),
+                    ft.ElevatedButton("白底图", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
+                    ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
+                    ft.ElevatedButton("通用编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
+                    self.img_busy], spacing=10),
+            self.img_status, self.img_results], spacing=10))
+        return [view[0], tool] + view[1:]
 
     def _p_price(self):
-        c = self.cfg
-        self.rg_mode = ft.RadioGroup(content=ft.Column([
-            ft.Radio(value="multiplier", label="倍率价格"), ft.Radio(value="free_shipping", label="包邮价格")]),
-            value="multiplier")
-        self.f_mult = field("价格倍率", "1.2")
-        self.f_add = field("最终价格固定增加", "0")
-        self.rg_variant = ft.RadioGroup(content=ft.Column([
-            ft.Radio(value="auto", label="自动匹配"), ft.Radio(value="manual", label="手动映射")]), value="auto")
+        self._current = 6
+        return self._render("价格设置", schema_price())
 
-        return [h1("价格与变种"), muted("价格模式、倍率、区域调价与 SKU 属性映射"),
-                card(ft.Column([muted("价格模式"), self.rg_mode,
-                                ft.Row([self.f_mult, self.f_add], spacing=12)], spacing=12)),
-                card(ft.Column([muted("变种映射模式"), self.rg_variant,
-                                muted("提示：手动映射需在「变种」页维护属性对照表（P1 实现）")], spacing=10)),
-                muted("价格计算与区域调价将在 P1 接入海豚接口后启用")]
+    def _p_variant(self):
+        self._current = 7
+        return self._render("变种设置", schema_variant())
 
     def _p_settings(self):
-        c = self.cfg
-        self.f_base = field("API 地址", c.api_base)
-        self.f_key = field("API Key", c.api_key, password=True)
-        self.f_conc = field("并发数", str(c.concurrency))
-        self.f_timeout = field("超时(秒)", str(c.timeout))
-
-        def save():
-            c.api_base = self.f_base.value.strip()
-            c.api_key = self.f_key.value.strip()
-            try: c.concurrency = max(1, int(self.f_conc.value))
-            except Exception: c.concurrency = 3
-            try: c.timeout = max(30, int(self.f_timeout.value))
-            except Exception: c.timeout = 180
-
-        self.save_handlers["settings"] = save
-        return [h1("设置"),
-                card(ft.Column([self.f_base, self.f_key, ft.Row([self.f_conc, self.f_timeout], spacing=12),
-                                ft.Row([self._save_btn(), ft.OutlinedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
-                                                                            on_click=lambda e: self.run_bg(self._test))],
-                                       spacing=12)], spacing=14))]
+        self._current = 8
+        return self._render("设置", schema_settings(self.cfg))
 
     # ---------- 行为 ----------
     def _check_license(self):
         res = verify_license(self.cfg.license_server)
         self.license_text.value = res["message"]
         self.license_text.color = ACCENT_2 if res["ok"] else "#FF6B6B"
-        self.page.update()
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def _test(self):
         try:
-            n = len(self.client().models())
-            self.stat_api.value = f"正常 · {n} 个模型"
-            self.stat_api.color = ACCENT_2
+            n = len(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout).models())
+            self.stat_api.value = f"正常 · {n} 个模型"; self.stat_api.color = ACCENT_2
             self.toast(f"连接成功，{n} 个模型")
         except Exception as e:
             self.stat_api.value = "连接失败"; self.stat_api.color = "#FF6B6B"
@@ -292,7 +393,7 @@ class App:
         self.page.update()
 
     def _do_image(self, kind):
-        svc = ImageService(self.client())
+        svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout))
         self.img_results.controls = []
         runner = BatchRunner(self.cfg.concurrency)
 
@@ -301,13 +402,13 @@ class App:
                 return svc.white_background(Path(path))
             if kind == "watermark":
                 return svc.remove_watermark(Path(path))
-            return svc.edit(Path(path), self.f_edit.value or "clean product photo")
+            return svc.edit(Path(path), self.cfg.edit_prompt or "clean product photo")
 
         def done(res):
             icon = ft.Icons.CHECK_CIRCLE if res.ok else ft.Icons.ERROR_OUTLINE
             color = ACCENT_2 if res.ok else "#FF6B6B"
-            self.img_results.controls.append(ft.Row([ft.Icon(icon, size=16, color=color),
-                                                     ft.Text(res.value if res.ok else res.error, size=12,
+            self.img_results.controls.append(ft.Row([ft.Icon(icon, size=15, color=color),
+                                                     ft.Text(res.value if res.ok else res.error, size=11,
                                                              color=MUTED, selectable=True)], spacing=8))
             self.page.update()
 
@@ -323,6 +424,12 @@ class App:
             self.picked = [Path(f.path) for f in e.files]
             self.img_status.value = f"已选择 {len(self.picked)} 张图"
             self.page.update()
+
+    def toast(self, msg, ok=True):
+        self.page.snack_bar.content = ft.Text(msg, color=TEXT)
+        self.page.snack_bar.bgcolor = "#1F5137" if ok else "#5A1F28"
+        self.page.snack_bar.open = True
+        self.page.update()
 
 
 def run():
