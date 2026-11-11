@@ -97,9 +97,12 @@ def launch_browser(kind: str = "chrome", user_data_dir: str | None = None,
         port = 9333
         try:
             import requests as _rq
-            if _rq.get(f"http://127.0.0.1:{port}/json/version", timeout=2).ok:
-                return {"ws": f"ws://127.0.0.1:{port}/devtools/browser", "port": port,
-                        "exe": exe, "profile": profile, "reused": True}
+            r = _rq.get(f"http://127.0.0.1:{port}/json/version", timeout=2)
+            if r.ok:
+                ws = (r.json() or {}).get("webSocketDebuggerUrl") or ""
+                if not ws:
+                    ws = f"ws://127.0.0.1:{port}/devtools/browser"
+                return {"ws": ws, "port": port, "exe": exe, "profile": profile, "reused": True}
         except Exception:
             pass
     return _launch_exe(exe, profile, port, headless, url)
