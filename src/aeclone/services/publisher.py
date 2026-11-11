@@ -69,6 +69,51 @@ class Publisher:
         p["price_result"] = r
         return p
 
+    def _local_image_ops(self, p: dict, res) -> dict:
+        """水印 / 四合一：下载 → 本地处理 → 托管 → 回填 URL。"""
+        import tempfile
+        import requests as _rq
+        from pathlib import Path as _P
+        from .image_ops import add_watermark, four_in_one
+        from .hosting import upload as host_upload
+
+        d = _P(tempfile.mkdtemp())
+        local = []
+        for i, u in enumerate(p.get("images", [])[:8]):
+            try:
+                r = _rq.get(str(u), timeout=60); r.raise_for_status()
+                fp = d / f"src_{i}.png"; fp.write_bytes(r.content); local.append(fp)
+            except Exception:
+                continue
+        if not local:
+            return p
+
+        if self.cfg.watermark:
+            outs = []
+            for i, fp in enumerate(local):
+                try:
+                    outs.append(add_watermark(fp, self.cfg.watermark, d / f"wm_{i}.png"))
+                except Exception:
+                    outs.append(fp)
+            local = outs
+
+        if self.cfg.four_in_one and len(local) >= 2:
+            try:
+                local.append(four_in_one(local[:4], d / "four.png"))
+            except Exception:
+                pass
+
+        urls = []
+        for fp in local:
+            try:
+                urls.append(host_upload(fp))
+            except Exception:
+                continue
+        if urls:
+            p["images"] = urls
+        res.steps.append(Step("本地图片处理", bool(urls), f"{len(urls)} 张已托管"))
+        return p
+
     # ---------- 主流程 ----------
     def run(self, product: dict, dry_run: bool = True) -> PublishResult:
         res = PublishResult(product_id=str(product.get("id", "")), ok=True)
@@ -112,6 +157,12 @@ class Publisher:
                     for sku, nm in zip(p["skus"], new_names):
                         sku["optimized_name"] = nm
                 res.steps.append(Step("AI SKU", r.ok, (r.value[:50].replace("\n", " ") if r.ok else r.error)))
+
+            if self.cfg.four_in_one or self.cfg.watermark:
+                try:
+                    p = self._local_image_ops(p, res)
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("本地图片处理", False, str(ex)[:120]))
 
             if not dry_run and self.dxm and p.get("images"):
                 uploaded, failed = 0, 0
