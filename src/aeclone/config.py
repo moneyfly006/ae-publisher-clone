@@ -64,6 +64,31 @@ DEFAULTS: dict = {
     "template_product_id": "",
     "template_product_title": "",
     "template_snapshot": "",
+    # 库存 / SKU
+    "modify_stock_999": False,
+    "stock_quantity": "999",
+    "custom_sku_prefix": "",
+    "sku_split_char": "-",
+    "auto_generate_sku_code": False,
+    "use_number_replace_sku": False,
+    # 图片范围扩展
+    "remove_watermark_pic_1": "1",
+    "remove_watermark_pic_2": "5",
+    "single_edit_main_pic_indices": "",
+    "single_edit_detail_pic_indices": "",
+    # 背景生成
+    "background_gen_rules": "[]",
+    "background_gen_sku_prompt": "",
+    "background_gen_detail_replace": False,
+    # 上传 / 视频
+    "upload_full_cid": "",
+    "upload_category_name": "",
+    "generate_main_video": False,
+    "use_template_video": False,
+    "overwrite_existing_video": False,
+    # 区域调价模板（本地）
+    "adjust_price_template_detail": "{}",
+
     "review_text_enable": False,
     "review_detail_img_enable": False,
     "review_main_img_enable": False,

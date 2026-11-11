@@ -45,6 +45,20 @@ class Publisher:
     def _normalize(self, product: dict) -> dict:
         p = dict(product)
         p["title"] = (p.get("title") or "").strip()
+        prefix = (getattr(self.cfg, "custom_sku_prefix", "") or "").strip()
+        split_ch = getattr(self.cfg, "sku_split_char", "-") or "-"
+        stock = getattr(self.cfg, "stock_quantity", "") or ""
+        for i, sku in enumerate(p.get("skus") or [], 1):
+            name = str(sku.get("sku") or sku.get("name") or "").strip()
+            if prefix and not name.startswith(prefix):
+                name = f"{prefix}{split_ch}{name}" if name else f"{prefix}{split_ch}{i}"
+            if getattr(self.cfg, "auto_generate_sku_code", False):
+                name = f"{prefix}{split_ch}{i:03d}" if prefix else f"SKU{split_ch}{i:03d}"
+            sku["sku"] = name
+            if getattr(self.cfg, "modify_stock_999", False):
+                sku["stock"] = 999
+            elif stock:
+                sku["stock"] = stock
         try:
             limit = int(self.cfg.max_sku_count or 256)
             p["skus"] = (p.get("skus") or [])[:limit]
@@ -105,6 +119,17 @@ class Publisher:
         elif mode == "multiplier" or True:
             r = calc_multiplier(base, float(self.cfg.price_multiplier or 1.2),
                                 float(self.cfg.price_fixed_add or 0))
+            tpl_raw = (getattr(self.cfg, "adjust_price_template_detail", "") or "").strip()
+            if tpl_raw not in ("", "{}") and self.cfg.regional_pricing:
+                try:
+                    import json as _j2
+                    rate_map = _j2.loads(tpl_raw)
+                    if isinstance(rate_map, dict) and rate_map:
+                        from .pricing import regional_prices
+                        p["regional"] = regional_prices(r.final, {k: float(v) for k, v in rate_map.items()})
+                except Exception:
+                    pass
+
             if self.cfg.tuoguan_price_tiered_enabled:
                 try:
                     tiers = _j.loads(self.cfg.tuoguan_price_tiers or "[]")
@@ -146,17 +171,24 @@ class Publisher:
         # 主图
         main = p.get("images", [])
         main_ops = (self.cfg.white_bg_enable or self.cfg.watermark_enable
-                    or getattr(self.cfg, "img_main_edit", False))
+                    or getattr(self.cfg, "img_main_edit", False)
+                    or (self.cfg.background_gen_rules or "").strip() not in ("", "[]"))
         if main and main_ops:
-            expr = ""
+            # 白底范围
+            wb_expr = ""
             if self.cfg.white_background_pic_1 or self.cfg.white_background_pic_2:
-                expr = f"{self.cfg.white_background_pic_1}-{self.cfg.white_background_pic_2}"
-            selected = pick(main, expr) if expr else main
+                wb_expr = f"{self.cfg.white_background_pic_1}-{self.cfg.white_background_pic_2}"
+            # 去水印范围（独立）
+            wm_expr = ""
+            if getattr(self.cfg, "remove_watermark_pic_1", "") or getattr(self.cfg, "remove_watermark_pic_2", ""):
+                wm_expr = f"{getattr(self.cfg, 'remove_watermark_pic_1', '1')}-{getattr(self.cfg, 'remove_watermark_pic_2', '5')}"
+            edit_expr = getattr(self.cfg, "single_edit_main_pic_indices", "") or ""
+            selected = pick(main, wb_expr or wm_expr or edit_expr) if (wb_expr or wm_expr or edit_expr) else main
             if selected:
                 out, done = self._process_urls(selected,
-                                               white_bg=self.cfg.white_bg_enable,
-                                               remove_wm=self.cfg.watermark_enable,
-                                               edit=getattr(self.cfg, "img_main_edit", False))
+                                               white_bg=self.cfg.white_bg_enable or bool(wb_expr),
+                                               remove_wm=self.cfg.watermark_enable or bool(wm_expr),
+                                               edit=getattr(self.cfg, "img_main_edit", False) or bool(edit_expr))
                 idx = [i for i, u in enumerate(main) if u in selected]
                 for i, u in zip(idx, out):
                     main[i] = u
@@ -200,6 +232,33 @@ class Publisher:
                     pass
             if done:
                 res.steps.append(Step("SKU图处理", True, f"{done} 张"))
+
+        # 背景生成（AI 换背景）
+        rules_raw = (getattr(self.cfg, "background_gen_rules", "") or "").strip()
+        if rules_raw not in ("", "[]"):
+            try:
+                import json as _j
+                rules = _j.loads(rules_raw)
+            except Exception:
+                rules = []
+            done_bg = 0
+            for rule in (rules or [])[:6]:
+                pos = str(rule.get("position", ""))
+                prompt = rule.get("prompt", "") or "专业电商白底展示图"
+                idx = 0
+                if pos.startswith("main_"):
+                    try:
+                        idx = int(pos.split("_")[1]) - 1
+                    except Exception:
+                        idx = 0
+                    if 0 <= idx < len(p.get("images") or []):
+                        try:
+                            p["images"][idx] = self._run_ops(p["images"][idx], False, False, True)
+                            done_bg += 1
+                        except Exception:
+                            pass
+            if done_bg:
+                res.steps.append(Step("背景生成", True, f"{done_bg} 张"))
         return p
 
     def _publicize_images(self, p: dict, res) -> dict:
@@ -280,6 +339,10 @@ class Publisher:
             p = self._normalize(product)
             res.steps.append(Step("标准化", True,
                                   f"{len(p['skus'])} 个 SKU / {len(p['images'])} 张图（上限 {self.cfg.max_sku_count}）"))
+            if p["skus"]:
+                sample = p["skus"][0]
+                res.steps.append(Step("SKU 处理", True,
+                                      f"{sample.get('sku')} · 库存 {sample.get('stock', '-')}"))
 
             p = self._apply_template(p, res)
             p = self._map_variants(p)
@@ -333,7 +396,8 @@ class Publisher:
                         or getattr(self.cfg, "img_detail_edit", False)
                         or getattr(self.cfg, "img_sku_white_bg", False)
                         or getattr(self.cfg, "img_sku_remove_wm", False)
-                        or getattr(self.cfg, "img_sku_edit", False))
+                        or getattr(self.cfg, "img_sku_edit", False)
+                        or (getattr(self.cfg, "background_gen_rules", "") or "").strip() not in ("", "[]"))
             if p.get("images") and _img_ops:
                 try:
                     p = self._ai_images(p, res)
@@ -350,7 +414,7 @@ class Publisher:
                 uploaded, failed = 0, 0
                 for u in p["images"][:20]:
                     try:
-                        self.dxm.upload_image_from_url(str(u))
+                        self.dxm.upload_image_from_url(str(u), full_cid=getattr(self.cfg, "upload_full_cid", "") or "")
                         uploaded += 1
                     except Exception as ex:  # noqa: BLE001
                         failed += 1
@@ -404,6 +468,29 @@ class Publisher:
             if p.get("regional"):
                 extra = " · 区域 " + " ".join(f"{k}{v}" for k, v in list(p['regional'].items())[:3])
             res.steps.append(Step("价格计算", True, f"¥{r.final}（{r.note}）{extra}"))
+
+            if getattr(self.cfg, "generate_main_video", False) and p.get("images"):
+                try:
+                    import tempfile as _tf
+                    from pathlib import Path as _P2
+                    import requests as _rq2
+                    from .video import build_slideshow, probe as _vp
+                    if _vp()["available"]:
+                        d2 = _P2(_tf.mkdtemp())
+                        files = []
+                        for i, u in enumerate(p["images"][:6]):
+                            fp = d2 / f"v{i}.png"
+                            try:
+                                fp.write_bytes(_rq2.get(str(u), timeout=60).content); files.append(fp)
+                            except Exception:
+                                continue
+                        if len(files) >= 2:
+                            out = d2 / "main.mp4"
+                            build_slideshow(files, out)
+                            p["main_video"] = str(out)
+                            res.steps.append(Step("主图视频", True, str(out)))
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("主图视频", False, str(ex)[:80]))
 
             if dry_run:
                 res.steps.append(Step("保存到店小秘", True, "dry-run：未写入"))

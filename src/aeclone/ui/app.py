@@ -104,7 +104,12 @@ def schema_store():
 def schema_advanced():
     return [
         ("基础", [Field("edit_sum", "编辑产品数量"), Field("watermark", "水印图片路径")]),
-        ("SKU", [Field("max_sku_count", "SKU 数量上限")]),
+        ("SKU", [Field("max_sku_count", "SKU 数量上限"),
+                 Field("custom_sku_prefix", "SKU 前缀"),
+                 Field("sku_split_char", "SKU 分隔符"),
+                 Field("auto_generate_sku_code", "自动生成 SKU 编码", "bool"),
+                 Field("modify_stock_999", "库存改为 999", "bool"),
+                 Field("stock_quantity", "库存数量")]),
         ("详情文字", [Field("detail_text_info", "详情文字（头部）", "multiline"),
                       Field("detail_text_info_tail", "详情文字（尾部）", "multiline"),
                       Field("detail_text_position", "插入位置（head/tail/both）")]),
@@ -146,6 +151,12 @@ def schema_image():
                   Field("white_background_pic_1", "主图起始序号"),
                   Field("white_background_pic_2", "主图结束序号")]),
         ("描述图", [Field("white_background_detail_pic_indices", "详情图序号（如 1-5,8）")]),
+        ("去水印范围", [Field("remove_watermark_pic_1", "去水印起始序号"),
+                        Field("remove_watermark_pic_2", "去水印结束序号")]),
+        ("精细索引", [Field("single_edit_main_pic_indices", "主图编辑序号（如 1,3）"),
+                      Field("single_edit_detail_pic_indices", "详情图编辑序号")]),
+        ("背景生成", [Field("background_gen_rules", "规则 JSON（position/prompt）", "multiline"),
+                      Field("background_gen_sku_prompt", "SKU 背景提示词", "multiline")]),
         ("SKU 图", [Field("white_background_sku_pic", "处理 SKU 图", "bool")]),
         ("精细处理", [Field("edit_enable", "启用通用编辑", "bool"),
                       Field("edit_prompt", "编辑提示词", "multiline"),
@@ -163,6 +174,7 @@ def schema_price():
                   Field("platform_commission", "平台佣金%"),
                   Field("sales_profit", "期望利润%"),
                   Field("default_express_price", "默认运费")]),
+        ("区域模板", [Field("adjust_price_template_detail", "区域倍率 JSON（如 {\"USD\":1.0,\"EUR\":0.92}）", "multiline")]),
         ("阶梯", [Field("tuoguan_price_tiered_enabled", "启用阶梯倍率", "bool"),
                   Field("tuoguan_price_tiers", "阶梯规则 JSON", "multiline")]),
     ]
@@ -187,6 +199,10 @@ def section(title, fields, cfg, cols=2):
 # ---------------- 页面 schema ----------------
 def schema_settings(cfg):
     return [
+        ("上传", [Field("upload_full_cid", "相册分类 ID"), Field("upload_category_name", "相册分类名")]),
+        ("视频", [Field("generate_main_video", "生成主图视频", "bool"),
+                  Field("use_template_video", "使用模板视频", "bool"),
+                  Field("overwrite_existing_video", "覆盖已有视频", "bool")]),
         ("API 配置", [Field("api_key", "API Key"),
                       Field("concurrency", "并发数"), Field("timeout", "超时(秒)")]),
         ("通用", [Field("image_upload_category", "图片上传分类"),
