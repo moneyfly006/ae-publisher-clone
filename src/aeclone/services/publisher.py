@@ -181,7 +181,13 @@ class Publisher:
                 try:
                     verdict = ip.review(str(p["images"][0]), "main")
                     p["image_review"] = verdict[:300]
-                    res.steps.append(Step("图片审查", True, verdict[:60].replace("\n", " ")))
+                    bad = any(k in verdict for k in ("不符合", "违规", "建议删除", "不建议", "含厂家", "含联系方式"))
+                    if bad and self.cfg.review_block_on_fail:
+                        res.steps.append(Step("图片审查", False, "不合规，已拦截：" + verdict[:50].replace("\n", " ")))
+                        res.ok = False
+                        res.error = "图片审查不合规"
+                        return res
+                    res.steps.append(Step("图片审查", True, ("⚠ " if bad else "") + verdict[:60].replace("\n", " ")))
                 except Exception as ex:  # noqa: BLE001
                     res.steps.append(Step("图片审查", False, str(ex)[:120]))
 

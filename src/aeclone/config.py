@@ -73,6 +73,7 @@ DEFAULTS: dict = {
     "pack_weight": "0",
     "pack_weight_tiers": "[]",
     # ---- 内容审查 ----
+    "review_block_on_fail": False,
     "review_text_enable": False,
     "review_detail_img_enable": False,
     "review_main_img_enable": False,

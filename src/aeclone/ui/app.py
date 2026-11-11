@@ -155,7 +155,8 @@ def schema_review():
     return [
         ("文本审查", [Field("review_text_enable", "启用文本审查", "bool"),
                       Field("review_text_prompt", "文本审查提示词", "multiline")]),
-        ("图片审查", [Field("review_detail_img_enable", "详情图审查", "bool"),
+        ("图片审查", [Field("review_block_on_fail", "不合规时拦截发布", "bool"),
+                      Field("review_detail_img_enable", "详情图审查", "bool"),
                       Field("review_detail_img_prompt", "详情图审查提示词", "multiline"),
                       Field("review_main_img_enable", "主图审查", "bool"),
                       Field("review_main_img_prompt", "主图审查提示词", "multiline")]),
@@ -372,8 +373,66 @@ class App:
                                 muted(f"共 {len(self.cfg.as_dict())} 项配置 · 浏览器：{self.cfg.browser_type} · 店铺：{self.cfg.store_name or '未绑定'}"),
                                 ft.Row([ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
                                                           on_click=lambda e: threading.Thread(target=self._test, daemon=True).start()),
+                                        ft.ElevatedButton("一键自检", icon=ft.Icons.PLAY_CIRCLE_FILL,
+                                                          bgcolor=ACCENT_2, color="#04231C",
+                                                          on_click=lambda e: threading.Thread(target=self._self_test, daemon=True).start()),
                                         ft.OutlinedButton("去设置", icon=ft.Icons.SETTINGS,
                                                           on_click=lambda e: self._switch(8))], spacing=10)], spacing=10))]
+
+    def _self_test(self):
+        from ..services.text_pipeline import TextPipeline
+        from ..services.image_pipeline import ImagePipeline
+        from ..services import ImageService
+        import requests as _rq, tempfile as _tf
+        from pathlib import Path as _P
+
+        rows = []
+        def step(name, fn):
+            t = time.time()
+            try:
+                v = fn(); ok = True; detail = str(v)[:60]
+            except Exception as ex:
+                ok = False; detail = str(ex)[:80]
+            rows.append((name, ok, round(time.time() - t, 1), detail))
+            self._log(f"自检 {name}: {'OK' if ok else 'FAIL'} ({detail})")
+            self._refresh_self_test(rows)
+
+        cfg = self.cfg
+        c = ApiClient(cfg.api_base, cfg.api_key, cfg.timeout)
+        tp = TextPipeline(cfg, c)
+        step("模型列表", lambda: f"{len(c.models())} models")
+        step("标题生成", lambda: tp.make_title("3 吨迷你蜘蛛吊车 20 米臂长").value[:50])
+        step("详情生成", lambda: tp.make_detail("3-Ton Mini Spider Crane").value[:40])
+        step("SKU 优化", lambda: tp.make_skus(["手机壳适用于iPhone 15 Pro Max"]).value)
+        step("文本审查", lambda: tp.review_text("厂家直销 电话13800000000 限时特惠").value[:30])
+        img = "https://sc04.alicdn.com/kf/H36d2c1e2529d4ab18cab919a38f33e25D.jpg"
+        step("读图估重", lambda: tp.estimate_weight(img, "吊车").value[:40])
+        step("图片审查", lambda: ImagePipeline(cfg, c).review(img, "main")[:40])
+        d = _P(_tf.mkdtemp()) / "a.jpg"
+        d.write_bytes(_rq.get(img, timeout=60).content)
+        svc = ImageService(c)
+        step("白底图", lambda: svc.white_background(d))
+        step("去水印", lambda: svc.remove_watermark(d))
+        ok_n = sum(1 for r in rows if r[1])
+        self._show_test_dialog(rows, ok_n)
+
+    def _refresh_self_test(self, rows):
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _show_test_dialog(self, rows, ok_n):
+        items = [ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE,
+                                 size=16, color=ACCENT_2 if ok else "#FF6B6B"),
+                         ft.Text(f"{name}", size=12, color=TEXT, width=90),
+                         ft.Text(f"{sec}s", size=11, color=MUTED, width=50),
+                         ft.Text(detail, size=11, color=MUTED, expand=True)], spacing=8)
+                 for name, ok, sec, detail in rows]
+        dlg = ft.AlertDialog(title=ft.Text(f"自检结果 {ok_n}/{len(rows)} 通过"),
+                             content=ft.Column(items, scroll=ft.ScrollMode.AUTO, height=380, width=620),
+                             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
+        self.page.dialog = dlg; dlg.open = True; self.page.update()
 
     def _p_store(self):
         self._current = 1
