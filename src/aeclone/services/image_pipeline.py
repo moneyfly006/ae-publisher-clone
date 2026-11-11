@@ -7,6 +7,7 @@ from pathlib import Path
 import requests
 
 from . import ImageService
+from .image_index import pick as pick_indices
 from ..api import ApiClient
 from ..config import AppConfig
 
@@ -84,6 +85,17 @@ class ImagePipeline:
                 res.steps.append(ImageStep("通用编辑", False, error=str(e)))
 
         return res
+
+    def run_many(self, urls: list[str], which: str = "main") -> list[ImagePipelineResult]:
+        """按配置索引批量处理：which=main|detail|sku 决定用哪组范围。"""
+        if which == "main":
+            expr = self.cfg.white_background_pic_1 + "-" + self.cfg.white_background_pic_2 if self.cfg.white_background_pic_2 else self.cfg.white_background_pic_1
+        elif which == "detail":
+            expr = self.cfg.white_background_detail_pic_indices or ""
+        else:
+            expr = ""
+        selected = pick_indices(urls, expr) if expr else urls
+        return [self.run(u) for u in selected]
 
     def review(self, image_url: str, kind: str = "main") -> str:
         prompt = self.cfg.review_main_img_prompt if kind == "main" else self.cfg.review_detail_img_prompt

@@ -95,7 +95,14 @@ class Publisher:
                 r = tp.make_detail(p.get("title_en") or p["title"], p.get("attributes_map"))
                 res.steps.append(Step("AI 详情", r.ok, (r.value[:60] if r.ok else r.error)))
                 if r.ok:
-                    p["detail_html"] = r.value
+                    html = r.value
+                    head = (self.cfg.detail_text_info or "").strip()
+                    tail = (self.cfg.detail_text_info_tail or "").strip()
+                    if head:
+                        html = f"<p>{head}</p>" + html
+                    if tail:
+                        html = html + f"<p>{tail}</p>"
+                    p["detail_html"] = html
 
             if self.cfg.enable_ai_sku and p.get("skus"):
                 names = [str(s.get("sku") or s.get("name") or "") for s in p["skus"]]

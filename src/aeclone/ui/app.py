@@ -881,13 +881,25 @@ class App:
             pass
 
     def _process_queue(self):
-        pub = Publisher(self.cfg, dxm=None,
-                        text_service=TextService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg))
+        try:
+            ck = self._cookies()
+            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+        except Exception as ex:
+            self._log(f"队列：未连接浏览器（{ex}），将以离线模式运行")
+            dxm = None
+        pub = Publisher(self.cfg, dxm=dxm, ws_endpoint=self.ws_endpoint)
         ok = fail = 0
+        by_id = {p["id"]: p for p in self.products}
         for item in self.q.pending():
             self.q.mark(item.product_id, "running")
             self._refresh_queue()
-            res = pub.run({"id": item.product_id, "title": item.title, "skus": [], "images": []}, dry_run=True)
+            base = by_id.get(item.product_id, {})
+            prod = {"id": item.product_id,
+                    "title": base.get("title") or item.title,
+                    "skus": base.get("skus") or [],
+                    "images": base.get("images") or [],
+                    "cost": 0}
+            res = pub.run(prod, dry_run=True)
             self.q.mark(item.product_id, "done" if res.ok else "failed", res.error)
             ok += 1 if res.ok else 0
             fail += 0 if res.ok else 1
