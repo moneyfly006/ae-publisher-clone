@@ -906,12 +906,110 @@ class App:
             for c in cats[:40]:
                 name = c.get("name") or c.get("albumName") or str(c.get("id", ""))
                 cid = c.get("id") or c.get("albumId") or ""
+                num = c.get("commodityProductNum")
+                pic = c.get("picNum") or c.get("imageNum")
+                sub = f"{cid}" + (f" · 商品 {num}" if num is not None else "") + (f" · 图片 {pic}" if pic is not None else "")
                 rows.append(ft.ListTile(title=ft.Text(name, size=13, color=TEXT),
-                                        subtitle=ft.Text(str(cid), size=10, color=MUTED)))
+                                        subtitle=ft.Text(sub, size=10, color=MUTED)))
             if not rows:
                 rows = [ft.ListTile(title=ft.Text("未取到相册（接口路径可能需校正）", color=MUTED, size=12))]
-            dlg = ft.AlertDialog(title=ft.Text("图片空间 / 相册"), content=ft.Column(rows, scroll=ft.ScrollMode.AUTO, height=400),
-                                 actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
+            def open_album(e):
+                try:
+                    open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/album/index")
+                except Exception:
+                    pass
+            dlg = ft.AlertDialog(title=ft.Text(f"图片空间 / 相册（{len(cats)} 个分类）"),
+                                 content=ft.Column(rows, scroll=ft.ScrollMode.AUTO, height=400),
+                                 actions=[ft.TextButton("打开相册页面", on_click=open_album),
+                                          ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
+            self.page.dialog = dlg; dlg.open = True; self.page.update()
+        except Exception as ex:
+            self.toast(f"读取相册失败：{ex}", False)
+
+    def _close_dlg(self, dlg):
+        dlg.open = False
+        self.page.update()
+
+    def _open_template_dialog(self):
+        try:
+            ck = self._cookies()
+            c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            drafts = c.drafts(limit=60)
+            online = c.online(limit=60)
+        except Exception as ex:
+            self.toast(f"读取失败：{ex}", False); return
+
+        state = {"source": self.cfg.template_source or "draft"}
+
+        list_col = ft.Column(spacing=4, height=380, scroll=ft.ScrollMode.AUTO)
+
+        def render():
+            items = drafts if state["source"] == "draft" else online
+            rows = []
+            for it in items:
+                def choose(e, pid=it["id"], title=it.get("title", "")):
+                    self.cfg.template_product_id = str(pid)
+                    self.cfg.template_product_title = title
+                    self.cfg.template_source = state["source"]
+                    save_config(self.cfg)
+                    self.toast(f"已选模板：{title[:28]}")
+                    threading.Thread(target=self._read_template, daemon=True).start()
+                    dlg.open = False
+                    self.page.update()
+                rows.append(ft.ListTile(
+                    title=ft.Text(it.get("title") or it["id"], size=12, color=TEXT),
+                    subtitle=ft.Text(f"{it['id']} · {it.get('status_type')}", size=10, color=MUTED),
+                    on_click=choose, dense=True))
+            list_col.controls = rows or [ft.Text("无数据", size=12, color=MUTED)]
+            self.page.update()
+
+        def switch(src):
+            state["source"] = src
+            render()
+
+        tabs = ft.Row([
+            ft.OutlinedButton(f"草稿 {len(drafts)}", on_click=lambda e: switch("draft")),
+            ft.OutlinedButton(f"在线 {len(online)}", on_click=lambda e: switch("online")),
+        ], spacing=8)
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("选择模板产品（草稿 / 在线）"),
+            content=ft.Column([tabs,
+                               ft.Text("选中后会自动读取该模板的类目/运费/属性", size=11, color=MUTED),
+                               list_col], spacing=8, width=560),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+        )
+        self.page.dialog = dlg; dlg.open = True
+        render()
+        self.page.update()
+
+    def _show_albums(self):
+        try:
+            client = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+            data = client.album_index()
+            items = (data.get("data") or {})
+            cats = items.get("list") if isinstance(items, dict) else items
+            cats = cats or []
+            rows = []
+            for c in cats[:40]:
+                name = c.get("name") or c.get("albumName") or str(c.get("id", ""))
+                cid = c.get("id") or c.get("albumId") or ""
+                num = c.get("commodityProductNum")
+                pic = c.get("picNum") or c.get("imageNum")
+                sub = f"{cid}" + (f" · 商品 {num}" if num is not None else "") + (f" · 图片 {pic}" if pic is not None else "")
+                rows.append(ft.ListTile(title=ft.Text(name, size=13, color=TEXT),
+                                        subtitle=ft.Text(sub, size=10, color=MUTED)))
+            if not rows:
+                rows = [ft.ListTile(title=ft.Text("未取到相册（接口路径可能需校正）", color=MUTED, size=12))]
+            def open_album(e):
+                try:
+                    open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/album/index")
+                except Exception:
+                    pass
+            dlg = ft.AlertDialog(title=ft.Text(f"图片空间 / 相册（{len(cats)} 个分类）"),
+                                 content=ft.Column(rows, scroll=ft.ScrollMode.AUTO, height=400),
+                                 actions=[ft.TextButton("打开相册页面", on_click=open_album),
+                                          ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
             self.page.dialog = dlg; dlg.open = True; self.page.update()
         except Exception as ex:
             self.toast(f"读取相册失败：{ex}", False)
