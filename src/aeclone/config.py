@@ -7,7 +7,7 @@ import threading
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-APP_NAME = "AEPublisherClone"
+APP_NAME = "AuroraList"
 
 
 def config_dir() -> Path:

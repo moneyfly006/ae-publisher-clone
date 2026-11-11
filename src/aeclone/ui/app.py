@@ -49,7 +49,7 @@ class App:
         self.file_picker = ft.FilePicker(on_result=self._on_files)
         self.picked: list[Path] = []
 
-        self.page.title = "AE Publisher · 重构版"
+        self.page.title = "AuroraList · 极光上架"
         self.page.bgcolor = BG
         self.page.padding = 0
         self.page.theme_mode = ft.ThemeMode.DARK
@@ -106,9 +106,9 @@ class App:
             padding=18,
             content=ft.Column([
                 ft.Row([ft.Container(width=32, height=32, border_radius=10, bgcolor=ACCENT,
-                                     content=ft.Icon(ft.Icons.AUTO_AWESOME, size=18, color="white")),
-                        ft.Column([ft.Text("AE Publisher", weight=ft.FontWeight.BOLD, color=TEXT, size=15),
-                                   _muted("重构版 v0.1")], spacing=0)], spacing=10),
+                                     content=ft.Text("A", size=16, weight=ft.FontWeight.BOLD, color="#0B0D12")),
+                        ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=15),
+                                   _muted("极光上架 v0.1")], spacing=0)], spacing=10),
                 ft.Container(height=18),
                 col,
                 ft.Container(expand=True),

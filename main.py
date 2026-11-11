@@ -1,4 +1,4 @@
-"""AE Publisher Clone 入口。"""
+"""AuroraList 入口。"""
 from __future__ import annotations
 
 import sys

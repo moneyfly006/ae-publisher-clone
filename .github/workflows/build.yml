@@ -33,18 +33,18 @@ jobs:
         run: pyinstaller --noconfirm --clean app.spec
 
       - name: Package portable zip
-        run: Compress-Archive -Path dist/AEPublisher/* -DestinationPath dist/AEPublisher-windows.zip -Force
+        run: Compress-Archive -Path dist/AuroraList/* -DestinationPath dist/AuroraList-windows.zip -Force
         shell: pwsh
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AEPublisher-windows
-          path: dist/AEPublisher-windows.zip
+          name: AuroraList-windows
+          path: dist/AuroraList-windows.zip
 
       - name: Attach to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/AEPublisher-windows.zip
+          files: dist/AuroraList-windows.zip
           generate_release_notes: true

@@ -1,4 +1,4 @@
-# AE Publisher Clone（速卖通上架工具 · 重构版）
+# AuroraList · 极光上架（速卖通上架工具 · 重构版）
 
 基于原「速卖通上架」软件的功能重写，UI 全新设计，AI 能力接入自建站点（默认 `https://api.moneyfly.club`）。
 
