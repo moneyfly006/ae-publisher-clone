@@ -589,11 +589,11 @@ class App:
         try:
             ck = self._cookies()
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            all_prods = dxm.product_list(page=1, size=100)
+            all_prods, _meta = dxm.product_page(1, 100, self.cfg.store_id or None, None)
             blocked = [p for p in all_prods if (p.get("status_type") or "") in ("auditing", "onSelling")]
             self._log(f"共 {len(all_prods)} 个产品，跳过审核中/已发布 {len(blocked)} 个", "INFO")
             limit = int(self.cfg.edit_sum or 0) or 0
-            prods = dxm.pending_products(limit=limit)
+            prods = dxm.pending_products(limit=limit, shop_id=self.cfg.store_id or None)
             self.products = prods
             if not prods:
                 self._log("没有可编辑（待发布）的产品", "WARN"); return
@@ -817,10 +817,11 @@ class App:
             if shops and not self.cfg.store_id:
                 self.cfg.store_id = shops[0]["id"]; self.cfg.store_name = shops[0]["name"]
                 save_config(self.cfg)
-            prods = c.product_list(page=1, size=50)
-            self.products = prods
-            self.tpl_dd.options = [ft.dropdown.Option(str(p["id"]), (p.get("title") or p["id"])[:40]) for p in prods[:50]]
-            self.store_status.value = f"已同步 {len(shops)} 个店铺、{len(prods)} 个产品"
+            sid = self.cfg.store_id or (shops[0]["id"] if shops else None)
+            cnt = c.counts(sid) if sid else {}
+            self.store_counts = cnt
+            self.store_status.value = (f"店铺 {self.cfg.store_name}：在线 {cnt.get('onSelling',0)} · "
+                                       f"待发布 {cnt.get('editingRequired',0)} · 审核中 {cnt.get('auditing',0)}")
             self.store_status.color = ACCENT_2
         except Exception as ex:
             self.store_status.value = f"同步失败：{ex}"
@@ -1015,7 +1016,9 @@ class App:
         try:
             ck = self._cookies()
             c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            data = {"draft": c.drafts(limit=200), "online": c.online(limit=200)}
+            sid = self.cfg.store_id or None
+            data = {"draft": c.drafts(limit=300, shop_id=sid), "online": c.online(limit=300, shop_id=sid)}
+            totals = c.counts(sid) if sid else {}
         except Exception as ex:
             self.toast(f"读取失败：{ex}", False); return
 
@@ -1057,10 +1060,10 @@ class App:
                 ))
             list_col.controls = rows or [ft.Text("无匹配结果", size=12, color=MUTED)]
             tab_row.controls = [
-                ft.ElevatedButton(f"草稿 {len(data['draft'])}", bgcolor=ACCENT_2 if state["source"] == "draft" else CARD_2,
+                ft.ElevatedButton(f"待发布 {totals.get('editingRequired', len(data['draft']))}", bgcolor=ACCENT_2 if state["source"] == "draft" else CARD_2,
                                   color="#04231C" if state["source"] == "draft" else TEXT,
                                   on_click=lambda e: switch("draft")),
-                ft.ElevatedButton(f"在线 {len(data['online'])}", bgcolor=ACCENT_2 if state["source"] == "online" else CARD_2,
+                ft.ElevatedButton(f"在线 {totals.get('onSelling', len(data['online']))}", bgcolor=ACCENT_2 if state["source"] == "online" else CARD_2,
                                   color="#04231C" if state["source"] == "online" else TEXT,
                                   on_click=lambda e: switch("online")),
             ]
@@ -1184,7 +1187,9 @@ class App:
         try:
             ck = self._cookies()
             c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            data = {"draft": c.drafts(limit=200), "online": c.online(limit=200)}
+            sid = self.cfg.store_id or None
+            data = {"draft": c.drafts(limit=300, shop_id=sid), "online": c.online(limit=300, shop_id=sid)}
+            totals = c.counts(sid) if sid else {}
         except Exception as ex:
             self.toast(f"读取失败：{ex}", False); return
 
@@ -1226,10 +1231,10 @@ class App:
                 ))
             list_col.controls = rows or [ft.Text("无匹配结果", size=12, color=MUTED)]
             tab_row.controls = [
-                ft.ElevatedButton(f"草稿 {len(data['draft'])}", bgcolor=ACCENT_2 if state["source"] == "draft" else CARD_2,
+                ft.ElevatedButton(f"待发布 {totals.get('editingRequired', len(data['draft']))}", bgcolor=ACCENT_2 if state["source"] == "draft" else CARD_2,
                                   color="#04231C" if state["source"] == "draft" else TEXT,
                                   on_click=lambda e: switch("draft")),
-                ft.ElevatedButton(f"在线 {len(data['online'])}", bgcolor=ACCENT_2 if state["source"] == "online" else CARD_2,
+                ft.ElevatedButton(f"在线 {totals.get('onSelling', len(data['online']))}", bgcolor=ACCENT_2 if state["source"] == "online" else CARD_2,
                                   color="#04231C" if state["source"] == "online" else TEXT,
                                   on_click=lambda e: switch("online")),
             ]

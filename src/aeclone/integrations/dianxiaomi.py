@@ -148,92 +148,109 @@ class DianxiaomiClient:
     EDITABLE_STATUS = {"editingRequired", "offline", "publishFail", "draft", "waitPublish"}
     BLOCKED_STATUS = {"auditing", "onSelling", "published", "online"}
 
-    def drafts(self, limit: int = 100) -> list[dict]:
-        """草稿/待发布（可编辑）。"""
-        out = [p for p in self.product_list(page=1, size=limit)
-               if (p.get("status_type") or "") in ("editingRequired", "offline", "publishFail", "draft")]
-        return out
+    def _map_item(self, it: dict) -> dict:
+        imgs = it.get("imageURLs")
+        if isinstance(imgs, str):
+            raw = imgs.strip()
+            if raw.startswith("["):
+                try:
+                    import json as _j
+                    imgs = _j.loads(raw)
+                except Exception:
+                    imgs = []
+            else:
+                imgs = [x.strip() for x in raw.split(";") if x.strip().startswith("http")]
+        imgs = imgs if isinstance(imgs, list) else []
+        return {
+            "id": str(it.get("id") or it.get("productId") or ""),
+            "title": it.get("subject") or it.get("title") or "",
+            "product_id": it.get("productId"),
+            "category_id": it.get("categoryId"),
+            "shop_id": it.get("shopId"),
+            "price": it.get("productPrice"),
+            "status": it.get("productStatusType"),
+            "status_type": it.get("productStatusType"),
+            "images": [str(x) for x in imgs if x],
+            "image": (str(imgs[0]) if imgs else ""),
+            "raw": it,
+        }
 
-    def online(self, limit: int = 100) -> list[dict]:
-        """在线商品（仅作模板参考）。"""
-        return [p for p in self.product_list(page=1, size=limit)
-                if (p.get("status_type") or "") in ("onSelling",)]
-
-    def pending_products(self, limit: int = 0, pages: int = 2) -> list[dict]:
-        """只返回可编辑（待发布/需修改/下架）的产品，跳过审核中与已发布。"""
-        out: list[dict] = []
-        for page in range(1, pages + 1):
-            for it in self.product_list(page=page, size=100):
-                st = (it.get("status_type") or "").strip()
-                if st in self.BLOCKED_STATUS:
-                    continue
-                if it.get("status_type") not in self.EDITABLE_STATUS and st:
-                    continue
-                out.append(it)
-                if limit and len(out) >= limit:
-                    return out
-        return out
-
-    def product_list(self, page: int = 1, size: int = 100, keyword: str = "") -> list[dict]:
-        """返回产品列表（已实测结构：data.page.list）。"""
-        params = {"page": page, "pageSize": size}
-        if keyword:
-            params["searchContent"] = keyword
+    def product_page(self, page: int = 1, size: int = 100, shop_id=None,
+                     status: str | None = None) -> tuple[list[dict], dict]:
+        params: dict = {"page": page, "pageSize": size}
+        if shop_id:
+            params["shopId"] = shop_id
+        if status:
+            params["productStatusType"] = status
         data = self._get("product_list", params)
         inner = data.get("data") or {}
-        page_obj = inner.get("page") or {}
-        items = page_obj.get("list") or []
-        out = []
-        for it in items:
-            imgs = it.get("imageURLs")
-            if isinstance(imgs, str):
-                raw = imgs.strip()
-                if raw.startswith("["):
-                    try:
-                        import json as _j
-                        imgs = _j.loads(raw)
-                    except Exception:
-                        imgs = []
-                else:
-                    imgs = [x.strip() for x in raw.split(";") if x.strip().startswith("http")]
-            imgs = imgs if isinstance(imgs, list) else []
-            out.append({
-                "id": str(it.get("id") or it.get("productId") or ""),
-                "title": it.get("subject") or it.get("title") or "",
-                "product_id": it.get("productId"),
-                "category_id": it.get("categoryId"),
-                "shop_id": it.get("shopId"),
-                "price": it.get("productPrice"),
-                "status": it.get("productStatusType"),
-                "status_type": it.get("productStatusType"),
-                "images": [str(x) for x in imgs if x],
-                "image": (str(imgs[0]) if imgs else "") or "",
-                "raw": it,
-            })
+        po = inner.get("page") or {}
+        items = [self._map_item(x) for x in (po.get("list") or [])]
+        meta = {"total": po.get("totalSize"), "total_pages": po.get("totalPage"),
+                "page": po.get("pageNo") or page, "size": po.get("pageSize") or size}
+        return items, meta
+
+    def iter_products(self, shop_id=None, status: str | None = None,
+                      max_items: int = 0, max_pages: int = 20) -> list[dict]:
+        out: list[dict] = []
+        page = 1
+        while page <= max_pages:
+            items, meta = self.product_page(page, 100, shop_id, status)
+            out.extend(items)
+            if max_items and len(out) >= max_items:
+                return out[:max_items]
+            if page >= int(meta.get("total_pages") or 1):
+                break
+            page += 1
         return out
 
-    def product_detail(self, product_id: str) -> dict:
-        data = self._get("product_detail", {"id": product_id})
-        inner = data.get("data") or {}
-        return inner.get("product") or inner
+    def counts(self, shop_id=None) -> dict:
+        """各状态数量（只取 1 条，速度快）。"""
+        out = {}
+        for st in ("onSelling", "editingRequired", "auditing", "offline", "publishFail"):
+            try:
+                _, meta = self.product_page(1, 1, shop_id, st)
+                out[st] = int(meta.get("total") or 0)
+            except Exception:
+                out[st] = 0
+        return out
 
-    def category_tree(self) -> Any:
-        return self._get("category")
+    def drafts(self, limit: int = 0, shop_id=None) -> list[dict]:
+        return self.iter_products(shop_id, "editingRequired", limit)
 
-    def comment(self, product_id: str, text: str) -> Any:
-        return self._post("comment", {"id": product_id, "remark": text})
+    def online(self, limit: int = 0, shop_id=None) -> list[dict]:
+        return self.iter_products(shop_id, "onSelling", limit)
 
-    def check_banned_word(self, text: str) -> Any:
-        return self._post("banned_word", {"content": text})
+    def pending_products(self, limit: int = 0, shop_id=None) -> list[dict]:
+        return self.iter_products(shop_id, "editingRequired", limit)
 
-    def upload_callback(self, file_id: str, file_name: str, file_size: int, full_cid: str = "", bucket: str = "wxalbum") -> Any:
-        return self._post("upload_callback", {
-            "fileId": file_id, "fileName": file_name, "fileSize": file_size,
-            "fullCid": full_cid, "bucket": bucket,
-        })
+    def album_index(self) -> Any:
+        return self._get("album")
 
-    def save_product(self, product: dict) -> Any:
-        return self._post("product_save", product)
+    def user_info(self) -> dict:
+        data = self._get("user_info")
+        return data.get("data") or {}
+
+    def shops(self) -> list[dict]:
+        info = self.user_info()
+        sm = info.get("shopMap") or {}
+        out = []
+        for k, v in sm.items():
+            try:
+                sid = int(v.get("id") or k)
+            except Exception:
+                sid = k
+            if sid == 0:
+                continue
+            out.append({"id": str(sid), "name": v.get("name") or str(sid)})
+        return out
+
+    def vip_info(self) -> dict:
+        data = self._get("vip")
+        return data.get("data") or {}
+
+    EDITABLE_STATUS = {"editingRequired", "offline", "publishFail", "draft", "waitPublish"}
+    BLOCKED_STATUS = {"auditing", "onSelling", "published", "online"}
 
     def upload_image_from_url(self, image_url: str, full_cid: str = "") -> dict:
         """按 URL 上传图片到店小秘相册（实测可用）。"""
