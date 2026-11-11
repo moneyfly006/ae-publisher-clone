@@ -363,13 +363,14 @@ class App:
                                      value="draft", options=[ft.dropdown.Option("draft", "草稿"), ft.dropdown.Option("online", "在线")])
         self.wz_tpl = ft.Dropdown(label="模板产品", width=380, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
         self.wz_status = ft.Text("① 选择浏览器后点击「打开浏览器」", size=12, color=MUTED)
-        self.wz_btn = ft.ElevatedButton("打开浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=self._wz_open)
+        self.wz_btn = ft.ElevatedButton("① 读取已登录 Chrome（推荐）", icon=ft.Icons.SYNC, bgcolor=ACCENT, color="white", on_click=self._wz_sync)
+        self.wz_btn2 = ft.ElevatedButton("或打开浏览器重新登录", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=CARD_2, color=TEXT, on_click=self._wz_open)
 
         self.wz_dlg = ft.AlertDialog(
             title=ft.Text("欢迎使用 AuroraList · 首次设置"),
             content=ft.Column([
-                ft.Text("第 1 步：选择并打开浏览器，手动登录店小秘后回到这里点击「读取店铺信息」", size=12, color=TEXT),
-                ft.Row([self.wz_browser, self.wz_btn], spacing=10),
+                ft.Text("第 1 步：直接读取你 Chrome 里已登录的店小秘（推荐），或打开浏览器重新登录", size=12, color=TEXT),
+                ft.Row([self.wz_browser, self.wz_btn, self.wz_btn2], spacing=10),
                 ft.ElevatedButton("读取店铺信息（我已登录）", icon=ft.Icons.SYNC, on_click=self._wz_sync),
                 ft.Divider(color=CARD_2),
                 ft.Row([self.wz_store, self.wz_source], spacing=10),
@@ -699,7 +700,8 @@ class App:
 
         bar = card(ft.Column([
             h1("对接操作", 15),
-            ft.Row([ft.ElevatedButton("同步店铺/模板", icon=ft.Icons.SYNC, bgcolor=ACCENT_2, color="#04231C", on_click=sync_shops),
+            ft.Row([ft.ElevatedButton("从 Chrome 读取并同步", icon=ft.Icons.SYNC, bgcolor=ACCENT_2, color="#04231C", on_click=sync_shops),
+                    ft.ElevatedButton("启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=CARD_2, color=TEXT, on_click=connect),
                     ft.ElevatedButton("① 启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=connect),
                     ft.ElevatedButton("② 检测店小秘登录", icon=ft.Icons.LOGIN, bgcolor=CARD_2, color=TEXT, on_click=login),
                     ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
@@ -794,8 +796,17 @@ class App:
         self.page.update()
 
     def _cookies(self):
+        # 1) 优先直接读本机浏览器（已登录的 Chrome/Edge），无需 CDP
+        try:
+            from ..integrations.browser_cookies import read_best, is_logged_in
+            src = read_best("dianxiaomi.com")
+            if src.ok and is_logged_in(src.cookies):
+                return src.cookies
+        except Exception:
+            pass
+        # 2) 回退到 CDP
         if not self.ws_endpoint:
-            raise RuntimeError("请先启动浏览器")
+            raise RuntimeError("未读取到浏览器 Cookie，请先登录 Chrome 或点「打开浏览器」")
         return cookies_via_cdp(self.ws_endpoint, domains=["dianxiaomi"])
 
     def _check_dxm_login(self):
