@@ -13,17 +13,20 @@ import requests
 BASE = "https://www.dianxiaomi.com"
 
 ENDPOINTS = {
-    "comment": "/api/comm/comment.json",          # 已知：产品备注
-    "album": "/api/album/index.json",             # 相册分类（逆向命名 get_album_index）
-    "product_list": "/api/smt/product/list.json",  # 产品列表（待校正）
-    "product_detail": "/api/smt/product/detail.json",
-    "category": "/api/smt/category/tree.json",
+    # ---- 已实测（2026-11-11）----
+    "user_info": "/api/userIn.json",
+    "vip": "/api/getVipActiveTime.json",
+    "album": "/api/album/index.json",
+    "product_list": "/api/smtProduct/list.json",
+    # ---- 逆向推断，待校正 ----
+    "comment": "/api/comm/comment.json",
     "banned_word": "/api/bannedWord/smtCheckB.json",
+    "upload_sign": "/api/cos/getSign.json",
     "upload_callback": "/api/cos_dxm_call_back.json",
     "video_callback": "/api/smtmedia/callback.json",
-    "upload_sign": "/api/cos_dxm/getSign.json",           # 上传签名（待抓包校正）
-    "product_save": "/api/smt/edit/save.json",            # 产品保存（待抓包校正）
-    "template_search": "/api/adjustPriceTemplate/search.json",
+    "product_save": "",
+    "product_detail": "",
+    "category": "",
 }
 
 
@@ -54,11 +57,23 @@ class DianxiaomiClient:
 
     def _get(self, key: str, params: dict | None = None) -> Any:
         r = self.session.get(self._url(key), params=params, timeout=self.timeout)
-        return self._parse(r)
+        data = self._parse(r)
+        if isinstance(data, dict) and str(data.get("code")) == "2005":
+            import time as _t
+            _t.sleep(2.5)
+            r = self.session.get(self._url(key), params=params, timeout=self.timeout)
+            data = self._parse(r)
+        return data
 
     def _post(self, key: str, payload: dict | None = None) -> Any:
         r = self.session.post(self._url(key), data=payload or {}, timeout=self.timeout)
-        return self._parse(r)
+        data = self._parse(r)
+        if isinstance(data, dict) and str(data.get("code")) == "2005":
+            import time as _t
+            _t.sleep(2.5)
+            r = self.session.post(self._url(key), data=payload or {}, timeout=self.timeout)
+            data = self._parse(r)
+        return data
 
     @staticmethod
     def _parse(r: requests.Response) -> Any:
@@ -80,6 +95,17 @@ class DianxiaomiClient:
     # ---------- 业务 ----------
     def check_login(self) -> bool:
         try:
+            info = self.user_info()
+            return bool(info.get("id") or info.get("account"))
+        except DianxiaomiError as e:
+            if "登录" in str(e):
+                return False
+            return True
+        except Exception:
+            return False
+
+    def _check_login_legacy(self) -> bool:
+        try:
             self._get("album")
             return True
         except DianxiaomiError as e:
@@ -92,8 +118,46 @@ class DianxiaomiClient:
     def album_index(self) -> Any:
         return self._get("album")
 
-    def product_list(self, page: int = 1, size: int = 100, keyword: str = "") -> Any:
-        return self._get("product_list", {"page": page, "pageSize": size, "keyword": keyword})
+    def user_info(self) -> dict:
+        data = self._get("user_info")
+        return data.get("data") or {}
+
+    def vip_info(self) -> dict:
+        data = self._get("vip")
+        return data.get("data") or {}
+
+    def product_list(self, page: int = 1, size: int = 100, keyword: str = "") -> list[dict]:
+        """返回产品列表（已实测结构：data.page.list）。"""
+        params = {"page": page, "pageSize": size}
+        if keyword:
+            params["searchContent"] = keyword
+        data = self._get("product_list", params)
+        inner = data.get("data") or {}
+        page_obj = inner.get("page") or {}
+        items = page_obj.get("list") or []
+        out = []
+        for it in items:
+            imgs = it.get("imageURLs")
+            if isinstance(imgs, str):
+                try:
+                    import json as _j
+                    imgs = _j.loads(imgs)
+                except Exception:
+                    imgs = [imgs] if imgs.startswith("http") else []
+            imgs = imgs if isinstance(imgs, list) else []
+            out.append({
+                "id": str(it.get("id") or it.get("productId") or ""),
+                "title": it.get("subject") or it.get("title") or "",
+                "product_id": it.get("productId"),
+                "category_id": it.get("categoryId"),
+                "shop_id": it.get("shopId"),
+                "price": it.get("productPrice"),
+                "status": it.get("productStatusType"),
+                "images": [str(x) for x in imgs if x],
+                "image": (str(imgs[0]) if imgs else "") or "",
+                "raw": it,
+            })
+        return out
 
     def product_detail(self, product_id: str) -> Any:
         return self._get("product_detail", {"id": product_id})

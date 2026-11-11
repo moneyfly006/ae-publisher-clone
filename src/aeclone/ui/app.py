@@ -415,9 +415,16 @@ class App:
                 self.store_status.value = "未读取到店小秘 Cookie，请先在浏览器登录店小秘"
                 self.store_status.color = "#FFB020"
             else:
-                client = DianxiaomiClient(ck)
+                client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
                 ok = client.check_login()
-                self.store_status.value = ("店小秘登录有效" if ok else "登录已失效，请在浏览器重新登录")
+                detail = ""
+                if ok:
+                    try:
+                        info = client.user_info()
+                        detail = f" · {info.get('account', '')}"
+                    except Exception:
+                        pass
+                self.store_status.value = (f"店小秘登录有效{detail}" if ok else "登录已失效，请在浏览器重新登录")
                 self.store_status.color = ACCENT_2 if ok else "#FF6B6B"
         except Exception as e:
             self.store_status.value = f"检测失败：{e}"; self.store_status.color = "#FF6B6B"
@@ -425,10 +432,8 @@ class App:
 
     def _fetch_products(self):
         try:
-            client = DianxiaomiClient(self._cookies())
-            data = client.product_list(page=1, size=50)
-            items = (data.get("data") or {}).get("list") or data.get("data") or []
-            self.products = items if isinstance(items, list) else []
+            client = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+            self.products = client.product_list(page=1, size=50)
             self.store_status.value = f"已拉取 {len(self.products)} 个产品"
             self.store_status.color = ACCENT_2
         except Exception as e:
