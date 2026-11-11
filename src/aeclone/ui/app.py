@@ -22,6 +22,7 @@ from ..integrations.dianxiaomi import DianxiaomiClient, ENDPOINTS
 from ..services.video import build_slideshow, probe as video_probe
 from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
+from ..services import history
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
@@ -318,7 +319,15 @@ class App:
             return card(ft.Column([ft.Row([ft.Icon(icon, size=17, color=color), muted(label)], spacing=8), ctrl],
                                   spacing=8), padding=16, expand=True)
 
+        st = {"runs": 0, "ok": 0, "failed": 0}
+        try:
+            st = history.stats(days=1)
+        except Exception:
+            pass
         return [h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
+                card(ft.Row([ft.Text(f"今日任务 {st['runs']}", color=TEXT, size=13),
+                             ft.Text(f"成功 {st['ok']}", color=ACCENT_2, size=13),
+                             ft.Text(f"失败 {st['failed']}", color="#FF8A8A", size=13)], spacing=24)),
                 ft.Row([stat("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT),
                         stat("授权状态", ft.Text("见左下角", color=MUTED, size=12), ft.Icons.VERIFIED_OUTLINED, ACCENT_2),
                         stat("图片服务", ft.Text("~15 秒/张", color=ACCENT_2, size=12), ft.Icons.BOLT_OUTLINED, "#FFB020")],
@@ -592,8 +601,40 @@ class App:
 
         card_map = card(ft.Column([h1("自动映射预览", 15), self.src_attrs, self.tgt_attrs,
                                    ft.ElevatedButton("生成映射", on_click=preview), self.map_out], spacing=10))
+
+        # 可视化映射编辑器
+        self.rows_col = ft.Column(spacing=6)
+        self._mapping_rows: list[tuple[ft.TextField, ft.TextField]] = []
+
+        def add_row(e, src="", dst=""):
+            a = ft.TextField(value=src, hint_text="源属性", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            b = ft.TextField(value=dst, hint_text="目标属性", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            self._mapping_rows.append((a, b))
+            self.rows_col.controls.append(ft.Row([a, b], spacing=8))
+            self.page.update()
+
+        def save_rows(e):
+            data = [{"from": a.value, "to": b.value} for a, b in self._mapping_rows if (a.value or "").strip()]
+            import json as _json
+            self.cfg.variant_mappings = _json.dumps(data, ensure_ascii=False)
+            save_config(self.cfg)
+            self._log(f"映射已保存：{len(data)} 条")
+            self.toast(f"已保存 {len(data)} 条映射")
+
+        import json as _json
+        try:
+            for row in _json.loads(self.cfg.variant_mappings or "[]"):
+                add_row(None, str(row.get("from", "")), str(row.get("to", "")))
+        except Exception:
+            pass
+
+        editor = card(ft.Column([h1("映射编辑器", 15),
+                                 ft.Row([ft.ElevatedButton("新增一行", icon=ft.Icons.ADD, on_click=add_row),
+                                         ft.ElevatedButton("保存映射", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white",
+                                                           on_click=save_rows)], spacing=10),
+                                 self.rows_col], spacing=10))
         view = self._render("变种设置", schema_variant())
-        return [view[0], card_map] + view[1:]
+        return [view[0], card_map, editor] + view[1:]
 
     def _p_workbench(self):
         self._current = 9
@@ -622,6 +663,7 @@ class App:
         return [h1("图片工作台"), muted("批量白底 / 去水印 / 编辑（走你的 API 站点计费）"),
                 card(ft.Column([self.wb_urls,
                                 ft.Row([ft.ElevatedButton("加载图片", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=load),
+                                        ft.OutlinedButton("从已拉取产品取图", icon=ft.Icons.INVENTORY_2, on_click=lambda e: self._images_from_products()),
                                         ft.ElevatedButton("白底", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
                                         ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
                                         ft.ElevatedButton("编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
@@ -631,6 +673,28 @@ class App:
                                         self.wb_busy], spacing=10),
                                 self.wb_status], spacing=10)),
                 card(self.wb_results)]
+
+    def _images_from_products(self):
+        urls: list[str] = []
+        for p in self.products:
+            for key in ("images", "imageList", "mainImages", "imgList"):
+                v = p.get(key)
+                if isinstance(v, list):
+                    for it in v:
+                        if isinstance(it, str):
+                            urls.append(it)
+                        elif isinstance(it, dict):
+                            u = it.get("url") or it.get("imageUrl") or it.get("src")
+                            if u:
+                                urls.append(u)
+            u1 = p.get("imgUrl") or p.get("mainImage") or p.get("image")
+            if isinstance(u1, str):
+                urls.append(u1)
+        urls = [u for u in dict.fromkeys(urls) if str(u).startswith("http")]
+        if not urls:
+            self.toast("未取到图片，请先「拉取产品」或手动粘贴 URL", False); return
+        self.wb_urls.value = "\n".join(urls[:60])
+        self.toast(f"已填入 {min(len(urls),60)} 个图片链接")
 
     def _download_images(self, urls):
         import requests as _rq
@@ -684,6 +748,10 @@ class App:
 
         results = runner.run(list(self.picked), job, done)
         ok = sum(1 for r in results if r.ok)
+        try:
+            history.record("workbench:" + kind, ok, len(results) - ok)
+        except Exception:
+            pass
         self.wb_status.value = f"处理完成：成功 {ok} / {len(results)}"
         self.wb_busy.visible = False
         self.page.update()
