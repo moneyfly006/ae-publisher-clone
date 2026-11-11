@@ -98,21 +98,65 @@ class Publisher:
         p["price_result"] = r
         return p
 
-    def _ai_images(self, p: dict, res) -> dict:
-        """按开关对产品图执行 白底/去水印/编辑。"""
-        out = []
-        done = 0
-        for u in p.get("images", [])[:6]:
+    def _process_urls(self, urls: list[str], limit: int = 8) -> tuple[list[str], int]:
+        from .image_index import pick
+        out, done = [], 0
+        for u in urls[:limit]:
             try:
                 r = self.image_pipeline.run(str(u))
-                last = r.last_url() or str(u)
-                out.append(last)
+                out.append(r.last_url() or str(u))
                 done += 1 if r.ok else 0
             except Exception:
                 out.append(str(u))
-        if out:
-            p["images"] = out
-            res.steps.append(Step("图片AI处理", done > 0, f"{done}/{len(out)} 张已处理"))
+        return out, done
+
+    def _ai_images(self, p: dict, res) -> dict:
+        """主图 / 详情图 / SKU 图 三条分支，按配置范围处理。"""
+        from .image_index import pick
+
+        # 主图
+        main = p.get("images", [])
+        if main:
+            expr = ""
+            if self.cfg.white_background_pic_1 or self.cfg.white_background_pic_2:
+                expr = f"{self.cfg.white_background_pic_1}-{self.cfg.white_background_pic_2}"
+            selected = pick(main, expr) if expr else main
+            if selected:
+                out, done = self._process_urls(selected)
+                idx = [i for i, u in enumerate(main) if u in selected]
+                for i, u in zip(idx, out):
+                    main[i] = u
+                p["images"] = main
+                res.steps.append(Step("主图处理", done > 0, f"{done}/{len(out)} 张"))
+
+        # 详情图
+        detail = p.get("detail_images") or []
+        if detail and self.cfg.white_background_detail_pic_indices:
+            selected = pick(detail, self.cfg.white_background_detail_pic_indices)
+            if selected:
+                out, done = self._process_urls(selected, limit=20)
+                idx = [i for i, u in enumerate(detail) if u in selected]
+                for i, u in zip(idx, out):
+                    detail[i] = u
+                p["detail_images"] = detail
+                res.steps.append(Step("详情图处理", done > 0, f"{done}/{len(out)} 张"))
+
+        # SKU 图
+        if self.cfg.white_background_sku_pic:
+            skus = p.get("skus") or []
+            done = 0
+            for sku in skus[:12]:
+                img = sku.get("image") or sku.get("imageUrl")
+                if not img:
+                    continue
+                try:
+                    r = self.image_pipeline.run(str(img))
+                    sku["processed_image"] = r.last_url() or str(img)
+                    done += 1 if r.ok else 0
+                except Exception:
+                    pass
+            if done:
+                res.steps.append(Step("SKU图处理", True, f"{done} 张"))
         return p
 
     def _publicize_images(self, p: dict, res) -> dict:
