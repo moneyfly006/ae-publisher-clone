@@ -51,7 +51,7 @@ AuroraList
 
 ![Dashboard](design-dashboard.png)
 
-![AI 工作台](design-ai.png)
+> 说明：AI 工作台与概览共用同一套侧边栏 + 卡片体系，只是内容区不同。
 
 ## 五、功能-模块对照（重构版）
 
