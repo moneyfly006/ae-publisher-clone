@@ -251,6 +251,7 @@ class App:
         self.cfg: AppConfig = get_config()
         self.picked: list[Path] = []
         self.logs: list[str] = []
+        self.products: list[dict] = []
         self.field_refs: list[Field] = []
         self.file_picker = ft.FilePicker(on_result=self._on_files)
 
@@ -266,7 +267,7 @@ class App:
             start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch([0,1,2,3,4,5,6,7,8,9,10,11][start % 12])
+        self._switch(start % 11)
         page.update()
 
     # ---------- 壳 ----------
@@ -334,6 +335,7 @@ class App:
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
                  self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench, self._p_logs]
+        idx = idx % len(pages)
         self.content.controls = pages[idx]()
         self.page.update()
 
@@ -933,7 +935,7 @@ class App:
             pass
 
     def _read_template(self):
-        pid = self.tpl_dd.value or self.cfg.template_product_id
+        pid = self.cfg.template_product_id or self.cfg.product_template_id
         if not pid:
             self.toast("请先选择模板产品", False); return
         self.tpl_snapshot_text.value = "正在读取模板参数…"
