@@ -75,3 +75,45 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
             pass
         browser.close()
         pw.stop()
+
+
+def publish_product(ws_endpoint: str, product_id: str, confirm: bool = False,
+                    timeout: int = 90000) -> SaveResult:
+    """点击编辑器「发布」。confirm=False 时拒绝执行（防止误发）。"""
+    if not confirm:
+        return SaveResult(ok=False, message="未确认：发布操作被拒绝（需显式 confirm=True）")
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    seen = {}
+    def _on_resp(resp):
+        try:
+            u = resp.url
+            if "/api/" in u and any(k in u.lower() for k in ("publish", "submit", "online")):
+                seen["url"] = u.replace("https://www.dianxiaomi.com", "")
+                seen["status"] = resp.status
+        except Exception:
+            pass
+    page.on("response", _on_resp)
+    try:
+        page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
+        page.wait_for_timeout(10000)
+        page.get_by_role("button", name="发布", exact=True).first.click(timeout=12000)
+        page.wait_for_timeout(15000)
+        if seen:
+            return SaveResult(ok=seen.get("status", 500) < 400,
+                              message=f"发布接口 {seen['url']} HTTP {seen.get('status')}")
+        text = ""
+        try:
+            text = page.get_by_text("发布成功", exact=False).first.inner_text(timeout=3000)
+        except Exception:
+            pass
+        return SaveResult(ok=bool(text), message=text or "已点击发布（未捕获接口）")
+    except Exception as e:  # noqa: BLE001
+        return SaveResult(ok=False, message=f"发布自动化失败：{e}")
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        browser.close()
+        pw.stop()

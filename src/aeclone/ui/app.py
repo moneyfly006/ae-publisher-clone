@@ -24,6 +24,8 @@ from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
 from ..services import history
 from ..services.queue import TaskQueue
+from ..services.text_pipeline import TextPipeline
+from ..services.image_pipeline import ImagePipeline
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
@@ -234,7 +236,7 @@ class App:
             start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch(start % 11)
+        self._switch(start % 12)
         page.update()
 
     # ---------- 壳 ----------
@@ -245,6 +247,7 @@ class App:
                  ("内容审查", ft.Icons.FACT_CHECK_OUTLINED), ("图片处理", ft.Icons.IMAGE_OUTLINED),
                  ("价格设置", ft.Icons.SELL_OUTLINED), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED),
                  ("设置", ft.Icons.SETTINGS_OUTLINED),
+                 ("AI 处理", ft.Icons.AUTO_AWESOME),
                  ("图片工作台", ft.Icons.GRID_VIEW),
                  ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED)]
         col = ft.Column(spacing=4)
@@ -278,7 +281,7 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench, self._p_logs]
+                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_ai_work, self._p_workbench, self._p_logs]
         self.content.controls = pages[idx]()
         self.page.update()
 
@@ -366,6 +369,7 @@ class App:
                     ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
                     ft.ElevatedButton("④ 选择模板", icon=ft.Icons.CHECKLIST, bgcolor=ACCENT_2, color="#04231C", on_click=picker),
                     ft.ElevatedButton("⑤ 试跑发布(dry-run)", icon=ft.Icons.PLAY_CIRCLE_OUTLINE, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._dry_run, daemon=True).start()),
+                    ft.ElevatedButton("⑧ 发布(需确认)", icon=ft.Icons.ROCKET_LAUNCH, bgcolor="#D9534F", color="white", on_click=lambda e: self._confirm_publish()),
                     ft.ElevatedButton("⑦ 真实保存(测试)", icon=ft.Icons.SAVE_AS, bgcolor="#F0A020", color="#1A1200", on_click=lambda e: threading.Thread(target=self._real_save, daemon=True).start()),
                     ft.ElevatedButton("⑥ 图片空间", icon=ft.Icons.PHOTO_LIBRARY, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._show_albums, daemon=True).start())], spacing=10),
             self.store_status], spacing=10))
@@ -454,6 +458,37 @@ class App:
         except Exception as e:
             self.store_status.value = f"试跑异常：{e}"; self.store_status.color = "#FF6B6B"
             self._log(f"试跑异常：{e}")
+        self.page.update()
+
+    def _confirm_publish(self):
+        if not self.products:
+            self.toast("请先拉取产品", False); return
+        pid = self.products[0]["id"]
+        title = self.products[0].get("title", "")[:40]
+
+        def do_publish(e):
+            dlg.open = False
+            self.page.update()
+            self.store_status.value = f"正在发布 {pid} …"; self.page.update()
+            threading.Thread(target=self._publish, args=(pid,), daemon=True).start()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("确认发布到速卖通？"),
+            content=ft.Text(f"{pid}\n{title}\n\n发布会真实刊登商品，请确认。", color=MUTED),
+            actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
+                     ft.ElevatedButton("确认发布", bgcolor="#D9534F", color="white", on_click=do_publish)],
+        )
+        self.page.dialog = dlg; dlg.open = True; self.page.update()
+
+    def _publish(self, pid):
+        from ..integrations.editor_automation import publish_product
+        try:
+            r = publish_product(self.ws_endpoint, pid, confirm=True)
+            self.store_status.value = ("发布成功：" if r.ok else "发布失败：") + r.message
+            self.store_status.color = ACCENT_2 if r.ok else "#FF6B6B"
+            self._log(f"发布 {pid}: {r.message}")
+        except Exception as ex:
+            self.store_status.value = f"发布异常：{ex}"; self.store_status.color = "#FF6B6B"
         self.page.update()
 
     def _real_save(self):
@@ -688,8 +723,65 @@ class App:
         view = self._render("变种设置", schema_variant())
         return [view[0], card_map, editor] + view[1:]
 
-    def _p_workbench(self):
+    def _p_ai_work(self):
         self._current = 9
+        self.aw_title = ft.TextField(label="中文标题", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                     value="3 吨迷你蜘蛛吊车 20 米臂长 无线遥控")
+        self.aw_skus = ft.TextField(label="SKU 名称（每行一个）", multiline=True, min_lines=3,
+                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                    value="手机壳适用于iPhone 15 Pro Max\n红色-2024新款")
+        self.aw_img = ft.TextField(label="图片 URL", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.aw_out = ft.TextField(label="结果", multiline=True, min_lines=10, read_only=True,
+                                   bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.aw_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
+
+        def run(kind):
+            self.aw_busy.visible = True; self.page.update()
+            threading.Thread(target=self._ai_run, args=(kind,), daemon=True).start()
+
+        return [h1("AI 处理"), muted("标题 / 描述 / SKU / 图片流水线 / 估重（走你的 API 站点）"),
+                card(ft.Column([self.aw_title, self.aw_skus, self.aw_img,
+                                ft.Row([ft.ElevatedButton("生成标题", on_click=lambda e: run("title")),
+                                        ft.ElevatedButton("生成描述", on_click=lambda e: run("detail")),
+                                        ft.ElevatedButton("优化 SKU", on_click=lambda e: run("sku")),
+                                        ft.ElevatedButton("图片流水线", on_click=lambda e: run("image")),
+                                        ft.ElevatedButton("估重", on_click=lambda e: run("weight")),
+                                        self.aw_busy], spacing=10),
+                                self.aw_out], spacing=12))]
+
+    def _ai_run(self, kind):
+        try:
+            if not self.cfg.api_key:
+                self.aw_out.value = "请先在设置里填写 API Key"; return
+            if kind == "image":
+                pipe = ImagePipeline(self.cfg)
+                res = pipe.run(self.aw_img.value.strip())
+                lines = [f"{'✓' if s.ok else '✗'} {s.name}: {s.url or s.error}" for s in res.steps]
+                self.aw_out.value = "\n".join(lines)
+            elif kind == "weight":
+                tp = TextPipeline(self.cfg)
+                r = tp.estimate_weight(self.aw_img.value.strip(), self.aw_title.value)
+                self.aw_out.value = r.value if r.ok else f"失败: {r.error}"
+            else:
+                tp = TextPipeline(self.cfg)
+                if kind == "title":
+                    r = tp.make_title(self.aw_title.value)
+                elif kind == "detail":
+                    r = tp.make_detail(self.aw_title.value)
+                else:
+                    r = tp.make_skus((self.aw_skus.value or "").splitlines())
+                self.aw_out.value = (r.value if r.ok else f"失败: {r.error}") + \
+                                    ("\n\n" + "\n".join(r.notes) if r.notes else "")
+            self._log(f"AI {kind} 完成")
+        except Exception as ex:
+            self.aw_out.value = f"异常: {ex}"
+            self._log(f"AI {kind} 异常: {ex}")
+        finally:
+            self.aw_busy.visible = False
+            self.page.update()
+
+    def _p_workbench(self):
+        self._current = 10
         self.wb_urls = ft.TextField(label="图片 URL（每行一个）", multiline=True, min_lines=4, max_lines=8,
                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.wb_status = ft.Text("未加载图片", color=MUTED, size=12)
@@ -875,7 +967,7 @@ class App:
         self.page.update()
 
     def _p_logs(self):
-        self._current = 9
+        self._current = 11
         self.log_view = ft.Column(spacing=3, scroll=ft.ScrollMode.AUTO, height=360)
         self._refresh_logs()
 
