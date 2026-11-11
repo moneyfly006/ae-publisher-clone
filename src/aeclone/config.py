@@ -64,6 +64,7 @@ DEFAULTS: dict = {
     "template_product_id": "",
     "template_product_title": "",
     "template_snapshot": "",
+    "apply_template_on_save": True,
     # 库存 / SKU
     "modify_stock_999": False,
     "stock_quantity": "999",

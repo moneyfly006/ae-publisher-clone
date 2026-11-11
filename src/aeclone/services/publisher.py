@@ -691,7 +691,15 @@ class Publisher:
             else:
                 if not self.ws_endpoint:
                     raise RuntimeError("未连接浏览器（缺少 CDP 端点）")
-                from ..integrations.editor_automation import update_and_save
+                from ..integrations.editor_automation import update_and_save, apply_template_fields
+                snap_json = (getattr(self.cfg, "template_snapshot", "") or "").strip()
+                if snap_json and getattr(self.cfg, "apply_template_on_save", True):
+                    try:
+                        import json as _jt
+                        r_tpl = apply_template_fields(self.ws_endpoint, str(p.get("id", "")), _jt.loads(snap_json))
+                        res.steps.append(Step("模板写回", r_tpl.ok, r_tpl.message[:60]))
+                    except Exception as ex:  # noqa: BLE001
+                        res.steps.append(Step("模板写回", False, str(ex)[:80]))
                 r = update_and_save(self.ws_endpoint, str(p.get("id", "")),
                                     p.get("title_en") or None)
                 if not r.ok:

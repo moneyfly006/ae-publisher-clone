@@ -86,3 +86,15 @@ def collect_via_cdp(ws_endpoint: str, url: str, wait_ms: int = 9000) -> Collecte
     finally:
         pw.stop()
     return res
+
+
+def to_product(collected: Collected, cost: float = 0.0) -> dict:
+    """把采集结果转成产品结构。"""
+    return {
+        "id": "",
+        "title": collected.title,
+        "images": collected.images[:8],
+        "skus": [],
+        "cost": cost,
+        "source_url": collected.url,
+    }

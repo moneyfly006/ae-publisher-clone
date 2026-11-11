@@ -813,6 +813,22 @@ class App:
         out = ft.TextField(label="采集结果", multiline=True, min_lines=6, read_only=True,
                            bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
 
+        state = {"collected": None}
+
+        def to_queue(e):
+            c = state.get("collected")
+            if not c or not c.ok:
+                self.toast("请先采集成功", False); return
+            try:
+                from ..services.collector import to_product
+                prod = to_product(c)
+                self.products = [prod] + [x for x in getattr(self, "products", []) if x.get("id") != ""]
+                self.toast("已加入产品列表（未入库，可先试跑）")
+                self._log(f"采集并入列：{prod['title'][:30]}")
+                dlg.open = False; self.page.update()
+            except Exception as ex:
+                self.toast(f"失败：{ex}", False)
+
         def run(e):
             out.value = "采集中…"; self.page.update()
             def go():
@@ -820,6 +836,7 @@ class App:
                     from ..services.collector import collect
                     r = collect((url_field.value or "").strip())
                     if r.ok:
+                        state["collected"] = r
                         out.value = f"标题：{r.title}\n图片：{len(r.images)} 张\n价格：{r.price or '-'}\n\n" + "\n".join(r.images[:8])
                         self._log(f"采集成功：{r.title[:30]} / {len(r.images)} 张图")
                     else:
@@ -832,6 +849,7 @@ class App:
         dlg = ft.AlertDialog(title=ft.Text("从链接采集商品"),
                              content=ft.Column([url_field, out], spacing=10, width=560),
                              actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
+                                      ft.TextButton("加入队列", on_click=to_queue),
                                       ft.ElevatedButton("开始采集", bgcolor=ACCENT, color="white", on_click=run)])
         self.page.dialog = dlg; dlg.open = True; self.page.update()
 

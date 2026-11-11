@@ -117,8 +117,16 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
         except Exception:
             pass
         if seen["save"]:
+            # 回读校验
+            verified = ""
+            try:
+                page.wait_for_timeout(1500)
+                now = page.locator("input[type=text]").first.input_value(timeout=5000)
+                verified = "，回读一致" if now.strip() == target.strip() else f"，回读不一致（{now[:20]}）"
+            except Exception:
+                verified = "，回读失败"
             return SaveResult(ok=(seen["save"] < 400),
-                              message=f"保存接口 {seen.get('url','')} HTTP {seen['save']}", title=target)
+                              message=f"保存接口 {seen.get('url','')} HTTP {seen['save']}{verified}", title=target)
         ok = "成功" in text or "保存" in text
         return SaveResult(ok=ok, message=text or "已点击保存（未捕获到保存接口）", title=target)
     except Exception as e:  # noqa: BLE001
@@ -187,6 +195,61 @@ def publish_product(ws_endpoint: str, product_id: str, confirm: bool = False,
         return SaveResult(ok=bool(text), message=text or "已点击发布（未捕获接口）")
     except Exception as e:  # noqa: BLE001
         return SaveResult(ok=False, message=f"发布自动化失败：{e}")
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        browser.close()
+        pw.stop()
+
+
+def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
+                          timeout: int = 60000) -> SaveResult:
+    """把模板的类目/运费/属性写入编辑器表单（尽力而为）。"""
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    applied = []
+    try:
+        page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
+        page.wait_for_timeout(9000)
+        fields = (snapshot or {}).get("fields") or {}
+        attrs = (snapshot or {}).get("attributes") or []
+
+        # 属性：按 "属性名=值" 匹配输入框
+        for pair in attrs[:20]:
+            if "=" not in pair:
+                continue
+            k, v = pair.split("=", 1)
+            try:
+                name_input = page.locator(f'input[placeholder^="属性名"][value="{k.strip()}"]').first
+                if name_input.count() == 0:
+                    continue
+                row = name_input.locator("xpath=..").locator("xpath=..")
+                val_input = row.locator('input[placeholder^="属性值"]').first
+                if val_input.count() > 0 and not (val_input.input_value() or "").strip():
+                    val_input.fill(v.strip()); val_input.dispatch_event("input")
+                    applied.append(f"属性 {k.strip()}")
+            except Exception:
+                continue
+
+        # 类目/运费：仅记录（下拉交互依赖具体组件）
+        for key in ("category", "freight"):
+            if fields.get(key):
+                applied.append(f"{key}={fields[key][:18]}")
+
+        if applied:
+            for label in ("保存", "更新"):
+                try:
+                    btn = page.get_by_role("button", name=label, exact=True).first
+                    if btn.count() > 0:
+                        btn.click(timeout=8000); break
+                except Exception:
+                    continue
+            page.wait_for_timeout(5000)
+        return SaveResult(ok=bool(applied), message="已应用：" + ", ".join(applied[:6]) if applied else "没有可应用的字段")
+    except Exception as e:  # noqa: BLE001
+        return SaveResult(ok=False, message=f"模板写回失败：{e}")
     finally:
         try:
             page.close()
