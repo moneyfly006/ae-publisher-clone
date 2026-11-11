@@ -313,7 +313,7 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_ai_work, self._p_workbench, self._p_logs]
+                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_ai_work_combined, self._p_workbench, self._p_logs]
         self.content.controls = pages[idx]()
         self.page.update()
 
@@ -953,6 +953,11 @@ class App:
                                  self.rows_col], spacing=10))
         view = self._render("变种设置", schema_variant())
         return [view[0], card_map, editor] + view[1:]
+
+    def _p_ai_work_combined(self):
+        self._current = 9
+        return [h1("AI 测试台"), muted("标题/描述/SKU 与图片流水线的调试入口")] + \
+               [self._text_bench(), self._image_bench()]
 
     def _text_bench(self):
         self.aw_title = ft.TextField(label="中文标题", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
