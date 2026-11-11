@@ -246,9 +246,9 @@ class App:
             ("", [("概览", ft.Icons.DASHBOARD_OUTLINED, 0)]),
             ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("高级设置", ft.Icons.TUNE, 2)]),
             ("AI 设置", [("AI 智能填写", ft.Icons.AUTO_FIX_HIGH, 3), ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4)]),
-            ("图片处理", [("图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 10)]),
+            ("图片处理", [("图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 9)]),
             ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
-            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 11)]),
+            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
         ]
         col = ft.Column(spacing=3)
         for group, items in groups:
@@ -298,7 +298,7 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_ai_work_combined, self._p_workbench, self._p_logs]
+                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench, self._p_logs]
         self.content.controls = pages[idx]()
         self.page.update()
 
@@ -323,17 +323,6 @@ class App:
 
     def _render(self, title, schemas, extra=None):
         out = [h1(title), muted("所有配置自动保存到本地 config.json")]
-        impl = self._implemented_keys()
-        hidden = 0
-        filtered = []
-        for name, fields in schemas:
-            keep = [f for f in fields if f.key in impl]
-            hidden += len(fields) - len(keep)
-            if keep:
-                filtered.append((name, keep))
-        schemas = filtered
-        if hidden:
-            out.append(muted(f"（已隐藏 {hidden} 项尚未实现的设置，避免误导）"))
         for name, fields in schemas:
             c, refs = section(name, fields, self.cfg)
             self.field_refs.extend(refs)
@@ -584,7 +573,7 @@ class App:
             self.page.dialog = dlg; dlg.open = True; self.page.update()
             return
         self._log("启动：配置检查通过")
-        self._switch(11)
+        self._switch(10)
         self._log("开始执行…")
         threading.Thread(target=self._run_pipeline, daemon=True).start()
 
@@ -1328,7 +1317,7 @@ class App:
 
     def _p_ai(self):
         self._current = 3
-        return self._render("AI 智能填写", schema_ai()) + [self._text_bench()]
+        return self._render("AI 智能填写", schema_ai())
 
     def _p_review(self):
         self._current = 4
@@ -1482,93 +1471,55 @@ class App:
         view = self._render("变种设置", schema_variant())
         return [view[0], card_map, editor] + view[1:]
 
-    def _p_ai_work_combined(self):
-        self._current = 9
-        return [h1("AI 测试台"), muted("标题/描述/SKU 与图片流水线的调试入口")] + \
-               [self._text_bench(), self._image_bench()]
-
-    def _text_bench(self):
-        self.aw_title = ft.TextField(label="中文标题", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                     value="3 吨迷你蜘蛛吊车 20 米臂长 无线遥控")
-        self.aw_skus = ft.TextField(label="SKU 名称（每行一个）", multiline=True, min_lines=3,
-                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                    value="手机壳适用于iPhone 15 Pro Max\n红色-2024新款")
-        self.aw_out = ft.TextField(label="结果", multiline=True, min_lines=8, read_only=True,
-                                   bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.aw_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
-        return card(ft.Column([h1("文本测试台", 15),
-                               muted("填写中文标题/SKU，直接看 AI 输出（消耗你的额度）"),
-                               self.aw_title, self.aw_skus,
-                               ft.Row([ft.ElevatedButton("生成标题", on_click=lambda e: self._run_bench("title")),
-                                       ft.ElevatedButton("生成描述", on_click=lambda e: self._run_bench("detail")),
-                                       ft.ElevatedButton("优化 SKU", on_click=lambda e: self._run_bench("sku")),
-                                       ft.ElevatedButton("估重", on_click=lambda e: self._run_bench("weight")),
-                                       self.aw_busy], spacing=10),
-                               self.aw_out], spacing=12))
-
     def _image_bench(self):
         self.aw_img = ft.TextField(label="图片 URL", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.img_out = ft.TextField(label="处理结果", multiline=True, min_lines=6, read_only=True,
                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.aw_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
+
+        def run(kind):
+            self.aw_busy.visible = True
+            try:
+                self.page.update()
+            except Exception:
+                pass
+            threading.Thread(target=self._ai_run, args=(kind,), daemon=True).start()
+
         return card(ft.Column([h1("图片测试台", 15),
                                muted("贴一张图片 URL，按当前开关跑流水线或审查"),
                                self.aw_img,
-                               ft.Row([ft.ElevatedButton("跑流水线", on_click=lambda e: self._run_bench("image")),
-                                       ft.ElevatedButton("图片审查", on_click=lambda e: self._run_bench("review")),
-                                       ft.ElevatedButton("读图估重", on_click=lambda e: self._run_bench("weight"))], spacing=10),
+                               ft.Row([ft.ElevatedButton("跑流水线", on_click=lambda e: run("image")),
+                                       ft.ElevatedButton("图片审查", on_click=lambda e: run("review")),
+                                       ft.ElevatedButton("读图估重", on_click=lambda e: run("weight")),
+                                       self.aw_busy], spacing=10),
                                self.img_out], spacing=12))
-
-    def _run_bench(self, kind):
-        self.aw_busy.visible = True
-        try:
-            self.page.update()
-        except Exception:
-            pass
-        threading.Thread(target=self._ai_run, args=(kind,), daemon=True).start()
 
     def _ai_run(self, kind):
         try:
             if not self.cfg.api_key:
-                self.aw_out.value = "请先在设置里填写 API Key"
                 self.img_out.value = "请先在设置里填写 API Key"
                 return
             if kind == "image":
                 pipe = ImagePipeline(self.cfg)
                 res = pipe.run(self.aw_img.value.strip())
-                lines = [f"{'✓' if s.ok else '✗'} {s.name}: {s.url or s.error}" for s in res.steps]
-                self.img_out.value = "\n".join(lines)
-                return
-            if kind == "review":
-                pipe = ImagePipeline(self.cfg)
-                self.img_out.value = pipe.review(self.aw_img.value.strip(), "main")
-                return
-            elif kind == "weight":
-                tp = TextPipeline(self.cfg)
-                r = tp.estimate_weight(self.aw_img.value.strip(), self.aw_title.value)
-                out = r.value if r.ok else f"失败: {r.error}"
-                self.aw_out.value = out
-                self.img_out.value = out
+                self.img_out.value = "\n".join(
+                    f"{'✓' if s.ok else '✗'} {s.name}: {s.url or s.error}" for s in res.steps)
+            elif kind == "review":
+                self.img_out.value = ImagePipeline(self.cfg).review(self.aw_img.value.strip(), "main")
             else:
-                tp = TextPipeline(self.cfg)
-                if kind == "title":
-                    r = tp.make_title(self.aw_title.value)
-                elif kind == "detail":
-                    r = tp.make_detail(self.aw_title.value)
-                else:
-                    r = tp.make_skus((self.aw_skus.value or "").splitlines())
-                self.aw_out.value = (r.value if r.ok else f"失败: {r.error}") + \
-                                    ("\n\n" + "\n".join(r.notes) if r.notes else "")
-            self._log(f"AI {kind} 完成")
+                r = TextPipeline(self.cfg).estimate_weight(self.aw_img.value.strip(), "")
+                self.img_out.value = r.value if r.ok else f"失败: {r.error}"
+            self._log(f"图片测试台 {kind} 完成")
         except Exception as ex:
-            self.aw_out.value = f"异常: {ex}"
-            self._log(f"AI {kind} 异常: {ex}")
+            self.img_out.value = f"异常: {ex}"
+            self._log(f"图片测试台 {kind} 异常: {ex}")
             self._maybe_quota(str(ex))
         finally:
             self.aw_busy.visible = False
             self.page.update()
 
     def _p_workbench(self):
-        self._current = 11
+        self._current = 9
         self.wb_urls = ft.TextField(label="图片 URL（每行一个）", multiline=True, min_lines=4, max_lines=8,
                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.wb_status = ft.Text("未加载图片", color=MUTED, size=12)
@@ -1768,7 +1719,7 @@ class App:
         self.page.update()
 
     def _p_logs(self):
-        self._current = 11
+        self._current = 10
         self.log_level = ft.Dropdown(width=120, value="全部", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                      options=[ft.dropdown.Option(x) for x in ("全部","INFO","WARN","ERROR")],
                                      on_change=lambda e: self._refresh_log_table())
