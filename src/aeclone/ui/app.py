@@ -360,7 +360,9 @@ class App:
                                       options=[ft.dropdown.Option(x) for x in BROWSERS])
         self.wz_store = ft.Dropdown(label="店铺", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
         self.wz_source = ft.Dropdown(label="模板来源", width=140, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                     value="draft", options=[ft.dropdown.Option("draft", "草稿"), ft.dropdown.Option("online", "在线")])
+                                     value=self.cfg.template_source or "draft",
+                                     options=[ft.dropdown.Option("draft", "草稿"), ft.dropdown.Option("online", "在线")],
+                                     on_change=lambda e: self._wz_source_changed())
         self.wz_tpl = ft.Dropdown(label="模板产品", width=380, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
         self.wz_status = ft.Text("① 选择浏览器后点击「打开浏览器」", size=12, color=MUTED)
         self.wz_btn = ft.ElevatedButton("① 读取已登录 Chrome（推荐）", icon=ft.Icons.SYNC, bgcolor=ACCENT, color="white", on_click=self._wz_sync)
@@ -374,7 +376,10 @@ class App:
                 ft.ElevatedButton("读取店铺信息（我已登录）", icon=ft.Icons.SYNC, on_click=self._wz_sync),
                 ft.Divider(color=CARD_2),
                 ft.Row([self.wz_store, self.wz_source], spacing=10),
-                self.wz_tpl,
+                ft.Row([ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT,
+                                          on_click=lambda e: self._open_template_picker(self.wz_source.value,
+                                                                                        on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))),
+                        self.tpl_preview_box], spacing=10),
                 self.wz_status,
             ], spacing=12, width=520),
             actions=[ft.TextButton("稍后设置", on_click=lambda e: self._wz_close(False)),
@@ -433,6 +438,11 @@ class App:
                 self.wz_status.value = f"启动失败：{ex}"
             self.page.update()
         threading.Thread(target=go, daemon=True).start()
+
+    def _wz_source_changed(self):
+        self.cfg.template_source = self.wz_source.value
+        save_config(self.cfg)
+        self.toast(f"模板来源已切换为{'草稿' if self.wz_source.value == 'draft' else '在线'}")
 
     def _wz_sync(self, e):
         self.wz_status.value = "正在读取 Cookie 与店铺…"
@@ -661,6 +671,7 @@ class App:
         self.products: list[dict] = []
 
         self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
+        self.tpl_preview_box = ft.Container(content=self._template_preview_row())
         self.shop_dd = ft.Dropdown(label="店铺", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                    options=[], value=None)
         self.tpl_dd = ft.Dropdown(label="模板产品", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
@@ -710,7 +721,11 @@ class App:
                     ft.ElevatedButton("⑧ 发布(需确认)", icon=ft.Icons.ROCKET_LAUNCH, bgcolor="#D9534F", color="white", on_click=lambda e: self._confirm_publish()),
                     ft.ElevatedButton("⑦ 真实保存(测试)", icon=ft.Icons.SAVE_AS, bgcolor="#F0A020", color="#1A1200", on_click=lambda e: threading.Thread(target=self._real_save, daemon=True).start()),
                     ft.ElevatedButton("⑥ 图片空间", icon=ft.Icons.PHOTO_LIBRARY, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._show_albums, daemon=True).start())], spacing=10),
-            ft.Row([self.shop_dd, self.tpl_dd], spacing=12),
+            ft.Row([self.shop_dd,
+                    ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT,
+                                      on_click=lambda e: self._open_template_picker(self.cfg.template_source or "draft",
+                                                                                    on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))),
+                    self.tpl_preview_box], spacing=12),
             ft.Row([ft.ElevatedButton("读取模板参数", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE,
                                       bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._read_template, daemon=True).start()),
                     self.tpl_snapshot_text], spacing=10),
@@ -721,6 +736,13 @@ class App:
         return [view[0], bar] + view[1:]
 
     # ---------- 对接动作 ----------
+    def _set_tpl_preview(self, images=None):
+        self.tpl_preview_box.content = self._template_preview_row(images)
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
     def _read_template(self):
         pid = self.tpl_dd.value or self.cfg.template_product_id
         if not pid:
@@ -941,6 +963,87 @@ class App:
         dlg.open = False
         self.page.update()
 
+    def _open_template_picker(self, source: str, on_pick=None):
+        try:
+            ck = self._cookies()
+            c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            data = {"draft": c.drafts(limit=200), "online": c.online(limit=200)}
+        except Exception as ex:
+            self.toast(f"读取失败：{ex}", False); return
+
+        state = {"source": source if source in data else "draft", "kw": ""}
+        list_col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
+        search = ft.TextField(hint_text="搜索标题或产品ID", prefix_icon=ft.Icons.SEARCH, dense=True,
+                              bgcolor=CARD_2, border_color=CARD_2, color=TEXT, on_change=lambda e: render())
+        tab_row = ft.Row(spacing=8)
+
+        def pick(pid, title, images):
+            self.cfg.template_product_id = str(pid)
+            self.cfg.template_product_title = title
+            self.cfg.template_source = state["source"]
+            save_config(self.cfg)
+            self.toast(f"已选模板：{title[:24]}")
+            dlg.open = False
+            self.page.update()
+            if on_pick:
+                on_pick(pid, title, images)
+            threading.Thread(target=self._read_template, daemon=True).start()
+
+        def render():
+            items = data[state["source"]]
+            kw = (state["kw"] or "").strip().lower()
+            if kw:
+                items = [x for x in items if kw in (x.get("title") or "").lower() or kw in str(x.get("id"))]
+            rows = []
+            for it in items[:120]:
+                imgs = it.get("images") or []
+                thumb = imgs[0] if imgs else None
+                rows.append(ft.ListTile(
+                    leading=ft.Container(width=44, height=44, border_radius=6, bgcolor=CARD_2,
+                                         clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                                         content=ft.Image(src=thumb, fit=ft.ImageFit.COVER) if thumb else
+                                         ft.Icon(ft.Icons.IMAGE_NOT_SUPPORTED, size=18, color=MUTED)),
+                    title=ft.Text((it.get("title") or it["id"])[:60], size=12, color=TEXT, max_lines=2),
+                    subtitle=ft.Text(f"{it['id']} · {it.get('status_type')}", size=10, color=MUTED),
+                    dense=True, on_click=lambda e, x=it: pick(x["id"], x.get("title", ""), x.get("images") or []),
+                ))
+            list_col.controls = rows or [ft.Text("无匹配结果", size=12, color=MUTED)]
+            tab_row.controls = [
+                ft.ElevatedButton(f"草稿 {len(data['draft'])}", bgcolor=ACCENT_2 if state["source"] == "draft" else CARD_2,
+                                  color="#04231C" if state["source"] == "draft" else TEXT,
+                                  on_click=lambda e: switch("draft")),
+                ft.ElevatedButton(f"在线 {len(data['online'])}", bgcolor=ACCENT_2 if state["source"] == "online" else CARD_2,
+                                  color="#04231C" if state["source"] == "online" else TEXT,
+                                  on_click=lambda e: switch("online")),
+            ]
+            self.page.update()
+
+        def switch(src):
+            state["source"] = src
+            self.cfg.template_source = src
+            save_config(self.cfg)
+            render()
+
+        search.on_change = lambda e: (state.update({"kw": e.control.value or ""}), render())
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("选择模板产品"),
+            content=ft.Column([tab_row, search, list_col], spacing=10, width=620),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+        )
+        self.page.dialog = dlg; dlg.open = True
+        render()
+
+    def _template_preview_row(self, images=None):
+        thumb = (images or [None])[0] if images else None
+        title = self.cfg.template_product_title or "未选择模板"
+        return ft.Row([
+            ft.Container(width=40, height=40, border_radius=6, bgcolor=CARD_2, clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                         content=ft.Image(src=thumb, fit=ft.ImageFit.COVER) if thumb else
+                         ft.Icon(ft.Icons.IMAGE_OUTLINED, size=16, color=MUTED)),
+            ft.Text(title[:44], size=12, color=TEXT),
+        ], spacing=10)
+
     def _open_template_dialog(self):
         try:
             ck = self._cookies()
@@ -1028,6 +1131,87 @@ class App:
     def _close_dlg(self, dlg):
         dlg.open = False
         self.page.update()
+
+    def _open_template_picker(self, source: str, on_pick=None):
+        try:
+            ck = self._cookies()
+            c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            data = {"draft": c.drafts(limit=200), "online": c.online(limit=200)}
+        except Exception as ex:
+            self.toast(f"读取失败：{ex}", False); return
+
+        state = {"source": source if source in data else "draft", "kw": ""}
+        list_col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
+        search = ft.TextField(hint_text="搜索标题或产品ID", prefix_icon=ft.Icons.SEARCH, dense=True,
+                              bgcolor=CARD_2, border_color=CARD_2, color=TEXT, on_change=lambda e: render())
+        tab_row = ft.Row(spacing=8)
+
+        def pick(pid, title, images):
+            self.cfg.template_product_id = str(pid)
+            self.cfg.template_product_title = title
+            self.cfg.template_source = state["source"]
+            save_config(self.cfg)
+            self.toast(f"已选模板：{title[:24]}")
+            dlg.open = False
+            self.page.update()
+            if on_pick:
+                on_pick(pid, title, images)
+            threading.Thread(target=self._read_template, daemon=True).start()
+
+        def render():
+            items = data[state["source"]]
+            kw = (state["kw"] or "").strip().lower()
+            if kw:
+                items = [x for x in items if kw in (x.get("title") or "").lower() or kw in str(x.get("id"))]
+            rows = []
+            for it in items[:120]:
+                imgs = it.get("images") or []
+                thumb = imgs[0] if imgs else None
+                rows.append(ft.ListTile(
+                    leading=ft.Container(width=44, height=44, border_radius=6, bgcolor=CARD_2,
+                                         clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                                         content=ft.Image(src=thumb, fit=ft.ImageFit.COVER) if thumb else
+                                         ft.Icon(ft.Icons.IMAGE_NOT_SUPPORTED, size=18, color=MUTED)),
+                    title=ft.Text((it.get("title") or it["id"])[:60], size=12, color=TEXT, max_lines=2),
+                    subtitle=ft.Text(f"{it['id']} · {it.get('status_type')}", size=10, color=MUTED),
+                    dense=True, on_click=lambda e, x=it: pick(x["id"], x.get("title", ""), x.get("images") or []),
+                ))
+            list_col.controls = rows or [ft.Text("无匹配结果", size=12, color=MUTED)]
+            tab_row.controls = [
+                ft.ElevatedButton(f"草稿 {len(data['draft'])}", bgcolor=ACCENT_2 if state["source"] == "draft" else CARD_2,
+                                  color="#04231C" if state["source"] == "draft" else TEXT,
+                                  on_click=lambda e: switch("draft")),
+                ft.ElevatedButton(f"在线 {len(data['online'])}", bgcolor=ACCENT_2 if state["source"] == "online" else CARD_2,
+                                  color="#04231C" if state["source"] == "online" else TEXT,
+                                  on_click=lambda e: switch("online")),
+            ]
+            self.page.update()
+
+        def switch(src):
+            state["source"] = src
+            self.cfg.template_source = src
+            save_config(self.cfg)
+            render()
+
+        search.on_change = lambda e: (state.update({"kw": e.control.value or ""}), render())
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("选择模板产品"),
+            content=ft.Column([tab_row, search, list_col], spacing=10, width=620),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+        )
+        self.page.dialog = dlg; dlg.open = True
+        render()
+
+    def _template_preview_row(self, images=None):
+        thumb = (images or [None])[0] if images else None
+        title = self.cfg.template_product_title or "未选择模板"
+        return ft.Row([
+            ft.Container(width=40, height=40, border_radius=6, bgcolor=CARD_2, clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                         content=ft.Image(src=thumb, fit=ft.ImageFit.COVER) if thumb else
+                         ft.Icon(ft.Icons.IMAGE_OUTLINED, size=16, color=MUTED)),
+            ft.Text(title[:44], size=12, color=TEXT),
+        ], spacing=10)
 
     def _open_template_dialog(self):
         rows = []
