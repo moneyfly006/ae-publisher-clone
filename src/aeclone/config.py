@@ -267,6 +267,9 @@ class AppConfig:
     def get(self, key, default=None):
         return self._d.get(key, default)
 
+    def set(self, key, value):
+        self._d[key] = value
+
     def as_dict(self):
         return dict(self._d)
 

@@ -234,34 +234,14 @@ def schema_variant():
     return [("映射", [Field("variant_mappings", "属性映射 JSON", "multiline")])]
 
 
-def section(title, fields, cfg, cols=2):
-    rows, controls = [], []
-    for f in fields:
-        c = f.build(cfg)
-        controls.append(f)
-        if f.kind in ("multiline",):
-            rows.append(c)
-        else:
-            rows.append(c)
-    return card(ft.Column([h1(title, 15), *rows], spacing=12)), controls
-
-
-# ---------------- 页面 schema ----------------
 def schema_settings(cfg):
     return [
+        ("API 配置", [Field("api_key", "API Key"),
+                      Field("concurrency", "并发数"), Field("timeout", "超时(秒)")]),
         ("上传", [Field("upload_full_cid", "相册分类 ID"), Field("upload_category_name", "相册分类名")]),
         ("视频", [Field("generate_main_video", "生成主图视频", "bool"),
                   Field("use_template_video", "使用模板视频", "bool"),
                   Field("overwrite_existing_video", "覆盖已有视频", "bool")]),
-        ("API 配置", [Field("api_key", "API Key"),
-                      Field("concurrency", "并发数"), Field("timeout", "超时(秒)")]),
-        ("通用", [Field("image_upload_category", "图片上传分类"),
-                  Field("market_white_bg_pic_no", "营销白底图取第几张"),
-                  Field("publish_destination", "发布目标"),
-                  Field("folder_path", "本地素材目录")]),
-        ("视频与发布", [Field("generate_main_video", "生成主图视频", "bool"),
-                        Field("use_template_video", "使用模板视频", "bool"),
-                        Field("overwrite_existing_video", "覆盖已有视频", "bool")]),
     ]
 
 
