@@ -17,6 +17,10 @@ DEFAULTS: dict = {
     "timeout": 180,
     # ---- 店铺 / 浏览器 / 模板 ----
     "browser_type": "本机Edge",
+    "bit_browser_id": "",
+    "bit_browser_name": "",
+    "zhanfu_port": "9222",
+    "instance_name": "默认",
     "store_name": "",
     "store_id": "",
     "product_template_id": "",
@@ -135,6 +139,15 @@ DEFAULTS: dict = {
 
 
 def config_dir() -> Path:
+    inst = os.environ.get("AURORA_INSTANCE", "").strip()
+    base_dir = _base_dir()
+    if inst and inst != "默认":
+        safe = "".join(c for c in inst if c.isalnum() or c in "-_") or "instance"
+        return base_dir.parent / "AuroraListInstances" / safe / "config"
+    return base_dir
+
+
+def _base_dir() -> Path:
     if os.name == "nt":
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     elif os.sys.platform == "darwin":  # type: ignore[attr-defined]

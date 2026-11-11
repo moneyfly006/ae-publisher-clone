@@ -21,6 +21,9 @@ ENDPOINTS = {
     "banned_word": "/api/bannedWord/smtCheckB.json",
     "upload_callback": "/api/cos_dxm_call_back.json",
     "video_callback": "/api/smtmedia/callback.json",
+    "upload_sign": "/api/cos_dxm/getSign.json",           # 上传签名（待抓包校正）
+    "product_save": "/api/smt/edit/save.json",            # 产品保存（待抓包校正）
+    "template_search": "/api/adjustPriceTemplate/search.json",
 }
 
 
@@ -105,6 +108,16 @@ class DianxiaomiClient:
             "fileId": file_id, "fileName": file_name, "fileSize": file_size,
             "fullCid": full_cid, "bucket": bucket,
         })
+
+    def save_product(self, product: dict) -> Any:
+        return self._post("product_save", product)
+
+    def upload_sign(self, file_name: str, file_size: int) -> dict:
+        data = self._post("upload_sign", {"fileName": file_name, "fileSize": file_size})
+        return (data.get("data") or data) if isinstance(data, dict) else {}
+
+    def search_price_templates(self, keyword: str = "") -> Any:
+        return self._get("template_search", {"keyword": keyword})
 
     def video_callback(self, file_id: str, file_name: str, file_size: int) -> Any:
         return self._post("video_callback", {"fileId": file_id, "fileName": file_name, "fileSize": file_size})

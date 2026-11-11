@@ -15,9 +15,13 @@ from ..services import BatchRunner, ImageService, TextService
 from ..services.pricing import calc_multiplier, calc_free_shipping
 from ..services.variants import auto_map, parse_mapping_json
 from ..integrations.cdp import launch_edge, cookies_via_cdp, BrowserError
+from ..integrations.bitbrowser import BitBrowser
+from ..integrations.zhanfu import ZhanfuBrowser
+from ..services.publisher import Publisher, demo_product
 from ..integrations.dianxiaomi import DianxiaomiClient
 from ..services.video import build_slideshow, probe as video_probe
 from ..core import updater
+from ..core.instances import list_instances, create_instance, launch_instance
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
@@ -350,7 +354,8 @@ class App:
             ft.Row([ft.ElevatedButton("① 启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=connect),
                     ft.ElevatedButton("② 检测店小秘登录", icon=ft.Icons.LOGIN, bgcolor=CARD_2, color=TEXT, on_click=login),
                     ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
-                    ft.ElevatedButton("④ 选择模板", icon=ft.Icons.CHECKLIST, bgcolor=ACCENT_2, color="#04231C", on_click=picker)], spacing=10),
+                    ft.ElevatedButton("④ 选择模板", icon=ft.Icons.CHECKLIST, bgcolor=ACCENT_2, color="#04231C", on_click=picker),
+                    ft.ElevatedButton("⑤ 试跑发布(dry-run)", icon=ft.Icons.PLAY_CIRCLE_OUTLINE, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._dry_run, daemon=True).start())], spacing=10),
             self.store_status], spacing=10))
         view = self._render("店铺与模板", schema_store())
         return [view[0], bar] + view[1:]
@@ -358,9 +363,28 @@ class App:
     # ---------- 对接动作 ----------
     def _connect_browser(self):
         try:
-            info = launch_edge()
-            self.ws_endpoint = info["ws"]
-            self.store_status.value = f"浏览器已启动 · 端口 {info['port']} · {info['browser']}"
+            kind = self.cfg.browser_type
+            if kind == "比特浏览器":
+                bb = BitBrowser()
+                if not bb.health():
+                    raise BrowserError("比特浏览器本地服务未启动（127.0.0.1:54345）")
+                bid = self.cfg.bit_browser_id or ""
+                if not bid and self.cfg.bit_browser_name:
+                    found = bb.find_by_name(self.cfg.bit_browser_name)
+                    bid = (found or {}).get("id", "")
+                if not bid:
+                    raise BrowserError("未配置比特浏览器 ID / 名称")
+                self.ws_endpoint = bb.ws_endpoint(bid)
+                self.store_status.value = f"比特浏览器已连接 · {bid}"
+            elif kind == "站斧浏览器":
+                zf = ZhanfuBrowser()
+                port = int(self.cfg.zhanfu_port or 9222)
+                self.ws_endpoint = zf.ws_endpoint(port)
+                self.store_status.value = f"站斧浏览器已连接 · 端口 {port}"
+            else:
+                info = launch_edge()
+                self.ws_endpoint = info["ws"]
+                self.store_status.value = f"Edge 已启动 · 端口 {info['port']} · {info['browser']}"
             self.store_status.color = ACCENT_2
         except BrowserError as e:
             self.store_status.value = f"启动失败：{e}"; self.store_status.color = "#FF6B6B"
@@ -398,6 +422,21 @@ class App:
             self.store_status.color = ACCENT_2
         except Exception as e:
             self.store_status.value = f"拉取失败：{e}"; self.store_status.color = "#FF6B6B"
+        self.page.update()
+
+    def _dry_run(self):
+        try:
+            prod = self.products[0] if self.products else demo_product()
+            pub = Publisher(self.cfg, dxm=None,
+                            text_service=TextService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg))
+            res = pub.run(prod, dry_run=True)
+            for line in res.log().splitlines():
+                self._log(line)
+            self.store_status.value = ("试跑完成" if res.ok else f"试跑失败：{res.error}")
+            self.store_status.color = ACCENT_2 if res.ok else "#FF6B6B"
+        except Exception as e:
+            self.store_status.value = f"试跑异常：{e}"; self.store_status.color = "#FF6B6B"
+            self._log(f"试跑异常：{e}")
         self.page.update()
 
     def _open_template_dialog(self):
@@ -656,11 +695,52 @@ class App:
     def _p_settings(self):
         self._current = 8
         view = self._render("设置", schema_settings(self.cfg))
+        self.inst_name = ft.TextField(label="新实例名称", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.inst_list = ft.Column(spacing=4)
+        self._refresh_instances()
+
+        def create(e):
+            name = (self.inst_name.value or "").strip()
+            if not name:
+                self.toast("请输入实例名称", False); return
+            try:
+                create_instance(name)
+                self._log(f"实例已创建：{name}")
+                self._refresh_instances()
+                self.toast("实例已创建")
+            except Exception as ex:
+                self.toast(str(ex), False)
+
+        def launch(e):
+            name = (self.inst_name.value or "").strip()
+            if not name:
+                self.toast("请输入实例名称", False); return
+            try:
+                launch_instance(name)
+                self._log(f"实例已启动：{name}")
+                self.toast("新实例已启动")
+            except Exception as ex:
+                self.toast(str(ex), False)
+
+        inst_card = card(ft.Column([h1("多实例", 15),
+                                    ft.Row([self.inst_name,
+                                            ft.ElevatedButton("创建", on_click=create),
+                                            ft.ElevatedButton("启动", on_click=launch)], spacing=10),
+                                    self.inst_list], spacing=10))
+
         upd = card(ft.Column([h1("版本更新", 15),
                               ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
                                                         on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
                              spacing=8))
-        return [view[0], upd] + view[1:]
+        return [view[0], upd, inst_card] + view[1:]
+
+    def _refresh_instances(self):
+        try:
+            items = list_instances()
+        except Exception:
+            items = []
+        self.inst_list.controls = [ft.Text(f"{i['name']}  ·  {i['path']}", size=11, color=MUTED) for i in items] or \
+                                  [ft.Text("暂无实例", size=11, color=MUTED)]
 
     def _check_update(self):
         r = updater.check(self.cfg.license_server)
