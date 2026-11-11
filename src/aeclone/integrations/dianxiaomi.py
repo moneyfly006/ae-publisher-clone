@@ -127,6 +127,20 @@ class DianxiaomiClient:
         data = self._get("user_info")
         return data.get("data") or {}
 
+    def shops(self) -> list[dict]:
+        info = self.user_info()
+        sm = info.get("shopMap") or {}
+        out = []
+        for k, v in sm.items():
+            try:
+                sid = int(v.get("id") or k)
+            except Exception:
+                sid = k
+            if sid == 0:
+                continue
+            out.append({"id": str(sid), "name": v.get("name") or str(sid)})
+        return out
+
     def vip_info(self) -> dict:
         data = self._get("vip")
         return data.get("data") or {}

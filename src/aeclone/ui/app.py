@@ -373,11 +373,86 @@ class App:
                                 muted(f"共 {len(self.cfg.as_dict())} 项配置 · 浏览器：{self.cfg.browser_type} · 店铺：{self.cfg.store_name or '未绑定'}"),
                                 ft.Row([ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
                                                           on_click=lambda e: threading.Thread(target=self._test, daemon=True).start()),
+                                        ft.ElevatedButton("启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color="white",
+                                                          on_click=lambda e: self._start()),
                                         ft.ElevatedButton("一键自检", icon=ft.Icons.PLAY_CIRCLE_FILL,
                                                           bgcolor=ACCENT_2, color="#04231C",
                                                           on_click=lambda e: threading.Thread(target=self._self_test, daemon=True).start()),
                                         ft.OutlinedButton("去设置", icon=ft.Icons.SETTINGS,
                                                           on_click=lambda e: self._switch(8))], spacing=10)], spacing=10))]
+
+    def _validate(self) -> list[str]:
+        cfg = self.cfg
+        errs = []
+        if not (cfg.api_key or "").strip():
+            errs.append("未填写 API Key")
+        if not (cfg.store_id or cfg.store_name):
+            errs.append("未选择店铺（点「同步店铺/模板」）")
+        if not (cfg.product_template_id or cfg.product_template_name):
+            errs.append("未选择产品模板")
+        try:
+            if int(cfg.edit_sum) <= 0:
+                errs.append("编辑产品数量必须大于 0")
+        except Exception:
+            errs.append("编辑产品数量不是有效数字")
+        try:
+            if int(cfg.max_sku_count) <= 0:
+                errs.append("SKU 上限必须大于 0")
+        except Exception:
+            errs.append("SKU 上限不是有效数字")
+        try:
+            if not (1 <= int(cfg.concurrency) <= 10):
+                errs.append("并发数应在 1~10")
+        except Exception:
+            errs.append("并发数不是有效数字")
+        try:
+            if float(cfg.price_multiplier) <= 0:
+                errs.append("价格倍率必须大于 0")
+        except Exception:
+            errs.append("价格倍率不是有效数字")
+        if cfg.watermark:
+            from pathlib import Path as _P
+            if not _P(str(cfg.watermark)).exists():
+                errs.append(f"水印文件不存在：{cfg.watermark}")
+        return errs
+
+    def _start(self):
+        errs = self._validate()
+        if errs:
+            dlg = ft.AlertDialog(title=ft.Text("启动前检查未通过"),
+                                 content=ft.Column([ft.Text("• " + e, color="#FF8A8A", size=12) for e in errs],
+                                                   spacing=6, height=200, width=460),
+                                 actions=[ft.TextButton("去修改", on_click=lambda e: (setattr(dlg, "open", False), self._switch(1), self.page.update())),
+                                          ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
+            self.page.dialog = dlg; dlg.open = True; self.page.update()
+            return
+        self._log("启动：配置检查通过")
+        self._switch(11)
+        self._log("开始执行…")
+        threading.Thread(target=self._run_pipeline, daemon=True).start()
+
+    def _run_pipeline(self):
+        try:
+            ck = self._cookies()
+            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            prods = dxm.product_list(page=1, size=50)
+            self.products = prods
+            self._log(f"已拉取 {len(prods)} 个产品")
+            target = None
+            if self.cfg.product_template_id:
+                target = next((p for p in prods if p["id"] == str(self.cfg.product_template_id)), None)
+            target = target or (prods[0] if prods else None)
+            if not target:
+                self._log("没有可处理的产品"); return
+            pub = Publisher(self.cfg, dxm=dxm, ws_endpoint=self.ws_endpoint)
+            self._log(f"处理产品：{target['id']}")
+            res = pub.run(target, dry_run=True)
+            for line in res.log().splitlines():
+                self._log(line)
+            self._log("完成" if res.ok else f"失败：{res.error}")
+            history.record("pipeline", 1 if res.ok else 0, 0 if res.ok else 1)
+        except Exception as ex:
+            self._log(f"运行异常：{ex}")
 
     def _self_test(self):
         from ..services.text_pipeline import TextPipeline
@@ -440,6 +515,30 @@ class App:
         self.ws_endpoint = ""
         self.products: list[dict] = []
 
+        self.shop_dd = ft.Dropdown(label="店铺", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                   options=[], value=None)
+        self.tpl_dd = ft.Dropdown(label="模板产品", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                  options=[], value=None)
+
+        def on_shop(e):
+            sid = self.shop_dd.value
+            name = next((o.key for o in self.shop_dd.options if o.key == sid), "")
+            self.cfg.store_id = str(sid or "")
+            self.cfg.store_name = name or ""
+            save_config(self.cfg)
+            self.toast(f"已选择店铺：{name}")
+
+        def on_tpl(e):
+            pid = self.tpl_dd.value
+            title = next((o.text for o in self.tpl_dd.options if o.key == pid), "") if hasattr(self.tpl_dd.options[0], "text") else ""
+            self.cfg.product_template_id = str(pid or "")
+            self.cfg.product_template_name = title or ""
+            save_config(self.cfg)
+            self.toast("模板已选择")
+
+        def sync_shops(e):
+            threading.Thread(target=self._sync_shops, daemon=True).start()
+
         def connect(e):
             self.store_status.value = "正在启动浏览器…"; self.page.update()
             threading.Thread(target=self._connect_browser, daemon=True).start()
@@ -455,7 +554,8 @@ class App:
 
         bar = card(ft.Column([
             h1("对接操作", 15),
-            ft.Row([ft.ElevatedButton("① 启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=connect),
+            ft.Row([ft.ElevatedButton("同步店铺/模板", icon=ft.Icons.SYNC, bgcolor=ACCENT_2, color="#04231C", on_click=sync_shops),
+                    ft.ElevatedButton("① 启动浏览器", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=ACCENT, color="white", on_click=connect),
                     ft.ElevatedButton("② 检测店小秘登录", icon=ft.Icons.LOGIN, bgcolor=CARD_2, color=TEXT, on_click=login),
                     ft.ElevatedButton("③ 拉取产品", icon=ft.Icons.CLOUD_DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=fetch),
                     ft.ElevatedButton("④ 选择模板", icon=ft.Icons.CHECKLIST, bgcolor=ACCENT_2, color="#04231C", on_click=picker),
@@ -463,11 +563,33 @@ class App:
                     ft.ElevatedButton("⑧ 发布(需确认)", icon=ft.Icons.ROCKET_LAUNCH, bgcolor="#D9534F", color="white", on_click=lambda e: self._confirm_publish()),
                     ft.ElevatedButton("⑦ 真实保存(测试)", icon=ft.Icons.SAVE_AS, bgcolor="#F0A020", color="#1A1200", on_click=lambda e: threading.Thread(target=self._real_save, daemon=True).start()),
                     ft.ElevatedButton("⑥ 图片空间", icon=ft.Icons.PHOTO_LIBRARY, bgcolor=CARD_2, color=TEXT, on_click=lambda e: threading.Thread(target=self._show_albums, daemon=True).start())], spacing=10),
+            ft.Row([self.shop_dd, self.tpl_dd], spacing=12),
             self.store_status], spacing=10))
+        self.shop_dd.on_change = on_shop
+        self.tpl_dd.on_change = on_tpl
         view = self._render("店铺与模板", schema_store())
         return [view[0], bar] + view[1:]
 
     # ---------- 对接动作 ----------
+    def _sync_shops(self):
+        try:
+            ck = self._cookies()
+            c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            shops = c.shops()
+            self.shop_dd.options = [ft.dropdown.Option(str(s["id"]), s["name"]) for s in shops]
+            if shops and not self.cfg.store_id:
+                self.cfg.store_id = shops[0]["id"]; self.cfg.store_name = shops[0]["name"]
+                save_config(self.cfg)
+            prods = c.product_list(page=1, size=50)
+            self.products = prods
+            self.tpl_dd.options = [ft.dropdown.Option(str(p["id"]), (p.get("title") or p["id"])[:40]) for p in prods[:50]]
+            self.store_status.value = f"已同步 {len(shops)} 个店铺、{len(prods)} 个产品"
+            self.store_status.color = ACCENT_2
+        except Exception as ex:
+            self.store_status.value = f"同步失败：{ex}"
+            self.store_status.color = "#FF6B6B"
+        self.page.update()
+
     def _connect_browser(self):
         try:
             kind = self.cfg.browser_type
