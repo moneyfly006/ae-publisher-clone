@@ -523,6 +523,54 @@ class Publisher:
                         or getattr(self.cfg, "translate_detail_pic_enable", False)
                         or getattr(self.cfg, "translate_main_pic_enable", False)
                         or getattr(self.cfg, "translate_sku_pic", False))
+            # AI 主图生成（文生图）
+            if getattr(self.cfg, "main_image_generate_enable", False):
+                try:
+                    from ..api import ApiClient
+                    model = getattr(self.cfg, "image_gen_model", "qwen-image-3.0") or "qwen-image-3.0"
+                    prompt = (getattr(self.cfg, "main_image_generate_prompt", "") or "").strip()
+                    prompt = prompt or (p.get("title_en") or p.get("title", "") or "商品主图")
+                    n = int(getattr(self.cfg, "main_image_generate_count", "1") or 1)
+                    client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
+                    gen = []
+                    for _ in range(min(n, 3)):
+                        try:
+                            u = client.images_generate(model, prompt)
+                            if u:
+                                gen.append(u)
+                        except Exception:
+                            break
+                    if gen:
+                        p["images"] = gen + (p.get("images") or [])
+                        res.steps.append(Step("AI主图生成", True, f"{len(gen)} 张"))
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("AI主图生成", False, str(ex)[:80]))
+
+            # 指定图片编辑
+            if getattr(self.cfg, "designated_edit_enable", False):
+                try:
+                    from .image_index import pick as _pk2
+                    idx = getattr(self.cfg, "designated_edit_indices", "") or ""
+                    prompt = (getattr(self.cfg, "designated_edit_prompt", "") or "").strip()
+                    if idx and prompt and p.get("images"):
+                        targets = _pk2(p["images"], idx)
+                        n2 = 0
+                        for i, u in enumerate(p["images"]):
+                            if u in targets:
+                                try:
+                                    ip = self.image_pipeline
+                                    old_p = ip.cfg.edit_prompt
+                                    ip.cfg.edit_prompt = prompt
+                                    p["images"][i] = self._run_ops(u, False, False, True)
+                                    ip.cfg.edit_prompt = old_p
+                                    n2 += 1
+                                except Exception:
+                                    pass
+                        if n2:
+                            res.steps.append(Step("指定图片编辑", True, f"{n2} 张"))
+                except Exception as ex:  # noqa: BLE001
+                    res.steps.append(Step("指定图片编辑", False, str(ex)[:80]))
+
             if getattr(self.cfg, "pad_main_images_from_extra", False):
                 try:
                     need = int(getattr(self.cfg, "main_pic_count", "6") or 6)

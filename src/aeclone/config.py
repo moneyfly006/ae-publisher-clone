@@ -65,6 +65,15 @@ DEFAULTS: dict = {
     "template_product_title": "",
     "template_snapshot": "",
     "apply_template_on_save": True,
+    # AI 主图生成 / 指定图片编辑
+    "main_image_generate_enable": False,
+    "main_image_generate_prompt": "",
+    "main_image_generate_count": "1",
+    "image_gen_model": "qwen-image-3.0",
+    "designated_edit_enable": False,
+    "designated_edit_indices": "",
+    "designated_edit_prompt": "",
+
     # 库存 / SKU
     "modify_stock_999": False,
     "stock_quantity": "999",

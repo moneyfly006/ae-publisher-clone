@@ -164,6 +164,13 @@ def schema_review():
 
 def schema_image():
     return [
+        ("AI主图生成", [Field("main_image_generate_enable", "启用文生图主图", "bool"),
+                        Field("image_gen_model", "生图模型"),
+                        Field("main_image_generate_prompt", "生成提示词", "multiline"),
+                        Field("main_image_generate_count", "生成数量")]),
+        ("指定图片编辑", [Field("designated_edit_enable", "启用指定编辑", "bool"),
+                          Field("designated_edit_indices", "编辑序号（如 1,3）"),
+                          Field("designated_edit_prompt", "编辑提示词", "multiline")]),
         ("主图", [Field("white_bg_enable", "白底图", "bool"),
                   Field("watermark_enable", "去水印", "bool"),
                   Field("white_background_pic_1", "主图起始序号"),
@@ -272,7 +279,7 @@ class App:
             ("", [("概览", ft.Icons.DASHBOARD_OUTLINED, 0)]),
             ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("高级设置", ft.Icons.TUNE, 2)]),
             ("AI 设置", [("AI 智能填写", ft.Icons.AUTO_FIX_HIGH, 3), ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4)]),
-            ("图片处理", [("图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 9)]),
+            ("AI图片处理", [("AI图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 9)]),
             ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
             ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
         ]
@@ -1420,7 +1427,7 @@ class App:
 
     def _p_image(self):
         self._current = 5
-        view = self._render("图片处理", schema_image())
+        view = self._render("AI图片处理", schema_image())
         self.img_status = ft.Text("未选择图片", color=MUTED, size=12)
         self.img_results = ft.Column(spacing=6)
         self.img_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
@@ -1828,7 +1835,7 @@ class App:
 
         def build_video(e):
             if not self.picked:
-                self.toast("请先在「图片处理」选择图片", False); return
+                self.toast("请先在「AI图片处理」选择图片", False); return
             info = video_probe()
             if not info["available"]:
                 self.toast("未检测到 ffmpeg，请先安装", False); return
