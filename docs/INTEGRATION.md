@@ -70,14 +70,14 @@ SaveResult(ok=True, message='保存接口 HTTP 200', title='Durable Rotary Water
 ## 七、站点模型与别名（保留策略）
 
 真实模型（8 个）：
-`z-image-turbo`、`qwen-image-2.1-turbo`、`qwen-image-3.0`、`qwen-plus`、`qwen-turbo`、`qwen3-vl-plus`、`deepseek-chat`、`deepseek-reasoner`
+`z-image-turbo`、`qwen-image-2.1-turbo`、`qwen-image-3.0`、`qwen-plus`、`qwen3-vl-plus`、`deepseek-chat`、`deepseek-reasoner`（`qwen-turbo` 因阿里侧 limit_requests 已从渠道移除）
 
 兼容别名（7 个，价格与目标模型一致）：
 
 | 别名 | 指向 | 价格 |
 |---|---|---|
 | gpt-6-luna / gpt-4o / gpt-4o-mini | qwen-plus | 倍率 0.6 |
-| gpt-3.5-turbo | qwen-turbo | 倍率 0.225 |
+| gpt-3.5-turbo | qwen-plus（原 qwen-turbo 被上游限流，已改指向） | 倍率 0.6 |
 | gpt-image-2.5-flare / -vip / gpt-image-2.0 | qwen-image-2.1-turbo | ¥0.12/张 |
 
 实现：渠道 `model_mapping` + `abilities` 补行 + `ModelPrice`/`ModelRatio` 补价。
