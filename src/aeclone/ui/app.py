@@ -2097,6 +2097,57 @@ class App:
                               ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
                                                         on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
                              spacing=8))
+
+        self.price_list = ft.Column(spacing=3)
+        self._load_prices()
+        price_card = card(ft.Column([
+            h1("模型与价格", 15),
+            muted("每次生成/调用按下面价格从你的额度扣除"),
+            self.price_list,
+            ft.Row([ft.ElevatedButton("刷新价格", icon=ft.Icons.REFRESH, on_click=lambda e: self._load_prices())]),
+        ], spacing=8))
+
+        return [view[0], recharge_card, price_card, inst_card, upd] + view[1:]
+
+    def _load_prices(self):
+        try:
+            from ..api import ApiClient
+            rows = ApiClient(self.cfg.api_base, self.cfg.api_key, 30).pricing()
+            alias = {"gpt-6-luna", "gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo",
+                     "gpt-image-2.5-flare", "gpt-image-2.5-flare-vip", "gpt-image-2.0"}
+            usage = {
+                "z-image-turbo": "文生图（主图生成）",
+                "qwen-image-2.1-turbo": "图像编辑 / 多图融合",
+                "qwen-image-3.0": "高质量文生图",
+                "qwen-plus": "标题 / 描述 / SKU 文本",
+                "qwen-turbo": "轻量文本",
+                "qwen3-vl-plus": "图片审查 / 读图估重",
+                "deepseek-chat": "备用文本",
+                "deepseek-reasoner": "深度推理（备用）",
+            }
+            items = []
+            for r in sorted(rows, key=lambda x: x["model"]):
+                if r["model"] in alias:
+                    continue
+                if r["per_call"] > 0:
+                    price = f"¥{r['per_call']:.3f} / 张"
+                else:
+                    price = f"按 token（倍率 {r['ratio']:.2f}）"
+                items.append(ft.Row([
+                    ft.Text(r["model"], size=12, color=TEXT, width=190),
+                    ft.Text(usage.get(r["model"], "-"), size=11, color=MUTED, width=200),
+                    ft.Text(price, size=12, color=ACCENT_2),
+                ], spacing=12))
+            if items:
+                items.append(ft.Text("＊ 旧版模型名（gpt-6-luna、gpt-image-2.5-flare 等）已自动映射到对应模型，价格相同",
+                                     size=10, color=MUTED))
+            self.price_list.controls = items or [ft.Text("价格获取失败", size=12, color="#FFB020")]
+        except Exception as ex:
+            self.price_list.controls = [ft.Text(f"价格获取失败：{ex}", size=12, color="#FF6B6B")]
+        try:
+            self.page.update()
+        except Exception:
+            pass
     def _refresh_instances(self):
         try:
             items = list_instances()
