@@ -19,6 +19,11 @@ PROMPT_WHITE_BG = (
     "Keep the product's original shape, color, texture and details unchanged. "
     "Do not add any text, shadow or decoration. Output a clean e-commerce product photo."
 )
+PROMPT_COMBINED = (
+    "Remove the background and place the product on a pure white background (#FFFFFF), "
+    "and at the same time remove all watermarks, logos, QR codes, promotional text and labels. "
+    "Keep the product's original shape, color and details unchanged. Output a clean e-commerce product photo."
+)
 PROMPT_WATERMARK = (
     "Remove all watermarks, logos, QR codes, promotional text and labels from this product image. "
     "Keep the product itself unchanged, preserve its original details and colors. "
@@ -70,6 +75,10 @@ class ImageService:
 
     def remove_watermark(self, image: Path) -> str:
         return self.client.images_edit(IMAGE_MODEL, PROMPT_WATERMARK, [image])
+
+    def combined(self, image: Path) -> str:
+        """白底 + 去水印 合并成一次 AI 调用（省一半成本）。"""
+        return self.client.images_edit(IMAGE_MODEL, PROMPT_COMBINED, [image])
 
     def edit(self, image: Path, prompt: str) -> str:
         return self.client.images_edit(IMAGE_MODEL, prompt, [image])

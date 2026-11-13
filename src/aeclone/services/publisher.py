@@ -179,6 +179,19 @@ class Publisher:
         return p
 
     def _run_ops(self, url: str, white_bg: bool, remove_wm: bool, edit: bool) -> str:
+        # 白底 + 去水印 同时开启时，合并成一次调用
+        if white_bg and remove_wm and not edit:
+            try:
+                import tempfile as _tf, requests as _rq
+                from pathlib import Path as _P
+                from ..api import ApiClient
+                from . import ImageService
+                d = _P(_tf.mkdtemp()); fp = d / "in.png"
+                fp.write_bytes(_rq.get(str(url), timeout=90).content)
+                svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout))
+                return svc.combined(fp) or str(url)
+            except Exception:
+                pass
         ip = self.image_pipeline
         old = (ip.cfg.white_bg_enable, ip.cfg.watermark_enable, ip.cfg.edit_enable)
         try:
