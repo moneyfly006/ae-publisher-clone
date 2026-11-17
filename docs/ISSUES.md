@@ -137,3 +137,46 @@
 ![价格设置（表格化）](screenshots/new/round4-price.png)
 
 ![图片工作台（新）](screenshots/new/round4-workbench.png)
+
+---
+
+## 第 5 轮：设置简化 / 授权机器码 / 性能与多开（2026-11-17）
+
+### 用户反馈 → 处理
+
+| # | 反馈 | 处理 |
+|---|---|---|
+| 22 | 设置做得简单一些 | 重排为 5 张卡：授权 → API → 模型 → 多开 → 更新/诊断/价格；去掉重复字段与低频项，模型/价格异步加载，不再卡界面 |
+| 23 | 对接验证后台：每台机器一个机器码，杜绝重复 | 机器码改为硬件指纹（Win MachineGuid / macOS IOPlatformUUID / Linux machine-id），显示为 `XXXX-XXXX-XXXX-XXXX`；**修复致命 bug：之前只看接口 `ok`，未登记设备也会显示“授权有效”**，现在以 `authorized` 为准；未授权时禁止开始上架并弹机器码 |
+| 24 | API 设置能跳转购买后台 | API 卡新增「购买 / 充值 API」按钮（`api_purchase_url`）与「测试连接」；API Key 可显示/隐藏 |
+| 25 | 参考老软件提高效率 | ① 产品并发处理（受并发数限制）② 图片结果缓存（同图同处理跨产品复用）③ 价格/模型缓存 5 分钟 ④ 队列并发处理 ⑤ 图片处理不再改共享配置（并发安全）⑥ 设置页异步加载 |
+| 26 | 多开 / 多任务是否完善 | 多开：每个实例独立配置目录 + 独立 CDP 端口（9334 起自动分配）+ 窗口错开；多任务：产品管线并发、队列并发、定时发布独立运行；均加了自动化测试 |
+
+### 授权对接细节（真实后台）
+
+`POST https://license.moneyfly.club/api/v1/license/verify`
+```json
+{"identity": "<sha256 64位>", "machine_code": "D611-7EDB-F432-15E2",
+ "client_type": "ae-publisher", "platform": "Windows", "machine_name": "...", "version": "0.2.0"}
+```
+返回 `{ok, authorized, message, expiry, server_time}`。**只有 `authorized=true` 才算授权**。
+未登记时返回：`未授权：该设备尚未登记，请联系管理员`（已在本机实测）。
+
+### 性能优化点（本轮）
+
+| 优化 | 说明 |
+|---|---|
+| 产品并发 | `_run_pipeline` 用 `concurrency` 个线程同时跑产品，日志/计数加锁 |
+| 队列并发 | `_process_queue` 同样按并发数并行，失败不影响其它任务 |
+| 图片缓存 | `services/image_cache.py`：同 URL + 同动作/提示词 + 同模型只调一次，默认 7 天，可关 |
+| 价格/模型缓存 | `ApiClient.pricing()/models()` 缓存 5 分钟，避免切页面反复打网络 |
+| 并发安全 | `ImagePipeline.run(white_bg=..., prompt=...)` 显式传参，不再改共享 cfg |
+| 设置页响应 | 模型/价格后台加载，按钮先出现；不再阻塞 UI |
+
+### 测试
+
+- `tools/verify_issues.py`：**170/170 通过**（新增授权 6、缓存 6、多开 4、并发 3、队列 1、设置 7）
+- `tools/button_audit.py`：284 个回调，仍只剩历史 FilePicker 假错
+- 真实授权接口实测：未登记 → `ok=false, authorized=false`（设置页显示红色未授权 + 机器码）
+
+![设置（机器码 / API / 模型）](screenshots/new/round5-settings.png)

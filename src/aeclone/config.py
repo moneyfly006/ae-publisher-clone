@@ -18,6 +18,11 @@ DEFAULTS: dict = {
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "license_server": "https://license.moneyfly.club",
+    "license_url": "https://license.moneyfly.club",      # 授权中心（给客户看/联系管理员）
+    "license_enforce": True,                              # 未授权时禁止开始上架
+    "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
+    "image_cache_enable": True,                           # 相同图片+相同处理只调用一次（跨产品复用）
+    "image_cache_days": 7,
     "concurrency": 4,
     "retry_max": 1,
     "retry_delay": 2.0,

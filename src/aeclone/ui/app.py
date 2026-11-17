@@ -297,13 +297,12 @@ def schema_prompts():
 
 
 def schema_settings(cfg):
+    """设置页只保留「上传 / 视频」这类低频项；授权、API、模型、多开改成独立卡片。"""
     return [
-        ("API 配置", [Field("api_key", "API Key"),
-                      Field("concurrency", "并发数"), Field("timeout", "超时(秒)")]),
-        ("上传", [Field("upload_full_cid", "相册分类 ID"), Field("upload_category_name", "相册分类名")]),
-        ("视频", [Field("generate_main_video", "生成主图视频", "bool"),
-                  Field("use_template_video", "使用模板视频", "bool"),
-                  Field("overwrite_existing_video", "覆盖已有视频", "bool")]),
+        ("上传 / 视频", [Field("upload_full_cid", "相册分类 ID"), Field("upload_category_name", "相册分类名"),
+                        Field("generate_main_video", "生成主图视频", "bool"),
+                        Field("use_template_video", "使用模板视频", "bool"),
+                        Field("overwrite_existing_video", "覆盖已有视频", "bool")]),
     ]
 
 
@@ -337,6 +336,14 @@ class App:
                 w, h = win.split("x", 1)
                 page.window_width, page.window_height = int(w), int(h)
                 page.window_min_width, page.window_min_height = 1024, 640
+        except Exception:
+            pass
+        # 多开时窗口错开，避免完全叠在一起
+        try:
+            pos = (os.environ.get("AURORA_WINDOW_POS") or "").strip()
+            if "," in pos:
+                x, y = pos.split(",", 1)
+                page.window_left, page.window_top = int(x), int(y)
         except Exception:
             pass
         page.overlay.append(self.file_picker)
@@ -996,6 +1003,40 @@ class App:
             self._switch(10)
         except Exception:
             pass
+        # 授权校验：未授权不允许开始（防止白嫖/重复机器码）
+        try:
+            if getattr(self.cfg, "license_enforce", True) and not (self.license_state or {}).get("ok"):
+                from ..license import machine_code as _mc
+                from ..license import verify as _verify
+                self._log("开始前检查授权…")
+                res = _verify(self.cfg.license_server)
+                self.license_state = res
+                if not res.get("ok"):
+                    st = getattr(self, "license_text", None)
+                    if st is not None:
+                        st.value = "未授权"
+                        st.color = "#FF6B6B"
+                    code = _mc()
+                    dlg = ft.AlertDialog(
+                        title=ft.Text("未授权，暂时不能开始"),
+                        content=ft.Column([
+                            ft.Text("把这台电脑的机器码发给管理员登记后，点「重新检测」即可：", size=12, color=TEXT),
+                            ft.Text(code, size=16, weight=ft.FontWeight.BOLD, color=ACCENT_2, selectable=True),
+                            ft.Text(str(res.get("message") or "")[:120], size=11, color="#FFB020"),
+                        ], spacing=8, width=460),
+                        actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
+                                 ft.TextButton("复制机器码", on_click=lambda e: self._copy_machine(code)),
+                                 ft.ElevatedButton("重新检测", bgcolor=ACCENT, color="white",
+                                                   on_click=lambda e: (setattr(dlg, "open", False),
+                                                                       threading.Thread(target=self._check_license,
+                                                                                        daemon=True).start(),
+                                                                       self.page.update()))])
+                    self.page.dialog = dlg
+                    dlg.open = True
+                    self.page.update()
+                    return
+        except Exception as ex:
+            self._log(f"授权检查异常：{ex}", "WARN")
         errs = self._validate()
         if errs:
             dlg = ft.AlertDialog(title=ft.Text("启动前检查未通过"),
@@ -1039,6 +1080,15 @@ class App:
                 pass
             raise
 
+    def _copy_machine(self, code: str = ""):
+        from ..license import machine_code as _mc
+        code = code or _mc()
+        try:
+            self.page.set_clipboard(code)
+            self.toast("机器码已复制")
+        except Exception:
+            self.toast(f"请手动复制：{code}", False)
+
     def _publish_scheduled_now(self, job):
         """把「定时发布队列」里的任务立即执行（手动提前发布）。"""
         self._log(f"手动提前发布：{job.product_id}")
@@ -1054,6 +1104,7 @@ class App:
                 pass
 
     def _run_pipeline(self):
+        """并发处理多个产品（老软件同样支持多线程跑），进度条改为「并行中」。"""
         try:
             ck = self._cookies()
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
@@ -1065,23 +1116,56 @@ class App:
             self.products = prods
             if not prods:
                 self._log("没有可编辑（待发布）的产品", "WARN"); return
-            self._log(f"本次待处理 {len(prods)} 个产品", "INFO")
-            pub = Publisher(self.cfg, dxm=dxm, ws_endpoint=self.ws_endpoint, scheduler=getattr(self, 'scheduler', None))
+            workers = max(1, min(int(getattr(self.cfg, "concurrency", 3) or 3), 8, len(prods)))
+            self._log(f"本次待处理 {len(prods)} 个产品，并发 {workers}", "INFO")
+            try:
+                if getattr(self, "ov_progress", None) is not None:
+                    self.ov_progress.value = None
+                    self.ov_progress_text.value = f"并行处理中（{workers} 个线程）"
+                    self.page.update()
+            except Exception:
+                pass
+
             ok_n = fail_n = 0
-            for i, prod in enumerate(prods, 1):
+            lock = threading.Lock()
+
+            def work(item):
+                i, prod = item
+                nonlocal ok_n, fail_n
                 self._log(f"[{i}/{len(prods)}] {prod['id']} {(prod.get('title') or '')[:40]}", "INFO")
                 try:
-                    res = pub.run(prod, dry_run=not self.cfg.auto_save_products)
+                    local_ck = dict(ck)
+                    local_dxm = DianxiaomiClient(local_ck, overrides=self.cfg.endpoint_overrides or {})
+                    pub = Publisher(self.cfg, dxm=local_dxm, ws_endpoint=self.ws_endpoint,
+                                    scheduler=getattr(self, "scheduler", None))
+                    res = pub.run(prod, dry_run=not self.cfg.auto_save_products, manage_progress=False)
                     for line in res.log().splitlines():
                         self._log("   " + line, "INFO" if "✓" in line else "WARN")
-                    ok_n += 1 if res.ok else 0
-                    fail_n += 0 if res.ok else 1
+                    with lock:
+                        ok_n += 1 if res.ok else 0
+                        fail_n += 0 if res.ok else 1
                     if self.cfg.auto_save_products and res.ok:
                         history.record("publish", 1, 0, prod["id"])
                 except Exception as ex:  # noqa: BLE001
-                    fail_n += 1
+                    with lock:
+                        fail_n += 1
                     self._log(f"   失败：{ex}", "ERROR")
+
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
+                list(ex.map(work, list(enumerate(prods, 1))))
             self._log(f"完成：成功 {ok_n} / 失败 {fail_n}", "INFO")
+            try:
+                history.record("pipeline", ok_n, fail_n)
+            except Exception:
+                pass
+            try:
+                if getattr(self, "ov_progress", None) is not None:
+                    self.ov_progress.value = 1
+                    self.ov_progress_text.value = f"完成：成功 {ok_n} / 失败 {fail_n}"
+                    self.page.update()
+            except Exception:
+                pass
         except Exception as ex:
             self._log(f"运行异常：{ex}", "ERROR")
 
@@ -3680,32 +3764,55 @@ class App:
             pass
 
     def _process_queue(self):
+        """队列并发处理（受「并发数」限制），失败不影响其它任务。"""
         try:
             ck = self._cookies()
-            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
         except Exception as ex:
             self._log(f"队列：未连接浏览器（{ex}），将以离线模式运行")
-            dxm = None
-        pub = Publisher(self.cfg, dxm=dxm, ws_endpoint=self.ws_endpoint, scheduler=getattr(self, 'scheduler', None))
-        ok = fail = 0
+            ck = None
         by_id = {str(p.get("id")): p for p in (self.products or [])}
         by_id.update({str(k): v for k, v in getattr(self, "_queue_products", {}).items()})
-        for item in self.q.pending():
-            self.q.mark(item.product_id, "running")
-            self._refresh_queue()
+        items = self.q.pending()
+        if not items:
+            self.toast("队列为空", False)
+            return
+        workers = max(1, min(int(getattr(self.cfg, "concurrency", 3) or 3), 8, len(items)))
+        lock = threading.Lock()
+        counts = {"ok": 0, "fail": 0}
+
+        def work(item):
             base = by_id.get(item.product_id, {})
             prod = {"id": item.product_id,
                     "title": base.get("title") or item.title,
                     "skus": base.get("skus") or [],
                     "images": base.get("images") or [],
                     "cost": 0}
-            res = pub.run(prod, dry_run=not self.cfg.auto_save_products)
-            self.q.mark(item.product_id, "done" if res.ok else "failed", res.error)
-            ok += 1 if res.ok else 0
-            fail += 0 if res.ok else 1
-            self._log(f"队列 {item.product_id}: {'完成' if res.ok else '失败 ' + res.error}")
-            self._refresh_queue()
+            with lock:
+                self.q.mark(item.product_id, "running")
+                self._refresh_queue()
+            try:
+                local_dxm = DianxiaomiClient(dict(ck) if ck else {}, overrides=self.cfg.endpoint_overrides or {}) if ck else None
+                pub = Publisher(self.cfg, dxm=local_dxm, ws_endpoint=self.ws_endpoint,
+                                scheduler=getattr(self, "scheduler", None))
+                res = pub.run(prod, dry_run=not self.cfg.auto_save_products, manage_progress=False)
+                status = "done" if res.ok else "failed"
+                msg = res.error
+            except Exception as ex:  # noqa: BLE001
+                status, msg = "failed", str(ex)[:160]
+            with lock:
+                self.q.mark(item.product_id, status, msg)
+                counts["ok" if status == "done" else "fail"] += 1
+                self._refresh_queue()
+                self._log(f"队列 {item.product_id}: {'完成' if status == 'done' else '失败 ' + msg}")
+
+        self._log(f"队列开始：{len(items)} 个任务，并发 {workers}")
+        import concurrent.futures as _cf
+        with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(work, items))
+        ok, fail = counts["ok"], counts["fail"]
         history.record("queue", ok, fail)
+        self._log(f"队列完成：成功 {ok} / 失败 {fail}")
         self.toast(f"队列处理完成：成功 {ok} / 失败 {fail}")
 
     def _images_from_products(self):
@@ -4494,21 +4601,164 @@ class App:
             pass
 
     def _p_settings(self):
-        self._current = 9
-        def recharge(e):
-            try:
-                self.page.launch_url("https://api.moneyfly.club")
-            except Exception:
-                self.toast("请在浏览器打开 https://api.moneyfly.club", False)
-
-        recharge_card = card(ft.Column([
-            h1("额度", 15),
-            muted("额度不足时，点击下面按钮登录站点充值后回到本页即可继续使用（无需改任何配置）"),
-            ft.Row([ft.ElevatedButton("额度不足？去充值", icon=ft.Icons.ACCOUNT_BALANCE_WALLET,
-                                      bgcolor="#F0A020", color="#1A1200", on_click=recharge)], spacing=10),
-        ], spacing=10))
+        self._current = 8
         view = self._render("设置", schema_settings(self.cfg))
-        self.inst_name = ft.TextField(label="新实例名称", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+        # ---------------- 授权 ----------------
+        from ..license import machine_code as _mcode
+        code = _mcode()
+        self.machine_text = ft.Text(code, size=18, weight=ft.FontWeight.BOLD, color=TEXT, selectable=True)
+        self.lic_status = ft.Text("检测中…", size=12, color=MUTED)
+        self.lic_detail = ft.Text("", size=11, color=MUTED)
+
+        def copy_code(e):
+            try:
+                self.page.set_clipboard(code)
+                self.toast("机器码已复制，发给管理员即可登记授权")
+            except Exception:
+                self.toast(f"请手动复制：{code}", False)
+
+        def recheck_lic(e):
+            self.lic_status.value = "检测中…"
+            self.lic_status.color = MUTED
+            try:
+                self.page.update()
+            except Exception:
+                pass
+            threading.Thread(target=self._check_license, daemon=True).start()
+
+        def open_lic(e):
+            url = str(getattr(self.cfg, "license_url", "") or "https://license.moneyfly.club")
+            try:
+                self.page.launch_url(url)
+            except Exception:
+                self.toast(f"请在浏览器打开 {url}", False)
+
+        lic_card = card(ft.Column([
+            h1("授权", 15),
+            muted("每台电脑的机器码都不同。把机器码发给管理员登记后，点「重新检测」即可使用"),
+            ft.Row([ft.Text("机器码：", size=12, color=MUTED), self.machine_text], spacing=8, wrap=True),
+            ft.Row([ft.ElevatedButton("复制机器码", icon=ft.Icons.COPY, bgcolor=ACCENT, color="white",
+                                      on_click=copy_code),
+                    ft.OutlinedButton("重新检测", icon=ft.Icons.REFRESH, on_click=recheck_lic),
+                    ft.OutlinedButton("打开授权中心", icon=ft.Icons.LOCK_OUTLINE, on_click=open_lic)],
+                   spacing=8, wrap=True),
+            self.lic_status, self.lic_detail,
+        ], spacing=8))
+        self.lic_status.value = (self.license_state or {}).get("message") or "未检测"
+        if (self.license_state or {}).get("ok"):
+            self.lic_status.color = ACCENT_2
+            exp = (self.license_state or {}).get("expiry") or ""
+            self.lic_detail.value = f"到期：{exp}" if exp else "授权有效（长期）"
+        else:
+            self.lic_status.color = "#FF6B6B"
+            self.lic_detail.value = "如果刚登记过，点「重新检测」；换电脑/重装系统后机器码会变，需要重新登记"
+
+        # ---------------- API ----------------
+        self.api_key_field = ft.TextField(label="API Key", value=str(self.cfg.api_key or ""),
+                                          password=True, can_reveal_password=True, width=460,
+                                          bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.api_base_field = ft.TextField(label="API 地址", value=str(self.cfg.api_base or ""), width=460,
+                                           bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.api_status = ft.Text("", size=11, color=MUTED)
+        self.cfg_concurrency = ft.TextField(label="并发数（同时处理几个产品）",
+                                            value=str(self.cfg.concurrency or 3), width=220,
+                                            bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.cfg_timeout = ft.TextField(label="超时（秒）", value=str(self.cfg.timeout or 180), width=160,
+                                        bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+        def save_api(e=None):
+            self.cfg.set("api_key", str(self.api_key_field.value or "").strip())
+            self.cfg.set("api_base", str(self.api_base_field.value or "").strip() or "https://api.moneyfly.club")
+            try:
+                self.cfg.set("concurrency", int(float(self.cfg_concurrency.value or 3)))
+            except Exception:
+                pass
+            try:
+                self.cfg.set("timeout", int(float(self.cfg_timeout.value or 180)))
+            except Exception:
+                pass
+            save_config(self.cfg)
+            self.api_status.value = "已保存"
+            self.api_status.color = ACCENT_2
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def test_api(e):
+            save_api()
+            self.api_status.value = "测试中…"
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+            def go():
+                try:
+                    models = ApiClient(self.cfg.api_base, self.cfg.api_key, 20).models(force=True)
+                    self.api_status.value = f"连接正常：{len(models)} 个模型"
+                    self.api_status.color = ACCENT_2
+                except Exception as ex:  # noqa: BLE001
+                    self.api_status.value = f"连接失败：{str(ex)[:90]}"
+                    self.api_status.color = "#FF6B6B"
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
+
+            threading.Thread(target=go, daemon=True).start()
+
+        def buy_api(e):
+            url = str(getattr(self.cfg, "api_purchase_url", "") or "https://api.moneyfly.club")
+            try:
+                self.page.launch_url(url)
+            except Exception:
+                self.toast(f"请在浏览器打开 {url}", False)
+
+        api_card = card(ft.Column([
+            h1("API", 15),
+            muted("填好 API Key 即可用；没有 Key 或额度不足时，点「购买/充值」去你的 API 后台"),
+            self.api_base_field, self.api_key_field,
+            ft.Row([self.cfg_concurrency, self.cfg_timeout,
+                    ft.ElevatedButton("保存", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white", on_click=save_api),
+                    ft.OutlinedButton("测试连接", icon=ft.Icons.WIFI_TETHERING, on_click=test_api),
+                    ft.ElevatedButton("购买 / 充值 API", icon=ft.Icons.ACCOUNT_BALANCE_WALLET,
+                                      bgcolor="#F0A020", color="#1A1200", on_click=buy_api)],
+                   spacing=8, wrap=True),
+            self.api_status,
+        ], spacing=8))
+
+        # ---------------- 模型 ----------------
+        self.model_dd = {}
+        self.model_cost_text = ft.Text("", size=12, color=ACCENT_2)
+        self.model_status = ft.Text("模型加载中…", size=11, color=MUTED)
+
+        def _build_model_card():
+            dd = {}
+            for kind, label in (("image_edit", "图片编辑（白底/去水印/精修）"),
+                                ("image_gen", "图片生成（文生图/多图合成）"),
+                                ("text", "文本（标题/描述/SKU）"),
+                                ("vision", "视觉（图片审查/估重）")):
+                dd[kind] = ft.Dropdown(label=label, width=430, bgcolor=CARD_2, border_color=CARD_2,
+                                       color=TEXT, options=[])
+                self.model_dd[kind] = dd[kind]
+            return card(ft.Column([
+                h1("模型", 15),
+                muted("默认就用推荐模型；想省钱/换效果再改，改完自动保存"),
+                dd["image_edit"], dd["image_gen"], dd["text"], dd["vision"],
+                ft.Row([ft.ElevatedButton("刷新模型", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
+                                          on_click=lambda e: threading.Thread(target=self._load_models, args=(True,), daemon=True).start()),
+                        ft.OutlinedButton("恢复推荐", icon=ft.Icons.RESTART_ALT, on_click=lambda e: self._reset_models())],
+                       spacing=8, wrap=True),
+                self.model_cost_text, self.model_status], spacing=8))
+
+        model_card = _build_model_card()
+        threading.Thread(target=self._load_models, args=(False,), daemon=True).start()
+
+        # ---------------- 多开 ----------------
+        self.inst_name = ft.TextField(label="新实例名称（如 店铺2）", width=240,
+                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.inst_list = ft.Column(spacing=4)
         self._refresh_instances()
 
@@ -4517,10 +4767,10 @@ class App:
             if not name:
                 self.toast("请输入实例名称", False); return
             try:
-                create_instance(name)
-                self._log(f"实例已创建：{name}")
+                info = create_instance(name)
+                self._log(f"实例已创建：{name}（端口 {info.get('cdp_port')}）")
                 self._refresh_instances()
-                self.toast("实例已创建")
+                self.toast(f"实例已创建：{name}（端口 {info.get('cdp_port')}）")
             except Exception as ex:
                 self.toast(str(ex), False)
 
@@ -4531,80 +4781,83 @@ class App:
             try:
                 launch_instance(name)
                 self._log(f"实例已启动：{name}")
-                self.toast("新实例已启动")
+                self.toast("新实例已启动（独立配置与调试端口）")
             except Exception as ex:
                 self.toast(str(ex), False)
 
-        inst_card = card(ft.Column([h1("多实例", 15),
-                                    ft.Row([self.inst_name,
-                                            ft.ElevatedButton("创建", on_click=create),
-                                            ft.ElevatedButton("启动", on_click=launch)], spacing=10),
-                                    self.inst_list], spacing=10))
+        def create_and_launch(e):
+            create(e)
+            launch(e)
 
+        inst_card = card(ft.Column([
+            h1("多开 / 多任务", 15),
+            muted("每个实例独立配置、独立浏览器调试端口，可同时跑不同店铺；任务队列与定时发布也按实例隔离"),
+            ft.Row([self.inst_name,
+                    ft.ElevatedButton("创建实例", icon=ft.Icons.ADD, on_click=create),
+                    ft.ElevatedButton("创建并启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color="white",
+                                      on_click=create_and_launch)], spacing=8, wrap=True),
+            self.inst_list,
+        ], spacing=8))
+
+        # ---------------- 更新 / 诊断 / 价格 ----------------
         upd = card(ft.Column([h1("版本更新", 15),
                               ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
                                                         on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
                              spacing=8))
-
-        self.price_list = ft.Column(spacing=3)
-        self._load_prices()
-        # ---- 模型选择（按类型分开，显示价格） ----
-        self.model_dd = {}
-        self.model_cost_text = ft.Text("", size=12, color=ACCENT_2)
-        self.model_status = ft.Text("", size=11, color=MUTED)
-
-        def _build_model_card():
-            dd = {}
-            for kind, label in (("image_edit", "图片编辑模型（白底/去水印/精修）"),
-                                ("image_gen", "图片生成模型（文生图）"),
-                                ("text", "文本模型（标题/描述/SKU）"),
-                                ("vision", "视觉模型（读图审查）")):
-                dd[kind] = ft.Dropdown(label=label, width=430, bgcolor=CARD_2, border_color=CARD_2,
-                                       color=TEXT, options=[])
-                self.model_dd[kind] = dd[kind]
-            return card(ft.Column([
-                h1("模型选择", 15),
-                muted("按类型自选模型，价格实时取自你的 API 站点；改完自动保存"),
-                dd["image_edit"], dd["image_gen"], dd["text"], dd["vision"],
-                ft.Row([ft.ElevatedButton("刷新模型与价格", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
-                                          on_click=lambda e: self._load_models()),
-                        ft.ElevatedButton("测试图片模型（会产生一次费用）", icon=ft.Icons.SCIENCE,
-                                          bgcolor="#F0A020", color="#1A1200",
-                                          on_click=lambda e: threading.Thread(target=self._test_image_model, daemon=True).start())],
-                       spacing=10, wrap=True),
-                self.model_cost_text, self.model_status], spacing=8))
-
-        model_card = _build_model_card()
-        self._load_models()
-
         self.diag_list = ft.Column(spacing=4)
         diag_card = card(ft.Column([
-            h1("系统诊断", 15),
-            muted("一键检查 API Key、站点、浏览器、店小秘、ffmpeg、磁盘"),
+            h1("诊断（出问题时再点）", 15),
+            muted("检查 API、浏览器、店小秘、ffmpeg、磁盘；不影响正常使用"),
             ft.Row([ft.ElevatedButton("开始诊断", icon=ft.Icons.HEALTH_AND_SAFETY, bgcolor=ACCENT, color="white",
                                       on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start()),
-                    ft.ElevatedButton("全接口冒烟（约 ¥0.4）", icon=ft.Icons.WIFI_TETHERING, bgcolor="#F0A020", color="#1A1200",
-                                      on_click=lambda e: self._smoke_confirm())], spacing=10, wrap=True),
+                    ft.ElevatedButton("全接口冒烟（约 ¥0.4）", icon=ft.Icons.WIFI_TETHERING, bgcolor="#F0A020",
+                                      color="#1A1200", on_click=lambda e: self._smoke_confirm())],
+                   spacing=8, wrap=True),
             self.diag_list], spacing=8))
-
+        self.price_list = ft.Column(spacing=3)
+        self.price_status = ft.Text("价格加载中…", size=11, color=MUTED)
         price_card = card(ft.Column([
-            h1("模型与价格", 15),
-            muted("每次生成/调用按下面价格从你的额度扣除"),
-            self.price_list,
-            ft.Row([ft.ElevatedButton("刷新价格", icon=ft.Icons.REFRESH, on_click=lambda e: self._load_prices())]),
-        ], spacing=8))
+            h1("模型价格", 15), self.price_status, self.price_list,
+            ft.Row([ft.ElevatedButton("刷新价格", icon=ft.Icons.REFRESH,
+                                      on_click=lambda e: threading.Thread(target=self._load_prices, daemon=True).start())])],
+            spacing=8))
+        threading.Thread(target=self._load_prices, daemon=True).start()
 
-        return [view[0], model_card, recharge_card, diag_card, price_card, inst_card, upd] + view[1:]
+        return [view[0], lic_card, api_card, model_card, inst_card, upd, diag_card, price_card] + view[1:]
 
-    def _load_models(self):
-        """从 /api/pricing 拉取模型，按类型分到 4 个下拉，并标注价格。"""
+    def _reset_models(self):
+        """一键恢复推荐模型（老软件也是默认一套，不用用户琢磨）。"""
+        defaults = {"model_image_edit": "qwen-image-2.1-turbo",
+                    "model_image_gen": "z-image-turbo",
+                    "model_text": "qwen-plus",
+                    "model_vision": "qwen3-vl-plus"}
+        for k, v in defaults.items():
+            self.cfg.set(k, v)
+        save_config(self.cfg)
+        for kind, key in (("image_edit", "model_image_edit"), ("image_gen", "model_image_gen"),
+                          ("text", "model_text"), ("vision", "model_vision")):
+            dd = getattr(self, "model_dd", {}).get(kind)
+            if dd is not None:
+                dd.value = defaults[key]
+        self.toast("已恢复推荐模型")
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _load_models(self, force: bool = False):
+        """从 /api/pricing 拉取模型（缓存 5 分钟），按类型分到 4 个下拉并标注价格。"""
         try:
             from ..api import ApiClient
             rows = ApiClient(self.cfg.api_base, self.cfg.api_key, 20,
-                             proxy=self.cfg.proxy_url if getattr(self.cfg, "proxy_enabled", False) else "").pricing()
+                             proxy=self.cfg.proxy_url if getattr(self.cfg, "proxy_enabled", False) else "").pricing(force=force)
         except Exception as ex:
             if hasattr(self, "model_status"):
-                self.model_status.value = f"价格获取失败：{ex}"
+                self.model_status.value = f"模型/价格获取失败：{str(ex)[:80]}"
+            return
+        if not rows:
+            if hasattr(self, "model_status"):
+                self.model_status.value = "没有取到模型：先填 API Key 并点「测试连接」"
             return
         img = [r for r in rows if r["per_call"] > 0]
         txt = [r for r in rows if r["per_call"] <= 0]
@@ -4904,8 +5157,13 @@ class App:
                 items.append(ft.Text("＊ 旧版模型名（gpt-6-luna、gpt-image-2.5-flare 等）已自动映射到对应模型，价格相同",
                                      size=10, color=MUTED))
             self.price_list.controls = items or [ft.Text("价格获取失败", size=12, color="#FFB020")]
+            if getattr(self, "price_status", None) is not None:
+                self.price_status.value = f"共 {len(rows)} 个模型（缓存 5 分钟）"
+                self.price_status.color = MUTED
         except Exception as ex:
             self.price_list.controls = [ft.Text(f"价格获取失败：{ex}", size=12, color="#FF6B6B")]
+            if getattr(self, "price_status", None) is not None:
+                self.price_status.value = "价格获取失败，检查 API Key/网络后点刷新"
         try:
             self.page.update()
         except Exception:
@@ -4915,8 +5173,15 @@ class App:
             items = list_instances()
         except Exception:
             items = []
-        self.inst_list.controls = [ft.Text(f"{i['name']}  ·  {i['path']}", size=11, color=MUTED) for i in items] or \
-                                  [ft.Text("暂无实例", size=11, color=MUTED)]
+        rows = []
+        for i in items:
+            port = i.get("cdp_port") or "-"
+            rows.append(ft.Row([
+                ft.Text(f"{i['name']}", size=12, color=TEXT, width=110),
+                ft.Text(f"调试端口 {port}", size=11, color=MUTED, width=110),
+                ft.Text(str(i.get("path") or "")[:60], size=10, color=MUTED, expand=True),
+            ], spacing=8))
+        self.inst_list.controls = rows or [ft.Text("暂无实例", size=11, color=MUTED)]
 
     def _check_update(self):
         r = updater.check(self.cfg.license_server)
@@ -4928,10 +5193,27 @@ class App:
 
     # ---------- 行为 ----------
     def _check_license(self):
-        res = verify_license(self.cfg.license_server)
+        try:
+            from ..core.updater import CURRENT as _ver
+        except Exception:
+            _ver = ""
+        res = verify_license(self.cfg.license_server, version=_ver)
         self.license_state = res
-        self.license_text.value = res["message"]
-        self.license_text.color = ACCENT_2 if res["ok"] else "#FF6B6B"
+        msg = res.get("message") or ("授权有效" if res.get("ok") else "未授权")
+        self.license_text.value = "授权有效" if res.get("ok") else "未授权"
+        self.license_text.color = ACCENT_2 if res.get("ok") else "#FF6B6B"
+        # 设置页的授权卡片同步刷新
+        for attr in ("lic_status", "lic_detail"):
+            if getattr(self, attr, None) is None:
+                continue
+        if getattr(self, "lic_status", None) is not None:
+            self.lic_status.value = msg
+            self.lic_status.color = ACCENT_2 if res.get("ok") else "#FF6B6B"
+        if getattr(self, "lic_detail", None) is not None:
+            exp = res.get("expiry") or ""
+            self.lic_detail.value = (f"到期：{exp}" if exp else
+                                     ("授权有效（长期）" if res.get("ok")
+                                      else "把上面的机器码发给管理员登记；登记后点「重新检测」"))
         self._apply_license_state()
         try:
             self.page.update()

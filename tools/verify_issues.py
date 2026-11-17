@@ -949,6 +949,186 @@ def main():
     uapp._upload_results()
     check("工作台：上传不崩", True, "")
 
+    # ============================== 第 5 轮：授权 / 缓存 / 并发 / 多开
+    section("授权（机器码 + authorized 判定）")
+    import re as _re
+    from aeclone import license as _lic
+    code1 = _lic.machine_code()
+    code2 = _lic.machine_code()
+    check("授权：机器码稳定", code1 == code2 and len(code1) == 19, code1)
+    check("授权：机器码格式 XXXX-XXXX-XXXX-XXXX", bool(_re.fullmatch(r"[0-9A-F]{4}(-[0-9A-F]{4}){3}", code1)), code1)
+    check("授权：identity 为 64 位", bool(_re.fullmatch(r"[0-9a-f]{64}", _lic.machine_id())), "")
+
+    from unittest import mock as _mock
+
+    class _Resp2:
+        status_code = 200
+
+        def __init__(self, data):
+            self._d = data
+
+        def json(self):
+            return self._d
+
+    with _mock.patch.object(_lic.requests, "post", return_value=_Resp2(
+            {"ok": True, "authorized": False, "message": "未授权：该设备尚未登记"})):
+        r_lic = _lic.verify("https://license.example", timeout=3)
+    check("授权：未登记设备不再误判", (not r_lic["ok"]) and "未登记" in r_lic["message"], str(r_lic))
+    with _mock.patch.object(_lic.requests, "post", return_value=_Resp2(
+            {"ok": True, "authorized": True, "expiry": "2027-01-01"})):
+        r_lic = _lic.verify("https://license.example", timeout=3)
+    check("授权：已登记设备通过", r_lic["ok"] and r_lic["expiry"] == "2027-01-01", str(r_lic))
+    with _mock.patch.object(_lic.requests, "post", side_effect=RuntimeError("net down")):
+        r_lic = _lic.verify("https://license.example", timeout=3)
+    check("授权：网络异常可读", (not r_lic["ok"]) and "无法连接" in r_lic["message"], r_lic["message"][:60])
+
+    section("性能：图片/价格/模型缓存")
+    import aeclone.services.image_cache as _ic
+    _ic.clear()
+    _ic.put("http://x/a.png", "simple:white", "http://x/a-white.png", "m1")
+    check("缓存：命中", _ic.get("http://x/a.png", "simple:white", "m1") == "http://x/a-white.png", "")
+    check("缓存：不同动作不串", _ic.get("http://x/a.png", "simple:watermark", "m1") is None, "")
+    check("缓存：不同模型不串", _ic.get("http://x/a.png", "simple:white", "m2") is None, "")
+    check("缓存：清理", _ic.clear() >= 1 and _ic.stats()["count"] == 0, "")
+
+    from aeclone.api import ApiClient as _AC2
+
+    class _FakeSession:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, url, **k):
+            self.calls += 1
+            if "/api/pricing" in url:
+                return _Resp3({"data": [{"model_name": "m1", "model_price": 1.0, "model_ratio": 0.5}]})
+            return _Resp3({"data": [{"id": "m1"}]})
+
+    class _Resp3:
+        status_code = 200
+
+        def __init__(self, d):
+            self._d = d
+
+        def json(self):
+            return self._d
+
+    fs = _FakeSession()
+    ac = _AC2("https://cache-test.example", "k", 5, session=fs)
+    p1 = ac.pricing(force=True)
+    p2 = ac.pricing()
+    check("缓存：价格表只请求一次", fs.calls == 1 and p1 == p2, f"calls={fs.calls}")
+    ac.models(force=True)
+    ac.models()
+    check("缓存：模型列表只请求一次", fs.calls == 2, f"calls={fs.calls}")
+
+    section("多开：实例独立端口")
+    from aeclone.core import instances as _inst
+    old_inst_env = os.environ.get("AURORA_INSTANCE")
+    os.environ["AURORA_INSTANCE"] = "_verify_multi"
+    try:
+        n1 = _inst.create_instance("店铺A")
+        n2 = _inst.create_instance("店铺B")
+        check("多开：端口不重复", n1["cdp_port"] != n2["cdp_port"] and n1["cdp_port"] >= 9334,
+              f"{n1['cdp_port']} vs {n2['cdp_port']}")
+        names = [i["name"] for i in _inst.list_instances()]
+        check("多开：实例可见", "店铺A" in names and "店铺B" in names, str(names))
+        check("多开：端口记录在实例列表", all(i.get("cdp_port") for i in _inst.list_instances() if i["name"] in names),
+              str(_inst.list_instances()))
+    finally:
+        if old_inst_env is None:
+            os.environ.pop("AURORA_INSTANCE", None)
+        else:
+            os.environ["AURORA_INSTANCE"] = old_inst_env
+
+    # 启动实例：命令与环境（不真的开窗口）
+    with _mock.patch.object(_inst.subprocess, "Popen") as mp:
+        _inst.launch_instance("店铺A")
+        args, kwargs = mp.call_args
+        env = kwargs.get("env") or {}
+        check("多开：启动带实例名", env.get("AURORA_INSTANCE") == "店铺A", str(env.get("AURORA_INSTANCE")))
+        check("多开：窗口位置错开", "," in str(env.get("AURORA_WINDOW_POS")), str(env.get("AURORA_WINDOW_POS")))
+        check("多开：入口脚本正确", any(str(x).endswith("main.py") for x in (args[0] or [])), str(args[0]))
+
+    section("并发：多产品同时处理")
+    uapp.cfg.set("concurrency", 4)
+    uapp.cfg.set("auto_save_products", False)
+    started = {"n": 0}
+    elapsed = {"t": 0.0}
+    real_pub = _m.Publisher
+
+    class _SlowPublisher:
+        def __init__(self, *a, **k): pass
+
+        def run(self, prod, dry_run=True, manage_progress=True):
+            started["n"] += 1
+            __import__("time").sleep(0.2)
+            return _PR2(product_id=str(prod.get("id")), ok=True)
+
+    class _DxmMany:
+        def __init__(self, *a, **k): pass
+
+        def product_page(self, *a, **k):
+            return ([], {"total": 0})
+
+        def pending_products(self, limit=0, shop_id=None):
+            return [{"id": str(i), "title": f"p{i}", "images": [], "skus": []} for i in range(4)]
+
+    _m.Publisher = _SlowPublisher
+    _m.DianxiaomiClient = _DxmMany
+    uapp._cookies = lambda *a, **k: {"dxm_i": "x"}
+    t0 = time.time()
+    uapp._run_pipeline()
+    elapsed["t"] = time.time() - t0
+    _m.Publisher = real_pub
+    check("并发：4 个产品都处理", started["n"] == 4, str(started["n"]))
+    check("并发：耗时接近单个（并行生效）", elapsed["t"] < 0.55, f"{elapsed['t']:.2f}s")
+
+    section("设置页：机器码 / API 购买 / 多开")
+    uapp._switch(8)
+    set_labels = " ".join(texts(uapp.content.controls))
+    check("设置：显示机器码", "机器码" in set_labels and _lic.machine_code() in set_labels, set_labels[:100])
+    check("设置：有复制机器码", "复制机器码" in set_labels, "")
+    check("设置：有 API 购买入口", "购买 / 充值 API" in set_labels, "")
+    check("设置：有测试连接", "测试连接" in set_labels, "")
+    check("设置：多开入口", "多开 / 多任务" in set_labels and "创建并启动" in set_labels, "")
+    api_key_fields = [c for c in walk(uapp.content.controls) if getattr(c, "label", "") == "API Key"]
+    check("设置：API Key 只有一个输入框", len(api_key_fields) <= 1, str(len(api_key_fields)))
+
+    # 队列并发处理
+    class _QPub:
+        def __init__(self, *a, **k): pass
+
+        def run(self, prod, dry_run=True, manage_progress=True):
+            __import__("time").sleep(0.15)
+            return _PR2(product_id=str(prod.get("id")), ok=True)
+
+    _m.Publisher = _QPub
+    uapp.q = type("Q", (), {
+        "pending": lambda self: [type("I", (), {"product_id": "1", "title": "a"})(),
+                                 type("I", (), {"product_id": "2", "title": "b"})()],
+        "mark": lambda self, *a, **k: None,
+        "stats": lambda self: {"pending": 0, "running": 0, "done": 2, "failed": 0},
+    })()
+    uapp._queue_products = {}
+    uapp._refresh_queue = lambda: None
+    t0 = time.time()
+    uapp._process_queue()
+    qt = time.time() - t0
+    _m.Publisher = real_pub
+    check("多任务：队列并发完成", qt < 0.28, f"{qt:.2f}s")
+
+    # 未授权时不允许开始
+    uapp.cfg.set("license_enforce", True)
+    uapp.license_state = {}
+    uapp._run_pipeline = lambda: started.update({"pipeline": True})
+    started["pipeline"] = False
+    with _mock.patch.object(_m, "verify_license", return_value={
+            "ok": False, "authorized": False, "message": "未授权：该设备尚未登记", "expiry": ""}):
+        uapp._start()
+    dlg = uapp.page.dialog
+    check("授权：未授权阻止开始", started.get("pipeline") is False, str(started))
+    check("授权：弹出机器码提示", dlg is not None and getattr(dlg, "open", False), type(dlg).__name__ if dlg else "None")
+
     # ============================== 汇总
     section("汇总")
     fails = [r for r in RESULTS if not r[1] and not r[0].startswith("----")]

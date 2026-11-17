@@ -144,9 +144,42 @@ class Publisher:
 
     def _edit_with_prompt(self, url: str, prompt: str) -> str:
         """对单张 URL 用指定提示词做一次编辑，返回新 URL。"""
+        _act = "edit:" + (prompt or "")[:120]
+        _hit = self._cache_get(url, _act, self._img_model())
+        if _hit:
+            return _hit
         svc = self._img_service()
         fp = self._fetch(url)
-        return str(svc.edit(fp, prompt))
+        out = str(svc.edit(fp, prompt))
+        self._cache_put(url, _act, out, self._img_model())
+        return out
+
+    # ---------- 图片结果缓存（同图同处理只算一次）----------
+    def _cache_get(self, url: str, action: str, model: str = "") -> str | None:
+        if not getattr(self.cfg, "image_cache_enable", True):
+            return None
+        try:
+            from .image_cache import get as _get
+            return _get(str(url), str(action), model or "",
+                        int(getattr(self.cfg, "image_cache_days", 7) or 7))
+        except Exception:
+            return None
+
+    def _cache_put(self, url: str, action: str, out: str, model: str = "") -> None:
+        if not getattr(self.cfg, "image_cache_enable", True) or not out:
+            return
+        try:
+            from .image_cache import put as _put
+            _put(str(url), str(action), str(out), model or "")
+        except Exception:
+            pass
+
+    def _img_model(self) -> str:
+        try:
+            from . import model_of
+            return model_of(self.cfg, "image_edit")
+        except Exception:
+            return ""
 
     def _fetch(self, url: str, workdir=None):
         """下载图片到本地（供多图素材上传用）。"""
@@ -196,9 +229,15 @@ class Publisher:
         ops = [o for o in (ops or []) if o in ("white", "watermark", "translate")]
         if not ops:
             return url
+        _act = "simple:" + ",".join(sorted(ops)) + f":{str(getattr(self.cfg, 'translate_prompt', ''))[:40]}"
+        _hit = self._cache_get(url, _act, self._img_model())
+        if _hit:
+            return _hit
         fp = self._fetch(url)
         if set(ops) == {"white", "watermark"}:
-            return str(svc.combined(fp))
+            out = str(svc.combined(fp))
+            self._cache_put(url, _act, out, self._img_model())
+            return out
         cur = url
         for op in ops:
             if op == "white":
@@ -212,6 +251,8 @@ class Publisher:
             cur = str(new)
             if ops[-1] != op:
                 fp = self._fetch(cur)
+        if cur != str(url):
+            self._cache_put(url, _act, cur, self._img_model())
         return cur
 
     def _apply_image_jobs(self, p: dict, res, dry_run: bool = False) -> dict:
@@ -272,6 +313,21 @@ class Publisher:
             if job["mode"] == "edit" and not target:
                 add_step(res, f"精细任务{n}", False, f"{GROUP_LABELS.get(group, group)} 第{job['index']}张不存在")
                 continue
+            _cache_action = ("many:" + prompt[:120] + "|" + (target or "")[:200] + "|"
+                             + ",".join(ref_urls)[:300])
+            _hit = self._cache_get(target or (ref_urls[0] if ref_urls else ""), _cache_action,
+                                   self._img_model()) if (target or ref_urls) else None
+            if _hit:
+                made = [_hit]
+                insert = job.get("insert") or ("first" if job["mode"] == "generate" else "replace")
+                if insert == "first":
+                    urls.insert(0, _hit); self._set_group_list(p, group, urls)
+                elif insert == "last":
+                    urls.append(_hit); self._set_group_list(p, group, urls)
+                else:
+                    self._set_group_url(p, group, tgt_i, _hit)
+                add_step(res, f"精细任务{n}", True, "命中缓存（同一张图之前处理过）")
+                continue
             try:
                 import tempfile as _tf
                 from pathlib import Path as _P
@@ -308,6 +364,9 @@ class Publisher:
             else:
                 for k, u in enumerate(made):
                     self._set_group_url(p, group, tgt_i + k, u)
+            if made:
+                self._cache_put(target or (ref_urls[0] if ref_urls else ""), _cache_action,
+                                made[0], self._img_model())
             add_step(res, f"精细任务{n}", True,
                      f"{GROUP_LABELS.get(group, group)} · 素材 {len(files)} 张 · "
                      + ("插到第1张" if insert == "first" else "放到最后" if insert == "last" else "替换原图"))
@@ -389,7 +448,12 @@ class Publisher:
         p["price_result"] = r
         return p
 
-    def _run_ops(self, url: str, white_bg: bool, remove_wm: bool, edit: bool) -> str:
+    def _run_ops(self, url: str, white_bg: bool, remove_wm: bool, edit: bool,
+                 prompt: str | None = None) -> str:
+        _act = f"ops:{int(bool(white_bg))}{int(bool(remove_wm))}{int(bool(edit))}:{(prompt or '')[:60]}"
+        _hit = self._cache_get(url, _act, self._img_model())
+        if _hit:
+            return _hit
         # 白底 + 去水印 同时开启时，合并成一次调用
         if white_bg and remove_wm and not edit:
             try:
@@ -400,17 +464,17 @@ class Publisher:
                 d = _P(_tf.mkdtemp()); fp = d / "in.png"
                 fp.write_bytes(_rq.get(str(url), timeout=90).content)
                 svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
-                return svc.combined(fp) or str(url)
+                out = svc.combined(fp) or str(url)
+                self._cache_put(url, _act, out, self._img_model())
+                return out
             except Exception:
                 pass
         ip = self.image_pipeline
-        old = (ip.cfg.white_bg_enable, ip.cfg.watermark_enable, ip.cfg.edit_enable)
-        try:
-            ip.cfg.white_bg_enable, ip.cfg.watermark_enable, ip.cfg.edit_enable = white_bg, remove_wm, edit
-            r = ip.run(str(url))
-            return r.last_url() or str(url)
-        finally:
-            ip.cfg.white_bg_enable, ip.cfg.watermark_enable, ip.cfg.edit_enable = old
+        r = ip.run(str(url), white_bg=white_bg, remove_wm=remove_wm, edit=edit, prompt=prompt)
+        out = r.last_url() or str(url)
+        if out != str(url):
+            self._cache_put(url, _act, out, self._img_model())
+        return out
 
     def _process_urls(self, urls: list[str], limit: int = 8, white_bg: bool = True,
                       remove_wm: bool = False, edit: bool = False) -> tuple[list[str], int]:
@@ -496,11 +560,8 @@ class Publisher:
             for i, u in enumerate(main):
                 if u in targets:
                     try:
-                        ip = self.image_pipeline
-                        old_p = ip.cfg.edit_prompt
-                        ip.cfg.edit_prompt = getattr(self.cfg, "translate_prompt", "") or old_p
-                        main[i] = self._run_ops(u, False, False, True)
-                        ip.cfg.edit_prompt = old_p
+                        _tp = (getattr(self.cfg, "translate_prompt", "") or "").strip()
+                        main[i] = self._run_ops(u, False, False, True, prompt=_tp or None)
                         n += 1
                     except Exception:
                         pass
@@ -517,11 +578,8 @@ class Publisher:
             for i, u in enumerate(detail):
                 if u in targets:
                     try:
-                        ip = self.image_pipeline
-                        old = ip.cfg.edit_prompt
-                        ip.cfg.edit_prompt = getattr(self.cfg, "translate_prompt", "") or old
-                        detail[i] = self._run_ops(u, False, False, True)
-                        ip.cfg.edit_prompt = old
+                        _tp = (getattr(self.cfg, "translate_prompt", "") or "").strip()
+                        detail[i] = self._run_ops(u, False, False, True, prompt=_tp or None)
                         tr_done += 1
                     except Exception:
                         pass
@@ -566,11 +624,8 @@ class Publisher:
                 if not img:
                     continue
                 try:
-                    ip = self.image_pipeline
-                    old_p = ip.cfg.edit_prompt
-                    ip.cfg.edit_prompt = getattr(self.cfg, "translate_prompt", "") or old_p
-                    sku["processed_image"] = self._run_ops(str(img), False, False, True)
-                    ip.cfg.edit_prompt = old_p
+                    _tp = (getattr(self.cfg, "translate_prompt", "") or "").strip()
+                    sku["processed_image"] = self._run_ops(str(img), False, False, True, prompt=_tp or None)
                     n += 1
                 except Exception:
                     pass
@@ -719,10 +774,11 @@ class Publisher:
         return p
 
     # ---------- 主流程 ----------
-    def run(self, product: dict, dry_run: bool = True) -> PublishResult:
+    def run(self, product: dict, dry_run: bool = True, manage_progress: bool = True) -> PublishResult:
         res = PublishResult(product_id=str(product.get("id", "")), ok=True)
         try:
-            BUS.begin(9)
+            if manage_progress:
+                BUS.begin(9)
             emit("开始", f"产品 {product.get('id','')}", (product.get("title") or "")[:60], "INFO")
             # 提示词方案：按品类自动套用
             try:
@@ -902,11 +958,7 @@ class Publisher:
                         for i, u in enumerate(p["images"]):
                             if u in targets:
                                 try:
-                                    ip = self.image_pipeline
-                                    old_p = ip.cfg.edit_prompt
-                                    ip.cfg.edit_prompt = prompt
-                                    p["images"][i] = self._run_ops(u, False, False, True)
-                                    ip.cfg.edit_prompt = old_p
+                                    p["images"][i] = self._run_ops(u, False, False, True, prompt=prompt)
                                     n2 += 1
                                 except Exception:
                                     pass
@@ -1271,7 +1323,7 @@ def run_many(pub: "Publisher", products: list[dict], workers: int = 4,
         local_pub = Publisher(local_cfg, dxm=pub.dxm, ws_endpoint=pub.ws_endpoint,
                               scheduler=getattr(pub, "scheduler", None))
         try:
-            r = local_pub.run(prod, dry_run=dry_run)
+            r = local_pub.run(prod, dry_run=dry_run, manage_progress=False)
         except Exception as e:  # noqa: BLE001
             r = PublishResult(product_id=str(prod.get("id", "")), ok=False, error=str(e))
         with lock:

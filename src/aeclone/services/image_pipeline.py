@@ -51,7 +51,13 @@ class ImagePipeline:
             p.write_bytes(r.content)
         return p
 
-    def run(self, image_url: str) -> ImagePipelineResult:
+    def run(self, image_url: str, white_bg: bool | None = None,
+            remove_wm: bool | None = None, edit: bool | None = None,
+            prompt: str | None = None) -> ImagePipelineResult:
+        """按参数或配置执行；显式传参可避免并发时修改共享配置。"""
+        wb = self.cfg.white_bg_enable if white_bg is None else bool(white_bg)
+        rw = self.cfg.watermark_enable if remove_wm is None else bool(remove_wm)
+        ed = self.cfg.edit_enable if edit is None else bool(edit)
         res = ImagePipelineResult()
         cur = image_url
         try:
@@ -61,7 +67,7 @@ class ImagePipeline:
             return res
         res.steps.append(ImageStep("下载", True, url=cur))
 
-        if self.cfg.white_bg_enable:
+        if wb:
             try:
                 u = self.svc.white_background(path)
                 res.steps.append(ImageStep("白底", True, u)); cur = u
@@ -69,7 +75,7 @@ class ImagePipeline:
             except Exception as e:  # noqa: BLE001
                 res.steps.append(ImageStep("白底", False, error=str(e)))
 
-        if self.cfg.watermark_enable:
+        if rw:
             try:
                 u = self.svc.remove_watermark(path)
                 res.steps.append(ImageStep("去水印", True, u)); cur = u
@@ -77,9 +83,9 @@ class ImagePipeline:
             except Exception as e:  # noqa: BLE001
                 res.steps.append(ImageStep("去水印", False, error=str(e)))
 
-        if self.cfg.edit_enable:
+        if ed:
             try:
-                u = self.svc.edit(path, self.cfg.edit_prompt)
+                u = self.svc.edit(path, prompt or self.cfg.edit_prompt)
                 res.steps.append(ImageStep("通用编辑", True, u)); cur = u
             except Exception as e:  # noqa: BLE001
                 res.steps.append(ImageStep("通用编辑", False, error=str(e)))

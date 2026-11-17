@@ -8,6 +8,28 @@ from typing import Iterable, Iterator
 import requests
 
 
+# ---- 轻量缓存：模型/价格几分钟内复用，避免每次切页面都打网络 ----
+_CACHE: dict = {}
+_CACHE_LOCK = __import__("threading").Lock()
+_CACHE_TTL = 300.0
+
+
+def _cache_get(key: str):
+    with _CACHE_LOCK:
+        item = _CACHE.get(key)
+    if not item:
+        return None
+    ts, value = item
+    if __import__("time").time() - ts > _CACHE_TTL:
+        return None
+    return value
+
+
+def _cache_put(key: str, value) -> None:
+    with _CACHE_LOCK:
+        _CACHE[key] = (__import__("time").time(), value)
+
+
 def _pe(stage, action="", detail="", level="INFO", model="", cost=0.0, elapsed=0.0, product=""):
     """懒加载进度上报（避免与 services 包循环导入）。"""
     try:
@@ -56,11 +78,17 @@ class ApiClient:
     def _url(self, path: str) -> str:
         return f"{self.base}{path if path.startswith('/') else '/' + path}"
 
-    def models(self) -> list[str]:
+    def models(self, force: bool = False) -> list[str]:
+        key = f"models:{self.base}:{self.key[:8]}"
+        cached = None if force else _cache_get(key)
+        if cached is not None:
+            return list(cached)
         r = self.session.get(self._url("/v1/models"), headers=self._headers(), timeout=30)
         if r.status_code >= 400:
             raise ApiError(f"获取模型失败: {r.status_code}", r.status_code, r.text[:300])
-        return [m.get("id", "") for m in r.json().get("data", [])]
+        out = [m.get("id", "") for m in r.json().get("data", [])]
+        _cache_put(key, out)
+        return out
 
     # ---------- 账务 ----------
     def billing_subscription(self) -> dict:
@@ -121,8 +149,12 @@ class ApiClient:
                     yield delta["content"]
 
     # ---------- 价格 ----------
-    def pricing(self) -> list[dict]:
-        """公开价格表（无需鉴权）。"""
+    def pricing(self, force: bool = False) -> list[dict]:
+        """公开价格表（无需鉴权，缓存 5 分钟）。"""
+        key = f"pricing:{self.base}"
+        cached = None if force else _cache_get(key)
+        if cached is not None:
+            return list(cached)
         try:
             r = self.session.get(self._url("/api/pricing"), timeout=20)
             data = (r.json() or {}).get("data") or []
@@ -134,6 +166,7 @@ class ApiClient:
                 per_call = float(m.get("model_price") or 0)
                 ratio = float(m.get("model_ratio") or 0)
                 out.append({"model": name, "per_call": per_call, "ratio": ratio})
+            _cache_put(key, out)
             return out
         except Exception:
             return []
