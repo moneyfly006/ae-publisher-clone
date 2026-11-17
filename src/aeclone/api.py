@@ -8,6 +8,15 @@ from typing import Iterable, Iterator
 import requests
 
 
+def _pe(stage, action="", detail="", level="INFO", model="", cost=0.0, elapsed=0.0, product=""):
+    """懒加载进度上报（避免与 services 包循环导入）。"""
+    try:
+        from .services.progress import emit as _emit
+        _emit(stage, action, detail, level, model, cost, elapsed, product)
+    except Exception:
+        pass
+
+
 class ApiError(RuntimeError):
     def __init__(self, message: str, status: int = 0, body: str = ""):
         super().__init__(message)
@@ -137,6 +146,7 @@ class ApiClient:
                 content, name = img, f"image_{i}.png"
             files.append(("image", (name, content, "image/png")))
         data = {"model": model, "prompt": prompt, "size": size, "n": "1"}
+        _t0 = __import__("time").time()
         r = self.session.post(
             self._url("/v1/images/edits"),
             headers=self._headers(),
@@ -144,6 +154,9 @@ class ApiClient:
             files=files,
             timeout=self.timeout,
         )
+        _pe("API", "POST /v1/images/edits", f"HTTP {r.status_code} · {len(files)} 张图",
+            "OK" if r.status_code < 400 else "ERROR", model, 0.0,
+            __import__("time").time() - _t0)
         if r.status_code >= 400:
             msg = self._extract_error(r)
             alt = self._fallback_for(model, "image")
@@ -163,12 +176,19 @@ class ApiClient:
 
     def images_generate(self, model: str, prompt: str, size: str = "1024x1024", n: int = 1) -> str:
         payload = {"model": model, "prompt": prompt, "size": size, "n": max(1, int(n))}
+        _t0 = __import__("time").time()
         r = self.session.post(
             self._url("/v1/images/generations"),
             headers=self._headers({"Content-Type": "application/json"}),
             data=json.dumps(payload).encode(),
             timeout=self.timeout,
         )
+        _pe("API", "POST /v1/images/edits", f"HTTP {r.status_code} · {len(files)} 张图",
+            "OK" if r.status_code < 400 else "ERROR", model, 0.0,
+            __import__("time").time() - _t0)
+        _pe("API", "POST /v1/images/generations", f"HTTP {r.status_code} · n={n}",
+            "OK" if r.status_code < 400 else "ERROR", model, 0.0,
+            __import__("time").time() - _t0)
         if r.status_code >= 400:
             msg = self._extract_error(r)
             alt = self._fallback_for(model, "image")

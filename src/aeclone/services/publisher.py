@@ -11,6 +11,7 @@ from .pricing import calc_free_shipping, calc_multiplier, calc_with_commission
 from .text_pipeline import TextPipeline
 from .image_pipeline import ImagePipeline
 from .variants import auto_map, check_consistency, limit_skus
+from .progress import BUS, emit
 
 
 @dataclass
@@ -30,6 +31,14 @@ class PublishResult:
     def log(self) -> str:
         lines = [f"{'✓' if s.ok else '✗'} {s.name}: {s.detail}" for s in self.steps]
         return "\n".join(lines)
+
+
+def add_step(res, name, ok, detail=""):
+    """记录步骤结果，同时实时上报到进度总线。"""
+    res.steps.append(Step(name, bool(ok), str(detail)))
+    emit(str(name), "", str(detail)[:140], "OK" if ok else "ERROR")
+    if ok:
+        BUS.done_stage()
 
 
 class Publisher:
@@ -96,7 +105,7 @@ class Publisher:
             snap = {}
         fields = snap.get("fields") or {}
         if not fields:
-            res.steps.append(Step("模板参数", True, "未设置模板，跳过"))
+            add_step(res, "模板参数", True, "未设置模板，跳过")
             return p
         p["template_fields"] = fields
         p["template_attributes"] = snap.get("attributes") or []
@@ -241,7 +250,7 @@ class Publisher:
                 for i, u in zip(idx, out):
                     main[i] = u
                 p["images"] = main
-                res.steps.append(Step("主图处理", done > 0, f"{done}/{len(out)} 张"))
+                add_step(res, "主图处理", done > 0, f"{done}/{len(out)} 张")
 
         # 详情图
         detail = p.get("detail_images") or []
@@ -260,7 +269,7 @@ class Publisher:
                 for i, u in zip(idx, out):
                     detail[i] = u
                 p["detail_images"] = detail
-                res.steps.append(Step("详情图处理", done > 0, f"{done}/{len(out)} 张"))
+                add_step(res, "详情图处理", done > 0, f"{done}/{len(out)} 张")
 
         # 主图文字翻译
         if getattr(self.cfg, "translate_main_pic_enable", False) and main and getattr(self.cfg, "translate_image_understanding", False):
@@ -274,7 +283,7 @@ class Publisher:
                 if _has:
                     kept.append(it)
                 else:
-                    res.steps.append(Step("翻译预检", True, f"无文字，跳过 {str(_u)[-20:]}"))
+                    add_step(res, "翻译预检", True, f"无文字，跳过 {str(_u)[-20:]}")
             main = kept or main
 
         if getattr(self.cfg, "translate_main_pic_enable", False) and main:
@@ -295,7 +304,7 @@ class Publisher:
                         pass
             if n:
                 p["images"] = main
-                res.steps.append(Step("主图翻译", True, f"{n} 张"))
+                add_step(res, "主图翻译", True, f"{n} 张")
 
         # 详情图文字翻译
         if getattr(self.cfg, "translate_detail_pic_enable", False) and detail:
@@ -316,7 +325,7 @@ class Publisher:
                         pass
             if tr_done:
                 p["detail_images"] = detail
-                res.steps.append(Step("详情图翻译", True, f"{tr_done} 张"))
+                add_step(res, "详情图翻译", True, f"{tr_done} 张")
 
         # SKU 图
         if self.cfg.white_background_sku_pic:
@@ -345,7 +354,7 @@ class Publisher:
                 except Exception:
                     pass
             if done:
-                res.steps.append(Step("SKU图处理", True, f"{done} 张"))
+                add_step(res, "SKU图处理", True, f"{done} 张")
 
         # SKU 图文字翻译
         if getattr(self.cfg, "translate_sku_pic", False):
@@ -364,7 +373,7 @@ class Publisher:
                 except Exception:
                     pass
             if n:
-                res.steps.append(Step("SKU图翻译", True, f"{n} 张"))
+                add_step(res, "SKU图翻译", True, f"{n} 张")
 
         # 背景生成（AI 换背景）
         rules_raw = (getattr(self.cfg, "background_gen_rules", "") or "").strip()
@@ -391,7 +400,7 @@ class Publisher:
                         except Exception:
                             pass
             if done_bg:
-                res.steps.append(Step("背景生成", True, f"{done_bg} 张"))
+                add_step(res, "背景生成", True, f"{done_bg} 张")
         return p
 
     def _publicize_images(self, p: dict, res) -> dict:
@@ -417,7 +426,7 @@ class Publisher:
                 out.append(str(u))
         if out:
             p["images"] = out
-            res.steps.append(Step("图片转存", True, f"{len(out)} 张已转公网"))
+            add_step(res, "图片转存", True, f"{len(out)} 张已转公网")
         return p
 
     def _local_image_ops(self, p: dict, res) -> dict:
@@ -462,20 +471,29 @@ class Publisher:
                 continue
         if urls:
             p["images"] = urls
-        res.steps.append(Step("本地图片处理", bool(urls), f"{len(urls)} 张已托管"))
+        add_step(res, "本地图片处理", bool(urls), f"{len(urls)} 张已托管")
         return p
 
     # ---------- 主流程 ----------
     def run(self, product: dict, dry_run: bool = True) -> PublishResult:
         res = PublishResult(product_id=str(product.get("id", "")), ok=True)
         try:
+            BUS.begin(9)
+            emit("开始", f"产品 {product.get('id','')}", (product.get("title") or "")[:60], "INFO")
+            if not BUS.price_of(self.cfg.model_image_edit):
+                try:
+                    from ..api import ApiClient as _AC
+                    _rows = _AC(self.cfg.api_base, self.cfg.api_key, 20).pricing()
+                    BUS.set_prices({r["model"]: r["per_call"] for r in _rows if r.get("per_call")})
+                except Exception:
+                    pass
             p = self._normalize(product)
-            res.steps.append(Step("标准化", True,
-                                  f"{len(p['skus'])} 个 SKU / {len(p['images'])} 张图（上限 {self.cfg.max_sku_count}）"))
+            add_step(res, "标准化", True,
+                     f"{len(p['skus'])} 个 SKU / {len(p['images'])} 张图（上限 {self.cfg.max_sku_count}）")
             if p["skus"]:
                 sample = p["skus"][0]
-                res.steps.append(Step("SKU 处理", True,
-                                      f"{sample.get('sku')} · 库存 {sample.get('stock', '-')}"))
+                add_step(res, "SKU 处理", True,
+                         f"{sample.get('sku')} · 库存 {sample.get('stock', '-')}")
 
             specs = {}
             for key, label in (("spec_weight", "Weight"), ("spec_length", "Length"),
@@ -489,15 +507,15 @@ class Publisher:
                 specs["Declared Value"] = self.cfg.declared_value
             if specs:
                 p["specs"] = specs
-                res.steps.append(Step("规格属性", True, ", ".join(f"{k}={v}" for k, v in specs.items())[:80]))
+                add_step(res, "规格属性", True, ", ".join(f"{k}={v}" for k, v in specs.items())[:80])
 
             try:
                 from .image_task_plan import build_plan
                 plan = build_plan(self.cfg, p)
                 if plan.steps:
-                    res.steps.append(Step("图片计划", not plan.blockers, "；".join(plan.steps[:4])))
+                    add_step(res, "图片计划", not plan.blockers, "；".join(plan.steps[:4]))
                 if plan.blockers:
-                    res.steps.append(Step("计划阻断", False, "；".join(plan.blockers[:3])))
+                    add_step(res, "计划阻断", False, "；".join(plan.blockers[:3]))
             except Exception:
                 pass
 
@@ -511,15 +529,15 @@ class Publisher:
                 r = tp.make_title(p["title"], p.get("brands"))
                 if r.ok:
                     p["title_en"] = r.value
-                    res.steps.append(Step("AI 标题", True, r.value[:70]))
+                    add_step(res, "AI 标题", True, r.value[:70])
                 else:
-                    res.steps.append(Step("AI 标题", False, r.error))
+                    add_step(res, "AI 标题", False, r.error)
             else:
-                res.steps.append(Step("AI 标题", True, "未启用，跳过"))
+                add_step(res, "AI 标题", True, "未启用，跳过")
 
             if self.cfg.enable_ai_detail and p["title"]:
                 r = tp.make_detail(p.get("title_en") or p["title"], p.get("attributes_map"))
-                res.steps.append(Step("AI 详情", r.ok, (r.value[:60] if r.ok else r.error)))
+                add_step(res, "AI 详情", r.ok, (r.value[:60] if r.ok else r.error))
                 if r.ok:
                     html = r.value
                     head = (self.cfg.detail_text_info or "").strip()
@@ -540,13 +558,13 @@ class Publisher:
                     new_names = r.value.splitlines()
                     for sku, nm in zip(p["skus"], new_names):
                         sku["optimized_name"] = nm
-                res.steps.append(Step("AI SKU", r.ok, (r.value[:50].replace("\n", " ") if r.ok else r.error)))
+                add_step(res, "AI SKU", r.ok, (r.value[:50].replace("\n", " ") if r.ok else r.error))
 
             if self.cfg.four_in_one or self.cfg.watermark:
                 try:
                     p = self._local_image_ops(p, res)
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("本地图片处理", False, str(ex)[:120]))
+                    add_step(res, "本地图片处理", False, str(ex)[:120])
 
             _img_ops = (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable
                         or getattr(self.cfg, "img_main_edit", False)
@@ -579,9 +597,9 @@ class Publisher:
                             break
                     if gen:
                         p["images"] = gen + (p.get("images") or [])
-                        res.steps.append(Step("AI主图生成", True, f"{len(gen)} 张"))
+                        add_step(res, "AI主图生成", True, f"{len(gen)} 张")
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("AI主图生成", False, str(ex)[:80]))
+                    add_step(res, "AI主图生成", False, str(ex)[:80])
 
             # 指定图片编辑
             if getattr(self.cfg, "designated_edit_enable", False):
@@ -604,9 +622,9 @@ class Publisher:
                                 except Exception:
                                     pass
                         if n2:
-                            res.steps.append(Step("指定图片编辑", True, f"{n2} 张"))
+                            add_step(res, "指定图片编辑", True, f"{n2} 张")
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("指定图片编辑", False, str(ex)[:80]))
+                    add_step(res, "指定图片编辑", False, str(ex)[:80])
 
             if getattr(self.cfg, "pad_main_images_from_extra", False):
                 try:
@@ -617,7 +635,7 @@ class Publisher:
                         imgs.append(extras.pop(0))
                     if imgs:
                         p["images"] = imgs
-                        res.steps.append(Step("主图补齐", True, f"{len(imgs)} 张"))
+                        add_step(res, "主图补齐", True, f"{len(imgs)} 张")
                 except Exception:
                     pass
 
@@ -625,7 +643,7 @@ class Publisher:
                 try:
                     p = self._ai_images(p, res)
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("图片AI处理", False, str(ex)[:100]))
+                    add_step(res, "图片AI处理", False, str(ex)[:100])
 
             if getattr(self.cfg, "overlay_watermark_enable", False) and (self.cfg.watermark or "").strip():
                 try:
@@ -647,15 +665,15 @@ class Publisher:
                         except Exception:
                             continue
                     if n3:
-                        res.steps.append(Step("水印叠加", True, f"{n3} 张"))
+                        add_step(res, "水印叠加", True, f"{n3} 张")
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("水印叠加", False, str(ex)[:80]))
+                    add_step(res, "水印叠加", False, str(ex)[:80])
 
             if p.get("images"):
                 try:
                     p = self._publicize_images(p, res)
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("图片转存", False, str(ex)[:100]))
+                    add_step(res, "图片转存", False, str(ex)[:100])
 
             if not dry_run and self.dxm and p.get("images"):
                 uploaded, failed = 0, 0
@@ -683,14 +701,14 @@ class Publisher:
                     if not subset:
                         subset = imgs[:2]
                     verdict = ip2.review(str(subset[0]), "detail")
-                    res.steps.append(Step("详情图审查", True, verdict[:50].replace("\n", " ")))
+                    add_step(res, "详情图审查", True, verdict[:50].replace("\n", " "))
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("详情图审查", False, str(ex)[:80]))
+                    add_step(res, "详情图审查", False, str(ex)[:80])
 
             if getattr(self.cfg, "copy_sku_to_detail", False) and p.get("skus") and p.get("detail_html"):
                 names = " / ".join(str(s.get("sku") or "") for s in p["skus"][:20])
                 p["detail_html"] = p["detail_html"] + f"<p>SKU: {names}</p>"
-                res.steps.append(Step("SKU写入详情", True, f"{len(p['skus'])} 个"))
+                add_step(res, "SKU写入详情", True, f"{len(p['skus'])} 个")
 
             if getattr(self.cfg, "pack_weight", ""):
                 p.setdefault("specs", {})["Pack Weight"] = self.cfg.pack_weight
@@ -700,22 +718,22 @@ class Publisher:
                     cleaned = TextPipeline(self.cfg).review_text(p["detail_html"]).value
                     if cleaned:
                         p["detail_html"] = cleaned
-                    res.steps.append(Step("文本审查", True, (cleaned or "")[:40].replace("\n", " ")))
+                    add_step(res, "文本审查", True, (cleaned or "")[:40].replace("\n", " "))
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("文本审查", False, str(ex)[:80]))
+                    add_step(res, "文本审查", False, str(ex)[:80])
 
             if self.cfg.check_banned_word and p.get("title_en"):
                 from .text_pipeline import find_banned, BANNED_DEFAULT
                 hits = find_banned(p["title_en"], BANNED_DEFAULT)
-                res.steps.append(Step("违禁词检查", not hits, ("发现：" + ", ".join(hits)) if hits else "未发现"))
+                add_step(res, "违禁词检查", not hits, ("发现：" + ", ".join(hits)) if hits else "未发现")
 
             if self.cfg.enable_ai_weight and p.get("images"):
                 try:
                     rw = TextPipeline(self.cfg).estimate_weight(str(p["images"][0]), p.get("title_en") or p.get("title", ""))
                     p["ai_weight"] = rw.value[:200]
-                    res.steps.append(Step("AI 估重", rw.ok, rw.value[:40].replace("\n", " ")))
+                    add_step(res, "AI 估重", rw.ok, rw.value[:40].replace("\n", " "))
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("AI 估重", False, str(ex)[:80]))
+                    add_step(res, "AI 估重", False, str(ex)[:80])
 
             if (self.cfg.review_main_img_enable or self.cfg.review_detail_img_enable) and p.get("images"):
                 ip = ImagePipeline(self.cfg)
@@ -725,22 +743,22 @@ class Publisher:
                     bad = any(k in verdict for k in ("不符合", "违规", "建议删除", "不建议", "含厂家", "含联系方式"))
                     if bad and self.cfg.review_block_on_fail and len(p["images"]) > 1:
                         p["images"] = p["images"][1:]
-                        res.steps.append(Step("图片审查", False, "不合规，已剔除该图"))
+                        add_step(res, "图片审查", False, "不合规，已剔除该图")
                     elif bad and self.cfg.review_block_on_fail:
-                        res.steps.append(Step("图片审查", False, "不合规，已拦截：" + verdict[:50].replace("\n", " ")))
+                        add_step(res, "图片审查", False, "不合规，已拦截：" + verdict[:50].replace("\n", " "))
                         res.ok = False
                         res.error = "图片审查不合规"
                         return res
-                    res.steps.append(Step("图片审查", True, ("⚠ " if bad else "") + verdict[:60].replace("\n", " ")))
+                    add_step(res, "图片审查", True, ("⚠ " if bad else "") + verdict[:60].replace("\n", " "))
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("图片审查", False, "跳过：" + str(ex)[:100]))
+                    add_step(res, "图片审查", False, "跳过：" + str(ex)[:100])
 
             p = self._price(p)
             r = p["price_result"]
             extra = ""
             if p.get("regional"):
                 extra = " · 区域 " + " ".join(f"{k}{v}" for k, v in list(p['regional'].items())[:3])
-            res.steps.append(Step("价格计算", True, f"¥{r.final}（{r.note}）{extra}"))
+            add_step(res, "价格计算", True, f"¥{r.final}（{r.note}）{extra}")
 
             if getattr(self.cfg, "generate_main_video", False) and p.get("images"):
                 try:
@@ -751,10 +769,10 @@ class Publisher:
 
                     # 已存在视频且未允许覆盖 → 跳过
                     if p.get("main_video") and not getattr(self.cfg, "overwrite_existing_video", False):
-                        res.steps.append(Step("主图视频", True, "已存在视频，跳过"))
+                        add_step(res, "主图视频", True, "已存在视频，跳过")
                     elif getattr(self.cfg, "use_template_video", False) and getattr(self.cfg, "template_video_path", ""):
                         p["main_video"] = str(self.cfg.template_video_path)
-                        res.steps.append(Step("主图视频", True, "使用模板视频"))
+                        add_step(res, "主图视频", True, "使用模板视频")
                     elif _vp()["available"]:
                         d2 = _P2(_tf.mkdtemp())
                         files = []
@@ -775,20 +793,20 @@ class Publisher:
                                 fade_edges=bool(getattr(self.cfg, "video_fade_edges", True)),
                             )
                             p["main_video"] = str(out)
-                            res.steps.append(Step("主图视频", True, str(out)))
+                            add_step(res, "主图视频", True, str(out))
                         else:
-                            res.steps.append(Step("主图视频", False, "可用图片不足 2 张"))
+                            add_step(res, "主图视频", False, "可用图片不足 2 张")
                 except Exception as ex:  # noqa: BLE001
-                    res.steps.append(Step("主图视频", False, str(ex)[:80]))
+                    add_step(res, "主图视频", False, str(ex)[:80])
 
             if getattr(self.cfg, "schedule_publish", False) and (getattr(self.cfg, "schedule_time", "") or ""):
                 p["scheduled_at"] = self.cfg.schedule_time
-                res.steps.append(Step("定时发布", True, f"已排定 {self.cfg.schedule_time}"))
-                res.steps.append(Step("保存到店小秘", True, "定时任务已登记"))
+                add_step(res, "定时发布", True, f"已排定 {self.cfg.schedule_time}")
+                add_step(res, "保存到店小秘", True, "定时任务已登记")
                 return res
 
             if dry_run:
-                res.steps.append(Step("保存到店小秘", True, "dry-run：未写入"))
+                add_step(res, "保存到店小秘", True, "dry-run：未写入")
             else:
                 if not self.ws_endpoint:
                     raise RuntimeError("未连接浏览器（缺少 CDP 端点）")
@@ -807,19 +825,20 @@ class Publisher:
                                     _attrs.append(_x)
                             _snap["attributes"] = _attrs
                         r_tpl = apply_template_fields(self.ws_endpoint, str(p.get("id", "")), _snap)
-                        res.steps.append(Step("模板写回", r_tpl.ok, r_tpl.message[:60]))
+                        add_step(res, "模板写回", r_tpl.ok, r_tpl.message[:60])
                     except Exception as ex:  # noqa: BLE001
-                        res.steps.append(Step("模板写回", False, str(ex)[:80]))
+                        add_step(res, "模板写回", False, str(ex)[:80])
                 r = update_and_save(self.ws_endpoint, str(p.get("id", "")),
                                     p.get("title_en") or None)
                 if not r.ok:
                     raise RuntimeError(r.message)
-                res.steps.append(Step("保存到店小秘", True, r.message))
+                add_step(res, "保存到店小秘", True, r.message)
             return res
         except Exception as e:  # noqa: BLE001
             res.ok = False
             res.error = str(e)
-            res.steps.append(Step("异常", False, str(e)))
+            emit("异常", "", str(e)[:160], "ERROR")
+            add_step(res, "异常", False, str(e))
             return res
 
 

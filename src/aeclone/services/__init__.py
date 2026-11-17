@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from ..api import ApiClient, ApiError
+from .progress import BUS, track
 from ..config import AppConfig
 
 TEXT_MODEL = "qwen-plus"
@@ -59,7 +60,7 @@ class TextService:
         self.client = client
         self.cfg = cfg
 
-    def translate_title(self, title: str) -> str:
+    def translate_title(self, title: str) -> str:  # noqa: D401
         return self.client.chat(model_of(getattr(self, "cfg", None), "text"), [
             {"role": "system", "content": self.cfg.title_prompt},
             {"role": "user", "content": title},
@@ -87,23 +88,48 @@ class ImageService:
         self.cfg = cfg
 
     def white_background(self, image: Path) -> str:
-        return self.client.images_edit(model_of(self.cfg, "image_edit"), PROMPT_WHITE_BG, [image])
+        m = model_of(self.cfg, "image_edit")
+        with track("白底", "调用图像编辑", model=m, product=Path(image).name) as t:
+            url = self.client.images_edit(m, PROMPT_WHITE_BG, [image])
+            t.detail = str(url)[-40:]
+            return url
 
     def remove_watermark(self, image: Path) -> str:
-        return self.client.images_edit(model_of(self.cfg, "image_edit"), PROMPT_WATERMARK, [image])
+        m = model_of(self.cfg, "image_edit")
+        with track("去水印", "调用图像编辑", model=m, product=Path(image).name) as t:
+            url = self.client.images_edit(m, PROMPT_WATERMARK, [image])
+            t.detail = str(url)[-40:]
+            return url
 
     def combined(self, image: Path) -> str:
         """白底 + 去水印 合并成一次 AI 调用（省一半成本）。"""
-        return self.client.images_edit(model_of(self.cfg, "image_edit"), PROMPT_COMBINED, [image])
+        m = model_of(self.cfg, "image_edit")
+        with track("白底+去水印", "合并调用", model=m, product=Path(image).name) as t:
+            url = self.client.images_edit(m, PROMPT_COMBINED, [image])
+            t.detail = str(url)[-40:]
+            return url
 
     def edit(self, image: Path, prompt: str) -> str:
-        return self.client.images_edit(model_of(self.cfg, "image_edit"), prompt, [image])
+        m = model_of(self.cfg, "image_edit")
+        with track("精细编辑", (prompt or "")[:24], model=m, product=Path(image).name) as t:
+            url = self.client.images_edit(m, prompt, [image])
+            t.detail = str(url)[-40:]
+            return url
 
     def generate(self, prompt: str, size: str = "1024x1024", n: int = 1) -> list[str]:
-        return self.client.images_generate(model_of(self.cfg, "image_gen"), prompt, size, n)
+        m = model_of(self.cfg, "image_gen")
+        with track("文生图", (prompt or "")[:24], model=m, cost=BUS.price_of(m) * max(1, n)) as t:
+            url = self.client.images_generate(m, prompt, size, n)
+            t.detail = str(url)[-40:]
+            return url
 
     def merge(self, images: Iterable[Path], prompt: str = "Merge these product photos into one clean product image on a white background.") -> str:
-        return self.client.images_edit(model_of(self.cfg, "image_edit"), prompt, list(images))
+        m = model_of(self.cfg, "image_edit")
+        imgs = list(images)
+        with track("多图融合", f"{len(imgs)} 张", model=m) as t:
+            url = self.client.images_edit(m, prompt, imgs)
+            t.detail = str(url)[-40:]
+            return url
 
 
 class BatchRunner:

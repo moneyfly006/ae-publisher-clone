@@ -261,6 +261,7 @@ class App:
         self.cfg: AppConfig = get_config()
         self.picked: list[Path] = []
         self.wb_sel_paths: set[str] = set()
+        self._subscribe_progress()
         self.wb_wall = None
         self.logs: list[str] = []
         self.products: list[dict] = []
@@ -555,6 +556,13 @@ class App:
         self.stat_api = ft.Text("未检测", color=MUTED, size=12)
         self._current = 0
 
+        self.ov_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
+        self.ov_progress_text = ft.Text("空闲", size=12, color=MUTED)
+        self.ov_recent = ft.Column(spacing=2)
+        prog_card = card(ft.Column([
+            h1("实时进度", 15),
+            self.ov_progress_text, self.ov_progress, self.ov_recent], spacing=8))
+
         def stat(label, ctrl, icon, color):
             return card(ft.Column([ft.Row([ft.Icon(icon, size=17, color=color), muted(label)], spacing=8), ctrl],
                                   spacing=8), padding=16, expand=True)
@@ -564,7 +572,7 @@ class App:
             st = history.stats(days=1)
         except Exception:
             pass
-        return [h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
+        return [prog_card, h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
                 card(ft.Row([ft.Text(f"今日任务 {st['runs']}", color=TEXT, size=13),
                              ft.Text(f"成功 {st['ok']}", color=ACCENT_2, size=13),
                              ft.Text(f"失败 {st['failed']}", color="#FF8A8A", size=13)], spacing=24)),
@@ -737,6 +745,13 @@ class App:
                              content=ft.Column(items, scroll=ft.ScrollMode.AUTO, height=380, width=620),
                              actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
         self.page.dialog = dlg; dlg.open = True; self.page.update()
+
+        self.ov_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
+        self.ov_progress_text = ft.Text("空闲", size=12, color=MUTED)
+        self.ov_recent = ft.Column(spacing=2)
+        prog_card = card(ft.Column([
+            h1("实时进度", 15),
+            self.ov_progress_text, self.ov_progress, self.ov_recent], spacing=8))
 
     def _p_store(self):
         self._current = 1
@@ -2464,6 +2479,31 @@ class App:
                 card(ft.Column([h1("定时任务", 14)] + sched_rows, spacing=6)),
                 card(ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO, height=360))]
 
+    def _subscribe_progress(self):
+        try:
+            from ..services.progress import BUS
+            BUS.subscribe(self._on_progress)
+        except Exception:
+            pass
+
+    def _on_progress(self, ev):
+        """总线事件 → 概览卡片实时刷新（后台线程调用）。"""
+        try:
+            if getattr(self, "ov_progress", None) is None:
+                return
+            from ..services.progress import BUS
+            done, total, cost, used = BUS.progress()
+            if total:
+                self.ov_progress.value = min(1.0, done / max(1, total))
+                self.ov_progress_text.value = f"步骤 {done}/{total} · {used:.1f}s · ¥{cost:.3f}"
+            self.ov_recent.controls = [
+                ft.Text(f"{time.strftime('%H:%M:%S', time.localtime(e.ts))} {e.text()}", size=10,
+                        color=self._log_color(e.level), selectable=True)
+                for e in BUS.snapshot(4)]
+            self.page.update()
+        except Exception:
+            pass
+
     def _open_log_panel(self):
         """全局日志侧栏：任意页面可唤出，实时刷新。"""
         if getattr(self, "log_panel_open", False):
@@ -2472,19 +2512,30 @@ class App:
         self.log_panel_level = ft.Dropdown(width=110, value="全部", bgcolor=CARD_2, color=TEXT, border_color=CARD_2,
                                            options=[ft.dropdown.Option(x) for x in ("全部", "INFO", "WARN", "ERROR")],
                                            on_change=lambda e: self._render_log_panel())
-        self.log_panel_list = ft.Column(spacing=2, height=380, scroll=ft.ScrollMode.AUTO, auto_scroll=True)
+        self.log_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
+        self.log_progress_text = ft.Text("空闲", size=11, color=MUTED)
+        self.log_panel_list = ft.Column(spacing=2, height=360, scroll=ft.ScrollMode.AUTO, auto_scroll=True)
         self.log_panel_list.controls = [ft.Text(x, size=11, color=self._log_color(lv), selectable=True)
                                         for _, lv, x in self._log_panel_items()]
         self.log_panel_dlg = ft.AlertDialog(
-            title=ft.Row([ft.Text("日志监控"), self.log_panel_level,
+            title=ft.Row([ft.Text("实时进度"), self.log_panel_level,
                           ft.TextButton("清空", on_click=lambda e: self._clear_logs()),
                           ft.TextButton("导出", on_click=lambda e: self._export_logs())], spacing=12),
-            content=ft.Container(content=self.log_panel_list, width=760),
+            content=ft.Container(content=ft.Column([self.log_progress, self.log_progress_text,
+                                                    ft.Divider(height=1, color=CARD_2),
+                                                    self.log_panel_list], spacing=6, tight=True), width=820),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_log_panel())])
         try:
             self.page.dialog = self.log_panel_dlg
             self.log_panel_dlg.open = True
             self.page.update()
+        except Exception:
+            pass
+        try:
+            from ..services.progress import BUS
+            from ..api import ApiClient as _AC
+            rows_p = _AC(self.cfg.api_base, self.cfg.api_key, 15).pricing()
+            BUS.set_prices({r["model"]: r["per_call"] for r in rows_p if r.get("per_call")})
         except Exception:
             pass
         threading.Thread(target=self._log_panel_loop, daemon=True).start()
@@ -2512,8 +2563,32 @@ class App:
     def _render_log_panel(self):
         if getattr(self, "log_panel_list", None) is None:
             return
-        self.log_panel_list.controls = [ft.Text(f"{t} [{lv}] {m}", size=11, color=self._log_color(lv), selectable=True)
-                                        for t, lv, m in self._log_panel_items()]
+        from ..services.progress import BUS
+        evs = BUS.snapshot(400)
+        want = (self.log_panel_level.value if getattr(self, "log_panel_level", None) is not None else "全部") or "全部"
+        if evs:
+            rows = []
+            for e in evs:
+                if want == "ERROR" and e.level != "ERROR":
+                    continue
+                if want == "WARN" and e.level not in ("WARN", "ERROR"):
+                    continue
+                if want == "INFO" and e.level not in ("INFO", "OK"):
+                    continue
+                ts = time.strftime("%H:%M:%S", time.localtime(e.ts))
+                rows.append(ft.Text(f"{ts}  {e.text()}", size=11,
+                                    color=self._log_color(e.level), selectable=True))
+            self.log_panel_list.controls = rows or [ft.Text("暂无匹配日志", size=11, color=MUTED)]
+        else:
+            self.log_panel_list.controls = [ft.Text(f"{t} [{lv}] {m}", size=11, color=self._log_color(lv), selectable=True)
+                                            for t, lv, m in self._log_panel_items()]
+        done, total, cost, used = BUS.progress()
+        if total:
+            self.log_progress.value = min(1.0, done / max(1, total))
+            self.log_progress_text.value = f"步骤 {done}/{total} · 用时 {used:.1f}s · 累计花费 ¥{cost:.3f}"
+        else:
+            self.log_progress.value = 0
+            self.log_progress_text.value = f"空闲 · 累计花费 ¥{cost:.3f}" if cost else "空闲"
         try:
             self.page.update()
         except Exception:
