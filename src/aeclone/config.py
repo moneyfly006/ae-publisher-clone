@@ -45,22 +45,45 @@ DEFAULTS: dict = {
     "enable_ai_sku": False,
     "enable_ai_weight": False,
     "title_prompt": (
-        "你来扮演一位资深速卖通平台运营，请将以下这款产品的中文标题翻译为英文标题，"
-        "不新增任何产品品牌，若原标题中包含品牌词，则在品牌词等前面加 for，英文标题字符控制在 125 字。"
+        "你是资深速卖通（AliExpress）英文刊登运营。请把用户给出的中文商品标题改写为专业英文标题。\n"
+        "硬性规则：\n"
+        "1) 总长度不超过 125 个字符（含空格），超长必须删减，不得截断单词；\n"
+        "2) 结构：核心产品词 + 关键规格/型号 + 主要卖点 + 用途/适用场景；\n"
+        "3) 品牌词一律前置 for（例：for CAT），不得暗示官方授权；\n"
+        "4) 禁止：best/cheapest/No.1/100% 等绝对化用语、促销词（free shipping、hot sale）、表情符号、全大写堆砌、联系方式；\n"
+        "5) 数字与单位保留（如 3 Ton、20m、220V），单位用英文缩写；\n"
+        "6) 只输出一行英文标题，不要引号、不要解释、不要中文。"
     ),
     "detail_prompt": (
-        "以上是一款速卖通产品标题，请你使用英文根据标题写出适当的产品描述，"
-        "若原标题中包含品牌词，则在品牌词等前面加 for，长度控制在 100 词以上，500 词以下。"
-        "绝对不要包含中文，直接给出回答，不要二次询问。"
+        "你是跨境电商详情页文案专家。根据用户给出的英文标题，写一段可直接用于速卖通商品详情（PC+无线端）的英文 HTML。\n"
+        "结构要求（依次输出，使用 <h3>、<p>、<ul><li>、<table>）：\n"
+        "1) 一句话核心卖点（<h3>）；\n"
+        "2) 产品亮点 4~6 条（<ul><li>，每条 12~20 词，含规格数字）；\n"
+        "3) 关键参数表（<table>：Model / Capacity / Power / Size / Weight / Material / Application，缺失写 N/A）；\n"
+        "4) 适用场景 2~3 句；\n"
+        "5) 包装清单（<ul>）；\n"
+        "6) 发货与售后说明 2~3 句（不含具体时效承诺）。\n"
+        "硬性规则：全英文；禁止中文、邮箱、电话、网址、二维码、支付方式、第三方平台名；"
+        "禁止绝对化/医疗功效/侵权表述；不要夸大（如 world best）；不要 markdown 代码块；总词数 300~500。"
+        "只输出 HTML 片段本身，不要任何解释。"
     ),
     "sku_prompt": (
-        "你是一个跨境电商 SKU 名称优化助手。用户会提供一组中文 SKU 名称，"
-        "请将每个名称翻译/优化为简洁的纯英文名称，每个名称最长 20 个字符，"
-        "只能使用英文字母、数字、空格、连字符、小数点和圆括号。"
+        "你是速卖通 SKU 命名规范专家。用户会给出一组中文 SKU 名称（每行一个），请逐个改写为规范英文 SKU。\n"
+        "规则：\n"
+        "1) 每个 ≤ 20 个字符，仅允许 A-Z a-z 0-9 空格 - _ . ( )；\n"
+        "2) 统一格式：<核心属性>-<规格>，例如 3T-20M、220V-EU、Red-XL；\n"
+        "3) 单位用缩写并紧跟数字（3T、20m、220V），不要写中文单位；\n"
+        "4) 同一批内风格一致：颜色用英文首字母大写，尺寸用大写字母，容量/功率保留数字；\n"
+        "5) 禁止中文、表情、/ \\ & % 等符号，禁止品牌词；\n"
+        "6) 输出行数与输入一致，每行一个 SKU，顺序不变，不要编号、不要解释。"
     ),
     "weight_prompt": (
-        "我是一名电商运营者，这个产品我只有图片、没有实物，请根据产品图片和名称，"
-        "估算该产品重量（kg）和长宽高（cm）。不需要分析，只需要结果。"
+        "你是跨境电商物流估算专家。根据商品标题与主图，估算该商品「包装后」的毛重与包装箱尺寸。\n"
+        "输出严格为一行 JSON，不要任何解释或代码块：\n"
+        '{"weight_kg": 数字, "length_cm": 数字, "width_cm": 数字, "height_cm": 数字}\n'
+        "要求：weight_kg 保留 1 位小数；尺寸取整数；数值须符合该品类常识"
+        "（例：小型工具 2~10kg，中型机械 50~300kg，超大件按比例放大）；"
+        "不确定时给出偏保守（略大）的估算，便于运费核算。"
     ),
     # ---- 内容审查 ----
     "review_block_on_fail": False,
@@ -75,12 +98,12 @@ DEFAULTS: dict = {
     "apply_template_on_save": True,
     # AI 主图生成 / 指定图片编辑
     "main_image_generate_enable": False,
-    "main_image_generate_prompt": "专业电商主图：{标题}，纯白背景，商品居中，无任何文字、水印、logo",
+    "main_image_generate_prompt": "Professional e-commerce hero image of {title}. {subject} centered, occupying 80% of frame, pure white background (#FFFFFF), soft diffused studio lighting, no harsh shadows, sharp focus, high detail, accurate colors, 1:1 square composition, catalog quality. No text, no watermark, no logo, no props, no people, no border.",
     "main_image_generate_count": "1",
     "image_gen_model": "qwen-image-3.0",
     "designated_edit_enable": False,
     "designated_edit_indices": "",
-    "designated_edit_prompt": "清理并本地化这张商品图：去除水印、logo、二维码和促销标签，保持商品主体不变",
+    "designated_edit_prompt": "Clean up this product photo for e-commerce: remove all watermarks, logos, QR codes, promotional badges and overlay text; keep the product shape, color, texture and proportions exactly unchanged; reconstruct the covered areas naturally without blur or artifacts; result looks like an original studio photo. No added text.",
 
     # 库存 / SKU
     "modify_stock_999": False,
@@ -96,7 +119,7 @@ DEFAULTS: dict = {
     "single_edit_detail_pic_indices": "",
     # 背景生成
     "background_gen_rules": "[]",
-    "background_gen_sku_prompt": "把商品图背景替换为简约纯白摄影棚背景，保持商品主体和颜色不变",
+    "background_gen_sku_prompt": "Replace the background with a clean studio backdrop (pure white or very light neutral gray), keep the product identical in shape, color, material and proportions, add a soft natural contact shadow, even lighting, no text, no props.",
     "background_gen_detail_replace": False,
     # 上传 / 视频
     "upload_full_cid": "",
@@ -128,7 +151,7 @@ DEFAULTS: dict = {
     # 详情图翻译
     "translate_detail_pic_enable": False,
     "translate_detail_pic_indices": "",
-    "translate_prompt": "把图片中的所有文字翻译成英文，保持排版和商品不变",
+    "translate_prompt": "Translate every visible text element on the image into natural English suitable for e-commerce, keep the original typography, layout, colors and positions; do not translate the product itself; do not add new text; if no text exists, return the image unchanged.",
     # 详情图审查范围
     "detail_review_first_count": 0,
     "detail_review_last_count": 0,
@@ -165,16 +188,18 @@ DEFAULTS: dict = {
     "review_detail_img_enable": False,
     "review_main_img_enable": False,
     "review_text_prompt": (
-        "请审查内容，删除非商品本身的信息：厂家信息、联系方式、广告促销、引导关注、物流售后；"
-        "保留商品名称、规格参数、材质工艺、功能特点、尺寸重量。"
+        "你是速卖通文案合规审查员。只输出一行：PASS 或 FAIL|原因关键词。\n"
+        "FAIL 条件：联系方式（邮箱/电话/网址/微信/WhatsApp）、促销诱导（好评返现、加微信优惠）、"
+        "绝对化用语（best/No.1/100%）、医疗功效宣称、侵权品牌（未加 for）、中文残留。\n"
+        "其余情况一律 PASS。"
     ),
-    "review_detail_img_prompt": "请审查详情图，删除含厂家信息、联系方式、广告促销、二维码的图片。",
-    "review_main_img_prompt": "请审查主图，删除含厂家信息、联系方式、广告促销、二维码的图片。",
+    "review_detail_img_prompt": "你是速卖通详情图合规审查员。只输出一行结论：PASS 或 FAIL|原因关键词。\nFAIL 条件：厂家名称/地址/联系方式、二维码、其它平台水印、促销与返现引导、侵权品牌、医疗功效宣称、暴露内容。正常产品细节图、尺寸图、场景图应判 PASS。",
+    "review_main_img_prompt": "你是速卖通主图合规审查员。只输出一行结论：PASS 或 FAIL|原因关键词。\nFAIL 条件：出现品牌 logo/商标、厂家名称、联系方式（电话/邮箱/网址/微信）、二维码、促销文字（折扣/包邮/热卖）、中文文字、水印、拼接边框、非白底主图、暴露人体。\n判断从严，但仅针对上述明确项。",
     # ---- 图片处理 ----
     "white_bg_enable": True,
     "watermark_enable": True,
     "edit_enable": False,
-    "edit_prompt": "清理并本地化这张商品图：去除水印、logo、二维码和促销标签，保持商品主体不变。",
+    "edit_prompt": "Clean and localize this product image: remove watermarks, logos, QR codes and promotional stickers; keep the product unchanged; output a clean e-commerce ready image without any text overlay.",
     "four_in_one": False,
     # ---- 价格 ----
     "price_mode": "multiplier",          # multiplier | free_shipping

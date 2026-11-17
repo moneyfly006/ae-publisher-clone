@@ -750,8 +750,19 @@ class Publisher:
 
             if self.cfg.enable_ai_weight and p.get("images"):
                 try:
-                    rw = TextPipeline(self.cfg).estimate_weight(str(p["images"][0]), p.get("title_en") or p.get("title", ""))
+                    tp_w = TextPipeline(self.cfg)
+                    rw = tp_w.estimate_weight(str(p["images"][0]), p.get("title_en") or p.get("title", ""))
                     p["ai_weight"] = rw.value[:200]
+                    # 解析成结构化数值，自动填入规格（缺失才填，不覆盖手工值）
+                    est = tp_w.estimate_weight_json(str(p["images"][0]), p.get("title_en") or p.get("title", ""))
+                    if est:
+                        specs = p.setdefault("specs", {})
+                        if est.get("weight_kg") and not specs.get("Weight"):
+                            specs["Weight"] = f"{est['weight_kg']:g} kg"
+                        if all(est.get(k) for k in ("length_cm", "width_cm", "height_cm")) and not specs.get("Size"):
+                            specs["Size"] = (f"{est['length_cm']:g} x {est['width_cm']:g} x {est['height_cm']:g} cm")
+                        add_step(res, "AI 估重数值", True,
+                                 f"{specs.get('Weight','-')} / {specs.get('Size','-')}")
                     add_step(res, "AI 估重", rw.ok, rw.value[:40].replace("\n", " "))
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "AI 估重", False, str(ex)[:80])
@@ -761,7 +772,8 @@ class Publisher:
                 try:
                     verdict = ip.review(str(p["images"][0]), "main")
                     p["image_review"] = verdict[:300]
-                    bad = any(k in verdict for k in ("不符合", "违规", "建议删除", "不建议", "含厂家", "含联系方式"))
+                    _v = (verdict or "").upper()
+                    bad = ("FAIL" in _v) or any(k in verdict for k in ("不符合", "违规", "建议删除", "不建议", "含厂家", "含联系方式"))
                     if bad and self.cfg.review_block_on_fail and len(p["images"]) > 1:
                         p["images"] = p["images"][1:]
                         add_step(res, "图片审查", False, "不合规，已剔除该图")

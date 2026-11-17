@@ -139,10 +139,36 @@ class TextPipeline:
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))
 
+    def estimate_weight_json(self, image_url: str, product_name: str = "") -> dict:
+        """估重并解析成 {weight_kg,length_cm,width_cm,height_cm}（解析失败返回空 dict）。"""
+        import json as _json
+        import re as _re
+        r = self.estimate_weight(image_url, product_name)
+        if not r.ok:
+            return {}
+        txt = r.value or ""
+        m = _re.search(r"\{.*\}", txt, _re.S)
+        if m:
+            try:
+                d = _json.loads(m.group(0))
+                return {k: float(d[k]) for k in ("weight_kg", "length_cm", "width_cm", "height_cm") if k in d}
+            except Exception:
+                pass
+        # 兜底：从自然语言里抓数字
+        out = {}
+        w = _re.search(r"(\d+(?:\.\d+)?)\s*kg", txt, _re.I)
+        if w:
+            out["weight_kg"] = float(w.group(1))
+        dims = _re.findall(r"(\d+(?:\.\d+)?)\s*(?:cm|CM|厘米)", txt)
+        if len(dims) >= 3:
+            out.update({"length_cm": float(dims[0]), "width_cm": float(dims[1]), "height_cm": float(dims[2])})
+        return out
+
     # ---------- 估重 ----------
     def estimate_weight(self, image_url: str, product_name: str = "") -> TextResult:
         try:
-            out = self.client.chat("qwen3-vl-plus", [
+            from . import model_of
+            out = self.client.chat(model_of(self.cfg, "vision"), [
                 {"role": "system", "content": self.cfg.weight_prompt},
                 {"role": "user", "content": [
                     {"type": "text", "text": product_name or "请估算该产品重量与尺寸"},
@@ -152,3 +178,28 @@ class TextPipeline:
             return TextResult(True, out)
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))
+
+    def estimate_weight_json(self, image_url: str, product_name: str = "") -> dict:
+        """估重并解析成 {weight_kg,length_cm,width_cm,height_cm}（解析失败返回空 dict）。"""
+        import json as _json
+        import re as _re
+        r = self.estimate_weight(image_url, product_name)
+        if not r.ok:
+            return {}
+        txt = r.value or ""
+        m = _re.search(r"\{.*\}", txt, _re.S)
+        if m:
+            try:
+                d = _json.loads(m.group(0))
+                return {k: float(d[k]) for k in ("weight_kg", "length_cm", "width_cm", "height_cm") if k in d}
+            except Exception:
+                pass
+        # 兜底：从自然语言里抓数字
+        out = {}
+        w = _re.search(r"(\d+(?:\.\d+)?)\s*kg", txt, _re.I)
+        if w:
+            out["weight_kg"] = float(w.group(1))
+        dims = _re.findall(r"(\d+(?:\.\d+)?)\s*(?:cm|CM|厘米)", txt)
+        if len(dims) >= 3:
+            out.update({"length_cm": float(dims[0]), "width_cm": float(dims[1]), "height_cm": float(dims[2])})
+        return out

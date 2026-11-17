@@ -244,6 +244,38 @@ def schema_variant():
     return [("映射", [Field("variant_mappings", "属性映射 JSON", "multiline")])]
 
 
+def schema_prompts():
+    return [
+        ("文字类", [
+            Field("title_prompt", "标题提示词", "multiline",
+                  hint="要求 ≤125 字符；可写「品牌词加 for」等规则；模型会按此改写标题"),
+            Field("detail_prompt", "描述提示词", "multiline",
+                  hint="要求输出 HTML 结构；建议规定小标题、参数表、包装清单"),
+            Field("sku_prompt", "SKU 提示词", "multiline",
+                  hint="要求 ≤20 字符、纯英文、统一格式（如 3T-20M）"),
+            Field("weight_prompt", "估重提示词", "multiline",
+                  hint="建议要求输出 JSON：weight_kg / length_cm / width_cm / height_cm"),
+        ]),
+        ("图片类", [
+            Field("main_image_generate_prompt", "主图生成提示词", "multiline",
+                  hint="支持变量 {title}；建议写明白底、居中占比、光影、禁止文字水印"),
+            Field("designated_edit_prompt", "指定编辑提示词", "multiline",
+                  hint="用于精修/去水印/去促销文字，强调商品本体不变"),
+            Field("translate_prompt", "图片翻译提示词", "multiline",
+                  hint="强调保留排版、不新增文字、无文字则原样返回"),
+            Field("background_gen_sku_prompt", "换背景提示词", "multiline",
+                  hint="写明背景类型（纯白/浅灰/场景）与接触阴影要求"),
+            Field("edit_prompt", "通用编辑提示词", "multiline"),
+        ]),
+        ("审查类", [
+            Field("review_text_prompt", "文本审查提示词", "multiline",
+                  hint="建议要求只输出 PASS 或 FAIL|原因，便于自动拦截"),
+            Field("review_main_img_prompt", "主图审查提示词", "multiline"),
+            Field("review_detail_img_prompt", "详情图审查提示词", "multiline"),
+        ]),
+    ]
+
+
 def schema_settings(cfg):
     return [
         ("API 配置", [Field("api_key", "API Key"),
@@ -293,7 +325,8 @@ class App:
             ("AI 设置", [("AI 智能填写", ft.Icons.AUTO_FIX_HIGH, 3), ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4)]),
             ("AI图片处理", [("AI图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 9)]),
             ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
-            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
+            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("提示词", ft.Icons.EDIT_NOTE, 11),
+                      ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
         ]
         col = ft.Column(spacing=3)
         for group, items in groups:
@@ -363,7 +396,8 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench, self._p_logs]
+                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench,
+                 self._p_logs, self._p_prompts]
         idx = idx % len(pages)
         self.content.controls = pages[idx]()
         self.page.update()
@@ -1787,13 +1821,17 @@ class App:
             text_verdict = "跳过"
             if self.cfg.review_text_enable and title:
                 r = tp.review_text(title)
-                text_verdict = "通过" if r.ok and "不符合" not in r.value else ("不合规" if r.ok else "失败")
+                _rv = (r.value or "").upper()
+                _bad = ("FAIL" in _rv) or any(k in (r.value or "") for k in ("不符合", "违规", "建议删除"))
+                text_verdict = "不合规" if (r.ok and _bad) else ("通过" if r.ok else "失败")
             img_verdict = "跳过"
             imgs = it.get("images") or []
             if self.cfg.review_main_img_enable and imgs:
                 try:
                     v = ip.review(str(imgs[0]), "main")
-                    img_verdict = "不合规" if any(k in v for k in ("不符合", "违规", "建议删除", "含联系方式")) else "通过"
+                    _iv = (v or "").upper()
+                    _ibad = ("FAIL" in _iv) or any(k in (v or "") for k in ("不符合", "违规", "建议删除", "含联系方式"))
+                    img_verdict = "不合规" if _ibad else "通过"
                 except Exception:
                     img_verdict = "失败"
             ok = "不合规" not in (text_verdict, img_verdict) and "失败" not in (text_verdict, img_verdict)
@@ -2486,6 +2524,33 @@ class App:
         self.wb_status.value = f"处理完成：成功 {ok} / {len(results)}"
         self.wb_busy.visible = False
         self.page.update()
+
+    def _p_prompts(self):
+        self._current = 11
+        view = self._render("提示词", schema_prompts())
+        resets = []
+        for key, label in (("title_prompt", "标题"), ("detail_prompt", "描述"), ("sku_prompt", "SKU"),
+                           ("weight_prompt", "估重"), ("main_image_generate_prompt", "主图生成"),
+                           ("designated_edit_prompt", "指定编辑"), ("translate_prompt", "翻译"),
+                           ("background_gen_sku_prompt", "换背景"), ("edit_prompt", "通用编辑"),
+                           ("review_text_prompt", "文本审查"), ("review_main_img_prompt", "主图审查"),
+                           ("review_detail_img_prompt", "详情图审查")):
+            def make(k=key, n=label):
+                def _r(e):
+                    default = AppConfig.DEFAULTS.get(k, "")
+                    self.cfg.set(k, default)
+                    save_config(self.cfg)
+                    self.toast(f"{n}提示词已恢复默认")
+                    self._switch(11)
+                return _r
+            resets.append(ft.OutlinedButton(f"恢复默认：{label}", on_click=make()))
+        tip = card(ft.Column([
+            h1("提示词说明", 15),
+            muted("• 这里的提示词直接决定 AI 产出的专业度，改动会立即用于下一次刊登"),
+            muted("• 主图生成提示词支持变量 {title}（会自动替换为产品标题）"),
+            muted("• 审查提示词建议要求模型只回 PASS 或 FAIL|原因，才能自动拦截不合规内容"),
+            ft.Row(resets, spacing=8, wrap=True)], spacing=8))
+        return [view[0], tip] + view[1:]
 
     def _p_logs(self):
         self._current = 10
