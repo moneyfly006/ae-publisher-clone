@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+from .proc import popen, run
 import sys
 from pathlib import Path
 
@@ -44,4 +45,4 @@ def launch_instance(name: str) -> subprocess.Popen:
         cmd = [exe]
     else:
         cmd = [exe, str(Path(__file__).resolve().parents[3] / "main.py")]
-    return subprocess.Popen(cmd, env=env)
+    return popen(cmd, env=env)

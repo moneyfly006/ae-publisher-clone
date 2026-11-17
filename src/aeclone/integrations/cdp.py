@@ -12,6 +12,7 @@ import os
 import shutil
 import socket
 import subprocess
+from ..core.proc import popen, run
 import tempfile
 import time
 from pathlib import Path
@@ -132,7 +133,7 @@ def _launch_exe(exe: str, user_data_dir: str | None = None, port: int | None = N
     if headless:
         args.append("--headless=new")
     args.append(url or "about:blank")
-    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    proc = popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     deadline = time.time() + 20
     last = ""

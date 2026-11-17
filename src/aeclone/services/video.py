@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from ..core.proc import popen, run
 import tempfile
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def build_slideshow(images: list[Path], out_path: Path, seconds_per_image: float
         cmd = [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listfile),
                "-r", "30", "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
                "-movflags", "+faststart", str(out_path)]
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = run(cmd, capture_output=True, text=True)
         if proc.returncode != 0:
             raise VideoError(f"ffmpeg 失败：{proc.stderr[-400:]}")
     return out_path
@@ -65,7 +66,7 @@ def probe(ffmpeg: str | None = None) -> dict:
 
 
 def run_ffmpeg(cmd: list[str]) -> None:
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg 失败：{proc.stderr[-400:]}")
 
@@ -159,7 +160,7 @@ def generate_carousel_video(images: list[Path], out_path: Path, slot_seconds: fl
     cmd += ["-filter_complex", ";".join(parts), "-map", f"[{cur}]",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
             "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path)]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         raise VideoError(f"ffmpeg 失败：{proc.stderr[-500:]}")
     return out_path

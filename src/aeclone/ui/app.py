@@ -940,7 +940,9 @@ class App:
             muted("后续产品沿用模板的类目、运费模板、属性、重量尺寸；标题/SKU/图片仍按新生成"),
             ft.Row([self.tpl_source_dd,
                     ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick),
-                    ft.OutlinedButton("模板库", icon=ft.Icons.LIBRARY_BOOKS, on_click=lambda e: self._template_library_dialog())], spacing=10),
+                    ft.ElevatedButton("保存模板到本地", icon=ft.Icons.SAVE, bgcolor=ACCENT_2, color="#04231C",
+                                      on_click=lambda e: threading.Thread(target=self._save_tpl_local_quick, daemon=True).start()),
+                    ft.OutlinedButton("模板库", icon=ft.Icons.LIBRARY_BOOKS, on_click=lambda e: self._template_library_dialog())], spacing=10, wrap=True),
             self.tpl_preview_box,
             ft.Row([ft.ElevatedButton("读取模板参数", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=CARD_2, color=TEXT,
                                       on_click=lambda e: threading.Thread(target=self._read_template, daemon=True).start()),
@@ -1034,6 +1036,27 @@ class App:
             save_config(self.cfg)
             render()
 
+        def save_template_local(name, item):
+            """把当前模板（含抓取到的表单值）保存到本地模板库，读取在后台线程完成。"""
+            try:
+                vals = {}
+                try:
+                    import json as _jv
+                    vals = _jv.loads(getattr(self.cfg, "template_values", "") or "{}")
+                except Exception:
+                    vals = {}
+                rec = dict(item)
+                rec["name"] = name or self.cfg.template_product_title or "未命名模板"
+                rec["values"] = vals
+                lib = [x for x in lib if x.get("name") != rec["name"]]
+                lib.append(rec)
+                self.cfg.template_library = _j.dumps(lib, ensure_ascii=False)
+                save_config(self.cfg)
+                render()
+                self.toast(f"模板已保存到本地：{rec['name']}（{len(vals)} 个字段）")
+            except Exception as ex:
+                self.toast(f"保存失败：{ex}", False)
+
         def apply_item(name, item):
             self.cfg.template_snapshot = _j.dumps({"fields": item.get("fields") or {},
                                                    "attributes": item.get("attributes") or []},
@@ -1057,6 +1080,10 @@ class App:
             f = (item.get("fields") or {})
             self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
                                             f" · 属性 {len(item.get('attributes') or [])} 项")
+            try:
+                threading.Thread(target=save_template_local, args=(name, item), daemon=True).start()
+            except Exception:
+                pass
             self.toast(f"已应用模板：{name}")
             dlg.open = False
             self.page.update()
@@ -1760,6 +1787,38 @@ class App:
         save_config(self.cfg)
         self.attr_status.value = "已清空"
         self.toast("已清空自定义属性")
+
+    def _save_tpl_local_quick(self):
+        """把当前使用的模板（快照 + 表单值）存到本地模板库；读取全部在后台。"""
+        try:
+            import json as _j
+            name = self.cfg.template_product_title or "未命名模板"
+            lib = []
+            try:
+                lib = _j.loads(self.cfg.template_library or "{}")
+                if not isinstance(lib, list):
+                    lib = []
+            except Exception:
+                lib = []
+            rec = {"name": name, "product_id": self.cfg.template_product_id or "",
+                   "fields": {}, "attributes": [], "values": {}}
+            try:
+                snap = _j.loads(self.cfg.template_snapshot or "{}")
+                rec["fields"] = snap.get("fields") or {}
+                rec["attributes"] = snap.get("attributes") or []
+            except Exception:
+                pass
+            try:
+                rec["values"] = _j.loads(self.cfg.template_values or "{}")
+            except Exception:
+                rec["values"] = {}
+            lib = [x for x in lib if x.get("name") != name]
+            lib.append(rec)
+            self.cfg.template_library = _j.dumps(lib, ensure_ascii=False)
+            save_config(self.cfg)
+            self.toast(f"已保存到本地：{name}（{len(rec['values'])} 字段 / {len(rec['attributes'])} 属性）")
+        except Exception as ex:
+            self.toast(f"保存失败：{ex}", False)
 
     def _close_dialog(self):
         self.dlg.open = False
