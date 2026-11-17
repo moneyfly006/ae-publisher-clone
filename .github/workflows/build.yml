@@ -36,15 +36,25 @@ jobs:
         run: Compress-Archive -Path dist/AuroraList/* -DestinationPath dist/AuroraList-windows.zip -Force
         shell: pwsh
 
+      - name: Build installer (Inno Setup)
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+        shell: pwsh
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: AuroraList-windows
-          path: dist/AuroraList-windows.zip
+          path: |
+            dist/AuroraList-windows.zip
+            dist/AuroraList-Setup-*.exe
 
       - name: Attach to Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/AuroraList-windows.zip
+          files: |
+            dist/AuroraList-windows.zip
+            dist/AuroraList-Setup-*.exe
           generate_release_notes: true

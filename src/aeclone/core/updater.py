@@ -9,7 +9,7 @@ from pathlib import Path
 
 import requests
 
-CURRENT = "0.2.0"
+CURRENT = "1.2.0"
 
 
 def _parse(v: str) -> tuple:
@@ -29,13 +29,18 @@ def check(server: str, app_name: str = "AuroraList", timeout: int = 10) -> dict:
                          timeout=timeout)
         data = r.json()
         info = data.get("data") or {}
-        latest = info.get("version") or info.get("latest_version") or ""
+        latest = (info.get("version") or info.get("latestVersion")
+                  or info.get("latest_version") or "")
+        url = info.get("downloadUrl") or info.get("url") or info.get("download_url") or ""
+        server_says = bool(info.get("hasUpdate"))
+        has = bool(latest and _parse(latest) > _parse(CURRENT)) or (server_says and bool(latest))
         return {
             "ok": True,
-            "has_update": bool(latest and _parse(latest) > _parse(CURRENT)),
+            "has_update": has,
             "latest": latest,
-            "url": info.get("url") or info.get("download_url") or "",
-            "notes": info.get("notes") or info.get("changelog") or "",
+            "url": url,
+            "sha256": info.get("sha256") or info.get("fileSha256") or info.get("fileHash") or "",
+            "notes": info.get("notes") or info.get("changelog") or info.get("changeLog") or "",
             "raw": data,
         }
     except Exception as e:  # noqa: BLE001

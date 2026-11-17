@@ -362,3 +362,22 @@
 | 23.8 | ffmpeg 超时 | ✅ | 600s / 探测 10s |
 | 23.9 | 模板库结构 | ✅ | dict + 兼容 list；空模板不再保存 |
 | 23.10 | 回归 | ✅ | verify_issues 197/197；button_audit 0 新增错误 |
+
+---
+
+## 二十四、第 10 轮：新电脑安装 / 更新 / 审计（本轮）
+
+| # | 验证项 | 状态 | 说明 |
+|---|---|---|---|
+| 24.1 | 安装依赖清单 | ✅ | Windows 10/11 + Edge/Chrome；Python 不需要 |
+| 24.2 | 首次使用门槛 | ✅ | 授权 + API Key + 店小秘 Cookie + 模板 |
+| 24.3 | assets 打包路径 | ✅ | `_MEIPASS/assets` / 项目 assets |
+| 24.4 | Playwright 打包 | ✅ | collect_all + hiddenimports |
+| 24.5 | 安装包 | ✅ | installer.iss + CI |
+| 24.6 | 更新检查字段 | ✅ | latestVersion/downloadUrl/hasUpdate |
+| 24.7 | 一键更新 | ✅ | 下载 + SHA256 + 启动安装 |
+| 24.8 | 离线授权 | ✅ | 网络错误保留缓存 72h |
+| 24.9 | 版本号 | ✅ | 新客户端 1.2.0 |
+| 24.10 | 定时任务限制提示 | ✅ | 需软件常开 |
+| 24.11 | 安装文档 | ✅ | docs/INSTALL.md |
+| 24.12 | 回归 | ✅ | verify_issues 199/199 |

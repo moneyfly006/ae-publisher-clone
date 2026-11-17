@@ -1028,7 +1028,7 @@ class App:
                 from ..license import machine_code as _mc
                 state = self.license_state or {}
                 cached_ok = bool(getattr(self.cfg, "license_cache_ok", False)) and \
-                    (time.time() - float(getattr(self.cfg, "license_cache_ts", 0) or 0) < 12 * 3600)
+                    (time.time() - float(getattr(self.cfg, "license_cache_ts", 0) or 0) < 72 * 3600)
                 exp = str(getattr(self.cfg, "license_cache_expiry", "") or "")
                 if cached_ok and exp and exp < __import__("datetime").date.today().isoformat():
                     cached_ok = False
@@ -4275,6 +4275,7 @@ class App:
                     ft.Text(f"{len(jobs)} 条待执行", size=11, color=MUTED),
                     ft.TextButton("刷新", icon=ft.Icons.REFRESH, on_click=lambda e: self._switch(10))], spacing=10),
             muted("到点后自动在「待发布」列表里批量发布；商品本身在保存阶段已写入店小秘"),
+            muted("注意：定时任务需要软件保持运行；关闭软件后不会执行。"),
             *(sched_rows or [ft.Text("暂无定时任务", size=11, color=MUTED)]),
         ], spacing=6))
         prog_card_logs = card(ft.Column([ft.Row([h1("实时进度", 15), self.run_status], spacing=12),
@@ -4956,9 +4957,47 @@ class App:
         r = updater.check(self.cfg.license_server)
         if not r.get("ok"):
             self.toast(f"检查失败：{r.get('error')}", False); return
-        msg = f"发现新版本 {r['latest']}" if r.get("has_update") else "已是最新版本"
-        self._log(msg)
-        self.toast(msg)
+        if not r.get("has_update"):
+            self.toast(f"已是最新版本（v{updater.CURRENT}）")
+            self._log(f"更新检查：已是最新版本 v{updater.CURRENT}")
+            return
+        notes = str(r.get("notes") or "").strip()
+        has_url = bool(str(r.get("url") or "").strip())
+        self._log(f"发现新版本 {r.get('latest')}（当前 v{updater.CURRENT}）")
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"发现新版本 {r.get('latest')}"),
+            content=ft.Column([
+                ft.Text(f"当前版本：v{updater.CURRENT}", size=12, color=TEXT),
+                ft.Text(notes[:600] or "（服务器未提供更新说明）", size=11, color=MUTED, selectable=True),
+                ft.Text("" if has_url else "服务器还没有配置安装包下载地址，请联系管理员。",
+                        size=11, color="#FFB020"),
+            ], spacing=8, width=460),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
+                     ft.ElevatedButton("下载并安装", bgcolor=ACCENT, color="white", disabled=not has_url,
+                                       on_click=lambda e: do_download(e))],
+        )
+        self.page.dialog = dlg
+        dlg.open = True
+        self._safe_update()
+
+        def do_download(e):
+            dlg.open = False
+            self._safe_update()
+            self.toast("开始下载安装包…")
+
+            def go():
+                try:
+                    path = updater.download(str(r["url"]))
+                    want = str(r.get("sha256") or "").lower()
+                    if want and updater.sha256(path).lower() != want:
+                        raise RuntimeError("安装包校验失败（SHA256 不一致）")
+                    self._log(f"更新包已下载：{path}")
+                    self.toast("下载完成，正在启动安装程序…")
+                    updater.launch_installer(path)
+                except Exception as ex:  # noqa: BLE001
+                    self._log(f"更新下载失败：{ex}", "ERROR")
+                    self.toast(f"更新失败：{str(ex)[:80]}", False)
+            threading.Thread(target=go, daemon=True).start()
 
     # ---------- 行为 ----------
     def _check_license(self):
@@ -4971,9 +5010,15 @@ class App:
                              public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""))
         self.license_state = res
         try:
-            self.cfg.set("license_cache_ok", bool(res.get("ok")))
-            self.cfg.set("license_cache_expiry", str(res.get("expiry") or ""))
-            self.cfg.set("license_cache_ts", int(time.time()) if res.get("ok") else 0)
+            if res.get("ok"):
+                self.cfg.set("license_cache_ok", True)
+                self.cfg.set("license_cache_expiry", str(res.get("expiry") or ""))
+                self.cfg.set("license_cache_ts", int(time.time()))
+            elif "无法连接授权服务器" in str(res.get("message") or ""):
+                self._log("授权服务器暂不可达，保留上次授权缓存", "WARN")
+            else:
+                self.cfg.set("license_cache_ok", False)
+                self.cfg.set("license_cache_ts", 0)
             save_config(self.cfg)
         except Exception:
             pass
@@ -5137,6 +5182,16 @@ def _install_crash_log():
         pass
 
 
+def _assets_dir() -> str:
+    """开发/打包两种环境都能找到 assets（打包后资源在 _internal/assets）。"""
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    else:
+        base = Path(__file__).resolve().parents[3]
+    p = base / "assets"
+    return str(p if p.exists() else (Path("assets")))
+
+
 def run():
     _install_crash_log()
-    ft.app(target=lambda page: App(page), assets_dir="assets")
+    ft.app(target=lambda page: App(page), assets_dir=_assets_dir())

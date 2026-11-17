@@ -350,3 +350,67 @@
 真机验证：保存后打开模板库，能看到刚保存的模板（截图）。
 
 ![模板库](screenshots/new/round9-library.png)
+
+---
+
+## 第 10 轮：新电脑安装 / 打包 / 更新 / 运行逻辑审计（2026-11-17）
+
+### 一、新电脑要装什么（直接结论）
+
+| 必须 | 说明 |
+|---|---|
+| Windows 10/11 64 位 | 不支持 Win7/32 位 |
+| Chrome 或 Edge | Win10/11 有 Edge 即可；Chrome 更稳。用于店小秘登录/Cookie/CDP |
+| 网络 | 授权、API、店小秘三个域名 |
+| 授权 + API Key + 店小秘登录态 | **缺一不可**（见下） |
+
+| 不需要 | 说明 |
+|---|---|
+| Python / Node | 安装包已内置（PyInstaller + Flet） |
+| 管理员权限 | 安装包默认装用户目录 |
+| VC++ 运行库 | Win10/11 自带；极老系统才需要 |
+| ffmpeg | 只有主图视频需要，可选 |
+
+**装好不能“直接上架”**：程序能启动，但新机器码必须由管理员登记授权；还要填 API Key、登录店小秘、选一次模板。完整步骤见 [docs/INSTALL.md](INSTALL.md)。
+
+### 二、本轮修掉的安装/运行问题
+
+| # | 问题 | 修复 |
+|---|---|---|
+| 1 | `run()` 用相对 `assets_dir="assets"`，快捷方式从别的目录启动会找不到图标/水印资源 | 打包后从 `_MEIPASS/assets` 解析；开发环境从项目根解析 |
+| 2 | PyInstaller 只收 `browser_cookie3/Crypto`，Playwright 是动态导入，打包后可能缺 driver | spec 增加 `collect_all("playwright")` + hiddenimports（`playwright.sync_api`、`_impl._driver`） |
+| 3 | 只有便携 zip，没有安装包 | 新增 `installer.iss`（Inno Setup 6，按用户安装、开始菜单/可选桌面快捷方式、卸载） |
+| 4 | CI 只出 zip | GitHub Actions 增加 Inno Setup 构建，Release 同时上传 zip + Setup |
+| 5 | 更新接口字段是 `latestVersion/downloadUrl`，代码只读 `version/latest_version`，永远显示“已是最新” | 兼容 camelCase；`hasUpdate` 也参考服务端字段 |
+| 6 | 检查到更新后只能看，不能安装 | 设置里增加更新弹窗：更新说明 + 下载 + SHA256 校验 + 启动安装程序 |
+| 7 | 版本号 0.2.0 比后台旧版 1.1.5.3 低，修好解析后会误提示“升级到旧版” | 新客户端版本统一为 **1.2.0**；后台需把 latest 配到 >1.2.0 才会提示 |
+| 8 | 授权服务器暂时断网时，`_check_license` 把缓存清掉，之后无法启动 | 网络错误保留缓存；离线宽限 72 小时；明确未授权才清 |
+| 9 | 定时发布看起来像“关掉软件也会执行” | 任务页明确提示：**定时任务需要软件保持运行** |
+| 10 | 视频找不到 ffmpeg 时只说“请安装” | 支持 `AuroraList.exe` 同目录 / `_internal\assets\bin\ffmpeg.exe` / PATH 三种放置；安装文档写清 |
+
+### 三、和老软件对比：还需要优化的点（按优先级）
+
+| 优先级 | 项 | 老软件对应 | 现状/建议 |
+|---|---|---|---|
+| P0 | 新电脑授权流程 | `local_license/shop_license` | 现在只能“复制机器码→管理员登记”；建议做自助登记页/兑换码，减少客服 |
+| P0 | 定时任务需软件常开 | `startup_service`/服务化 | 建议加开机自启 + 最小化到托盘；否则客户关机就漏发 |
+| P1 | 店铺授权模式 | `utils/shop_license` | 当前客户端固定 `client_type=local`，后台支持 shop；有店铺授权客户需补 |
+| P1 | 全局代理 | `utils/proxy_config` | 现在只有 API 走代理；授权/店小秘/浏览器没走；跨境网络差时是硬伤 |
+| P1 | 日志上传 | `utils/log_uploader` + 后台 app_logs | 现在只写本地 `error.log`；建议一键上传日志，客服排障更快 |
+| P1 | 安装包签名 | 老软件也可能没签 | 未签名会触发 SmartScreen；正式售卖建议买代码签名证书 |
+| P2 | 店铺商品类目/运费模板名称 | `data_extractor` | 模板 API 拿到的是 categoryId/freightTemplateId；对空白新品可能选不中，建议补名称解析 |
+| P2 | API Key/Cookie 明文 | `utils/cookie_cache` | 现在存 `config.json` 明文；建议 DPAPI/Keychain 加密 |
+| P2 | 启动画面/更新服务 | `splash_screen/startup_service` | 可加启动 splash + 启动时自动检查更新 |
+| P2 | 自动更新下载地址 | `update_installer` | 后台 `downloadUrl` 目前是 null；配好后客户端才能一键更新 |
+| P3 | Windows 真机验收 | — | 本机是 macOS，CI 只保证能打包；需要在干净 Win10/11 上跑一遍首次安装/授权/Cookie/上架 |
+| P3 | 自动化选择器抗改版 | `product_edit_service` | 店小秘前端改版会导致定位失败；建议关键选择器多备选 + 失败截图 |
+
+### 四、安装文档
+
+新增 [docs/INSTALL.md](INSTALL.md)：依赖表、安装包/便携包、首次设置、ffmpeg 放置、数据目录、卸载、已知限制、故障排查。
+
+### 五、回归
+
+- `tools/verify_issues.py`：**199/199 通过**（新增更新字段解析、assets 路径）
+- `button_audit`：0 新增错误
+- `CURRENT=1.2.0`；后台当前 latest 1.1.5.3，因此不会误提示升级

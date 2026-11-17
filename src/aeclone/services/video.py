@@ -17,6 +17,16 @@ def find_ffmpeg() -> str | None:
         p = shutil.which(name)
         if p:
             return p
+    import sys as _sys
+    roots = []
+    if getattr(_sys, "frozen", False):
+        roots.append(Path(getattr(_sys, "_MEIPASS", Path(_sys.executable).parent)))
+    roots.append(Path(__file__).resolve().parents[3])
+    for root in roots:
+        for cand in (root / "assets" / "bin" / "ffmpeg.exe", root / "ffmpeg.exe",
+                     root / "bin" / "ffmpeg.exe"):
+            if cand.exists():
+                return str(cand)
     for cand in (r"C:\ffmpeg\bin\ffmpeg.exe", "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
         if Path(cand).exists():
             return cand

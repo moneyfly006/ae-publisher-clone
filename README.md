@@ -1,4 +1,8 @@
-# AuroraList · 极光上架（速卖通上架工具 · 重构版）
+# AuroraList · 极光上架
+
+当前版本：**1.2.0**（Windows 10/11 x64）
+
+速卖通上架工具 · 重构版
 
 基于原「速卖通上架」软件的功能重写，UI 全新设计，AI 能力接入自建站点（默认 `https://api.moneyfly.club`）。
 
@@ -116,3 +120,7 @@ tools/button_audit.py            全按钮回调遍历
 - [x] 浏览器自动化（Playwright / CDP）
 - [x] SKU 变种映射、价格模板、套装 SKU
 - [x] 逐图编辑方案 / 多图素材 / 四合一 / 图片空间清理
+
+## 安装
+
+新电脑安装、首次使用、依赖与故障排查见 [docs/INSTALL.md](docs/INSTALL.md)。

@@ -1062,6 +1062,21 @@ def main():
         r_old = _lic.verify("https://license.example", timeout=3, identity_override="OLD-ID-1234")
     check("授权：旧版 ID 优先", r_old["ok"] and r_old["tried"][0] == "OLD-ID-1234", str(r_old.get("tried")))
 
+    # 更新检查：兼容服务端 camelCase 字段
+    from aeclone.core import updater as _upd
+    class _UpdResp:
+        def json(self):
+            return {"success": True, "data": {"hasUpdate": True, "latestVersion": "1.2.1",
+                                              "downloadUrl": "https://x/a.exe", "sha256": "abc",
+                                              "changelog": "修复若干问题"}}
+    with _mock.patch.object(_upd.requests, "get", return_value=_UpdResp()):
+        _u = _upd.check("https://license.example")
+    check("更新：解析 latestVersion/downloadUrl",
+          _u["ok"] and _u["has_update"] and _u["url"].endswith("a.exe") and _u["notes"], str(_u))
+
+    from aeclone.ui.app import _assets_dir as _ad
+    check("安装：assets 路径可解析", (Path(_ad()) / "logo.svg").exists(), _ad())
+
     section("性能：图片/价格/模型缓存")
     import aeclone.services.image_cache as _ic
     _ic.clear()
