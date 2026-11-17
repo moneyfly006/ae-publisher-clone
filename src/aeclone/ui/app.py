@@ -238,8 +238,9 @@ def schema_image():
     ]
 def schema_price():
     return [
-        ("模式", [Field("price_mode", "价格模式（multiplier/free_shipping/commission）"),
-                  Field("price_multiplier", "价格倍率"),
+        ("模式", [Field("price_mode", "价格模式", "select", ["multiplier", "free_shipping", "commission"]),
+                  Field("price_multiplier", "价格倍率（自定义，如 1.35）"),
+                  Field("price_fixed_add", "固定加价（元）"),
                   Field("price_fixed_add", "固定加价"),
                   Field("regional_pricing", "区域调价", "bool")]),
         ("成本", [Field("goods_cost", "商品成本"),
@@ -1037,6 +1038,18 @@ class App:
             self.cfg.template_snapshot = _j.dumps({"fields": item.get("fields") or {},
                                                    "attributes": item.get("attributes") or []},
                                                   ensure_ascii=False)
+            # 抓取模板产品的完整表单值（品牌/型号/说明书/欧盟资质等），刊登时照抄
+            try:
+                from ..integrations.editor_automation import read_form_values
+                from ..integrations.browser import ensure_browser
+                ws = self.ws_endpoint or ensure_browser(self.cfg).get("ws", "")
+                self.ws_endpoint = ws
+                vals = read_form_values(ws, str(item.get("product_id") or self.cfg.template_product_id))
+                if vals:
+                    self.cfg.template_values = _j.dumps(vals, ensure_ascii=False)
+                    self.toast(f"已抓取模板 {len(vals)} 个字段值")
+            except Exception as ex:
+                self._log(f"模板值抓取失败：{ex}", "WARN")
             self.cfg.template_product_title = name
             self.cfg.template_product_id = item.get("product_id") or ""
             save_config(self.cfg)

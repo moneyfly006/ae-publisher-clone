@@ -925,8 +925,14 @@ class Publisher:
                         add_step(res, "视频上传", False, str(ex)[:80])
 
                 # 合并流程：一次开页面完成 写模板 + 改标题 + 保存（省一次导航）
+                _fv = {}
+                try:
+                    import json as _jf
+                    _fv = _jf.loads(getattr(self.cfg, "template_values", "") or "{}")
+                except Exception:
+                    _fv = {}
                 r = apply_and_save(self.ws_endpoint, str(p.get("id", "")), _snap_obj,
-                                   p.get("title_en") or None)
+                                   p.get("title_en") or None, form_values=_fv)
                 if not r.ok:
                     raise RuntimeError(r.message)
                 add_step(res, "保存到店小秘", True, r.message)

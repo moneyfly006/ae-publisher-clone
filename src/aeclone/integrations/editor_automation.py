@@ -34,6 +34,109 @@ SYS_ATTR_ALIASES = {
 
 
 
+
+
+CAPTURE_FN = r"""() => {
+  const out = {};
+  document.querySelectorAll('.ant-form-item').forEach(fi => {
+    const labEl = fi.querySelector('.ant-form-item-label label');
+    if (!labEl) return;
+    let label = (labEl.innerText || '').trim();
+    label = label.replace(/\s+/g, ' ').replace(/[?？*]/g, '').trim();
+    if (!label || label.length > 40) return;
+    const sw = fi.querySelector('.ant-switch');
+    if (sw) { out[label] = {t: 'switch', v: sw.getAttribute('aria-checked') === 'true'}; return; }
+    const sel = fi.querySelector('.ant-select-selection-item');
+    if (sel) { out[label] = {t: 'select', v: (sel.innerText || '').trim()}; return; }
+    const radios = [...fi.querySelectorAll('.ant-radio-wrapper-checked')];
+    if (radios.length) { out[label] = {t: 'radio', v: (radios[0].innerText || '').trim()}; return; }
+    const inp = fi.querySelector('input:not([type=file]), textarea');
+    if (inp && String(inp.value || '').trim()) { out[label] = {t: 'text', v: String(inp.value).trim()}; return; }
+    const fileTxt = fi.querySelector('.ant-upload-list-item-name, .file-name');
+    if (fileTxt) { out[label] = {t: 'file', v: (fileTxt.innerText || '').trim()}; return; }
+  });
+  return out;
+}"""
+
+
+def read_form_values(ws_endpoint: str, product_id: str, timeout: int = 90000) -> dict:
+    """读取编辑器里所有表单项的当前值（label → {t,v}），用于「模板怎么填就怎么填」。"""
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    try:
+        page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
+        try:
+            page.wait_for_selector(".ant-form-item", timeout=30000)
+        except Exception:
+            pass
+        page.wait_for_timeout(6000)
+        return page.evaluate(CAPTURE_FN) or {}
+    except Exception:
+        return {}
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        try:
+            browser.close()
+        except Exception:
+            pass
+        pw.stop()
+
+
+def apply_form_values(page, values: dict) -> list[str]:
+    """把模板值按 label 写入当前页面（只填空，不覆盖已有值）。"""
+    applied = []
+    if not values:
+        return applied
+    for label, item in list(values.items())[:60]:
+        try:
+            t, v = item.get("t"), item.get("v")
+            fi = page.locator(".ant-form-item", has_text=label).first
+            if fi.count() == 0:
+                continue
+            if t == "switch":
+                sw = fi.locator(".ant-switch").first
+                if sw.count() > 0:
+                    cur = sw.get_attribute("aria-checked") == "true"
+                    if cur != bool(v):
+                        sw.click(timeout=2500)
+                        page.wait_for_timeout(300)
+                        applied.append(label)
+                continue
+            if t == "select":
+                if fi.locator(".ant-select-selection-item").count() > 0:
+                    continue
+                sel = fi.locator(".ant-select").first
+                if sel.count() == 0:
+                    continue
+                sel.click(timeout=2500)
+                page.wait_for_timeout(600)
+                opt = page.locator(".ant-select-item-option-content", has_text=str(v)[:20]).first
+                if opt.count() > 0:
+                    opt.click(timeout=2500)
+                    page.wait_for_timeout(300)
+                    applied.append(label)
+                continue
+            if t == "radio":
+                r = fi.locator(".ant-radio-wrapper", has_text=str(v)[:12]).first
+                if r.count() > 0:
+                    r.click(timeout=2000)
+                    applied.append(label)
+                continue
+            if t == "text":
+                inp = fi.locator("input:not([type=file]), textarea").first
+                if inp.count() > 0 and not (inp.input_value() or "").strip() and str(v).strip() not in ("", "N/A"):
+                    inp.fill(str(v))
+                    inp.dispatch_event("input")
+                    page.wait_for_timeout(200)
+                    applied.append(label)
+        except Exception:
+            continue
+    return applied
+
+
 def _make_manual_pdf(title: str, specs: list[str] | None = None) -> str:
     """生成一份简单的英文商品说明书 PDF（用于「商品说明书」必填项上传）。"""
     import tempfile
@@ -681,7 +784,7 @@ def publish_from_list(ws_endpoint: str, product_id: str, confirm: bool = False,
 
 def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = None,
                    new_title: str | None = None, timeout: int = 60000,
-                   do_publish: bool = False) -> SaveResult:
+                   do_publish: bool = False, form_values: dict | None = None) -> SaveResult:
     """一次打开编辑器完成：写模板字段 → 改标题 → 保存（→ 可选发布）。
 
     相比 apply_template_fields + update_and_save 两次开页面，省一次导航约 20~40s。
@@ -823,6 +926,15 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
                 applied.append("触发变更")
             except Exception:
                 pass
+
+        # 按模板值补齐（模板产品怎么填，这里就怎么填）
+        try:
+            if form_values:
+                _filled = apply_form_values(page, form_values)
+                if _filled:
+                    applied.append(f"按模板补齐 {len(_filled)} 项")
+        except Exception:
+            pass
 
         # 商品说明书：本地生成 PDF 并上传
         try:
