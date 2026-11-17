@@ -501,6 +501,20 @@ class Publisher:
         try:
             BUS.begin(9)
             emit("开始", f"产品 {product.get('id','')}", (product.get("title") or "")[:60], "INFO")
+            # 提示词方案：按品类自动套用
+            try:
+                from .prompt_sets import apply_for_product
+                _cat = ""
+                try:
+                    _snap = __import__("json").loads(getattr(self.cfg, "template_snapshot", "") or "{}")
+                    _cat = str((_snap.get("fields") or {}).get("category") or "")
+                except Exception:
+                    _cat = ""
+                _set_name = apply_for_product(self.cfg, _cat + " " + str(product.get("title") or ""))
+                if _set_name:
+                    emit("提示词方案", _set_name, f"品类={_cat or '-'}", "INFO")
+            except Exception:
+                pass
             if not BUS.price_of(self.cfg.model_image_edit):
                 try:
                     from ..api import ApiClient as _AC
@@ -882,6 +896,19 @@ class Publisher:
                 if not r.ok:
                     raise RuntimeError(r.message)
                 add_step(res, "保存到店小秘", True, r.message)
+
+                # 保存成功后真实发布（列表页 批量操作 → 批量发布）
+                if getattr(self.cfg, "publish_after_save", False):
+                    try:
+                        from ..integrations.editor_automation import publish_from_list
+                        rp = publish_from_list(self.ws_endpoint, str(p.get("id", "")),
+                                               confirm=True, dry_run=False,
+                                               title_hint=p.get("title_en") or p.get("title", ""))
+                        add_step(res, "发布到速卖通", rp.ok, rp.message[:100])
+                        if not rp.ok:
+                            res.error = (res.error + " " if res.error else "") + f"发布失败：{rp.message[:120]}"
+                    except Exception as ex:  # noqa: BLE001
+                        add_step(res, "发布到速卖通", False, str(ex)[:100])
             return res
         except Exception as e:  # noqa: BLE001
             res.ok = False

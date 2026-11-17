@@ -88,6 +88,7 @@ DEFAULTS: dict = {
     # ---- 内容审查 ----
     "review_block_on_fail": False,
     "auto_save_products": False,
+    "publish_after_save": False,
     "onboarded": False,
     "manual_cookies": {},
     "template_source": "draft",
@@ -213,6 +214,9 @@ DEFAULTS: dict = {
     "adjust_price_template_id": "",
     "adjust_price_template_name": "",
     "price_template_library": [],
+    "prompt_sets": [],
+    "active_prompt_set": "",
+    "prompt_set_by_category": True,
     "custom_attributes": [],
     "attribute_template_id": "",
     # ---- 变种 ----

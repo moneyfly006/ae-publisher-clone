@@ -132,7 +132,8 @@ def schema_advanced():
                       Field("detail_text_info_tail", "详情文字（尾部）", "multiline"),
                       Field("detail_text_position", "插入位置（head/tail/both）"),
                       Field("move_detail_text", "详情文字并入头部", "bool")]),
-        ("运行", [Field("auto_save_products", "自动保存到店小秘（关闭=只试跑）", "bool")]),
+        ("运行", [Field("auto_save_products", "自动保存到店小秘（关闭=只试跑）", "bool"),
+                  Field("publish_after_save", "保存后自动发布到速卖通（真实提交，谨慎开启）", "bool")]),
     ]
 
 
@@ -491,6 +492,14 @@ class App:
                                          on_click=lambda e: self._reset())], spacing=12)
 
     def _reset(self):
+        # 恢复默认前先备份，避免误点丢配置（API Key / 店铺 / 模板）
+        try:
+            import shutil as _sh, time as _t
+            src = AppConfig.path()
+            if src.exists():
+                _sh.copy2(src, src.with_name(f"config.backup-{_t.strftime('%Y%m%d-%H%M%S')}.json"))
+        except Exception:
+            pass
         self.cfg = AppConfig()
         save_config(self.cfg)
         self._switch(self._current)
@@ -2566,6 +2575,63 @@ class App:
             self.toast(f"已应用预设：{TITLE_PRESETS[name][0]}")
             self._switch(11)
 
+        # ---- 方案库（按品类） ----
+        from ..services.prompt_sets import list_sets, save_set, delete_set, apply_set
+        self.ps_name = ft.TextField(label="方案名称", width=180, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.ps_cat = ft.TextField(label="绑定品类关键词（如 crane / 吊机）", width=240,
+                                   bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.ps_dd = ft.Dropdown(label="已有方案", width=240, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
+
+        def _ps_refresh():
+            sets = list_sets(self.cfg)
+            self.ps_dd.options = [ft.dropdown.Option(s["name"],
+                                                     f"{s['name']}" + (f"（{s.get('category')}）" if s.get("category") else ""))
+                                  for s in sets]
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def ps_save(e):
+            name = (self.ps_name.value or "").strip()
+            if not name:
+                self.toast("请输入方案名称", False); return
+            save_set(self.cfg, name, self.ps_cat.value or "")
+            save_config(self.cfg)
+            _ps_refresh()
+            self.toast(f"方案已保存：{name}")
+
+        def ps_apply(e):
+            name = self.ps_dd.value
+            if not name:
+                self.toast("请选择方案", False); return
+            if apply_set(self.cfg, name):
+                save_config(self.cfg)
+                self.toast(f"已套用方案：{name}")
+                self._switch(11)
+            else:
+                self.toast("方案不存在", False)
+
+        def ps_del(e):
+            name = self.ps_dd.value
+            if not name:
+                self.toast("请选择方案", False); return
+            delete_set(self.cfg, name)
+            save_config(self.cfg)
+            _ps_refresh()
+            self.toast("已删除")
+
+        _ps_refresh()
+        ps_card = card(ft.Column([
+            h1("提示词方案库（按品类）", 15),
+            muted("把当前 9 条提示词存成一套方案并绑定品类；刊登时若商品类目/标题含该关键词，自动套用该方案"),
+            ft.Row([self.ps_name, self.ps_cat,
+                    ft.ElevatedButton("保存当前为方案", icon=ft.Icons.BOOKMARK_ADD, bgcolor=CARD_2, color=TEXT,
+                                      on_click=ps_save)], spacing=10, wrap=True),
+            ft.Row([self.ps_dd,
+                    ft.ElevatedButton("套用", icon=ft.Icons.CHECK, bgcolor=ACCENT, color="white", on_click=ps_apply),
+                    ft.OutlinedButton("删除", on_click=ps_del)], spacing=10, wrap=True)], spacing=8))
+
         preset_card = card(ft.Column([
             h1("标题风格预设", 15),
             muted("一键切换三种投放策略，会覆盖「标题提示词」，可随时恢复默认"),
@@ -2577,7 +2643,9 @@ class App:
         self.try_input = ft.TextField(label="试写商品（中文标题或关键词）", width=560,
                                       bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                       value="3吨小型蜘蛛吊车 20米吊高 履带式电动")
-        self.try_b_prompt = ft.TextField(label="B 方案提示词（留空则用 A 之外的长尾预设）", multiline=True,
+        self.ab_mode = ft.Dropdown(label="对比对象", width=140, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                   value="标题", options=[ft.dropdown.Option(x) for x in ("标题", "描述", "图片")])
+        self.try_b_prompt = ft.TextField(label="B 方案提示词（留空则用内置对照预设）", multiline=True,
                                          min_lines=3, max_lines=6, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.try_a_col = ft.Column(spacing=4)
         self.try_b_col = ft.Column(spacing=4)
@@ -2614,21 +2682,58 @@ class App:
             from ..services import model_of
             from ..api import ApiClient
             from ..services.prompt_presets import title_variants
+            mode = self.ab_mode.value or "标题"
             client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
             model = model_of(self.cfg, "text")
-            a_prompt = self.cfg.title_prompt
-            b_prompt = (self.try_b_prompt.value or "").strip() or TITLE_PRESETS["longtail"][1]
-            self.try_a_prompt_text, self.try_b_prompt_text = a_prompt, b_prompt
             try:
-                va = title_variants(client, model, a_prompt, src, 3)
-                vb = title_variants(client, model, b_prompt, src, 3)
-                _render_variants(self.try_a_col, va, "A", a_prompt)
-                _render_variants(self.try_b_col, vb, "B", b_prompt)
-                best_a = max((score_title(v.text)["score"] for v in va if v.ok), default=0)
-                best_b = max((score_title(v.text)["score"] for v in vb if v.ok), default=0)
-                self.try_status.value = f"完成：A 最高 {best_a} 分 / B 最高 {best_b} 分（模型 {model}）"
+                if mode == "标题":
+                    a_prompt = self.cfg.title_prompt
+                    b_prompt = (self.try_b_prompt.value or "").strip() or TITLE_PRESETS["longtail"][1]
+                    va = title_variants(client, model, a_prompt, src, 3)
+                    vb = title_variants(client, model, b_prompt, src, 3)
+                    _render_variants(self.try_a_col, va, "A", a_prompt)
+                    _render_variants(self.try_b_col, vb, "B", b_prompt)
+                    ba = max((score_title(v.text)["score"] for v in va if v.ok), default=0)
+                    bb = max((score_title(v.text)["score"] for v in vb if v.ok), default=0)
+                    self.try_status.value = f"完成：A 最高 {ba} 分 / B 最高 {bb} 分（{model}）"
+
+                elif mode == "描述":
+                    a_prompt = self.cfg.detail_prompt
+                    b_prompt = (self.try_b_prompt.value or "").strip() or (
+                        "你是速卖通详情页文案。用英文输出 HTML：一段 60 词的卖点、5 条要点、"
+                        "参数表（Model/Material/Size/Weight/Power）、包装清单、售后说明。"
+                        "全英文，禁止联系方式与促销语，300~400 词。")
+                    def gen(prompt):
+                        out = client.chat(model, [{"role": "system", "content": prompt},
+                                                  {"role": "user", "content": src}], max_tokens=1200)
+                        return out or ""
+                    da, db = gen(a_prompt), gen(b_prompt)
+                    for col, text, tag, pr in ((self.try_a_col, da, "A", a_prompt),
+                                                (self.try_b_col, db, "B", b_prompt)):
+                        col.controls = [
+                            ft.Text(f"{tag} 长度 {len(text)} 字符 · 约 {len(text.split())} 词", size=10, color=MUTED),
+                            ft.Text(text[:1200], size=11, color=TEXT, selectable=True),
+                        ]
+                    self.try_status.value = (f"完成：A {len(da)} 字符 / B {len(db)} 字符（{model}）")
+
+                else:  # 图片
+                    from ..services import ImageService
+                    from ..services.progress import BUS
+                    a_prompt = (self.cfg.main_image_generate_prompt or "").replace("{title}", src).replace("{subject}", src)
+                    b_prompt = (self.try_b_prompt.value or "").strip() or (
+                        f"Professional e-commerce product photo of {src}, pure white background, "
+                        "soft studio light, centered, 1:1, no text, no watermark")
+                    svc = ImageService(client, self.cfg)
+                    ua = svc.generate(a_prompt, "1024x1024", 1)
+                    ub = svc.generate(b_prompt, "1024x1024", 1)
+                    for col, url, tag, pr in ((self.try_a_col, ua, "A", a_prompt),
+                                                (self.try_b_col, ub, "B", b_prompt)):
+                        col.controls = [ft.Text(f"{tag} · {self.cfg.model_image_gen}", size=10, color=MUTED),
+                                        ft.Image(src=str(url), width=320, height=320, fit=ft.ImageFit.CONTAIN),
+                                        ft.Text(str(url)[:70], size=9, color=MUTED, selectable=True)]
+                    self.try_status.value = f"完成：两张图各扣约 ¥{BUS.price_of(self.cfg.model_image_gen):.2f}"
             except Exception as ex:
-                self.try_status.value = f"失败：{str(ex)[:120]}"
+                self.try_status.value = f"失败：{str(ex)[:140]}"
             try:
                 self.page.update()
             except Exception:
@@ -2637,16 +2742,16 @@ class App:
         ab_card = card(ft.Column([
             h1("试写 / A-B 对比", 15),
             muted("同一商品，用两套提示词各生成 3 条候选，带本地评分，选中即设为标题提示词"),
-            ft.Row([self.try_input,
+            ft.Row([self.try_input, self.ab_mode,
                     ft.ElevatedButton("生成对比", icon=ft.Icons.COMPARE_ARROWS, bgcolor=ACCENT, color="white",
-                                      on_click=run_ab)], spacing=10),
+                                      on_click=run_ab)], spacing=10, wrap=True),
             self.try_b_prompt,
             ft.Row([ft.Column([ft.Text("A 方案（当前提示词）", size=12, color=ACCENT_2), self.try_a_col], spacing=4, expand=True),
                     ft.Column([ft.Text("B 方案（对照）", size=12, color="#7C5CFF"), self.try_b_col], spacing=4, expand=True)],
                    spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
             self.try_status], spacing=10))
 
-        return [view[0], preset_card, ab_card, tip] + view[1:]
+        return [view[0], ps_card, preset_card, ab_card, tip] + view[1:]
 
     def _adopt_title(self, text: str, prompt_text: str):
         """采用某条标题：把它记录为该提示词的样例，并保存到本地供下次参考。"""

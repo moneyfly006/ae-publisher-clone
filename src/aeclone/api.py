@@ -29,7 +29,10 @@ class ApiClient:
                  proxy: str = ""):
         self.base = base.rstrip("/")
         self.key = key.strip()
-        self.timeout = timeout
+        try:
+            self.timeout = float(timeout)
+        except Exception:
+            self.timeout = 180.0
         self.session = session or requests.Session()
         if proxy:
             self.session.proxies.update({"http": proxy, "https": proxy})

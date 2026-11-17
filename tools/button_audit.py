@@ -85,8 +85,12 @@ def run():
                 fn = getattr(c, cb, None)
                 if callable(fn):
                     buttons.append((c, cb, fn))
+        DESTRUCTIVE = ("恢复默认", "清空", "删除", "重置", "取消", "关闭", "终止")
         for c, cb, fn in buttons:
             label = getattr(c, "text", None) or getattr(c, "label", None) or type(c).__name__
+            if any(k in str(label) for k in DESTRUCTIVE):
+                results.append((idx, label, "SKIP", "破坏性操作，跳过"))
+                continue
             try:
                 if cb == "on_click":
                     fn(FakeEvent())

@@ -429,3 +429,140 @@ def attach_video(ws_endpoint: str, product_id: str, video_path: str, timeout: in
         except Exception:
             pass
         pw.stop()
+
+
+LIST_URL = "https://www.dianxiaomi.com/web/smt/smtProductList/offline"
+
+
+def publish_from_list(ws_endpoint: str, product_id: str, confirm: bool = False,
+                      dry_run: bool = True, timeout: int = 150000,
+                      title_hint: str = "") -> SaveResult:
+    """在「待发布」列表里勾选产品 → 批量操作 → 批量发布（真实提交到速卖通）。"""
+    if not confirm:
+        return SaveResult(False, "未确认：发布操作被拒绝（需显式 confirm=True）")
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    seen: dict = {}
+    captured: dict = {}
+
+    def _on_req(req):
+        try:
+            u = req.url
+            if "/api/" in u and any(k in u.lower() for k in ("publish", "submit", "online")):
+                captured["url"] = u.split("dianxiaomi.com")[-1]
+                captured["len"] = len(req.post_data or "")
+                if dry_run:
+                    req.abort()
+        except Exception:
+            pass
+
+    def _on_resp(resp):
+        try:
+            u = resp.url
+            if "/api/" in u and any(k in u.lower() for k in ("publish", "submit", "online")):
+                seen["url"] = u.split("dianxiaomi.com")[-1]
+                seen["status"] = resp.status
+        except Exception:
+            pass
+
+    page.on("request", _on_req)
+    page.on("response", _on_resp)
+    try:
+        page.goto(LIST_URL, wait_until="domcontentloaded", timeout=timeout)
+        page.wait_for_timeout(12000)
+
+        # 在列表里按标题找到目标行（列表不显示产品 ID，只能按标题匹配）
+        rows = page.locator(".vxe-table--body tbody tr")
+        if rows.count() == 0:
+            return SaveResult(False, "待发布列表为空")
+        target = None
+        hint = (title_hint or "").strip()
+        if hint:
+            try:
+                for i in range(rows.count()):
+                    try:
+                        txt = rows.nth(i).inner_text()
+                    except Exception:
+                        continue
+                    if hint[:18].lower() in (txt or "").lower():
+                        target = rows.nth(i)
+                        break
+            except Exception:
+                target = None
+        if target is None:
+            target = rows.first
+        first = target
+        box = first.locator('input[type="checkbox"]').first
+        if box.count() == 0:
+            try:
+                first.locator(".vxe-checkbox--icon").first.click(timeout=4000)
+            except Exception:
+                return SaveResult(False, "找不到勾选框")
+        else:
+            try:
+                box.check(timeout=4000)
+            except Exception:
+                try:
+                    box.click(timeout=4000)
+                except Exception:
+                    return SaveResult(False, "勾选失败")
+        page.wait_for_timeout(1500)
+
+        # 批量操作 → 批量发布
+        try:
+            page.get_by_role("button", name="批量操作").first.click(timeout=8000)
+        except Exception:
+            return SaveResult(False, "找不到「批量操作」")
+        page.wait_for_timeout(1500)
+        clicked = False
+        for sel in ('text=批量发布', '.vxe-dropdown--panel >> text=批量发布'):
+            try:
+                loc = page.locator(sel).first
+                if loc.count() > 0:
+                    loc.click(timeout=6000)
+                    clicked = True
+                    break
+            except Exception:
+                continue
+        if not clicked:
+            return SaveResult(False, "找不到「批量发布」")
+        page.wait_for_timeout(4000)
+
+        # 确认弹窗
+        for txt in ("确定", "确认", "立即发布", "发布", "继续"):
+            try:
+                btn = page.get_by_role("button", name=txt, exact=True).first
+                if btn.count() > 0:
+                    btn.click(timeout=4000)
+                    page.wait_for_timeout(3000)
+                    break
+            except Exception:
+                continue
+        page.wait_for_timeout(12000)
+
+        if dry_run:
+            if captured.get("url"):
+                return SaveResult(True, f"演练：捕获发布接口 {captured['url']}（{captured['len']} 字节，未提交）")
+            return SaveResult(False, "演练未捕获到发布接口（可能弹窗未确认）")
+        if seen:
+            return SaveResult(seen.get("status", 500) < 400,
+                              f"发布接口 {seen['url']} HTTP {seen.get('status')}")
+        body = ""
+        try:
+            body = page.inner_text("body")[-400:]
+        except Exception:
+            pass
+        ok = ("发布成功" in body) or ("已提交" in body)
+        return SaveResult(ok, "发布已提交（未捕获接口）" if ok else "已点击发布但未确认结果")
+    except Exception as e:  # noqa: BLE001
+        return SaveResult(False, f"列表发布失败：{str(e)[:160]}")
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        try:
+            browser.close()
+        except Exception:
+            pass
+        pw.stop()
