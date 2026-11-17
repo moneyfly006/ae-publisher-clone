@@ -142,6 +142,37 @@ class Publisher:
                 ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
         return self._img_svc
 
+    def _pmap(self, fn, items, workers: int | None = None):
+        """小工具：按图片并发数并行执行，保持输入顺序；单张失败返回 None。"""
+        items = list(items)
+        if not items:
+            return []
+        try:
+            n = int(workers if workers is not None else getattr(self.cfg, "image_concurrency", 4) or 4)
+        except Exception:
+            n = 4
+        n = max(1, min(8, n, len(items)))
+        if n == 1:
+            out = []
+            for x in items:
+                try:
+                    out.append(fn(x))
+                except Exception:
+                    out.append(None)
+            return out
+        import concurrent.futures as _cf
+        out = [None] * len(items)
+
+        def run(i, x):
+            try:
+                out[i] = fn(x)
+            except Exception:
+                out[i] = None
+
+        with _cf.ThreadPoolExecutor(max_workers=n) as ex:
+            list(ex.map(lambda pair: run(*pair), list(enumerate(items))))
+        return out
+
     def _edit_with_prompt(self, url: str, prompt: str) -> str:
         """对单张 URL 用指定提示词做一次编辑，返回新 URL。"""
         _act = "edit:" + (prompt or "")[:120]
@@ -257,6 +288,9 @@ class Publisher:
 
     def _apply_image_jobs(self, p: dict, res, dry_run: bool = False) -> dict:
         """执行「简单规则 + 精细任务」（新引擎；旧配置自动迁移）。"""
+        if not getattr(self.cfg, "ai_image_enable", True):
+            add_step(res, "图片方案", True, "AI图片处理总开关已关闭，跳过")
+            return p
         from .image_jobs import parse_rules, parse_jobs, refs_indices, migrate, GROUP_LABELS
         rules = parse_rules(getattr(self.cfg, "image_simple_rules", "[]"))
         jobs = parse_jobs(getattr(self.cfg, "image_ai_jobs", "[]"))
@@ -283,15 +317,14 @@ class Publisher:
             idx = []
             from .image_index import parse_indices as _pi
             idx = _pi(rule.get("range") or "1-20", len(urls)) or []
+            src = [urls[i - 1] for i in idx]
+            vals = self._pmap(lambda u: self._apply_simple_ops(u, rule["ops"]), src)
             done = failed = 0
-            for i in idx:
-                try:
-                    new = self._apply_simple_ops(urls[i - 1], rule["ops"])
-                    if new and new != urls[i - 1]:
-                        self._set_group_url(p, group, i - 1, str(new))
-                        urls = self._group_urls(p, group)
-                        done += 1
-                except Exception:
+            for i, old_u, new in zip(idx, src, vals):
+                if new and str(new) != str(old_u):
+                    self._set_group_url(p, group, i - 1, str(new))
+                    done += 1
+                elif new is None:
                     failed += 1
             add_step(res, f"简单处理·{GROUP_LABELS.get(group, group)}", failed == 0 and done > 0,
                      f"成功 {done} / 失败 {failed}")
@@ -399,7 +432,9 @@ class Publisher:
             add_step(res, "模板参数", True, "未设置模板，跳过")
             return p
         p["template_fields"] = fields
-        p["template_attributes"] = snap.get("attributes") or []
+        # 模板只作为「类目/运费/重量/尺寸等字段」的参考；自定义属性不复制到新产品，
+        # 否则新产品会多出一整套重复属性。
+        p["template_attributes"] = []
         specs = getattr(self, "_pending_specs", {}) or {}
         for key, label in (("spec_weight", "Weight"), ("spec_length", "Length"),
                            ("spec_width", "Width"), ("spec_height", "Height")):
@@ -415,15 +450,9 @@ class Publisher:
             amap = dict(p.get("attributes_map") or {})
             amap.update(specs)
             p["attributes_map"] = amap
-        if not p.get("attributes_map"):
-            amap = {}
-            for a in p["template_attributes"]:
-                if "=" in a:
-                    k, v = a.split("=", 1)
-                    amap[k.strip()] = v.strip()
-            p["attributes_map"] = amap
         res.steps.append(Step("模板参数", True,
-                              f"类目 {fields.get('category','-')} / 运费 {fields.get('freight','-')} / 属性 {len(p['template_attributes'])} 项"))
+                              f"类目 {fields.get('category','-')} / 运费 {fields.get('freight','-')}"
+                              f" · 自定义属性仅参考、不复制"))
         return p
 
     def _map_variants(self, p: dict) -> dict:
@@ -478,17 +507,21 @@ class Publisher:
 
     def _process_urls(self, urls: list[str], limit: int = 8, white_bg: bool = True,
                       remove_wm: bool = False, edit: bool = False) -> tuple[list[str], int]:
+        src = list(urls[:limit])
+        vals = self._pmap(lambda u: self._run_ops(u, white_bg, remove_wm, edit), src)
         out, done = [], 0
-        for u in urls[:limit]:
-            try:
-                nu = self._run_ops(u, white_bg, remove_wm, edit)
-                out.append(nu); done += 1
-            except Exception:
+        for u, nu in zip(src, vals):
+            if nu:
+                out.append(str(nu)); done += 1
+            else:
                 out.append(str(u))
         return out, done
 
     def _ai_images(self, p: dict, res) -> dict:
         """主图 / 详情图 / SKU 图 三条分支，按配置范围处理。"""
+        if not getattr(self.cfg, "ai_image_enable", True):
+            add_step(res, "图片AI处理", True, "总开关已关闭，跳过")
+            return p
         from .image_index import pick
 
         # 主图
@@ -596,39 +629,42 @@ class Publisher:
                 repl = _j3.loads(getattr(self.cfg, "sku_image_replace", "") or "{}")
             except Exception:
                 repl = {}
-            for sku in skus[:12]:
+            def _one_sku(sku):
                 img = sku.get("image") or sku.get("imageUrl")
                 name = str(sku.get("sku") or "")
                 if name in repl and repl[name]:
                     sku["image"] = repl[name]
                     img = repl[name]
                 if not img:
-                    continue
-                try:
-                    sku["processed_image"] = self._run_ops(
-                        str(img),
-                        white_bg=getattr(self.cfg, "img_sku_white_bg", True),
-                        remove_wm=getattr(self.cfg, "img_sku_remove_wm", False),
-                        edit=getattr(self.cfg, "img_sku_edit", False))
+                    return None
+                return self._run_ops(
+                    str(img),
+                    white_bg=getattr(self.cfg, "img_sku_white_bg", True),
+                    remove_wm=getattr(self.cfg, "img_sku_remove_wm", False),
+                    edit=getattr(self.cfg, "img_sku_edit", False))
+
+            _sv = self._pmap(_one_sku, skus[:12])
+            for sku, _u in zip(skus[:12], _sv):
+                if _u:
+                    sku["processed_image"] = str(_u)
                     done += 1
-                except Exception:
-                    pass
             if done:
                 add_step(res, "SKU图处理", True, f"{done} 张")
 
         # SKU 图文字翻译
         if getattr(self.cfg, "translate_sku_pic", False):
-            n = 0
-            for sku in (p.get("skus") or [])[:6]:
+            _tp = (getattr(self.cfg, "translate_prompt", "") or "").strip()
+            _skus = (p.get("skus") or [])[:6]
+            def _tr_sku(sku):
                 img = sku.get("processed_image") or sku.get("image")
                 if not img:
-                    continue
-                try:
-                    _tp = (getattr(self.cfg, "translate_prompt", "") or "").strip()
-                    sku["processed_image"] = self._run_ops(str(img), False, False, True, prompt=_tp or None)
-                    n += 1
-                except Exception:
-                    pass
+                    return None
+                return self._run_ops(str(img), False, False, True, prompt=_tp or None)
+            _vals = self._pmap(_tr_sku, _skus)
+            n = 0
+            for sku, u in zip(_skus, _vals):
+                if u:
+                    sku["processed_image"] = str(u); n += 1
             if n:
                 add_step(res, "SKU图翻译", True, f"{n} 张")
 
@@ -695,15 +731,17 @@ class Publisher:
                 cookies = self.dxm.cookies_dict()
             except Exception:
                 cookies = None
-        out = []
-        for i, u in enumerate(p.get("images", [])[:8]):
+        def _one(iu):
+            i, u = iu
             try:
                 r = __import__("requests").get(str(u), timeout=60, cookies=cookies)
                 r.raise_for_status()
                 fp = d / f"pub_{i}.png"; fp.write_bytes(r.content)
-                out.append(host_upload(fp))
+                return host_upload(fp)
             except Exception:
-                out.append(str(u))
+                return str(u)
+        _items = list(enumerate(p.get("images", [])[:8]))
+        out = self._pmap(_one, _items)
         if out:
             p["images"] = out
             add_step(res, "图片转存", True, f"{len(out)} 张已转公网")
@@ -776,6 +814,21 @@ class Publisher:
     # ---------- 主流程 ----------
     def run(self, product: dict, dry_run: bool = True, manage_progress: bool = True) -> PublishResult:
         res = PublishResult(product_id=str(product.get("id", "")), ok=True)
+        # 审核中的产品禁止再次编辑（店小秘会返回 PRODUCT_IN_AUDIT_PENDING，且会白跑 AI）
+        _st = str(product.get("status_type") or product.get("status") or "")
+        _err = str((product.get("raw") or {}).get("errMsg") or "")
+        if self.dxm is not None:
+            try:
+                _state = self.dxm.product_state(str(product.get("id", "")))
+                _st = _state.get("status") or _st
+                _err = _state.get("err") or _err
+            except Exception:
+                pass
+        if _st in ("auditing", "onSelling", "published", "online") or "PRODUCT_IN_AUDIT_PENDING" in _err:
+            add_step(res, "跳过", False, f"产品状态 {_st or '审核中'}，审核中/已上架不重复编辑")
+            res.ok = False
+            res.error = f"产品状态 {_st or '审核中'}，已跳过"
+            return res
         try:
             if manage_progress:
                 BUS.begin(9)
@@ -881,7 +934,8 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "本地图片处理", False, str(ex)[:120])
 
-            _img_ops = (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable
+            _img_ops = (getattr(self.cfg, "ai_image_enable", True)
+                        and (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable
                         or getattr(self.cfg, "img_main_edit", False)
                         or getattr(self.cfg, "img_detail_white_bg", False)
                         or getattr(self.cfg, "img_detail_remove_wm", False)
@@ -892,9 +946,9 @@ class Publisher:
                         or (getattr(self.cfg, "background_gen_rules", "") or "").strip() not in ("", "[]")
                         or getattr(self.cfg, "translate_detail_pic_enable", False)
                         or getattr(self.cfg, "translate_main_pic_enable", False)
-                        or getattr(self.cfg, "translate_sku_pic", False))
+                        or getattr(self.cfg, "translate_sku_pic", False)))
             # AI 主图生成（文生图 / 以现有主图为素材的图生图）
-            if getattr(self.cfg, "main_image_generate_enable", False):
+            if getattr(self.cfg, "main_image_generate_enable", False) and getattr(self.cfg, "ai_image_enable", True):
                 try:
                     from ..api import ApiClient
                     from . import model_of as _model_of_gen
@@ -949,7 +1003,7 @@ class Publisher:
                     add_step(res, "AI主图生成", False, str(ex)[:80])
 
             # 指定图片编辑
-            if getattr(self.cfg, "designated_edit_enable", False):
+            if getattr(self.cfg, "designated_edit_enable", False) and getattr(self.cfg, "ai_image_enable", True):
                 try:
                     from .image_index import pick as _pk2
                     idx = getattr(self.cfg, "designated_edit_indices", "") or ""
@@ -1024,7 +1078,8 @@ class Publisher:
                     add_step(res, "水印叠加", False, str(ex)[:80])
 
             # 营销场景图（基于主图生成，追加到详情图）
-            if getattr(self.cfg, "marketing_image_enable", False) and p.get("images") and not dry_run:
+            if (getattr(self.cfg, "marketing_image_enable", False)
+                    and getattr(self.cfg, "ai_image_enable", True) and p.get("images") and not dry_run):
                 try:
                     import tempfile as _tf, requests as _rq
                     from pathlib import Path as _Pm
@@ -1051,17 +1106,26 @@ class Publisher:
 
             if not dry_run and self.dxm and p.get("images"):
                 uploaded, failed, space_full = 0, 0, False
-                for u in p["images"][:20]:
+
+                def _up(u):
                     try:
                         self.dxm.upload_image_from_url(str(u), full_cid=getattr(self.cfg, "upload_full_cid", "") or "")
-                        uploaded += 1
+                        return "ok", ""
                     except Exception as ex:  # noqa: BLE001
-                        _msg = str(ex)
-                        if "空间不足" in _msg or "空间已满" in _msg or "no space" in _msg.lower():
-                            space_full = True
-                            break
+                        return "err", str(ex)
+
+                _res = self._pmap(_up, p["images"][:20], workers=4)
+                for _u, _r in zip(p["images"][:20], _res):
+                    if not _r:
+                        continue
+                    kind, msg = _r
+                    if kind == "ok":
+                        uploaded += 1
+                    elif "空间不足" in msg or "空间已满" in msg or "no space" in msg.lower():
+                        space_full = True
+                    else:
                         failed += 1
-                        p.setdefault("upload_errors", []).append(_msg[:120])
+                        p.setdefault("upload_errors", []).append(msg[:120])
                 if space_full:
                     add_step(res, "图片上传", True,
                              "店小秘图片空间不足，已跳过上传（改用外链 URL，不影响刊登）")

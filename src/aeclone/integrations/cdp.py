@@ -155,6 +155,35 @@ def _launch_exe(exe: str, user_data_dir: str | None = None, port: int | None = N
     raise BrowserError(f"Edge 启动失败（CDP 端口 {port} 未就绪）：{last}")
 
 
+def inject_cookies(ws_endpoint: str, cookies: dict[str, str],
+                   domains: tuple[str, ...] = (".dianxiaomi.com", "www.dianxiaomi.com")) -> int:
+    """把本机 Chrome 的店小秘 Cookie 注入到独立调试浏览器，省去重新登录。"""
+    if not ws_endpoint or not cookies:
+        return 0
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return 0
+    n = 0
+    with sync_playwright() as p:
+        browser = p.chromium.connect_over_cdp(ws_endpoint, timeout=30000)
+        try:
+            ctx = browser.contexts[0] if browser.contexts else browser.new_context()
+            payload = []
+            for k, v in cookies.items():
+                if not k or v is None:
+                    continue
+                for d in domains:
+                    payload.append({"name": str(k), "value": str(v), "domain": d,
+                                    "path": "/", "secure": True, "sameSite": "Lax"})
+            if payload:
+                ctx.add_cookies(payload)
+                n = len(payload)
+        finally:
+            browser.close()
+    return n
+
+
 def cookies_via_cdp(ws_endpoint: str, domains: list[str] | None = None, timeout: int = 30) -> dict[str, str]:
     """通过 CDP 读取 cookies，返回 name->value。"""
     try:

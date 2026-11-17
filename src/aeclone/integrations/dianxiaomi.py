@@ -187,6 +187,15 @@ class DianxiaomiClient:
                 "locked": int(data.get("lockedCount") or inner.get("lockedCount") or 0)}
         return items, meta
 
+    def product_state(self, product_id: str) -> dict:
+        """读取产品当前状态（用于编辑前预检，防止审核中产品被再次编辑）。"""
+        d = self._get("product_detail", {"id": str(product_id)})
+        p = (d.get("data") or {}).get("product") or {}
+        return {"id": str(p.get("id") or product_id),
+                "status": str(p.get("productStatusType") or ""),
+                "err": str(p.get("errMsg") or ""),
+                "audit_reason": str(p.get("auditFailureReason") or "")}
+
     def template_snapshot(self, product_id: str) -> dict:
         """从店小秘商品详情接口生成模板快照（不需要打开浏览器）。"""
         import json as _j
@@ -371,7 +380,18 @@ class DianxiaomiClient:
         return self.iter_products(shop_id, "onSelling", limit)
 
     def pending_products(self, limit: int = 0, shop_id=None) -> list[dict]:
-        return self.iter_products(shop_id, "editingRequired", limit)
+        """待发布产品：店小秘 editingRequired 列表里也会混入审核中产品，必须再过滤。"""
+        items = self.iter_products(shop_id, "editingRequired",
+                                   max_items=(max(limit * 4, 80) if limit else 0))
+        out = []
+        for p in items:
+            st = str(p.get("status_type") or p.get("status") or "")
+            if st in self.BLOCKED_STATUS:
+                continue
+            if "PRODUCT_IN_AUDIT_PENDING" in str(p.get("raw", {}).get("errMsg") or ""):
+                continue
+            out.append(p)
+        return out[:limit] if limit else out
 
     EDITABLE_STATUS = {"editingRequired", "offline", "publishFail", "draft", "waitPublish"}
     BLOCKED_STATUS = {"auditing", "onSelling", "published", "online"}

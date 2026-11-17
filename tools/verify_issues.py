@@ -1171,6 +1171,7 @@ def main():
     _m.Publisher = _SlowPublisher
     _m.DianxiaomiClient = _DxmMany
     uapp._cookies = lambda *a, **k: {"dxm_i": "x"}
+    uapp._ensure_browser_session = lambda ck=None: "ws-test"
     t0 = time.time()
     uapp._run_pipeline()
     elapsed["t"] = time.time() - t0
@@ -1215,6 +1216,7 @@ def main():
     })()
     uapp._queue_products = {}
     uapp._refresh_queue = lambda: None
+    uapp._ensure_browser_session = lambda ck=None: "ws-test"
     t0 = time.time()
     uapp._process_queue()
     qt = time.time() - t0
@@ -1238,6 +1240,32 @@ def main():
     app7._template_library_dialog()
     _lib_text = " ".join(texts([app7.page.dialog]))
     check("模板库：保存后可打开且能看到", "库模板1" in _lib_text, _lib_text[:100])
+
+    # 模板只参考字段，不复制自定义属性
+    _tcfg = AppConfig({"template_snapshot": json.dumps(
+        {"fields": {"category": "C", "freight": "F"}, "attributes": ["Color=Red", "Size=L"]})})
+    from aeclone.services.publisher import Publisher as _Pub, PublishResult as _PR
+    _pub = _Pub(_tcfg)
+    _tp = _pub._apply_template({"id": "1", "skus": [], "images": []}, _PR("1", True))
+    check("模板：自定义属性不复制", _tp.get("template_attributes") == [], str(_tp.get("template_attributes")))
+    check("模板：属性不进入 attributes_map", "Color" not in (_tp.get("attributes_map") or {}), str(_tp.get("attributes_map")))
+
+    # 审核中产品：Publisher 预检直接跳过（即使列表状态还是 editingRequired）
+    class _AuditDxm:
+        def product_state(self, pid):
+            return {"id": pid, "status": "auditing", "err": "", "audit_reason": ""}
+    _ar = _Pub(AppConfig({}), dxm=_AuditDxm()).run(
+        {"id": "audit-1", "title": "审核中", "status_type": "editingRequired", "images": []},
+        dry_run=True, manage_progress=False)
+    check("审核中：Publisher 拒绝编辑", _ar.ok is False and
+          ("审核中" in (_ar.error or "") or "auditing" in (_ar.error or "")), _ar.error or "")
+
+    # AI图片处理：总开关/并发/快速模式入口
+    uapp._switch(5)
+    img_labels = " ".join(texts(uapp.content.controls))
+    check("图片：总开关存在", "启用 AI 图片处理（总开关）" in img_labels, "")
+    check("图片：并发设置存在", "单产品图片并发数" in img_labels, "")
+    check("图片：一键快速模式", "一键快速模式" in img_labels, "")
 
     # 页面去重：日志页不再有版本更新/视频；设置页有版本
     uapp._switch(10)

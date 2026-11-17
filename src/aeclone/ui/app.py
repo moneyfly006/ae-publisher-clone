@@ -201,6 +201,10 @@ def schema_review():
 
 def schema_image():
     return [
+        ("总开关", [
+            Field("ai_image_enable", "启用 AI 图片处理（总开关）", "bool"),
+            Field("image_concurrency", "单产品图片并发数（1-8，越大越快）"),
+        ]),
         ("主图", [
             Field("main_image_generate_enable", "AI 生成主图（文生图）", "bool"),
             Field("main_image_generate_prompt", "生成提示词", "multiline"),
@@ -214,6 +218,7 @@ def schema_image():
             Field("remove_watermark_pic_2", "去水印结束序号"),
             Field("translate_main_pic_enable", "主图文字翻译", "bool"),
             Field("translate_main_pic_indices", "翻译序号"),
+            Field("img_main_edit", "主图精细编辑（用通用编辑提示词）", "bool"),
             Field("designated_edit_enable", "主图指定编辑", "bool"),
             Field("designated_edit_indices", "编辑序号"),
             Field("designated_edit_prompt", "编辑提示词", "multiline"),
@@ -242,6 +247,7 @@ def schema_image():
             Field("wholesale_enable", "启用批发价", "bool"),
         ]),
         ("通用", [
+            Field("overlay_watermark_enable", "主图叠加水印（发布时）", "bool"),
             Field("four_in_one", "四合一拼图", "bool"),
             Field("four_in_one_position", "四合一位置", "select", ["append", "first"]),
             Field("pad_main_images_from_extra", "主图不足用描述图补", "bool"),
@@ -325,6 +331,7 @@ class App:
         self._building_page = False
         self._update_err_ts = 0.0
         self._log_file_lock = threading.Lock()
+        self._browser_lock = threading.RLock()
         self.cfg: AppConfig = get_config()
         self.picked: list[Path] = []
         self.wb_sel_paths: set[str] = set()
@@ -1085,9 +1092,7 @@ class App:
             from ..integrations.editor_automation import publish_from_list
             ws = self.ws_endpoint
             if not ws:
-                from ..integrations.browser import ensure_browser
-                ws = ensure_browser(self.cfg).get("ws", "")
-                self.ws_endpoint = ws
+                ws = self._ensure_browser_session()
             if not ws:
                 raise RuntimeError("没有可用的浏览器调试端点")
             r = publish_from_list(ws, str(job.product_id), confirm=True, dry_run=False,
@@ -1215,12 +1220,16 @@ class App:
 
         try:
             ck = self._cookies()
+            if not getattr(self, "ws_endpoint", ""):
+                self._ensure_browser_session(ck)
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
             all_prods, _meta = dxm.product_page(1, 100, self.cfg.store_id or None, None)
             blocked = [p for p in all_prods if (p.get("status_type") or "") in ("auditing", "onSelling")]
             self._log(f"共 {len(all_prods)} 个产品，跳过审核中/已发布 {len(blocked)} 个", "INFO")
             limit = int(self.cfg.edit_sum or 0) or 0
             prods = dxm.pending_products(limit=limit, shop_id=self.cfg.store_id or None)
+            prods = [x for x in prods if (x.get("status_type") or "") not in
+                     ("auditing", "onSelling", "published", "online")]
             self.products = prods
             if not prods:
                 self._log("没有可编辑（待发布）的产品", "WARN")
@@ -1753,6 +1762,29 @@ class App:
             self.store_status.value = f"同步失败：{ex}"
             self.store_status.color = "#FF6B6B"
         self._safe_update()
+
+    def _ensure_browser_session(self, ck: dict | None = None) -> str:
+        """没有 CDP 端点时自动启动浏览器，并注入本机 Cookie（保存到待发布必需）。"""
+        with self._browser_lock:
+            if getattr(self, "ws_endpoint", ""):
+                return self.ws_endpoint
+            from ..integrations.browser import ensure_browser
+            from ..integrations.cdp import inject_cookies
+            if ck is None:
+                ck = self._cookies()
+            self._log("未连接浏览器，自动启动店小秘调试浏览器…")
+            info = ensure_browser(self.cfg)
+            ws = str(info.get("ws") or "")
+            if not ws:
+                raise RuntimeError("浏览器已启动但未拿到 CDP 端点")
+            self.ws_endpoint = ws
+            try:
+                n = inject_cookies(ws, dict(ck or {}))
+                self._log(f"浏览器已连接，已注入 Cookie {n // 2} 个" if n else "浏览器已连接（未注入 Cookie）")
+            except Exception as ex:  # noqa: BLE001
+                self._log(f"Cookie 注入失败：{str(ex)[:80]}（如未登录请点「启动浏览器」登录一次）", "WARN")
+                return ws
+            return ws
 
     def _connect_browser(self):
         self._cookie_cache = None          # 新浏览器会话，重新取 Cookie
@@ -2907,7 +2939,34 @@ class App:
                     self.img_busy], spacing=10, wrap=True),
             self.img_quick_prompt,
             self.img_status, self.img_results], spacing=10))
-        return [view[0], tool, self._image_jobs_ui()] + view[1:]
+        def fast_mode(e):
+            # 只保留最影响上架速度的核心步骤；每个开关仍可单独再开
+            for _k in ("main_image_generate_enable", "img_main_edit", "designated_edit_enable",
+                       "translate_main_pic_enable", "translate_detail_pic_enable", "translate_sku_pic",
+                       "img_detail_white_bg", "img_detail_remove_wm", "img_detail_edit",
+                       "img_sku_remove_wm", "img_sku_edit", "marketing_image_enable",
+                       "generate_main_video", "enable_ai_weight",
+                       "review_main_img_enable", "review_detail_img_enable", "review_text_enable",
+                       "four_in_one", "overlay_watermark_enable"):
+                self.cfg.set(_k, False)
+            self.cfg.set("ai_image_enable", True)
+            self.cfg.set("image_concurrency", 4)
+            try:
+                self.cfg.set("concurrency", max(4, int(getattr(self.cfg, "concurrency", 4) or 4)))
+            except Exception:
+                self.cfg.set("concurrency", 4)
+            save_config(self.cfg)
+            self.toast("已切换快速模式：只保留白底/去水印/SKU白底 + 标题/详情，图片并发 4")
+            self._switch(5)
+
+        self.img_fast_btn = ft.ElevatedButton("一键快速模式（推荐）", icon=ft.Icons.BOLT,
+                                              bgcolor=ACCENT_2, color="#04231C", on_click=fast_mode)
+        fast_card = card(ft.Column([
+            h1("速度 / 功能开关", 15),
+            muted("每个 AI 步骤都有独立开关；关掉即跳过。快速模式会关闭审查/估重/营销/翻译/视频等耗时项，只保留白底、去水印、SKU白底与标题/详情。"),
+            ft.Row([self.img_fast_btn], spacing=8, wrap=True),
+        ], spacing=8))
+        return [view[0], fast_card, tool, self._image_jobs_ui()] + view[1:]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):
@@ -3589,10 +3648,15 @@ class App:
                 return
             chosen = ([pool[str(pid)] for pid in self.wb_selected if str(pid) in pool]
                       if self.wb_selected else list(pool.values()))
+            before = len(chosen)
+            chosen = [p for p in chosen if str(p.get("status_type") or "") not in
+                      ("auditing", "onSelling", "published", "online")
+                      and "PRODUCT_IN_AUDIT_PENDING" not in str((p.get("raw") or {}).get("errMsg") or "")]
+            skipped = before - len(chosen)
             self._queue_products = pool
             n = self.q.add_many(chosen)
             self._refresh_queue()
-            self.toast(f"已入队 {n} 个产品")
+            self.toast(f"已入队 {n} 个产品" + (f"，跳过审核中/已上架 {skipped} 个" if skipped else ""))
 
         def process(e):
             if not self.q.pending():
@@ -3813,6 +3877,8 @@ class App:
         self._stop_requested = False
         try:
             ck = self._cookies()
+            if not getattr(self, "ws_endpoint", ""):
+                self._ensure_browser_session(ck)
             DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
         except Exception as ex:
             self._log(f"队列：未连接浏览器（{ex}），将以离线模式运行")
@@ -3833,10 +3899,19 @@ class App:
                 self._log(f"已停止，跳过队列 {item.product_id}", "WARN")
                 return
             base = by_id.get(item.product_id, {})
+            if str(base.get("status_type") or "") in ("auditing", "onSelling", "published", "online") or \
+                    "PRODUCT_IN_AUDIT_PENDING" in str((base.get("raw") or {}).get("errMsg") or ""):
+                self._log(f"队列跳过审核中/已上架：{item.product_id}", "WARN")
+                with lock:
+                    self.q.mark(item.product_id, "failed", "审核中/已上架，已跳过")
+                    self._refresh_queue()
+                return
             prod = {"id": item.product_id,
                     "title": base.get("title") or item.title,
                     "skus": base.get("skus") or [],
                     "images": base.get("images") or [],
+                    "status_type": base.get("status_type") or "",
+                    "raw": base.get("raw") or {},
                     "cost": 0}
             with lock:
                 self.q.mark(item.product_id, "running")

@@ -674,7 +674,7 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
             pass
         page.wait_for_timeout(1200)
         fields = (snapshot or {}).get("fields") or {}
-        attrs = (snapshot or {}).get("attributes") or []
+        attrs = []  # 模板自定义属性不复制（只参考字段）
 
         def fill_by_label(label, value):
             item = page.locator(".ant-form-item", has_text=label).first
@@ -691,6 +691,9 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
 
         # 类目：点选择分类 → 搜索分类名称 → 点搜索结果项
         cat = (fields.get("category") or "").strip()
+        # 模板 API 给的是类目 ID/运费 ID；新产品已有分类，numeric 不强行按名称搜索
+        if cat.isdigit():
+            cat = ""
         if cat:
             try:
                 cur_cat = page.evaluate("""() => {
@@ -729,6 +732,8 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
 
         # 运费模板：点击运费下拉选择
         freight = (fields.get("freight") or "").strip()
+        if freight.isdigit():
+            freight = ""
         if freight:
             try:
                 sel = page.locator(".ant-form-item", has_text="运费模板").locator(".ant-select").first
@@ -1033,6 +1038,12 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             if "/api/smtProduct/add.json" in u or "/api/smtProduct/update.json" in u:
                 seen["url"] = u.split("dianxiaomi.com")[-1]
                 seen["status"] = resp.status
+                try:
+                    j = resp.json()
+                    seen["code"] = j.get("code")
+                    seen["msg"] = str(j.get("msg") or (j.get("data") or {}).get("msg") or "")
+                except Exception:
+                    pass
             elif any(k in u.lower() for k in ("batchpublish", "publish", "submit", "online")):
                 seen["pub_url"] = u.split("dianxiaomi.com")[-1]
                 seen["pub_status"] = resp.status
@@ -1049,7 +1060,8 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
         page.wait_for_timeout(1200)
 
         fields = (snapshot or {}).get("fields") or {}
-        attrs = list((snapshot or {}).get("attributes") or [])
+        # 模板是参考，不复制模板产品的自定义属性（否则新产品属性重复）
+        attrs = []
 
         # 标题
         try:
@@ -1065,6 +1077,9 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
 
         # 类目（仅当未选择时）
         cat = (fields.get("category") or "").strip()
+        # 模板 API 给的是类目 ID/运费 ID；新产品已有分类，numeric 不强行按名称搜索
+        if cat.isdigit():
+            cat = ""
         if cat:
             try:
                 cur = page.evaluate("""() => {
@@ -1090,6 +1105,8 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
 
         # 运费模板
         freight = (fields.get("freight") or "").strip()
+        if freight.isdigit():
+            freight = ""
         if freight:
             try:
                 sel = page.locator(".ant-form-item", has_text="运费模板").locator(".ant-select").first
@@ -1387,13 +1404,20 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
 
         # 保存
         def save_click():
+            # 页面里有多个「更新」（顶部/底部/隐藏），必须点可见且可用的那个
             for sel in ('button:has-text("更新")', 'button:has-text("保存")'):
                 try:
-                    loc = page.locator(sel).first
-                    if loc.count() > 0:
-                        loc.scroll_into_view_if_needed(timeout=2000)
-                        loc.click(timeout=6000)
-                        return True
+                    locs = page.locator(sel)
+                    for i in range(min(locs.count(), 6)):
+                        loc = locs.nth(i)
+                        try:
+                            if not loc.is_visible() or not loc.is_enabled():
+                                continue
+                            loc.scroll_into_view_if_needed(timeout=2000)
+                            loc.click(timeout=6000)
+                            return True
+                        except Exception:
+                            continue
                 except Exception:
                     continue
             return False
@@ -1458,9 +1482,14 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             except Exception:
                 pass
 
-        ok = bool(seen.get("status")) and int(seen.get("status", 500)) < 400
+        code = seen.get("code")
+        ok = (bool(seen.get("status")) and int(seen.get("status", 500)) < 400
+              and (code is None or str(code) in ("0", "None")))
         msg = (f"保存接口 {seen.get('url','-')} HTTP {seen.get('status','-')}" if seen.get("status")
                else "未捕获保存接口（可能已保存但未响应）")
+        if code is not None and str(code) not in ("0", "None"):
+            ok = False
+            msg += f" · 站点返回：{str(seen.get('msg') or code)[:100]}"
         if applied:
             msg += " · 写入：" + "、".join(applied[:6])
 
