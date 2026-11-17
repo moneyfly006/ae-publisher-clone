@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime
 import tempfile
+import os
 import threading
 import time
 from pathlib import Path
@@ -313,7 +314,7 @@ class App:
             start = int(os.environ.get("AURORA_PAGE", "0"))
         except ValueError:
             start = 0
-        self._switch(start % 11)
+        self._switch(start % 12)
         page.update()
 
     # ---------- 壳 ----------
