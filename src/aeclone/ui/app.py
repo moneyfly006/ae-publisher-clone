@@ -28,6 +28,7 @@ from ..services import history
 from ..services.queue import TaskQueue
 from ..services.scheduler import Scheduler
 from ..services.text_pipeline import TextPipeline
+from ..services.prompt_presets import TITLE_PRESETS, score_title
 from ..services.image_pipeline import ImagePipeline
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
@@ -2551,7 +2552,114 @@ class App:
             muted("• 主图生成提示词支持变量 {title}（会自动替换为产品标题）"),
             muted("• 审查提示词建议要求模型只回 PASS 或 FAIL|原因，才能自动拦截不合规内容"),
             ft.Row(resets, spacing=8, wrap=True)], spacing=8))
-        return [view[0], tip] + view[1:]
+        # ---- 预设切换 ----
+        self.preset_dd = ft.Dropdown(label="标题风格预设", width=260, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                     value=self.cfg.get("prompt_preset", "standard") or "standard",
+                                     options=[ft.dropdown.Option(k, v[0]) for k, v in TITLE_PRESETS.items()])
+
+        def apply_preset(e):
+            name = self.preset_dd.value or "standard"
+            prompt_text = TITLE_PRESETS.get(name, TITLE_PRESETS["standard"])[1]
+            self.cfg.set("title_prompt", prompt_text)
+            self.cfg.set("prompt_preset", name)
+            save_config(self.cfg)
+            self.toast(f"已应用预设：{TITLE_PRESETS[name][0]}")
+            self._switch(11)
+
+        preset_card = card(ft.Column([
+            h1("标题风格预设", 15),
+            muted("一键切换三种投放策略，会覆盖「标题提示词」，可随时恢复默认"),
+            ft.Row([self.preset_dd,
+                    ft.ElevatedButton("应用预设", icon=ft.Icons.AUTO_AWESOME, bgcolor=ACCENT, color="white",
+                                      on_click=apply_preset)], spacing=10)], spacing=8))
+
+        # ---- 试写 + A/B 对比 ----
+        self.try_input = ft.TextField(label="试写商品（中文标题或关键词）", width=560,
+                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                      value="3吨小型蜘蛛吊车 20米吊高 履带式电动")
+        self.try_b_prompt = ft.TextField(label="B 方案提示词（留空则用 A 之外的长尾预设）", multiline=True,
+                                         min_lines=3, max_lines=6, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.try_a_col = ft.Column(spacing=4)
+        self.try_b_col = ft.Column(spacing=4)
+        self.try_status = ft.Text("", size=11, color=MUTED)
+        self.try_a_prompt_text = ""
+        self.try_b_prompt_text = ""
+
+        def _render_variants(col, variants, tag, prompt_text):
+            col.controls = []
+            for i, v in enumerate(variants, 1):
+                if not v.ok:
+                    col.controls.append(ft.Text(f"{tag} 失败：{v.error}", size=11, color="#FF6B6B"))
+                    continue
+                sc = score_title(v.text)
+                color = ACCENT_2 if sc["score"] >= 90 else ("#FFB020" if sc["score"] >= 70 else "#FF6B6B")
+                col.controls.append(ft.Column([
+                    ft.Text(v.text, size=12, color=TEXT, selectable=True),
+                    ft.Row([ft.Text(f"评分 {sc['score']} · {sc['chars']} 字符 · {sc['words']} 词", size=10, color=color),
+                            ft.TextButton("采用", on_click=lambda e, _t=v.text, _p=prompt_text: self._adopt_title(_t, _p))],
+                           spacing=8),
+                ], spacing=2))
+
+        def run_ab(e):
+            src = (self.try_input.value or "").strip()
+            if not src:
+                self.toast("请输入要试写的商品", False); return
+            if not self.cfg.api_key:
+                self.toast("请先在设置里填 API Key", False); return
+            self.try_status.value = "生成中…"
+            self.page.update()
+            threading.Thread(target=_do_ab, args=(src,), daemon=True).start()
+
+        def _do_ab(src):
+            from ..services import model_of
+            from ..api import ApiClient
+            from ..services.prompt_presets import title_variants
+            client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
+            model = model_of(self.cfg, "text")
+            a_prompt = self.cfg.title_prompt
+            b_prompt = (self.try_b_prompt.value or "").strip() or TITLE_PRESETS["longtail"][1]
+            self.try_a_prompt_text, self.try_b_prompt_text = a_prompt, b_prompt
+            try:
+                va = title_variants(client, model, a_prompt, src, 3)
+                vb = title_variants(client, model, b_prompt, src, 3)
+                _render_variants(self.try_a_col, va, "A", a_prompt)
+                _render_variants(self.try_b_col, vb, "B", b_prompt)
+                best_a = max((score_title(v.text)["score"] for v in va if v.ok), default=0)
+                best_b = max((score_title(v.text)["score"] for v in vb if v.ok), default=0)
+                self.try_status.value = f"完成：A 最高 {best_a} 分 / B 最高 {best_b} 分（模型 {model}）"
+            except Exception as ex:
+                self.try_status.value = f"失败：{str(ex)[:120]}"
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        ab_card = card(ft.Column([
+            h1("试写 / A-B 对比", 15),
+            muted("同一商品，用两套提示词各生成 3 条候选，带本地评分，选中即设为标题提示词"),
+            ft.Row([self.try_input,
+                    ft.ElevatedButton("生成对比", icon=ft.Icons.COMPARE_ARROWS, bgcolor=ACCENT, color="white",
+                                      on_click=run_ab)], spacing=10),
+            self.try_b_prompt,
+            ft.Row([ft.Column([ft.Text("A 方案（当前提示词）", size=12, color=ACCENT_2), self.try_a_col], spacing=4, expand=True),
+                    ft.Column([ft.Text("B 方案（对照）", size=12, color="#7C5CFF"), self.try_b_col], spacing=4, expand=True)],
+                   spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
+            self.try_status], spacing=10))
+
+        return [view[0], preset_card, ab_card, tip] + view[1:]
+
+    def _adopt_title(self, text: str, prompt_text: str):
+        """采用某条标题：把它记录为该提示词的样例，并保存到本地供下次参考。"""
+        try:
+            samples = self.cfg.get("title_samples", []) or []
+            if not isinstance(samples, list):
+                samples = []
+            samples = ([text] + samples)[:20]
+            self.cfg.set("title_samples", samples)
+            save_config(self.cfg)
+            self.toast("已记录为优质样例，下次同类产品可参考")
+        except Exception as ex:
+            self.toast(str(ex), False)
 
     def _p_logs(self):
         self._current = 10
