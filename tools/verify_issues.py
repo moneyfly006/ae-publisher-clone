@@ -955,8 +955,8 @@ def main():
     from aeclone import license as _lic
     code1 = _lic.machine_code()
     code2 = _lic.machine_code()
-    check("授权：机器码稳定", code1 == code2 and len(code1) == 19, code1)
-    check("授权：机器码格式 XXXX-XXXX-XXXX-XXXX", bool(_re.fullmatch(r"[0-9A-F]{4}(-[0-9A-F]{4}){3}", code1)), code1)
+    check("授权：机器码稳定", code1 == code2 and len(code1) == 17, code1)
+    check("授权：机器码格式 XXXXXXXX-XXXXXXXX", bool(_re.fullmatch(r"[0-9A-F]{8}-[0-9A-F]{8}", code1)), code1)
     check("授权：identity 为 64 位", bool(_re.fullmatch(r"[0-9a-f]{64}", _lic.machine_id())), "")
 
     from unittest import mock as _mock
@@ -981,6 +981,28 @@ def main():
     with _mock.patch.object(_lic.requests, "post", side_effect=RuntimeError("net down")):
         r_lic = _lic.verify("https://license.example", timeout=3)
     check("授权：网络异常可读", (not r_lic["ok"]) and "无法连接" in r_lic["message"], r_lic["message"][:60])
+
+    # 凭证验签（用服务器真实签发的一组做固定用例，有效期到 2027-11-17）
+    from aeclone.license import verify_voucher as _vv, PUBLIC_KEY_PEM as _pub
+    _payload = "D6117EDB-F43215E2|2027-11-17|2026-11-17|local"
+    _voucher = __import__("base64").urlsafe_b64encode(_payload.encode()).decode().rstrip("=")
+    _sig = "56IeghEHgVUr2Np44eFI1VuyE9mzsF85_Um0SN1Cdru_RuspyAxZOAp5P5xK_yTyb1WYgGZbVmdLmhAlYbhneQ"
+    check("授权：凭证验签通过", _vv(_voucher, _sig, "D6117EDB-F43215E2", "local", _pub) is True, "")
+    check("授权：改 identity 验签失败",
+          _vv(_voucher, _sig, "00000000-0000000", "local", _pub) is False, "")
+    check("授权：改 client_type 验签失败",
+          _vv(_voucher, _sig, "D6117EDB-F43215E2", "shop", _pub) is False, "")
+    try:
+        _vv(_voucher, _sig[:-4] + "AAAA", "D6117EDB-F43215E2", "local", _pub)
+        check("授权：改签名验签失败", False, "")
+    except Exception:
+        check("授权：改签名验签失败", True, "")
+
+    with _mock.patch.object(_lic.requests, "post", return_value=_Resp2(
+            {"ok": True, "authorized": True, "message": "已授权", "expiry": "2027-01-01",
+             "identity": "OLD-ID-1234", "client_type": "local"})):
+        r_old = _lic.verify("https://license.example", timeout=3, identity_override="OLD-ID-1234")
+    check("授权：旧版 ID 优先", r_old["ok"] and r_old["tried"][0] == "OLD-ID-1234", str(r_old.get("tried")))
 
     section("性能：图片/价格/模型缓存")
     import aeclone.services.image_cache as _ic
@@ -1096,6 +1118,7 @@ def main():
     check("设置：只显示 API Key 输入", "API Key" in set_labels, "")
     from aeclone.services import FIXED_MODELS, model_of as _mo
     check("设置：显示固定模型", all(m in set_labels for m in FIXED_MODELS.values()), str(FIXED_MODELS))
+    check("设置：可填旧版授权 ID", "旧版授权 ID" in set_labels, "")
     check("模型：配置改不动固定模型", _mo(type("C", (), {"model_text": "deepseek-chat"})(), "text") == "qwen-plus", "")
     check("设置：没有模型下拉", not any(getattr(c, "label", "") in ("文本（标题/描述/SKU）", "图片编辑（白底/去水印/精修）")
                                         for c in walk(uapp.content.controls)), "")

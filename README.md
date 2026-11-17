@@ -69,9 +69,11 @@ tools/button_audit.py            全按钮回调遍历
 
 ## 授权（每台机器唯一）
 
-- 设置页显示机器码（`XXXX-XXXX-XXXX-XXXX`），点「复制机器码」发给管理员登记
-- 登记后点「重新检测」即可；未授权时不允许开始上架
-- 机器码来自硬件指纹（Win MachineGuid / macOS IOPlatformUUID / Linux machine-id），换机/重装系统会变
+- 后台：`https://license.moneyfly.club`（管理端 `/admin/login`）
+- 机器码格式：`XXXXXXXX-XXXXXXXX`（硬件指纹：Win MachineGuid / macOS IOPlatformUUID / Linux machine-id）
+- 后台 `licenses.identity` 唯一，一人一条；未授权禁止开始上架
+- 客户端按 `8-8 / 无横线 / 完整哈希` 依次校验，并**验签服务端凭证**（防伪造）
+- 老客户升级：把老软件的「设备授权 ID」填到设置页「旧版授权 ID」，即可继续用原授权
 
 ## 效率与多开
 

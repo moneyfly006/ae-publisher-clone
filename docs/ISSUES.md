@@ -213,3 +213,48 @@
 - 截图：设置页（机器码 / 仅 Token / 固定模型）
 
 ![设置页（固定模型、无授权中心、无 API 地址）](screenshots/new/round6-settings.png)
+
+---
+
+## 第 7 轮：服务器授权对接完成（2026-11-17）
+
+### 服务器访问
+
+- VPS：`132.226.1.44`（Debian arm64，宝塔面板 `https://132.226.1.44:30632/...`）
+- **SSH 密码 `Sikeming01@` / `Sikeming001@` 均被拒绝**（`Permission denied`），但服务器的 `sshd_config` 明确允许 root 密码登录；
+  说明密码与服务器实际 root 密码不一致（或已被改）。**SSH 公钥登录成功**（`~/.ssh/id_ed25519`），已用 key 完成排查。
+- 宝塔面板账号 `moneyfly/120423mm` 能通过 `/login` 返回“登录成功”，但面板 SPA 无会话 cookie，内部 API 报“权限认证失败”，未使用面板改任何配置。
+- 建议：关闭 SSH 密码登录（仅保留 key）、装 fail2ban；`lastb` 显示大量境外 IP 在爆破 root。
+
+### 授权后台（license.moneyfly.club）现状
+
+- 应用：PHP，代码 `/www/server/ae-license`，SQLite `/www/server/ae-license/storage/license.sqlite`
+- 表 `licenses.identity TEXT NOT NULL UNIQUE` → **同一设备 ID 只能有一条授权，天然防重复**
+- 路由：`POST /api/v1/license/verify`，只接受 `client_type` = `local` / `shop`
+- 授权成功返回 ECDSA P-256 凭证：`voucher = b64url(identity|expiry|issued|client_type)`、`signature = b64url(raw r||s)`
+- 管理后台可“一键登记设备”（`page_user_register`）与手动新增/续期/吊销
+
+### 本轮客户端改动
+
+| 项 | 改动 |
+|---|---|
+| 机器码格式 | 改为后台现有格式 `XXXXXXXX-XXXXXXXX`（实测库里 37 条老授权都是这个格式） |
+| client_type | 由 `ae-publisher` 改为 `local`（后台只认 local/shop） |
+| 兼容多种登记 | verify 依次尝试 `8-8` → 无横线 → 完整哈希；管理员登记哪种格式都能匹配 |
+| 旧版授权迁移 | 设置页新增「旧版授权 ID（可选）」：老客户把老软件里的设备授权 ID 粘进来即可继续用原授权 |
+| 凭证验签 | 新增 ECDSA 验签（内置服务器 public.pem，可用 `license_public_key` 覆盖）；伪造/篡改凭证直接判定未授权 |
+| 实测登记 | 已为开发机 `D6117EDB-F43215E2` 建一条授权（到期 2027-11-17，备注“Mac-开发测试”），客户端实测 `authorized=true` + 凭证验签通过；重复插入被 `UNIQUE` 拒绝 |
+
+### 仍需注意
+
+- 老客户的授权 ID 是**旧算法**生成的（如 `53AB6DB5-CD59354F`），新客户端算法不同：
+  - 升级时在「旧版授权 ID」里粘贴老 ID，可无缝继续；
+  - 或由管理员用新机器码重新登记（一人一条，不会重复）。
+- 若希望完全自动读取老授权，需要逆向旧客户端 `local_license.pyd` 的记录格式（已拿到旧客户端 recon 资料，后续可做）。
+
+### 回归
+
+- `tools/verify_issues.py`：**182/182 通过**（新增凭证验签 4 项、旧 ID 优先 1 项、旧 ID 输入框 1 项）
+- 真实链路：本机机器码 `D6117EDB-F43215E2` → 后台 `authorized=true` → 凭证验签通过 → 设置页显示「授权有效 / 到期 2027-11-17」
+
+![授权对接完成](screenshots/new/round7-license.png)

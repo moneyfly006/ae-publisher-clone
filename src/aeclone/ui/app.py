@@ -1004,7 +1004,9 @@ class App:
                 from ..license import machine_code as _mc
                 from ..license import verify as _verify
                 self._log("开始前检查授权…")
-                res = _verify(self.cfg.license_server)
+                res = _verify(self.cfg.license_server,
+                              identity_override=str(getattr(self.cfg, "license_identity", "") or ""),
+                              public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""))
                 self.license_state = res
                 if not res.get("ok"):
                     st = getattr(self, "license_text", None)
@@ -4640,6 +4642,17 @@ class App:
                 pass
             threading.Thread(target=self._check_license, daemon=True).start()
 
+        self.legacy_id_field = ft.TextField(
+            label="旧版授权 ID（可选）", value=str(getattr(self.cfg, "license_identity", "") or ""),
+            width=360, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            hint_text="老软件「设置」里复制的设备授权 ID，填这里可继续用原授权")
+
+        def save_legacy(e=None):
+            self.cfg.set("license_identity", str(self.legacy_id_field.value or "").strip())
+            save_config(self.cfg)
+
+        self.legacy_id_field.on_change = save_legacy
+
         lic_card = card(ft.Column([
             h1("授权", 15),
             muted("每台电脑的机器码都不同。把机器码发给管理员登记后，点「重新检测」即可使用"),
@@ -4648,6 +4661,7 @@ class App:
                                       on_click=copy_code),
                     ft.OutlinedButton("重新检测", icon=ft.Icons.REFRESH, on_click=recheck_lic)],
                    spacing=8, wrap=True),
+            self.legacy_id_field,
             self.lic_status, self.lic_detail,
         ], spacing=8))
         self.lic_status.value = (self.license_state or {}).get("message") or "未检测"
@@ -5091,7 +5105,9 @@ class App:
             from ..core.updater import CURRENT as _ver
         except Exception:
             _ver = ""
-        res = verify_license(self.cfg.license_server, version=_ver)
+        res = verify_license(self.cfg.license_server, version=_ver,
+                             identity_override=str(getattr(self.cfg, "license_identity", "") or ""),
+                             public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""))
         self.license_state = res
         msg = res.get("message") or ("授权有效" if res.get("ok") else "未授权")
         self.license_text.value = "授权有效" if res.get("ok") else "未授权"
