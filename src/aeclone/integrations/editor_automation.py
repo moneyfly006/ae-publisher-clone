@@ -15,6 +15,109 @@ class SaveResult:
     title: str = ""
 
 
+
+
+SKIP_WHEN_REQUIRED_MISSING = True   # 必填缺失时跳过保存，避免整批卡死
+
+SYS_ATTR_ALIASES = {
+    "place of origin": "origin",
+    "country of origin": "origin",
+    "brand": "brand name",
+    "brand name": "brand name",
+    "model": "model number",
+    "model number": "model number",
+    "condition": "condition",
+    "type": "type",
+    "state": "condition",
+}
+
+
+
+
+def _make_manual_pdf(title: str, specs: list[str] | None = None) -> str:
+    """生成一份简单的英文商品说明书 PDF（用于「商品说明书」必填项上传）。"""
+    import tempfile
+    from pathlib import Path as _P
+    from PIL import Image, ImageDraw, ImageFont
+
+    W, H = 1240, 1754   # A4 @150dpi
+    img = Image.new("RGB", (W, H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    try:
+        font_b = ImageFont.truetype("arial.ttf", 46)
+        font = ImageFont.truetype("arial.ttf", 30)
+    except Exception:
+        font_b = ImageFont.load_default()
+        font = ImageFont.load_default()
+
+    d.text((90, 120), "PRODUCT MANUAL", font=font_b, fill=(20, 20, 20))
+    y = 220
+    for line in _wrap(title or "Product", 42)[:3]:
+        d.text((90, y), line, font=font, fill=(40, 40, 40))
+        y += 42
+    y += 30
+    d.text((90, y), "1. Specifications", font=font_b, fill=(20, 20, 20)); y += 56
+    for sp in (specs or ["Refer to the product listing page for detailed specifications."])[:12]:
+        for line in _wrap(sp, 60)[:2]:
+            d.text((110, y), "- " + line, font=font, fill=(60, 60, 60)); y += 38
+    y += 30
+    d.text((90, y), "2. Safety Notes", font=font_b, fill=(20, 20, 20)); y += 56
+    for line in ["Read this manual before use.", "Keep away from children.",
+                 "Use only as intended by the manufacturer.",
+                 "Inspect before each use; stop using if damaged."]:
+        d.text((110, y), "* " + line, font=font, fill=(60, 60, 60)); y += 38
+    y += 30
+    d.text((90, y), "3. Package Contents", font=font_b, fill=(20, 20, 20)); y += 56
+    d.text((110, y), "Product unit, accessory kit, this manual.", font=font, fill=(60, 60, 60))
+
+    out = _P(tempfile.gettempdir()) / "product_manual.pdf"
+    img.save(out, "PDF", resolution=150.0)
+    return str(out)
+
+
+def _wrap(text: str, width: int) -> list[str]:
+    words, lines, cur = str(text).split(), [], ""
+    for w in words:
+        if len(cur) + len(w) + 1 <= width:
+            cur = (cur + " " + w).strip()
+        else:
+            lines.append(cur); cur = w
+    if cur:
+        lines.append(cur)
+    return lines or [""]
+
+
+def _page_system_attrs(page) -> set[str]:
+    """读取编辑器里「产品属性」区的系统属性英文键（如 Brand Name/Origin/Type/Model Number/Condition）。"""
+    try:
+        keys = page.evaluate(r"""() => {
+            const out = [];
+            document.querySelectorAll('.ant-form-item-label label').forEach(l => {
+                const t = (l.innerText || '').trim();
+                const m = t.match(/\(([^)]+)\)/);
+                if (m) out.push(m[1].trim());
+            });
+            return out;
+        }""")
+    except Exception:
+        keys = []
+    norm = {"brand name", "origin", "type", "model number", "condition",
+            "place of origin", "country of origin", "state", "model", "brand"}
+    for k in (keys or []):
+        kk = str(k).strip().lower()
+        if not kk:
+            continue
+        norm.add(kk)
+        if kk in SYS_ATTR_ALIASES:
+            norm.add(SYS_ATTR_ALIASES[kk])
+    return norm
+
+
+def _norm_attr(name: str) -> str:
+    n = (name or "").strip().lower()
+    return SYS_ATTR_ALIASES.get(n, n)
+
+
 def _connect(ws: str):
     pw = sync_playwright().start()
     browser = pw.chromium.connect_over_cdp(ws, timeout=30000)
@@ -721,6 +824,118 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             except Exception:
                 pass
 
+        # 商品说明书：本地生成 PDF 并上传
+        try:
+            fi = page.locator('.ant-form-item', has_text="商品说明书").first
+            if fi.count() > 0:
+                has_file = fi.locator('input[type=file]').count() > 0
+                if not has_file:
+                    btn = fi.get_by_text("上传文件").first
+                    if btn.count() > 0:
+                        btn.click(timeout=4000)
+                        page.wait_for_timeout(1200)
+                inputs = fi.locator('input[type=file]')
+                if inputs.count() == 0:
+                    inputs = page.locator('input[type=file]')
+                if inputs.count() > 0:
+                    specs = []
+                    for k, label in (("spec_weight", "Weight"), ("spec_length", "Length")):
+                        v = (fields.get(k) or "").strip()
+                        if v:
+                            specs.append(f"{label}: {v}")
+                    pdf = _make_manual_pdf(p.get("title_en") or "Product", specs)
+                    inputs.first.set_input_files(pdf)
+                    page.wait_for_timeout(7000)
+                    applied.append("商品说明书已上传")
+        except Exception:
+            pass
+
+        # 欧盟资质：必填开关 → 打开再关闭（确保有明确选择）
+        try:
+            sw = page.locator('.ant-form-item', has_text="是否提交欧盟资质").locator('.ant-switch').first
+            if sw.count() > 0:
+                checked = sw.get_attribute("aria-checked")
+                if checked != "false":
+                    sw.click(timeout=3000); page.wait_for_timeout(600)
+                else:
+                    sw.click(timeout=3000); page.wait_for_timeout(500)
+                    sw.click(timeout=3000); page.wait_for_timeout(500)
+                applied.append("欧盟资质已选择")
+        except Exception:
+            pass
+
+        # 删除与系统属性重名的自定义属性行（系统已有 品牌/型号/产地/类型/状态 等）
+        dup_removed = 0
+        try:
+            sys_keys = _page_system_attrs(page) or sys_keys
+            dup_removed = page.evaluate("""(sysKeys) => {
+                const norm = n => {
+                  n = (n||'').trim().toLowerCase();
+                  const alias = {'place of origin':'origin','country of origin':'origin',
+                                 'brand':'brand name','model':'model number','state':'condition'};
+                  return alias[n] || n;
+                };
+                const sys = new Set((sysKeys||[]).map(norm));
+                let removed = 0;
+                document.querySelectorAll('input[placeholder^="属性名"]').forEach(inp => {
+                  const name = (inp.value||'').trim();
+                  if (!name) return;
+                  if (sys.has(norm(name))) {
+                    const row = inp.closest('.ant-row, .ant-form-item, tr');
+                    const btn = row && row.querySelector('.anticon-delete, .anticon-close, .anticon-minus-circle');
+                    if (btn) { btn.click(); removed++; }
+                  }
+                });
+                return removed;
+            }""", list(sys_keys))
+        except Exception:
+            dup_removed = 0
+        if dup_removed:
+            page.wait_for_timeout(800)
+            applied.append(f"删除与系统属性重复的自定义属性 {dup_removed} 项")
+
+        # 必填项通用自动应答：下拉/单选优先选「否/无」，文本框填 N/A（文件上传类跳过）
+        autofilled = []
+        try:
+            autofilled = page.evaluate("""() => {
+                const done=[];
+                document.querySelectorAll('.ant-form-item').forEach(fi=>{
+                  const req=fi.querySelector('.ant-form-item-required, .ant-form-item-label .required');
+                  if(!req) return;
+                  const label=((fi.querySelector('label')||{}).innerText||'').trim().slice(0,20);
+                  const inp=fi.querySelector('input,textarea');
+                  const hasVal=inp && String(inp.value||'').trim();
+                  const sel=fi.querySelector('.ant-select-selection-item');
+                  if(hasVal || (sel && sel.innerText.trim())) return;
+                  if(fi.querySelector('input[type=file]')){ done.push(label+':需上传文件'); return; }
+                  const select=fi.querySelector('.ant-select');
+                  if(select){ select.click(); done.push(label+':待选'); return; }
+                  const radios=fi.querySelectorAll('.ant-radio-wrapper, input[type=radio]');
+                  if(radios.length){
+                    for(const r of radios){
+                      const t=(r.innerText||'').trim();
+                      if(/否|无|不|No/i.test(t)){ r.click(); done.push(label+'=否'); return; }
+                    }
+                    return;
+                  }
+                  if(inp){ inp.value='N/A'; inp.dispatchEvent(new Event('input',{bubbles:true})); done.push(label+'=N/A'); }
+                });
+                return done;
+            }""")
+        except Exception:
+            autofilled = []
+        if autofilled:
+            page.wait_for_timeout(1200)
+            for opt_text in ("否", "无", "不提交", "N/A", "不支持"):
+                try:
+                    opt = page.locator('.ant-select-item-option-content', has_text=opt_text).first
+                    if opt.count() > 0:
+                        opt.click(timeout=2000)
+                        page.wait_for_timeout(300)
+                except Exception:
+                    continue
+            applied.append(f"自动应答 {len(autofilled)} 项")
+
         # 必填项检查 + 属性冲突检查
         missing = []
         dup_attrs = []
@@ -751,6 +966,9 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             dup_attrs = []
         if missing:
             applied.append(f"⚠ 必填未填 {len(missing)} 项: {'、'.join(missing[:5])}")
+            if SKIP_WHEN_REQUIRED_MISSING:
+                return SaveResult(False, "必填项缺失，已跳过保存：" + "、".join(missing[:5])
+                                  + (f" · 已写入：{'、'.join(applied[:4])}" if applied else ""))
         if dup_attrs:
             applied.append(f"⚠ 属性重复: {'、'.join(dup_attrs[:5])}")
 

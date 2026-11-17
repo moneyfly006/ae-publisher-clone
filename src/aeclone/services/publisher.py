@@ -902,10 +902,16 @@ class Publisher:
                         _snap_obj = _jt.loads(snap_json)
                         _extra = getattr(self.cfg, "custom_attributes", None) or []
                         if _extra:
-                            _attrs = list(_snap_obj.get("attributes") or [])
-                            for _x in _extra:
-                                if isinstance(_x, str) and "=" in _x and _x not in _attrs:
-                                    _attrs.append(_x)
+                            _attrs = []
+                            _seen = set()
+                            for _x in list(_snap_obj.get("attributes") or []) + list(_extra):
+                                if not isinstance(_x, str) or "=" not in _x:
+                                    continue
+                                _name = _x.split("=", 1)[0].strip().lower()
+                                if not _name or _name in _seen:
+                                    continue
+                                _seen.add(_name)
+                                _attrs.append(_x)
                             _snap_obj["attributes"] = _attrs
                     except Exception:
                         _snap_obj = None
