@@ -260,6 +260,8 @@ class App:
         self.page = page
         self.cfg: AppConfig = get_config()
         self.picked: list[Path] = []
+        self.wb_sel_paths: set[str] = set()
+        self.wb_wall = None
         self.logs: list[str] = []
         self.products: list[dict] = []
         self.ws_endpoint = ""
@@ -1774,6 +1776,8 @@ class App:
                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.wb_status = ft.Text("未加载图片", color=MUTED, size=12)
         self.wb_results = ft.Column(spacing=4)
+        self.wb_wall = ft.Row(spacing=8, wrap=True, scroll=ft.ScrollMode.AUTO)
+        self.wb_sel_paths: set[str] = set()
         self.wb_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
 
         def load(e):
@@ -1923,7 +1927,9 @@ class App:
                                         ft.ElevatedButton("上传结果到相册", icon=ft.Icons.CLOUD_UPLOAD, bgcolor="#F0A020", color="#1A1200",
                                                           on_click=lambda e: threading.Thread(target=self._upload_results, daemon=True).start()),
                                         self.wb_busy], spacing=10),
-                                self.wb_status], spacing=10)),
+                                self.wb_status,
+                                ft.Text("点选要处理的图片（默认全选）", size=11, color=MUTED),
+                                self.wb_wall], spacing=10)),
                 card(self.wb_results)]
 
     def _wb_make_video(self):
@@ -1950,6 +1956,36 @@ class App:
         except Exception as ex:
             self._log(f"视频生成失败：{ex}")
             self.toast(str(ex), False)
+
+    def _wb_render_wall(self):
+        if getattr(self, "wb_wall", None) is None:
+            self.wb_wall = ft.Row(spacing=8, wrap=True)
+        tiles = []
+        for pth in list(self.picked):
+            key = str(pth)
+            if key not in self.wb_sel_paths:
+                self.wb_sel_paths.add(key)
+            cb = ft.Checkbox(value=key in self.wb_sel_paths,
+                             on_change=lambda e, _k=key: self._wb_pick_one(_k, e.control.value))
+            tiles.append(ft.Column([
+                ft.Image(src=key, width=92, height=92, fit=ft.ImageFit.COVER, border_radius=6),
+                cb,
+            ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER, width=96))
+        self.wb_wall.controls = tiles
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _wb_pick_one(self, key: str, on: bool):
+        if on:
+            self.wb_sel_paths.add(key)
+        else:
+            self.wb_sel_paths.discard(key)
+
+    def _wb_selected_paths(self) -> list:
+        sel = [pth for pth in self.picked if str(pth) in self.wb_sel_paths]
+        return sel or list(self.picked)
 
     def _wb_toggle(self, pid: str, on: bool):
         if on:
@@ -2044,8 +2080,13 @@ class App:
             except Exception as ex:
                 self._log(f"下载失败 {u[:60]}: {ex}")
         self.picked = got
+        self.wb_sel_paths = set()
         self.wb_status.value = f"已下载 {len(got)}/{len(urls)} 张"
         self.wb_status.color = ACCENT_2 if got else "#FF6B6B"
+        try:
+            self._wb_render_wall()
+        except Exception:
+            pass
         self.page.update()
 
     def _upload_results(self):
@@ -2100,7 +2141,8 @@ class App:
                                                             color=MUTED, selectable=True)], spacing=8))
             self.page.update()
 
-        results = runner.run(list(self.picked), job, done)
+        targets = self._wb_selected_paths() if hasattr(self, "_wb_selected_paths") else list(self.picked)
+        results = runner.run(list(targets), job, done)
         ok = sum(1 for r in results if r.ok)
         try:
             history.record("workbench:" + kind, ok, len(results) - ok)
@@ -2365,7 +2407,8 @@ class App:
                                                              color=MUTED, selectable=True)], spacing=8))
             self.page.update()
 
-        results = runner.run(list(self.picked), job, done)
+        targets = self._wb_selected_paths() if hasattr(self, "_wb_selected_paths") else list(self.picked)
+        results = runner.run(list(targets), job, done)
         ok = sum(1 for r in results if r.ok)
         self.img_status.value = f"完成：成功 {ok} / {len(results)}"
         self.img_status.color = ACCENT_2 if ok == len(results) else "#FFB020"
