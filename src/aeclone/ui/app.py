@@ -2511,6 +2511,14 @@ class App:
 
         self.price_list = ft.Column(spacing=3)
         self._load_prices()
+        self.diag_list = ft.Column(spacing=4)
+        diag_card = card(ft.Column([
+            h1("系统诊断", 15),
+            muted("一键检查 API Key、站点、浏览器、店小秘、ffmpeg、磁盘"),
+            ft.Row([ft.ElevatedButton("开始诊断", icon=ft.Icons.HEALTH_AND_SAFETY, bgcolor=ACCENT, color="white",
+                                      on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start())]),
+            self.diag_list], spacing=8))
+
         price_card = card(ft.Column([
             h1("模型与价格", 15),
             muted("每次生成/调用按下面价格从你的额度扣除"),
@@ -2518,7 +2526,83 @@ class App:
             ft.Row([ft.ElevatedButton("刷新价格", icon=ft.Icons.REFRESH, on_click=lambda e: self._load_prices())]),
         ], spacing=8))
 
-        return [view[0], recharge_card, price_card, inst_card, upd] + view[1:]
+        return [view[0], recharge_card, diag_card, price_card, inst_card, upd] + view[1:]
+
+    def _run_diag(self):
+        rows = []
+
+        def add(name, ok, msg="", warn=False):
+            color = "#FFB020" if warn else (ACCENT_2 if ok else "#FF6B6B")
+            icon = ft.Icons.WARNING_AMBER if warn else (ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE)
+            rows.append(ft.Row([ft.Icon(icon, size=15, color=color),
+                                ft.Text(name, size=12, color=TEXT, width=110),
+                                ft.Text(msg, size=11, color=MUTED, expand=True)], spacing=8))
+            self.diag_list.controls = list(rows)
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        # 1) API 站点
+        if not (self.cfg.api_key or "").strip():
+            add("API 站点", False, "未配置 API Key（去「设置 → API Key」填写）")
+        try:
+            if not (self.cfg.api_key or "").strip():
+                raise RuntimeError("skip")
+            from ..api import ApiClient
+            c = ApiClient(self.cfg.api_base, self.cfg.api_key, 20,
+                          proxy=self.cfg.proxy_url if getattr(self.cfg, "proxy_enabled", False) else "")
+            ms = c.models()
+            add("API 站点", True, f"{self.cfg.api_base} · {len(ms)} 个模型")
+        except Exception as ex:
+            if str(ex) != "skip":
+                add("API 站点", False, str(ex)[:90])
+
+        # 2) 价格接口
+        try:
+            from ..api import ApiClient as _AC
+            from ..services import client_from_config
+            rows_p = client_from_config(self.cfg, 20).pricing()
+            add("价格接口", bool(rows_p), f"{len(rows_p)} 个模型有价格")
+        except Exception as ex:
+            add("价格接口", False, str(ex)[:90])
+
+        # 3) 浏览器（CDP）
+        try:
+            import requests as _rq
+            port = getattr(self.cfg, "cdp_port", 9333) or 9333
+            r = _rq.get(f"http://127.0.0.1:{port}/json/version", timeout=5)
+            add("浏览器 CDP", r.status_code == 200, f"端口 {port} 可用")
+        except Exception as ex:
+            add("浏览器 CDP", False, f"端口不可用：{str(ex)[:60]}", warn=True)
+
+        # 4) 店小秘
+        try:
+            ck = self._cookies()
+            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            ok = dxm.check_login()
+            add("店小秘登录", ok, "已登录" if ok else "未登录或 Cookie 过期")
+        except Exception as ex:
+            add("店小秘登录", False, str(ex)[:80], warn=True)
+
+        # 5) ffmpeg
+        try:
+            info = video_probe()
+            add("ffmpeg", info["available"], info.get("version", "")[:60] or "未安装", warn=not info["available"])
+        except Exception as ex:
+            add("ffmpeg", False, str(ex)[:60], warn=True)
+
+        # 6) 磁盘
+        try:
+            import shutil as _sh
+            total, used, free = _sh.disk_usage(str(Path.home()))
+            gb = free / (1024 ** 3)
+            add("磁盘空间", gb > 2, f"剩余 {gb:.1f} GB", warn=gb <= 2)
+        except Exception as ex:
+            add("磁盘空间", False, str(ex)[:60], warn=True)
+
+        ok_n = sum(1 for r in rows if any(getattr(c, "color", "") == ACCENT_2 for c in r.controls))
+        self._log(f"系统诊断完成：{ok_n}/{len(rows)} 项正常")
 
     def _load_prices(self):
         try:
