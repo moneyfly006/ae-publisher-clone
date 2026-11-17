@@ -40,6 +40,27 @@ BROWSERS = ["本机Chrome", "本机Edge", "比特浏览器", "站斧浏览器"]
 CURRENCIES = ["USD", "EUR", "GBP", "CNY", "RUB", "BRL"]
 
 
+def _tpl_lib_load(raw) -> dict:
+    """模板库统一为 {name: record}；兼容旧版 list。"""
+    import json as _j
+    try:
+        data = _j.loads(raw or "{}")
+    except Exception:
+        data = {}
+    if isinstance(data, list):
+        out = {}
+        for i, x in enumerate(data):
+            if isinstance(x, dict):
+                out[str(x.get("name") or f"模板{i+1}")] = x
+        return out
+    return data if isinstance(data, dict) else {}
+
+
+def _tpl_lib_dump(lib: dict) -> str:
+    import json as _j
+    return _j.dumps(lib or {}, ensure_ascii=False)
+
+
 def card(content, padding=20, expand=False):
     return ft.Container(content=content, bgcolor=CARD, border_radius=16, padding=padding,
                         expand=expand, border=ft.border.all(1, CARD_2))
@@ -225,9 +246,6 @@ def schema_image():
             Field("four_in_one_position", "四合一位置", "select", ["append", "first"]),
             Field("pad_main_images_from_extra", "主图不足用描述图补", "bool"),
             Field("main_pic_count", "主图目标数量"),
-            Field("overlay_watermark_enable", "叠加水印", "bool"),
-            Field("overlay_position", "水印位置"),
-            Field("overlay_opacity", "水印透明度"),
         ]),
         ("主图视频", [
             Field("generate_main_video", "发布时生成主图视频", "bool"),
@@ -303,6 +321,9 @@ def schema_prompts():
 class App:
     def __init__(self, page: ft.Page):
         self.page = page
+        self._ui_lock = threading.RLock()
+        self._building_page = False
+        self._update_err_ts = 0.0
         self.cfg: AppConfig = get_config()
         self.picked: list[Path] = []
         self.wb_sel_paths: set[str] = set()
@@ -398,7 +419,7 @@ class App:
             ("AI 设置", [("AI 智能填写", ft.Icons.AUTO_FIX_HIGH, 3), ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4)]),
             ("AI图片处理", [("AI图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 9)]),
             ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
-            ("系统", [("预览", ft.Icons.VISIBILITY, 12), ("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("提示词", ft.Icons.EDIT_NOTE, 11),
+            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("提示词", ft.Icons.EDIT_NOTE, 11),
                       ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
         ]
         col = ft.Column(spacing=3)
@@ -415,7 +436,7 @@ class App:
                 self.nav_buttons.append((page_idx, b))
                 col.controls.append(b)
         self.license_text = ft.Text("检测中…", color=MUTED, size=12, weight=ft.FontWeight.BOLD)
-        # 侧栏导航可滚动：1514×945 及更小的窗口也能点到「提示词 / 任务与日志 / 预览」（ISSUES #7）
+        # 侧栏导航可滚动：1514×945 及更小的窗口也能点到「提示词 / 任务与日志」
         nav_scroll = ft.Column([col], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO)
         sidebar = ft.Container(width=216, bgcolor=CARD, padding=16, expand=True, content=ft.Column([
             ft.Row([ft.Container(width=32, height=32, border_radius=10, bgcolor=ACCENT,
@@ -472,11 +493,16 @@ class App:
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
                  self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench,
-                 self._p_logs, self._p_prompts, self._p_preview]
+                 self._p_logs, self._p_prompts]
         idx = idx % len(pages)
         self._page_idx = idx
-        self.content.controls = pages[idx]()
-        self.page.update()
+        self._building_page = True
+        try:
+            controls = pages[idx]()
+        finally:
+            self._building_page = False
+        self.content.controls = controls
+        self._safe_update()
         if idx == 0:
             self._probe_api_async()      # 概览页用缓存或重测，展示真实状态（ISSUES #9）
 
@@ -546,7 +572,7 @@ class App:
                 save_config(self.cfg)
                 if getattr(self, "_autosave_status", None) is not None:
                     self._autosave_status.value = f"已自动保存 {time.strftime('%H:%M:%S')}"
-                    self.page.update()
+                    self._safe_update()
             except Exception:
                 pass
         t = threading.Timer(0.6, _flush)
@@ -600,7 +626,7 @@ class App:
             if missing:
                 status.value = "还缺：" + "、".join(missing)
                 status.color = "#FF6B6B"
-                self.page.update()
+                self._safe_update()
                 return
             for k, f in fields.items():
                 self.cfg.set(k, str(f.value or "").strip())
@@ -625,7 +651,7 @@ class App:
                      ft.ElevatedButton("保存并提交", bgcolor=ACCENT, color="white", on_click=save)])
         self.page.dialog = dlg
         dlg.open = True
-        self.page.update()
+        self._safe_update()
 
     def _save_row(self):
         def save(e):
@@ -690,26 +716,26 @@ class App:
         )
         self.page.dialog = self.wz_dlg
         self.wz_dlg.open = True
-        self.page.update()
+        self._safe_update()
 
     def _wz_open(self, e):
         self.wz_status.value = "正在启动 Chrome…"
         self.cfg.browser_type = self.wz_browser.value
         save_config(self.cfg)
-        self.page.update()
+        self._safe_update()
 
         def go():
             try:
                 self._connect_browser()
                 if not self.ws_endpoint:
                     self.wz_status.value = "浏览器已启动，但未拿到调试端点"
-                    self.page.update(); return
+                    self._safe_update(); return
                 try:
                     open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/smt/smtProductList/offline")
                 except Exception:
                     pass
                 self.wz_status.value = "请在弹出的 Chrome 窗口登录店小秘（一次即可，之后记住登录），登录后自动同步…"
-                self.page.update()
+                self._safe_update()
                 # 自动等待登录（最多 5 分钟）
                 for _ in range(100):
                     time.sleep(3)
@@ -732,14 +758,14 @@ class App:
                         if prods:
                             self.wz_tpl.value = str(prods[0]["id"])
                         self.wz_status.value = f"已检测到登录：{len(shops)} 个店铺 / {len(prods)} 个模板候选，点「完成」即可"
-                        self.page.update()
+                        self._safe_update()
                         return
                     except Exception:
                         continue
                 self.wz_status.value = "等待登录超时，请点「读取店铺信息」重试"
             except Exception as ex:
                 self.wz_status.value = f"启动失败：{ex}"
-            self.page.update()
+            self._safe_update()
         threading.Thread(target=go, daemon=True).start()
 
     def _wz_source_changed(self):
@@ -749,14 +775,14 @@ class App:
 
     def _wz_sync(self, e):
         self.wz_status.value = "正在读取 Cookie 与店铺…"
-        self.page.update()
+        self._safe_update()
 
         def go():
             try:
                 ck = self._cookies()
                 if not ck:
                     self.wz_status.value = "未读取到 Cookie，请确认已在浏览器登录店小秘"
-                    self.page.update(); return
+                    self._safe_update(); return
                 c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
                 shops = c.shops()
                 self.wz_store.options = [ft.dropdown.Option(str(s["id"]), s["name"]) for s in shops]
@@ -772,7 +798,7 @@ class App:
                 self.wz_status.value = f"已同步：{len(shops)} 个店铺 / {len(prods)} 个模板候选"
             except Exception as ex:
                 self.wz_status.value = f"读取失败：{ex}"
-            self.page.update()
+            self._safe_update()
         threading.Thread(target=go, daemon=True).start()
 
     def _wz_finish(self, e):
@@ -790,12 +816,12 @@ class App:
         save_config(self.cfg)
         self.wz_dlg.open = False
         self._log(f"首次设置完成：店铺 {self.cfg.store_name} / 模板 {self.cfg.template_product_title[:30]}")
-        self.page.update()
+        self._safe_update()
         self._switch(0)
 
     def _wz_close(self, mark):
         self.wz_dlg.open = False
-        self.page.update()
+        self._safe_update()
 
     def _p_overview(self):
         self.stat_api = ft.Text("检测中…", color=MUTED, size=12)
@@ -826,7 +852,7 @@ class App:
             self.stat_auth.value = "检测中…"
             self.stat_auth.color = MUTED
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             threading.Thread(target=self._check_license, daemon=True).start()
@@ -846,13 +872,8 @@ class App:
                        spacing=12),
                 card(ft.Column([h1("快速开始", 15),
                                 muted("三步完成上架：读 Cookie → 选店铺与模板 → 启动"),
-                                ft.Row([ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
-                                                          on_click=lambda e: threading.Thread(target=self._test, daemon=True).start()),
-                                        ft.ElevatedButton("启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color="white",
+                                ft.Row([ft.ElevatedButton("启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color="white",
                                                           on_click=lambda e: self._start()),
-                                        ft.ElevatedButton("一键自检", icon=ft.Icons.PLAY_CIRCLE_FILL,
-                                                          bgcolor=ACCENT_2, color="#04231C",
-                                                          on_click=lambda e: threading.Thread(target=self._self_test, daemon=True).start()),
                                         ft.OutlinedButton("去设置", icon=ft.Icons.SETTINGS,
                                                           on_click=lambda e: self._switch(8))], spacing=10)], spacing=10))]
 
@@ -871,7 +892,7 @@ class App:
             else:
                 ctrl.value = f"连接失败：{st.get('detail', '')}"
                 ctrl.color = "#FF6B6B"
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -917,7 +938,7 @@ class App:
                 ctrl.color = "#FF6B6B"
                 if detail is not None:
                     detail.value = str(st.get("message") or "点「重新检测」或检查网络")[:40]
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -1027,10 +1048,10 @@ class App:
                                                    on_click=lambda e: (setattr(dlg, "open", False),
                                                                        threading.Thread(target=self._check_license,
                                                                                         daemon=True).start(),
-                                                                       self.page.update()))])
+                                                                       self._safe_update()))])
                     self.page.dialog = dlg
                     dlg.open = True
-                    self.page.update()
+                    self._safe_update()
                     return
         except Exception as ex:
             self._log(f"授权检查异常：{ex}", "WARN")
@@ -1039,9 +1060,9 @@ class App:
             dlg = ft.AlertDialog(title=ft.Text("启动前检查未通过"),
                                  content=ft.Column([ft.Text("• " + e, color="#FF8A8A", size=12) for e in errs],
                                                    spacing=6, height=200, width=460),
-                                 actions=[ft.TextButton("去修改", on_click=lambda e: (setattr(dlg, "open", False), self._switch(1), self.page.update())),
+                                 actions=[ft.TextButton("去修改", on_click=lambda e: (setattr(dlg, "open", False), self._switch(1), self._safe_update())),
                                           ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
-            self.page.dialog = dlg; dlg.open = True; self.page.update()
+            self.page.dialog = dlg; dlg.open = True; self._safe_update()
             return
         self._log("启动：配置检查通过")
         self._switch(10)
@@ -1138,7 +1159,7 @@ class App:
                 if getattr(self, "ov_progress", None) is not None:
                     self.ov_progress.value = None
                     self.ov_progress_text.value = f"并行处理中（{workers} 个线程）"
-                    self.page.update()
+                    self._safe_update()
             except Exception:
                 pass
 
@@ -1179,7 +1200,7 @@ class App:
                 if getattr(self, "ov_progress", None) is not None:
                     self.ov_progress.value = 1
                     self.ov_progress_text.value = f"完成：成功 {ok_n} / 失败 {fail_n}"
-                    self.page.update()
+                    self._safe_update()
             except Exception:
                 pass
         except Exception as ex:
@@ -1223,7 +1244,7 @@ class App:
 
     def _refresh_self_test(self, rows):
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -1237,7 +1258,7 @@ class App:
         dlg = ft.AlertDialog(title=ft.Text(f"自检结果 {ok_n}/{len(rows)} 通过"),
                              content=ft.Column(items, scroll=ft.ScrollMode.AUTO, height=380, width=620),
                              actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
-        self.page.dialog = dlg; dlg.open = True; self.page.update()
+        self.page.dialog = dlg; dlg.open = True; self._safe_update()
 
         self.ov_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
         self.ov_progress_text = ft.Text("空闲", size=12, color=MUTED)
@@ -1261,6 +1282,17 @@ class App:
                                    on_change=lambda e: self._on_shop_change())
         self.tpl_preview_box = ft.Container(content=self._template_preview_row())
         self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
+        try:
+            import json as _js
+            _snap0 = _js.loads(getattr(self.cfg, "template_snapshot", "") or "{}")
+            _f0 = _snap0.get("fields") or {}
+            if _f0:
+                self.tpl_snapshot_text.value = (
+                    f"模板参数：类目 {_f0.get('category','-')} · 运费 {_f0.get('freight','-')}"
+                    f" · 属性 {len(_snap0.get('attributes') or [])} 项 · 重量 {_f0.get('weight','-')}")
+                self.tpl_snapshot_text.color = ACCENT_2
+        except Exception:
+            pass
         self.tpl_source_dd = ft.Dropdown(label="模板来源", width=140, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                          value=self.cfg.template_source or "draft",
                                          options=[ft.dropdown.Option("draft", "待发布"), ft.dropdown.Option("online", "在线")],
@@ -1275,13 +1307,13 @@ class App:
             self.cookie_status.value = f"Cookie：{text}"
             self.cookie_status.color = ACCENT_2 if ok else "#FFB020"
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             self.toast(("Cookie 可用：" if ok else "Cookie 仍不可用：") + text, ok)
 
         def sync(e):
-            self.store_status.value = "正在读取…"; self.page.update()
+            self.store_status.value = "正在读取…"; self._safe_update()
             threading.Thread(target=self._sync_shops, daemon=True).start()
 
         connect_card = card(ft.Column([
@@ -1324,26 +1356,16 @@ class App:
                     self.tpl_snapshot_text], spacing=10),
         ], spacing=10))
 
-        # 图片空间：满了会导致上传被跳过（ISSUES #5）→ 这里直接给清理入口
-        self.space_text = ft.Text("图片空间：点「查看占用」统计", size=12, color=MUTED)
-        space_card = card(ft.Column([
-            h1("4 · 图片空间", 15),
-            muted("空间满了会跳过上传（刊登仍可用外链），可在这里清理旧图腾空间"),
-            self.space_text,
-            ft.Row([ft.OutlinedButton("查看占用", icon=ft.Icons.PIE_CHART_OUTLINE,
-                                      on_click=lambda e: threading.Thread(target=self._load_space_info, daemon=True).start()),
-                    ft.OutlinedButton("清理旧图", icon=ft.Icons.DELETE_SWEEP,
-                                      on_click=lambda e: self._open_cleanup_dialog()),
-                    ft.OutlinedButton("打开相册页面", icon=ft.Icons.OPEN_IN_BROWSER,
-                                      on_click=lambda e: self._open_album_page())], spacing=10, wrap=True),
-        ], spacing=10))
-
         if not getattr(self, "_store_autosynced", False):
             self._store_autosynced = True
             threading.Thread(target=self._sync_shops, daemon=True).start()
-        return [h1("店铺设置"), muted("三步：读 Cookie → 选店铺 → 选模板"), connect_card, shop_card, tpl_card, space_card]
+        return [h1("店铺设置"), muted("三步：读 Cookie → 选店铺 → 选模板"), connect_card, shop_card, tpl_card]
 
     def _on_shop_change(self):
+        # 同步/重渲染时不要清掉已选模板：只有真的换了店铺才清
+        sid_now = str(getattr(self, "shop_dd", None).value if getattr(self, "shop_dd", None) else "")
+        if sid_now and sid_now == str(getattr(self.cfg, "store_id", "") or ""):
+            return
         self.cfg.template_product_id = ""
         self.cfg.template_product_title = ""
         self.cfg.template_snapshot = ""
@@ -1382,12 +1404,12 @@ class App:
                 self.products = [prod] + [x for x in getattr(self, "products", []) if x.get("id") != ""]
                 self.toast("已加入产品列表（未入库，可先试跑）")
                 self._log(f"采集并入列：{prod['title'][:30]}")
-                dlg.open = False; self.page.update()
+                dlg.open = False; self._safe_update()
             except Exception as ex:
                 self.toast(f"失败：{ex}", False)
 
         def run(e):
-            out.value = "采集中…"; self.page.update()
+            out.value = "采集中…"; self._safe_update()
             def go():
                 try:
                     from ..services.collector import collect
@@ -1400,7 +1422,7 @@ class App:
                         out.value = f"采集失败（可能需要登录或页面需 JS）：{r.error}"
                 except Exception as ex:
                     out.value = f"异常：{ex}"
-                self.page.update()
+                self._safe_update()
             threading.Thread(target=go, daemon=True).start()
 
         dlg = ft.AlertDialog(title=ft.Text("从链接采集商品"),
@@ -1408,20 +1430,15 @@ class App:
                              actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
                                       ft.TextButton("加入队列", on_click=to_queue),
                                       ft.ElevatedButton("开始采集", bgcolor=ACCENT, color="white", on_click=run)])
-        self.page.dialog = dlg; dlg.open = True; self.page.update()
+        self.page.dialog = dlg; dlg.open = True; self._safe_update()
 
     def _template_library_dialog(self):
         import json as _j
-        try:
-            lib = _j.loads(self.cfg.template_library or "{}")
-        except Exception:
-            lib = {}
-        if not isinstance(lib, dict):
-            lib = {}
+        lib = _tpl_lib_load(self.cfg.template_library)
         list_col = ft.Column(spacing=4, height=280, scroll=ft.ScrollMode.AUTO)
 
         def persist():
-            self.cfg.template_library = _j.dumps(lib, ensure_ascii=False)
+            self.cfg.template_library = _tpl_lib_dump(lib)
             save_config(self.cfg)
             render()
 
@@ -1437,9 +1454,8 @@ class App:
                 rec = dict(item)
                 rec["name"] = name or self.cfg.template_product_title or "未命名模板"
                 rec["values"] = vals
-                lib = [x for x in lib if x.get("name") != rec["name"]]
-                lib.append(rec)
-                self.cfg.template_library = _j.dumps(lib, ensure_ascii=False)
+                lib[rec["name"]] = rec
+                self.cfg.template_library = _tpl_lib_dump(lib)
                 save_config(self.cfg)
                 render()
                 self.toast(f"模板已保存到本地：{rec['name']}（{len(vals)} 个字段）")
@@ -1447,35 +1463,41 @@ class App:
                 self.toast(f"保存失败：{ex}", False)
 
         def apply_item(name, item):
+            # 先在本地立即生效（不阻塞界面），表单值抓取放后台
             self.cfg.template_snapshot = _j.dumps({"fields": item.get("fields") or {},
                                                    "attributes": item.get("attributes") or []},
                                                   ensure_ascii=False)
-            # 抓取模板产品的完整表单值（品牌/型号/说明书/欧盟资质等），刊登时照抄
-            try:
-                from ..integrations.editor_automation import read_form_values
-                from ..integrations.browser import ensure_browser
-                ws = self.ws_endpoint or ensure_browser(self.cfg).get("ws", "")
-                self.ws_endpoint = ws
-                vals = read_form_values(ws, str(item.get("product_id") or self.cfg.template_product_id))
-                if vals:
-                    self.cfg.template_values = _j.dumps(vals, ensure_ascii=False)
-                    self.toast(f"已抓取模板 {len(vals)} 个字段值")
-            except Exception as ex:
-                self._log(f"模板值抓取失败：{ex}", "WARN")
             self.cfg.template_product_title = name
             self.cfg.template_product_id = item.get("product_id") or ""
             save_config(self.cfg)
             self._set_tpl_preview(None)
             f = (item.get("fields") or {})
-            self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
-                                            f" · 属性 {len(item.get('attributes') or [])} 项")
+            if getattr(self, "tpl_snapshot_text", None) is not None:
+                self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
+                                                f" · 属性 {len(item.get('attributes') or [])} 项")
+            dlg.open = False
+            self.toast(f"已应用模板：{name}")
+            self._safe_update()
             try:
                 threading.Thread(target=save_template_local, args=(name, item), daemon=True).start()
             except Exception:
                 pass
-            self.toast(f"已应用模板：{name}")
-            dlg.open = False
-            self.page.update()
+
+            def fetch_values():
+                try:
+                    from ..integrations.editor_automation import read_form_values
+                    from ..integrations.browser import ensure_browser
+                    ws = self.ws_endpoint or ensure_browser(self.cfg).get("ws", "")
+                    self.ws_endpoint = ws
+                    vals = read_form_values(ws, str(item.get("product_id") or self.cfg.template_product_id))
+                    if vals:
+                        self.cfg.template_values = _j.dumps(vals, ensure_ascii=False)
+                        save_config(self.cfg)
+                        self.toast(f"已抓取模板 {len(vals)} 个字段值")
+                except Exception as ex:  # noqa: BLE001
+                    self._log(f"模板值抓取失败：{ex}", "WARN")
+
+            threading.Thread(target=fetch_values, daemon=True).start()
 
         def rename_item(name, item):
             field = ft.TextField(label="新名称", value=name, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
@@ -1487,12 +1509,12 @@ class App:
                     persist()
                     self.toast(f"已重命名为 {nn}")
                 d2.open = False
-                self.page.update()
+                self._safe_update()
 
             d2 = ft.AlertDialog(title=ft.Text("重命名模板"), content=field,
                                 actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(d2)),
                                          ft.ElevatedButton("确定", on_click=do)])
-            self.page.dialog = d2; d2.open = True; self.page.update()
+            self.page.dialog = d2; d2.open = True; self._safe_update()
 
         def delete_item(name):
             lib.pop(name, None)
@@ -1509,7 +1531,7 @@ class App:
                     ft.TextButton("删除", on_click=lambda e, n=name: delete_item(n)),
                 ], spacing=6))
             list_col.controls = rows or [ft.Text("模板库为空，先点「保存当前模板」", size=12, color=MUTED)]
-            self.page.update()
+            self._safe_update()
 
         def save_current(e):
             try:
@@ -1548,7 +1570,7 @@ class App:
             a = ft.TextField(value=sku, hint_text="SKU 名", width=180, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
             b = ft.TextField(value=url, hint_text="新图片 URL", expand=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
             rows.controls.append(ft.Row([a, b], spacing=8))
-            self.page.update()
+            self._safe_update()
             return a, b
 
         pairs = [add(k, v) for k, v in mapping.items()]
@@ -1562,7 +1584,7 @@ class App:
             save_config(self.cfg)
             self.toast(f"已保存 {len(out)} 条 SKU 图替换")
             dlg.open = False
-            self.page.update()
+            self._safe_update()
 
         dlg = ft.AlertDialog(
             title=ft.Text("SKU 图批量替换"),
@@ -1573,7 +1595,7 @@ class App:
             actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
                      ft.ElevatedButton("保存", bgcolor=ACCENT, color="white", on_click=save)],
         )
-        self.page.dialog = dlg; dlg.open = True; self.page.update()
+        self.page.dialog = dlg; dlg.open = True; self._safe_update()
 
     def _paste_cookie(self):
         field = ft.TextField(label="Cookie", multiline=True, min_lines=4, bgcolor=CARD_2,
@@ -1595,53 +1617,79 @@ class App:
             self._cookie_ts = 0.0
             self.toast(f"已保存 {len(ck)} 个 Cookie")
             dlg.open = False
-            self.page.update()
+            self._safe_update()
             threading.Thread(target=self._sync_shops, daemon=True).start()
 
         dlg = ft.AlertDialog(title=ft.Text("手动粘贴 Cookie"),
                              content=ft.Column([field], width=560, height=200),
                              actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
                                       ft.ElevatedButton("保存并同步", bgcolor=ACCENT, color="white", on_click=save)])
-        self.page.dialog = dlg; dlg.open = True; self.page.update()
+        self.page.dialog = dlg; dlg.open = True; self._safe_update()
 
     def _set_tpl_preview(self, images=None):
         self.tpl_preview_box.content = self._template_preview_row(images)
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
     def _read_template(self):
+        """读取模板参数：优先走店小秘 API（不用打开浏览器），失败才用已连接的浏览器。"""
+        import json as _j
         pid = self.cfg.template_product_id or self.cfg.product_template_id
         if not pid:
             self.toast("请先选择模板产品", False); return
         self.tpl_snapshot_text.value = "正在读取模板参数…"
-        self.page.update()
+        self._safe_update()
+        snap = None
+        # 1) API 读取（不依赖浏览器）
         try:
-            from ..integrations.template_reader import read_snapshot
-            if not self.ws_endpoint:
-                try:
-                    info = launch_browser("chrome")
-                    self.ws_endpoint = info.get("ws", "")
-                except Exception as be:
-                    self.tpl_snapshot_text.value = f"读取失败：需要浏览器（{be}）"
-                    self.page.update(); return
-            snap = read_snapshot(self.ws_endpoint, str(pid))
-            if not snap.fields:
-                self.tpl_snapshot_text.value = "读取失败：浏览器未登录店小秘，请先点「启动浏览器（兜底）」登录一次"
-                self.page.update(); return
-            self.cfg.template_product_id = str(pid)
-            self.cfg.template_product_title = snap.title
-            self.cfg.template_snapshot = snap.to_json()
-            save_config(self.cfg)
-            f = snap.fields
-            self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
-                                            f" · 属性 {len(snap.attributes)} 项 · 重量 {f.get('weight','-')}")
-            self._set_tpl_preview()      # 预览同步刷新（类目/运费/品牌/属性数/抓取字段数）
-            self._log(f"模板参数已读取：{pid}")
-        except Exception as ex:
-            self.tpl_snapshot_text.value = f"读取失败：{ex}"
-        self.page.update()
+            dxm = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+            snap = dxm.template_snapshot(str(pid))
+            if snap and snap.get("fields"):
+                self.cfg.template_product_id = str(pid)
+                if snap.get("title"):
+                    self.cfg.template_product_title = snap["title"]
+                self.cfg.template_snapshot = _j.dumps({"fields": snap.get("fields") or {},
+                                                       "attributes": snap.get("attributes") or []},
+                                                      ensure_ascii=False)
+                if snap.get("values"):
+                    self.cfg.template_values = _j.dumps(snap["values"], ensure_ascii=False)
+                save_config(self.cfg)
+                f = snap["fields"]
+                self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
+                                                f" · 属性 {len(snap.get('attributes') or [])} 项 · 重量 {f.get('weight','-')}")
+                self.tpl_snapshot_text.color = ACCENT_2
+                self._set_tpl_preview()
+                self._log(f"模板参数已读取（API）：{pid}")
+                self._safe_update()
+                return
+        except Exception as ex:  # noqa: BLE001
+            self._log(f"模板 API 读取失败：{str(ex)[:80]}，尝试浏览器", "WARN")
+        # 2) 已连接的浏览器（不主动打开浏览器）
+        if self.ws_endpoint:
+            try:
+                from ..integrations.template_reader import read_snapshot
+                snap = read_snapshot(self.ws_endpoint, str(pid))
+                if snap and snap.fields:
+                    self.cfg.template_product_id = str(pid)
+                    self.cfg.template_product_title = snap.title
+                    self.cfg.template_snapshot = snap.to_json()
+                    save_config(self.cfg)
+                    f = snap.fields
+                    self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
+                                                    f" · 属性 {len(snap.attributes)} 项 · 重量 {f.get('weight','-')}")
+                    self.tpl_snapshot_text.color = ACCENT_2
+                    self._set_tpl_preview()
+                    self._log(f"模板参数已读取（浏览器）：{pid}")
+                    self._safe_update()
+                    return
+            except Exception as ex:  # noqa: BLE001
+                self._log(f"模板浏览器读取失败：{str(ex)[:80]}", "WARN")
+        self.tpl_snapshot_text.value = ("模板已选中；参数暂未读取（无需打开店小秘，刊登时会自动带模板）")
+        self.tpl_snapshot_text.color = "#FFB020"
+        self._set_tpl_preview()
+        self._safe_update()
 
     def _sync_shops(self):
         try:
@@ -1663,7 +1711,7 @@ class App:
         except Exception as ex:
             self.store_status.value = f"同步失败：{ex}"
             self.store_status.color = "#FF6B6B"
-        self.page.update()
+        self._safe_update()
 
     def _connect_browser(self):
         self._cookie_cache = None          # 新浏览器会话，重新取 Cookie
@@ -1698,7 +1746,7 @@ class App:
             self.store_status.value = f"启动失败：{e}"; self.store_status.color = "#FF6B6B"
         except Exception as e:
             self.store_status.value = f"启动异常：{e}"; self.store_status.color = "#FF6B6B"
-        self.page.update()
+        self._safe_update()
 
     def _cookies(self, refresh: bool = False):
         """取 Cookie：手动配置 → 已开浏览器（CDP）→ 本机浏览器库（ISSUES #1）。"""
@@ -1716,168 +1764,34 @@ class App:
             return dict(src.cookies)
         raise RuntimeError("未读取到店小秘 Cookie：请点「粘贴 Cookie」，或点「启动浏览器（兜底）」登录一次")
 
-    def _cookie_status_text(self, refresh: bool = False) -> tuple[bool, str]:
-        """给界面显示的 Cookie 状态（不抛错，也不阻塞太久）。"""
+    def _cookie_status_text(self, refresh: bool = False, allow_cdp: bool = False) -> tuple[bool, str]:
+        """给界面显示的 Cookie 状态（不抛错、不阻塞：默认不连 CDP）。"""
         from ..integrations.browser_cookies import describe, resolve
         cached = getattr(self, "cookie_src", None)
         if not refresh and cached is not None and (time.time() - getattr(self, "_cookie_ts", 0)) < 60:
             return bool(cached.ok and cached.cookies), describe(cached)
         try:
             src = resolve("dianxiaomi.com", manual=getattr(self.cfg, "manual_cookies", None),
-                          ws_endpoint=self.ws_endpoint)
+                          ws_endpoint=self.ws_endpoint if allow_cdp else "")
         except Exception as ex:  # noqa: BLE001
             return False, f"读取异常：{str(ex)[:60]}"
         self.cookie_src = src
         self._cookie_ts = time.time()
         return bool(src.ok and src.cookies), describe(src)
 
-    def _check_dxm_login(self):
-        try:
-            ck = self._cookies()
-            if not ck:
-                self.store_status.value = "未读取到店小秘 Cookie，请先在浏览器登录店小秘"
-                self.store_status.color = "#FFB020"
-            else:
-                client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-                ok = client.check_login()
-                detail = ""
-                if ok:
-                    try:
-                        info = client.user_info()
-                        detail = f" · {info.get('account', '')}"
-                    except Exception:
-                        pass
-                self.store_status.value = (f"店小秘登录有效{detail}" if ok else "登录已失效，请在浏览器重新登录")
-                self.store_status.color = ACCENT_2 if ok else "#FF6B6B"
-        except Exception as e:
-            self.store_status.value = f"检测失败：{e}"; self.store_status.color = "#FF6B6B"
-        self.page.update()
-
-    def _fetch_products(self):
-        try:
-            client = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
-            self.products = client.product_list(page=1, size=50)
-            self.store_status.value = f"已拉取 {len(self.products)} 个产品"
-            self.store_status.color = ACCENT_2
-        except Exception as e:
-            self.store_status.value = f"拉取失败：{e}"; self.store_status.color = "#FF6B6B"
-        self.page.update()
-
-    def _dry_run(self):
-        try:
-            prod = self.products[0] if self.products else demo_product()
-            pub = Publisher(self.cfg, dxm=None,
-                            text_service=TextService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg))
-            res = pub.run(prod, dry_run=not self.cfg.auto_save_products)
-            for line in res.log().splitlines():
-                self._log(line)
-            self.store_status.value = ("试跑完成" if res.ok else f"试跑失败：{res.error}")
-            self.store_status.color = ACCENT_2 if res.ok else "#FF6B6B"
-        except Exception as e:
-            self.store_status.value = f"试跑异常：{e}"; self.store_status.color = "#FF6B6B"
-            self._log(f"试跑异常：{e}")
-        self.page.update()
-
-    def _confirm_publish(self):
-        if not self.products:
-            self.toast("请先拉取产品", False); return
-        pid = self.products[0]["id"]
-        title = self.products[0].get("title", "")[:40]
-
-        def do_publish(e):
-            dlg.open = False
-            self.page.update()
-            self.store_status.value = f"正在发布 {pid} …"; self.page.update()
-            threading.Thread(target=self._publish, args=(pid,), daemon=True).start()
-
-        dlg = ft.AlertDialog(
-            title=ft.Text("确认发布到速卖通？"),
-            content=ft.Text(f"{pid}\n{title}\n\n发布会真实刊登商品，请确认。", color=MUTED),
-            actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
-                     ft.ElevatedButton("确认发布", bgcolor="#D9534F", color="white", on_click=do_publish)],
-        )
-        self.page.dialog = dlg; dlg.open = True; self.page.update()
-
-    def _publish(self, pid):
-        from ..integrations.editor_automation import publish_product
-        try:
-            r = publish_product(self.ws_endpoint, pid, confirm=True)
-            self.store_status.value = ("发布成功：" if r.ok else "发布失败：") + r.message
-            self.store_status.color = ACCENT_2 if r.ok else "#FF6B6B"
-            self._log(f"发布 {pid}: {r.message}")
-        except Exception as ex:
-            self.store_status.value = f"发布异常：{ex}"; self.store_status.color = "#FF6B6B"
-        self.page.update()
-
-    def _real_save(self):
-        if not self.ws_endpoint:
-            self.toast("请先启动浏览器", False); return
-        if not self.products:
-            self.toast("请先拉取产品", False); return
-        pid = self.products[0]["id"]
-        self.store_status.value = f"正在保存 {pid} …"; self.page.update()
-        try:
-            pub = Publisher(self.cfg, ws_endpoint=self.ws_endpoint, scheduler=getattr(self, 'scheduler', None))
-            res = pub.run({"id": pid, "title": self.products[0].get("title", ""),
-                           "skus": [], "images": []}, dry_run=False)
-            for line in res.log().splitlines():
-                self._log(line)
-            self.store_status.value = "保存成功" if res.ok else f"保存失败：{res.error}"
-            self.store_status.color = ACCENT_2 if res.ok else "#FF6B6B"
-        except Exception as ex:
-            self.store_status.value = f"保存异常：{ex}"; self.store_status.color = "#FF6B6B"
-        self.page.update()
-
-    def _show_albums(self):
-        try:
-            client = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
-            data = client.album_index()
-            items = (data.get("data") or {})
-            cats = items.get("list") if isinstance(items, dict) else items
-            cats = cats or []
-            rows = []
-            for c in cats[:40]:
-                name = c.get("name") or c.get("albumName") or str(c.get("id", ""))
-                cid = c.get("id") or c.get("albumId") or ""
-                num = c.get("commodityProductNum")
-                pic = c.get("picNum") or c.get("imageNum")
-                sub = f"{cid}" + (f" · 商品 {num}" if num is not None else "") + (f" · 图片 {pic}" if pic is not None else "")
-                rows.append(ft.ListTile(title=ft.Text(name, size=13, color=TEXT),
-                                        subtitle=ft.Text(sub, size=10, color=MUTED)))
-            if not rows:
-                rows = [ft.ListTile(title=ft.Text("未取到相册（接口路径可能需校正）", color=MUTED, size=12))]
-            def open_album(e):
-                try:
-                    open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/album/index")
-                except Exception:
-                    pass
-            dlg = ft.AlertDialog(title=ft.Text(f"图片空间 / 相册（{len(cats)} 个分类）"),
-                                 content=ft.Column(rows, scroll=ft.ScrollMode.AUTO, height=400),
-                                 actions=[ft.TextButton("打开相册页面", on_click=open_album),
-                                          ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
-            self.page.dialog = dlg; dlg.open = True; self.page.update()
-        except Exception as ex:
-            self.toast(f"读取相册失败：{ex}", False)
-
     def _close_dlg(self, dlg):
         dlg.open = False
-        self.page.update()
+        self._safe_update()
 
     def _open_template_picker(self, source: str, on_pick=None):
-        try:
-            ck = self._cookies()
-            c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            sid = self.cfg.store_id or None
-            data = {"draft": c.drafts(limit=300, shop_id=sid), "online": c.online(limit=300, shop_id=sid)}
-            totals = c.counts(sid) if sid else {}
-        except Exception as ex:
-            self.toast(f"读取失败：{ex}", False); return
-
-        state = {"source": source if source in data else "draft", "kw": ""}
+        """先弹窗、后台拉数据，避免网络慢导致界面“卡死”。"""
+        state = {"source": source if source in ("draft", "online") else "draft",
+                 "kw": "", "data": {}, "totals": {}, "err": ""}
         list_col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
         search = ft.TextField(hint_text="搜索标题或产品ID", prefix_icon=ft.Icons.SEARCH, dense=True,
-                              bgcolor=CARD_2, border_color=CARD_2, color=TEXT, on_change=lambda e: render())
+                              bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         tab_row = ft.Row(spacing=8)
+        status = ft.Text("正在读取模板产品…", size=11, color=MUTED)
 
         def pick(pid, title, images):
             self.cfg.template_product_id = str(pid)
@@ -1886,13 +1800,13 @@ class App:
             save_config(self.cfg)
             self.toast(f"已选模板：{title[:24]}")
             dlg.open = False
-            self.page.update()
+            self._safe_update()
             if on_pick:
                 on_pick(pid, title, images)
             threading.Thread(target=self._read_template, daemon=True).start()
 
         def render():
-            items = data[state["source"]]
+            items = (state["data"] or {}).get(state["source"], []) or []
             kw = (state["kw"] or "").strip().lower()
             if kw:
                 items = [x for x in items if kw in (x.get("title") or "").lower() or kw in str(x.get("id"))]
@@ -1909,16 +1823,20 @@ class App:
                     subtitle=ft.Text(f"{it['id']} · {it.get('status_type')}", size=10, color=MUTED),
                     dense=True, on_click=lambda e, x=it: pick(x["id"], x.get("title", ""), x.get("images") or []),
                 ))
-            list_col.controls = rows or [ft.Text("无匹配结果", size=12, color=MUTED)]
+            list_col.controls = rows or [ft.Text("无匹配结果" if state["data"] else "读取中…", size=12, color=MUTED)]
+            data = state["data"] or {}
+            totals = state["totals"] or {}
             tab_row.controls = [
-                ft.ElevatedButton(f"待发布 {totals.get('editingRequired', len(data['draft']))}", bgcolor=ACCENT_2 if state["source"] == "draft" else CARD_2,
+                ft.ElevatedButton(f"待发布 {totals.get('editingRequired', len(data.get('draft') or []))}",
+                                  bgcolor=ACCENT_2 if state["source"] == "draft" else CARD_2,
                                   color="#04231C" if state["source"] == "draft" else TEXT,
                                   on_click=lambda e: switch("draft")),
-                ft.ElevatedButton(f"在线 {totals.get('onSelling', len(data['online']))}", bgcolor=ACCENT_2 if state["source"] == "online" else CARD_2,
+                ft.ElevatedButton(f"在线 {totals.get('onSelling', len(data.get('online') or []))}",
+                                  bgcolor=ACCENT_2 if state["source"] == "online" else CARD_2,
                                   color="#04231C" if state["source"] == "online" else TEXT,
                                   on_click=lambda e: switch("online")),
             ]
-            self.page.update()
+            self._safe_update()
 
         def switch(src):
             state["source"] = src
@@ -1926,15 +1844,39 @@ class App:
             save_config(self.cfg)
             render()
 
-        search.on_change = lambda e: (state.update({"kw": e.control.value or ""}), render())
+        def on_search(e):
+            state["kw"] = e.control.value or ""
+            render()
+
+        search.on_change = on_search
 
         dlg = ft.AlertDialog(
             title=ft.Text("选择模板产品"),
-            content=ft.Column([tab_row, search, list_col], spacing=10, width=620),
+            content=ft.Column([tab_row, search, status, list_col], spacing=10, width=620),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
         )
-        self.page.dialog = dlg; dlg.open = True
+        self.page.dialog = dlg
+        dlg.open = True
+        self._safe_update()
         render()
+
+        def load():
+            try:
+                ck = self._cookies()
+                c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+                sid = self.cfg.store_id or None
+                state["data"] = {"draft": c.drafts(limit=300, shop_id=sid),
+                                 "online": c.online(limit=300, shop_id=sid)}
+                state["totals"] = c.counts(sid) if sid else {}
+                status.value = "读取完成"
+                status.color = ACCENT_2
+            except Exception as ex:  # noqa: BLE001
+                state["data"] = {}
+                status.value = f"读取失败：{str(ex)[:100]}"
+                status.color = "#FF6B6B"
+            render()
+
+        threading.Thread(target=load, daemon=True).start()
 
     def _template_preview_row(self, images=None):
         """模板预览：标题 + 类目/运费/品牌/属性数/抓取字段数（ISSUES #2）。"""
@@ -2000,30 +1942,6 @@ class App:
             chip_row,
         ], spacing=8)
 
-    def _open_template_dialog(self):
-        rows = []
-        for p in self.products[:50]:
-            title = p.get("title") or p.get("name") or p.get("productTitle") or str(p.get("id", ""))
-
-            def choose(e, prod=p):
-                self.cfg.product_template_id = str(prod.get("id", ""))
-                self.cfg.product_template_name = title
-                self.cfg.product_id_title = title
-                save_config(self.cfg)
-                self.dlg.open = False
-                self.page.update()
-                self._switch(1)
-                self.toast("模板已设置")
-
-            rows.append(ft.ListTile(title=ft.Text(title[:60], color=TEXT, size=13), on_click=choose))
-        if not rows:
-            rows = [ft.ListTile(title=ft.Text("暂无产品，请先点击「拉取产品」", color=MUTED, size=13))]
-        self.dlg = ft.AlertDialog(title=ft.Text("选择模板产品"), content=ft.Column(rows, scroll=ft.ScrollMode.AUTO, height=420),
-                                  actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())])
-        self.page.dialog = self.dlg
-        self.dlg.open = True
-        self.page.update()
-
     def _search_attr_templates(self):
         try:
             ck = self._cookies()
@@ -2066,7 +1984,7 @@ class App:
             self.attr_status.value = f"搜索失败：{ex}"
             self.attr_list.controls = []
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -2082,13 +2000,7 @@ class App:
         try:
             import json as _j
             name = self.cfg.template_product_title or "未命名模板"
-            lib = []
-            try:
-                lib = _j.loads(self.cfg.template_library or "{}")
-                if not isinstance(lib, list):
-                    lib = []
-            except Exception:
-                lib = []
+            lib = _tpl_lib_load(self.cfg.template_library)
             rec = {"name": name, "product_id": self.cfg.template_product_id or "",
                    "fields": {}, "attributes": [], "values": {}}
             try:
@@ -2101,9 +2013,8 @@ class App:
                 rec["values"] = _j.loads(self.cfg.template_values or "{}")
             except Exception:
                 rec["values"] = {}
-            lib = [x for x in lib if x.get("name") != name]
-            lib.append(rec)
-            self.cfg.template_library = _j.dumps(lib, ensure_ascii=False)
+            lib[name] = rec
+            self.cfg.template_library = _tpl_lib_dump(lib)
             save_config(self.cfg)
             self.toast(f"已保存到本地：{name}（{len(rec['values'])} 字段 / {len(rec['attributes'])} 属性）")
         except Exception as ex:
@@ -2111,7 +2022,7 @@ class App:
 
     def _close_dialog(self):
         self.dlg.open = False
-        self.page.update()
+        self._safe_update()
 
     # ---------- 图片空间 / 清理旧图（ISSUES #5）----------
     def _album_client(self):
@@ -2119,22 +2030,10 @@ class App:
 
     def _load_space_info(self):
         from ..services import album_cleanup
-        ctrl = getattr(self, "space_text", None)
         try:
-            client = self._album_client()
-            info = album_cleanup.space(client)
-            self._space_info = info
-            if ctrl is not None:
-                ctrl.value = "图片空间：" + info.brief
-                ctrl.color = ACCENT_2 if info.images < 5000 else "#FFB020"
-        except Exception as ex:  # noqa: BLE001
-            if ctrl is not None:
-                ctrl.value = f"图片空间：读取失败（{str(ex)[:60]}）"
-                ctrl.color = "#FF6B6B"
-        try:
-            self.page.update()
+            self._space_info = album_cleanup.space(self._album_client())
         except Exception:
-            pass
+            self._space_info = None
 
     def _open_album_page(self):
         url = "https://www.dianxiaomi.com/web/service/album"
@@ -2152,118 +2051,166 @@ class App:
 
     def _open_cleanup_dialog(self):
         from ..services import album_cleanup
-        days = ft.TextField(label="清理多少天前的图片", value="30", width=220,
-                            bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        mode = ft.RadioGroup(value="unreferenced", content=ft.Column([
-            ft.Radio(value="unreferenced", label="安全清理：只删「未被任何商品引用」的旧图（推荐）"),
-            ft.Radio(value="scan", label="扫描并删除：按时间列出旧图，确认后删除（锁定图片自动跳过）"),
-        ], spacing=2))
-        status = ft.Text("先填天数，再点「扫描」看会删多少张", size=12, color=MUTED)
-        result = ft.Column(spacing=2, height=220, scroll=ft.ScrollMode.AUTO)
-        state: dict = {"plan": None}
 
-        def scan_now(show_dialog: bool = True):
+        def fmt_time(v) -> str:
+            try:
+                n = float(v)
+                if n > 1e12:
+                    n /= 1000.0
+                return time.strftime("%Y-%m-%d", time.localtime(n)) if n else "-"
+            except Exception:
+                return str(v or "-")[:10]
+
+        state = {"plan": None, "sel": set(), "timer": None}
+        space_text = ft.Text("图片空间：读取中…", size=12, color=MUTED)
+        days = ft.TextField(label="删除多少天前的图片（0=今天之前全部）", value="30", width=260,
+                            bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        status = ft.Text("先点「扫描」看看有哪些旧图", size=12, color=MUTED)
+        result = ft.Column(spacing=2, height=280, scroll=ft.ScrollMode.AUTO)
+        select_all = ft.Checkbox(label="全选可删", value=False)
+        dlg = None
+
+        def load_space():
+            try:
+                info = album_cleanup.space(self._album_client())
+                space_text.value = "图片空间：" + info.brief
+                space_text.color = ACCENT_2
+            except Exception as ex:  # noqa: BLE001
+                space_text.value = f"图片空间：读取失败（{str(ex)[:60]}）"
+                space_text.color = "#FF6B6B"
+            self._safe_update()
+
+        def render():
+            state["rendering"] = True
+            plan = state["plan"]
+            if not plan:
+                result.controls = []
+                state["rendering"] = False
+                return
+            rows = []
+            unlocked = [c for c in plan.candidates if not c.locked]
+            for c in plan.candidates[:120]:
+                cb = ft.Checkbox(value=(c.id in state["sel"]), disabled=c.locked, width=36)
+                if not c.locked:
+                    def on_cb(e, _c=c):
+                        if e.control.value:
+                            state["sel"].add(_c.id)
+                        else:
+                            state["sel"].discard(_c.id)
+                        self._safe_update()
+                    cb.on_change = on_cb
+                rows.append(ft.Row([
+                    cb,
+                    ft.Text(fmt_time(c.created), size=10, color=MUTED, width=90),
+                    ft.Text(album_cleanup.human_size(c.size), size=10, color=MUTED, width=60),
+                    ft.Text("🔒" if c.locked else "", size=10, color="#FFB020", width=20),
+                    ft.Text((c.name or c.id)[:52], size=10, color=TEXT, expand=True),
+                ], spacing=6))
+            result.controls = rows
+            select_all.value = bool(unlocked) and all(c.id in state["sel"] for c in unlocked)
+            state["rendering"] = False
+            self._safe_update()
+
+        def scan_now():
             try:
                 d = int((days.value or "30").strip())
             except ValueError:
-                status.value = "天数要填数字"
-                status.color = "#FF6B6B"
-                self.page.update()
-                return None
-            status.value = "扫描中…"
-            status.color = MUTED
-            self.page.update()
+                status.value = "天数要填数字"; status.color = "#FF6B6B"; self._safe_update(); return
+            status.value = "扫描中…"; status.color = MUTED; self._safe_update()
             try:
                 plan = album_cleanup.scan(self._album_client(), d)
                 state["plan"] = plan
-                self._cleanup_plan = plan
-                rows = [ft.Row([ft.Text(c.created[:19] or "-", size=10, color=MUTED, width=130),
-                                ft.Text(album_cleanup.human_size(c.size), size=10, color=MUTED, width=70),
-                                ft.Text("🔒" if c.locked else "", size=10, color="#FFB020", width=24),
-                                ft.Text(c.name[:46] or c.id, size=10, color=TEXT, expand=True)], spacing=6)
-                        for c in plan.candidates[:60]]
-                result.controls = rows or [ft.Text("没有符合条件的旧图（或已被锁定）", size=11, color=MUTED)]
-                status.value = plan.brief() + (f" · {plan.note}" if plan.note and plan.note != plan.brief() else "")
-                status.color = ACCENT_2 if plan.delete_count else MUTED
+                state["sel"] = set()
+                status.value = plan.brief() if plan.scanned else "没有符合条件的图片（可把天数改成 0）"
+                status.color = ACCENT_2 if plan.delete_count else "#FFB020"
+                render()
             except Exception as ex:  # noqa: BLE001
-                status.value = f"扫描失败：{str(ex)[:100]}"
-                status.color = "#FF6B6B"
-            self.page.update()
-            return state["plan"]
+                status.value = f"扫描失败：{str(ex)[:100]}"; status.color = "#FF6B6B"; self._safe_update()
 
-        def do_clean(e):
-            mode_val = mode.value or "unreferenced"
+        def on_select_all(e):
+            if state.get("rendering"):
+                return
+            plan = state["plan"]
+            if not plan:
+                return
+            if e.control.value:
+                state["sel"] = {c.id for c in plan.candidates if not c.locked and c.id}
+            else:
+                state["sel"] = set()
+            render()
+
+        select_all.on_change = on_select_all
+
+        def confirm_then(tip: str, action):
+            confirm = ft.AlertDialog(
+                title=ft.Text("确认删除图片？"),
+                content=ft.Text(tip, color=MUTED, size=12),
+                actions=[ft.TextButton("取消", on_click=lambda e: (setattr(confirm, "open", False), self._safe_update())),
+                         ft.ElevatedButton("确认删除", bgcolor="#D9534F", color="white",
+                                           on_click=lambda e: (setattr(confirm, "open", False), self._safe_update(), action()))])
+            self.page.dialog = confirm
+            confirm.open = True
+            self._safe_update()
+
+        def delete_selected():
+            ids = list(state["sel"])
+            if not ids:
+                self.toast("请先勾选要删除的图片", False); return
+            def go():
+                status.value = "删除中…"; status.color = MUTED; self._safe_update()
+                r = album_cleanup.delete_ids(self._album_client(), ids)
+                msg = r.get("message") or (f"已删除 {r.get('deleted', 0)} 张"
+                                           + (f"，失败 {r.get('failed', 0)} 张" if r.get("failed") else ""))
+                if r.get("errors"):
+                    msg += " · " + str(r["errors"][0])[:60]
+                status.value = msg
+                status.color = ACCENT_2 if r.get("ok") else "#FF6B6B"
+                self._log("图片清理（选中）：" + msg)
+                load_space(); scan_now()
+            threading.Thread(target=go, daemon=True).start()
+
+        def delete_range():
             try:
                 d = int((days.value or "30").strip())
             except ValueError:
-                self.toast("天数要填数字", False)
-                return
-            plan = state["plan"]
-            if mode_val == "scan" and plan is None:
-                plan = scan_now()
-                if plan is None:
-                    return
-            if mode_val == "scan" and plan.delete_count == 0:
-                self.toast("没有可删除的旧图", False)
-                return
+                self.toast("天数要填数字", False); return
+            tip = (f"将删除「{d} 天前」上传的所有图片（已锁定的会自动跳过）。\n"
+                   f"注意：这个方式不判断图片是否正被商品使用，删除前请确认。\n"
+                   f"想更安全就先用「扫描」勾选后再删。")
+            def go():
+                status.value = "删除中…"; status.color = MUTED; self._safe_update()
+                r = album_cleanup.delete_older_than(self._album_client(), d)
+                status.value = r.get("message") or ("完成" if r.get("ok") else "失败")
+                status.color = ACCENT_2 if r.get("ok") else "#FF6B6B"
+                self._log("图片清理（按时间）：" + status.value)
+                load_space(); scan_now()
+            confirm_then(tip, lambda: threading.Thread(target=go, daemon=True).start())
 
-            def really_clean(ev):
-                confirm.open = False
-                self.page.update()
-                status.value = "清理中…"
-                status.color = MUTED
-                self.page.update()
-
-                def go():
-                    if mode_val == "unreferenced":
-                        r = album_cleanup.auto_clean(self._album_client(), d)
-                    else:
-                        r = album_cleanup.delete_candidates(self._album_client(), state["plan"])
-                    status.value = r.get("message") or (
-                        f"已删除 {r.get('deleted', 0)} 张" + (f"，失败 {r.get('failed', 0)} 张" if r.get("failed") else ""))
-                    status.color = ACCENT_2 if r.get("ok") else "#FF6B6B"
-                    if r.get("ok"):
-                        self._log("图片空间清理：" + status.value)
-                    try:
-                        self.page.update()
-                    except Exception:
-                        pass
-                    self._load_space_info()
-
-                threading.Thread(target=go, daemon=True).start()
-
-            tip = (f"将删除 {d} 天前上传、且未被商品引用的图片（站点异步任务）。\n"
-                   "被商品引用的图片不会删除，可放心执行。") if mode_val == "unreferenced" else \
-                  (f"将立即删除扫描出的 {plan.delete_count} 张旧图（{album_cleanup.human_size(plan.delete_size)}）。\n"
-                   "已锁定的图片站点会自动跳过。删除后不可恢复，请确认。")
-            confirm = ft.AlertDialog(
-                title=ft.Text("确认清理图片空间？"),
-                content=ft.Text(tip, color=MUTED, size=12),
-                actions=[ft.TextButton("取消", on_click=lambda ev: (setattr(confirm, "open", False), self.page.update())),
-                         ft.ElevatedButton("确认清理", bgcolor="#D9534F", color="white", on_click=really_clean)])
-            self.page.dialog = confirm
-            confirm.open = True
-            self.page.update()
+        def open_album(e):
+            self._open_album_page()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("清理旧图 · 图片空间"),
+            title=ft.Text("图片空间清理"),
             content=ft.Column([
-                muted("图片空间满了会导致上传被跳过；这里可安全释放空间。"),
-                ft.Row([days, ft.ElevatedButton("扫描", icon=ft.Icons.SEARCH,
-                                                on_click=lambda e: threading.Thread(
-                                                    target=scan_now, daemon=True).start())], spacing=10),
-                mode, status,
-                ft.Divider(color=CARD_2),
-                result,
-            ], spacing=10, width=680, height=520),
-            actions=[ft.TextButton("打开相册页面", on_click=lambda e: self._open_album_page()),
-                     ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
-                     ft.ElevatedButton("开始清理", icon=ft.Icons.DELETE_SWEEP, bgcolor="#D9534F",
-                                       color="white", on_click=do_clean)],
+                space_text,
+                muted("支持两种：① 扫描后勾选删除（推荐，可控）② 按时间删除（快，但不判断是否在用）"),
+                ft.Row([days, ft.ElevatedButton("扫描", icon=ft.Icons.SEARCH, bgcolor=ACCENT, color="white",
+                                                on_click=lambda e: threading.Thread(target=scan_now, daemon=True).start()),
+                        ft.ElevatedButton("删除选中", icon=ft.Icons.DELETE, bgcolor="#D9534F", color="white",
+                                          on_click=lambda e: delete_selected()),
+                        ft.OutlinedButton("按时间删除", icon=ft.Icons.DELETE_SWEEP, on_click=lambda e: delete_range())],
+                       spacing=8, wrap=True),
+                status, select_all, result,
+                muted("说明：店小秘的「自动清理未引用图片」接口对当前账号未开放（返回：功能暂未开放），所以这里用勾选/按时间两种可用方式。"),
+            ], spacing=8, width=720, height=560),
+            actions=[ft.TextButton("打开相册页面", on_click=open_album),
+                     ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
         )
         self.page.dialog = dlg
         dlg.open = True
-        self.page.update()
+        self._safe_update()
+        threading.Thread(target=load_space, daemon=True).start()
+        threading.Thread(target=scan_now, daemon=True).start()
 
     def _p_advanced(self):
         self._current = 2
@@ -2286,7 +2233,7 @@ class App:
 
         def attr_search(e):
             self.attr_status.value = "搜索中…"
-            self.page.update()
+            self._safe_update()
             threading.Thread(target=self._search_attr_templates, daemon=True).start()
 
         attr_card = card(ft.Column([
@@ -2336,7 +2283,7 @@ class App:
                 self.wm_status.color = "#FFB020"
                 self.wm_preview.visible = False
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -2365,18 +2312,37 @@ class App:
         self.wm_enable = ft.Switch(label="叠加水印到主图（发布时逐张叠加）",
                                    value=bool(getattr(self.cfg, "overlay_watermark_enable", False)),
                                    active_color=ACCENT, on_change=toggle_wm)
+        self.wm_pos = ft.Dropdown(label="水印位置", width=160, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                  value=str(getattr(self.cfg, "overlay_position", "bottom-right") or "bottom-right"),
+                                  options=[ft.dropdown.Option(x, x) for x in
+                                           ("bottom-right", "bottom-left", "top-right", "top-left", "center")])
+        self.wm_opacity = ft.TextField(label="透明度 0-1", width=120,
+                                       value=str(getattr(self.cfg, "overlay_opacity", "0.7") or "0.7"),
+                                       bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        def save_wm_pos(e=None):
+            self.cfg.set("overlay_position", str(self.wm_pos.value or "bottom-right"))
+            save_config(self.cfg)
+        def save_wm_opacity(e=None):
+            try:
+                v = float(self.wm_opacity.value or 0.7)
+            except Exception:
+                v = 0.7
+            self.cfg.set("overlay_opacity", str(max(0.05, min(1.0, v))))
+            save_config(self.cfg)
+        self.wm_pos.on_change = save_wm_pos
+        self.wm_opacity.on_change = save_wm_opacity
         refresh_status()
         return card(ft.Column([
             h1("水印", 15),
             muted("「叠加水印到主图」用的就是这张图（发布时逐张叠加，可同时回传店小秘相册）"),
             self.wm_enable,
+            ft.Row([self.wm_pos, self.wm_opacity], spacing=10, wrap=True),
             ft.Row([self.wm_path,
                     ft.ElevatedButton("选择文件", icon=ft.Icons.IMAGE, bgcolor=CARD_2, color=TEXT, on_click=pick_file),
                     ft.OutlinedButton("测试叠加", icon=ft.Icons.SCIENCE,
                                       on_click=lambda e: threading.Thread(target=self._test_watermark, daemon=True).start())],
                    spacing=10, wrap=True),
             ft.Row([self.wm_preview, self.wm_status], spacing=10),
-            muted("位置 / 透明度在「AI图片处理 → 通用」里设置（bottom-right、center…）"),
         ], spacing=8))
 
     def _on_watermark_file(self, e):
@@ -2420,7 +2386,7 @@ class App:
             self.wm_status.color = "#FF6B6B"
             self.toast(f"水印测试失败：{ex}", False)
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -2444,7 +2410,7 @@ class App:
             self.combo_preview.value = ("\n".join(rows) if rows else "（先填示例 SKU）") + \
                 f"\n说明：套装价 = 原价 × {factor:g}；库存沿用原 SKU"
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -2492,7 +2458,7 @@ class App:
             status.value = f"{GROUP_LABELS[g]}：{n_rules} 条简单规则 · {n_jobs} 条精细任务"
             status.color = ACCENT_2 if (n_rules or n_jobs) else MUTED
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -2616,7 +2582,7 @@ class App:
                     job["preset"] = "custom"
                     schedule_persist()
                 try:
-                    self.page.update()
+                    self._safe_update()
                 except Exception:
                     pass
 
@@ -2701,7 +2667,7 @@ class App:
                 b.bgcolor = ACCENT if on else CARD_2
                 b.color = "white" if on else TEXT
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -2751,7 +2717,7 @@ class App:
         except Exception as ex:
             self.toast(f"四合一失败：{ex}", False)
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -2836,14 +2802,14 @@ class App:
             self.rev_table.rows = list(rows)
             self.rev_status.value = f"审查中… {i}/{len(items)}"
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
         self.rev_status.value = f"完成：{len(items)} 个产品，{bad} 个需处理"
         self.rev_status.color = "#FF6B6B" if bad else ACCENT_2
         self._log(f"内容审查完成：{len(items)} 个，{bad} 个需处理")
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -2863,7 +2829,7 @@ class App:
                 self.toast("请先选择图片", False); return
             if not self.cfg.api_key:
                 self.toast("请先在设置里填写 API Key", False); return
-            self.img_busy.visible = True; self.page.update()
+            self.img_busy.visible = True; self._safe_update()
             threading.Thread(target=self._do_image, args=(kind,), daemon=True).start()
 
         self.img_quick_prompt = ft.TextField(
@@ -2919,7 +2885,7 @@ class App:
                 self.price_out.value = "计算失败"
                 self.price_break.value = str(ex)[:120]
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -2943,7 +2909,7 @@ class App:
                                  if tier_state["rows"] else "未设置阶梯：全部按上面的价格倍率")
             tier_status.color = ACCENT_2 if tier_state["rows"] else MUTED
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             calc()
@@ -2992,7 +2958,7 @@ class App:
             tier_col.controls = [tier_row(r) for r in tier_state["rows"]] or [
                 ft.Text("还没有阶梯。点「添加一档」，例如 0-100 用 1.5 倍、100-1000 用 1.35 倍。", size=11, color=MUTED)]
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -3029,7 +2995,7 @@ class App:
                                 if reg_state["rows"] else "未设置区域倍率：开启「区域倍率」后生效")
             reg_status.color = ACCENT_2 if reg_state["rows"] else MUTED
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             calc()
@@ -3067,7 +3033,7 @@ class App:
             reg_col.controls = [reg_row(r) for r in reg_state["rows"]] or [
                 ft.Text("还没有区域倍率。点「添加币种」，或直接点「套用常用币种」。", size=11, color=MUTED)]
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -3101,7 +3067,7 @@ class App:
         def search(e):
             self.tpl_status.value = "搜索中…"
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             threading.Thread(target=self._search_templates, daemon=True).start()
@@ -3111,7 +3077,7 @@ class App:
             self.cfg.set("adjust_price_template_name", "")
             save_config(self.cfg)
             self.tpl_selected.value = "未选择店小秘模板"
-            self.page.update()
+            self._safe_update()
 
         self.tpl_selected.value = ("已选店小秘模板：" + str(self.cfg.adjust_price_template_name or "-"))
         tpl_card = card(ft.Column([
@@ -3134,7 +3100,7 @@ class App:
                                if ws_state["rows"] else "未设置批发价")
             ws_status.color = ACCENT_2 if ws_state["rows"] else MUTED
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             calc()
@@ -3171,7 +3137,7 @@ class App:
             ws_col.controls = [ws_row(r) for r in ws_state["rows"]] or [
                 ft.Text("未设置批发价。点「添加一档」，例如 ≥10 件 ¥9.9。", size=11, color=MUTED)]
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -3198,7 +3164,7 @@ class App:
                 lib = []
             self.lib_dd.options = [ft.dropdown.Option(str(t.get("name"))) for t in lib if isinstance(t, dict)]
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -3274,7 +3240,7 @@ class App:
                     self.tpl_selected.value = f"已选店小秘模板：{_name}（{_tid}）"
                     self.toast(f"已应用模板：{_name}")
                     try:
-                        self.page.update()
+                        self._safe_update()
                     except Exception:
                         pass
 
@@ -3286,7 +3252,7 @@ class App:
             self.tpl_status.value = f"搜索失败：{str(ex)[:120]}"
             self.tpl_list.controls = []
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -3304,7 +3270,7 @@ class App:
             mapping = auto_map(src, tgt)
             self.map_out.controls = [ft.Text(f"{k}  →  {v}", size=12, color=MUTED) for k, v in mapping.items()] or \
                                     [ft.Text("无匹配结果", size=12, color="#FFB020")]
-            self.page.update()
+            self._safe_update()
 
         card_map = card(ft.Column([h1("自动映射预览", 15), self.src_attrs, self.tgt_attrs,
                                    ft.ElevatedButton("生成映射", on_click=preview), self.map_out], spacing=10))
@@ -3318,7 +3284,7 @@ class App:
             b = ft.TextField(value=dst, hint_text="目标属性", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
             self._mapping_rows.append((a, b))
             self.rows_col.controls.append(ft.Row([a, b], spacing=8))
-            self.page.update()
+            self._safe_update()
 
         def save_rows(e):
             data = [{"from": a.value, "to": b.value} for a, b in self._mapping_rows if (a.value or "").strip()]
@@ -3352,7 +3318,7 @@ class App:
         def run(kind):
             self.aw_busy.visible = True
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             threading.Thread(target=self._ai_run, args=(kind,), daemon=True).start()
@@ -3388,7 +3354,7 @@ class App:
             self._maybe_quota(str(ex))
         finally:
             self.aw_busy.visible = False
-            self.page.update()
+            self._safe_update()
 
     def _p_workbench(self):
         self._current = 9
@@ -3417,7 +3383,7 @@ class App:
             else:
                 self.toast("仍未读到 Cookie，请粘贴 Cookie 或启动浏览器", False)
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -3506,7 +3472,7 @@ class App:
                 self.toast("请先设置 API Key", False); return
             self.wb_busy.visible = True
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             threading.Thread(target=self._wb_process, args=(kind,), daemon=True).start()
@@ -3612,7 +3578,7 @@ class App:
             self.wb_conn.value = f"登录检测失败：{str(ex)[:80]}"
             self.wb_conn.color = "#FF6B6B"
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -3620,7 +3586,7 @@ class App:
         self.wb_status.value = f"加载第 {page} 页…"
         self.wb_status.color = MUTED
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -3657,7 +3623,7 @@ class App:
                 self.wb_status.color = "#FF6B6B"
                 self.toast(f"加载失败：{ex}", False)
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -3676,7 +3642,7 @@ class App:
         self.wb_status.value = f"已选 {len(self.wb_selected)} 个产品，下载 {len(urls)} 张图…"
         self.wb_status.color = MUTED
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
         threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
@@ -3687,7 +3653,7 @@ class App:
             self.toast("请输入图片 URL", False); return
         self.wb_status.value = f"下载 {len(urls)} 张图…"
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
         threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
@@ -3734,7 +3700,7 @@ class App:
             ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER, width=96))
         self.wb_wall.controls = tiles
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -3762,7 +3728,7 @@ class App:
                 n_img += len(it.get("images") or [])
         self.wb_sel_text.value = f"已选 {len(self.wb_selected)} 个产品 / {n_img} 张图"
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -3775,7 +3741,7 @@ class App:
         st = self.q.stats()
         self.q_text.value = f"待处理 {st['pending']} · 处理中 {st['running']} · 完成 {st['done']} · 失败 {st['failed']}"
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -3882,7 +3848,7 @@ class App:
             self._wb_render_wall()
         except Exception:
             pass
-        self.page.update()
+        self._safe_update()
 
     def _upload_results(self):
         urls = [c.controls[1].value for c in self.wb_results.controls
@@ -3941,7 +3907,7 @@ class App:
             self.wb_results.controls.append(ft.Row([ft.Icon(icon, size=15, color=color),
                                                     ft.Text(res.value if res.ok else res.error, size=11,
                                                             color=MUTED, selectable=True)], spacing=8))
-            self.page.update()
+            self._safe_update()
 
         targets = self._wb_selected_paths() if hasattr(self, "_wb_selected_paths") else list(self.picked)
         results = runner.run(list(targets), job, done)
@@ -3952,7 +3918,7 @@ class App:
             pass
         self.wb_status.value = f"处理完成：成功 {ok} / {len(results)}"
         self.wb_busy.visible = False
-        self.page.update()
+        self._safe_update()
 
     def _p_prompts(self):
         self._current = 11
@@ -4006,7 +3972,7 @@ class App:
                                                      f"{s['name']}" + (f"（{s.get('category')}）" if s.get("category") else ""))
                                   for s in sets]
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -4093,7 +4059,7 @@ class App:
             if not self.cfg.api_key:
                 self.toast("请先在设置里填 API Key", False); return
             self.try_status.value = "生成中…"
-            self.page.update()
+            self._safe_update()
             threading.Thread(target=_do_ab, args=(src,), daemon=True).start()
 
         def _do_ab(src):
@@ -4153,7 +4119,7 @@ class App:
             except Exception as ex:
                 self.try_status.value = f"失败：{str(ex)[:140]}"
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -4184,157 +4150,6 @@ class App:
         except Exception as ex:
             self.toast(str(ex), False)
 
-    def _p_preview(self):
-        self._current = 12
-        self.pv_dd = ft.Dropdown(label="选择产品（草稿）", width=520, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
-        self.pv_status = ft.Text("点「载入草稿」拉取产品", size=12, color=MUTED)
-        self.pv_title = ft.Text("", size=15, color=TEXT, weight=ft.FontWeight.BOLD)
-        self.pv_meta = ft.Column(spacing=2)
-        self.pv_images = ft.Row(spacing=8, wrap=True, scroll=ft.ScrollMode.AUTO)
-        self.pv_actions = ft.Column(spacing=2)
-        self.pv_cost = ft.Text("", size=12, color=ACCENT_2)
-        self.pv_risks = ft.Column(spacing=2)
-        self._pv_products: list[dict] = []
-
-        def load(e):
-            self.pv_status.value = "拉取中…"; self.page.update()
-            threading.Thread(target=_load, daemon=True).start()
-
-        def _load():
-            try:
-                ck = self._cookies()
-                dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-                items, meta = dxm.product_page(1, 50, self.cfg.store_id or None, "editingRequired")
-                self._pv_products = items[:30]
-                self.pv_dd.options = [ft.dropdown.Option(str(p["id"]), (p.get("title") or "")[:60]) for p in self._pv_products]
-                if self._pv_products:
-                    self.pv_dd.value = str(self._pv_products[0]["id"])
-                self.pv_status.value = f"共 {meta.get('total')} 个待发布，已载入 {len(self._pv_products)} 个"
-                _render_preview(None)
-            except Exception as ex:
-                self.pv_status.value = f"拉取失败：{str(ex)[:100]}"
-            try:
-                self.page.update()
-            except Exception:
-                pass
-
-        def _render_preview(e):
-            pid = self.pv_dd.value
-            prod = next((p for p in self._pv_products if str(p.get("id")) == str(pid)), None)
-            if not prod:
-                return
-            title = prod.get("title") or ""
-            imgs = [u for u in (prod.get("images") or []) if isinstance(u, str)]
-            skus = prod.get("skus") or []
-
-            self.pv_title.value = title[:110]
-            # 元信息
-            cost = float(self.cfg.goods_cost or 0) or 10.0
-            price = calc_multiplier(cost, float(self.cfg.price_multiplier or 1.2), float(self.cfg.price_fixed_add or 0))
-            self.pv_meta.controls = [
-                ft.Text(f"产品 ID：{pid}    店铺：{self.cfg.store_name or '-'}", size=11, color=MUTED),
-                ft.Text(f"图片：{len(imgs)} 张    变体：{len(skus)} 个    类目模板：{self.cfg.template_product_title or '未选择'}", size=11, color=MUTED),
-                ft.Text(f"价格：成本 ¥{cost:.2f} × {self.cfg.price_multiplier} → 售价 ¥{price.final}", size=12, color=ACCENT_2),
-            ]
-            # 图片缩略图（最多 8）
-            self.pv_images.controls = [ft.Column([
-                ft.Image(src=u, width=96, height=96, fit=ft.ImageFit.COVER, border_radius=6),
-                ft.Text(f"{i+1}", size=9, color=MUTED)], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-                for i, u in enumerate(imgs[:8])]
-
-            # 将执行的动作
-            acts = []
-            if self.cfg.white_bg_enable:
-                acts.append(f"主图白底（第 {self.cfg.white_background_pic_1}-{self.cfg.white_background_pic_2} 张）")
-            if self.cfg.watermark_enable:
-                acts.append("主图去水印")
-            if self.cfg.enable_ai_title:
-                acts.append(f"AI 标题（{model_of(None, 'text')}）")
-            if self.cfg.enable_ai_detail:
-                acts.append("AI 描述（HTML）")
-            if self.cfg.enable_ai_sku and skus:
-                acts.append("AI SKU 优化")
-            if (self.cfg.template_snapshot or "").strip() not in ("", "{}"):
-                acts.append("写入模板（类目/运费/属性）")
-            if self.cfg.generate_main_video:
-                acts.append("生成并上传主图视频")
-            _act = self.cfg.get("publish_action", "save_only")
-            acts.append("保存到店小秘" + ("，并发布到速卖通" if _act == "publish" else "（留在待发布）"))
-            self.pv_actions.controls = [ft.Text(f"{i}. {a}", size=11, color=TEXT) for i, a in enumerate(acts, 1)]
-
-            # 费用预估
-            edit_price = self._price_of(model_of(None, 'image_edit'))
-            n_edit = 0
-            if self.cfg.white_bg_enable:
-                n_edit += 1
-            if self.cfg.watermark_enable:
-                n_edit += 1
-            est = n_edit * edit_price + 0.01
-            self.pv_cost.value = f"预计费用：约 ¥{est:.2f}（图片 {n_edit} 次 × ¥{edit_price:.2f} + 文本约 ¥0.01）"
-
-            # 风险
-            risks = []
-            if not imgs:
-                risks.append("没有图片，无法发布")
-            if len(title) < 20:
-                risks.append("标题过短，建议补充关键词")
-            if not (self.cfg.template_snapshot or "").strip() not in ("", "{}"):
-                risks.append("未选择模板：类目/运费不会被自动填写")
-            if not (self.cfg.api_key or "").strip():
-                risks.append("未配置 API Key")
-            if self.cfg.watermark and not Path(str(self.cfg.watermark)).exists():
-                risks.append(f"水印文件不存在：{self.cfg.watermark}")
-            self.pv_risks.controls = ([ft.Text(f"⚠ {r}", size=11, color="#FFB020") for r in risks]
-                                      or [ft.Text("✓ 未发现明显风险", size=11, color=ACCENT_2)])
-            try:
-                self.page.update()
-            except Exception:
-                pass
-
-        self.pv_dd.on_change = _render_preview
-
-        def execute(e):
-            pid = self.pv_dd.value
-            prod = next((p for p in self._pv_products if str(p.get("id")) == str(pid)), None)
-            if not prod:
-                self.toast("请先载入并选择产品", False); return
-            self._switch(10)   # 跳日志页
-            self._log(f"预览执行：{pid}")
-            def _run():
-                try:
-                    ck = self._cookies()
-                    dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-                    ws = self.ws_endpoint or ""
-                    if not ws:
-                        from ..integrations.browser import ensure_browser
-                        ws = ensure_browser(self.cfg).get("ws", "")
-                        self.ws_endpoint = ws
-                    r = Publisher(self.cfg, dxm=dxm, ws_endpoint=ws, scheduler=getattr(self, 'scheduler', None)).run(prod, dry_run=not self.cfg.auto_save_products)
-                    for line in r.log().splitlines():
-                        self._log("   " + line)
-                except Exception as ex:
-                    self._log(f"执行失败：{ex}", "ERROR")
-            threading.Thread(target=_run, daemon=True).start()
-
-        card1 = card(ft.Column([
-            h1("产品预览", 15),
-            muted("选定一个草稿产品，先看清楚「长什么样、要做什么、花多少钱、有什么风险」再执行"),
-            ft.Row([self.pv_dd,
-                    ft.ElevatedButton("载入草稿", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT, on_click=load),
-                    ft.ElevatedButton("执行这一个", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white", on_click=execute)],
-                   spacing=10, wrap=True),
-            self.pv_status], spacing=8))
-
-        card2 = card(ft.Column([self.pv_title, self.pv_meta,
-                                ft.Divider(height=1, color=CARD_2),
-                                ft.Text("主图", size=11, color=MUTED), self.pv_images,
-                                ft.Divider(height=1, color=CARD_2),
-                                ft.Text("将执行的动作", size=11, color=MUTED), self.pv_actions,
-                                self.pv_cost,
-                                ft.Text("风险检查", size=11, color=MUTED), self.pv_risks], spacing=8))
-
-        return [h1("预览"), card1, card2]
-
     def _p_logs(self):
         self._current = 10
         self.logs_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
@@ -4350,38 +4165,6 @@ class App:
         )
         self._refresh_log_table()
 
-        def build_video(e):
-            if not self.picked:
-                self.toast("请先在「AI图片处理」选择图片", False); return
-            info = video_probe()
-            if not info["available"]:
-                self.toast("未检测到 ffmpeg，请先安装", False); return
-            try:
-                outdir = Path(self.cfg.video_output_dir) if self.cfg.video_output_dir else (Path.home() / "Movies" / "AuroraList")
-                outdir.mkdir(parents=True, exist_ok=True)
-                out = outdir / f"carousel-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
-                generate_carousel_video(
-                    list(self.picked), out,
-                    slot_seconds=float(self.cfg.video_slot_seconds or 2.5),
-                    transition_seconds=float(self.cfg.video_transition_seconds or 0.5),
-                    size=str(self.cfg.video_size or "1080x1080"),
-                    cover=bool(self.cfg.video_cover),
-                    fade_edges=bool(self.cfg.video_fade_edges),
-                )
-                self._log(f"视频已生成：{out}")
-                self.toast(f"视频已生成：{out}")
-            except Exception as ex:
-                self._log(f"视频生成失败：{ex}")
-                self.toast(str(ex), False)
-
-        def check_update(e):
-            r = updater.check(self.cfg.license_server)
-            if not r.get("ok"):
-                self.toast(f"检查失败：{r.get('error')}", False); return
-            msg = f"最新版本 {r['latest']}" if r.get("has_update") else "已是最新版本"
-            self._log(f"更新检查：{msg}")
-            self.toast(msg)
-
         def export(e):
             out = Path(tempfile.gettempdir()) / "aurora-logs.txt"
             rows = getattr(self, "log_rows", [])
@@ -4389,8 +4172,6 @@ class App:
             self.toast(f"已导出：{out}")
 
         bar = card(ft.Row([
-            ft.ElevatedButton("生成主图视频", icon=ft.Icons.MOVIE, bgcolor=ACCENT, color="white", on_click=build_video),
-            ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE, bgcolor=CARD_2, color=TEXT, on_click=check_update),
             ft.ElevatedButton("导出日志", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=export),
             self.log_level,
             ft.ElevatedButton("清空", icon=ft.Icons.DELETE_OUTLINE, bgcolor=CARD_2, color=TEXT,
@@ -4476,7 +4257,7 @@ class App:
                 ft.Text(f"{time.strftime('%H:%M:%S', time.localtime(e.ts))} {e.text()}", size=10,
                         color=self._log_color(e.level), selectable=True)
                 for e in BUS.snapshot(4)]
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -4504,7 +4285,7 @@ class App:
         try:
             self.page.dialog = self.log_panel_dlg
             self.log_panel_dlg.open = True
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
         try:
@@ -4566,7 +4347,7 @@ class App:
             self.log_progress.value = 0
             self.log_progress_text.value = f"空闲 · 累计花费 ¥{cost:.3f}" if cost else "空闲"
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -4574,7 +4355,7 @@ class App:
         self.log_panel_open = False
         try:
             self.log_panel_dlg.open = False
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -4612,7 +4393,7 @@ class App:
             ]) for t, x, m in reversed(shown[-300:])
         ]
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -4637,7 +4418,7 @@ class App:
             self.lic_status.value = "检测中…"
             self.lic_status.color = MUTED
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
             threading.Thread(target=self._check_license, daemon=True).start()
@@ -4703,7 +4484,7 @@ class App:
             self.api_status.value = "已保存"
             self.api_status.color = ACCENT_2
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -4711,7 +4492,7 @@ class App:
             save_api()
             self.api_status.value = "测试中…"
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -4724,7 +4505,7 @@ class App:
                     self.api_status.value = f"连接失败：{str(ex)[:90]}"
                     self.api_status.color = "#FF6B6B"
                 try:
-                    self.page.update()
+                    self._safe_update()
                 except Exception:
                     pass
 
@@ -4810,10 +4591,16 @@ class App:
         ], spacing=8))
 
         # ---------------- 更新 / 诊断 / 价格 ----------------
-        upd = card(ft.Column([h1("版本更新", 15),
-                              ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
-                                                        on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
-                             spacing=8))
+        try:
+            from ..core.updater import CURRENT as _cur_ver
+        except Exception:
+            _cur_ver = ""
+        upd = card(ft.Column([
+            h1("版本更新", 15),
+            ft.Text(f"当前版本：v{_cur_ver}" if _cur_ver else "当前版本：-", size=12, color=TEXT),
+            ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
+                                      on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
+            spacing=8))
         self.diag_list = ft.Column(spacing=4)
         diag_card = card(ft.Column([
             h1("诊断（出问题时再点）", 15),
@@ -4821,7 +4608,9 @@ class App:
             ft.Row([ft.ElevatedButton("开始诊断", icon=ft.Icons.HEALTH_AND_SAFETY, bgcolor=ACCENT, color="white",
                                       on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start()),
                     ft.ElevatedButton("全接口冒烟（约 ¥0.4）", icon=ft.Icons.WIFI_TETHERING, bgcolor="#F0A020",
-                                      color="#1A1200", on_click=lambda e: self._smoke_confirm())],
+                                      color="#1A1200", on_click=lambda e: self._smoke_confirm()),
+                    ft.OutlinedButton("AI 自检", icon=ft.Icons.PLAY_CIRCLE_FILL,
+                                      on_click=lambda e: threading.Thread(target=self._self_test, daemon=True).start())],
                    spacing=8, wrap=True),
             self.diag_list], spacing=8))
         self.price_list = ft.Column(spacing=3)
@@ -4849,7 +4638,7 @@ class App:
             from pathlib import Path as _P
             from PIL import Image as _Img
             self.model_status.value = "测试中…（调用一次生成模型）"
-            self.page.update()
+            self._safe_update()
             d = _P(_tf.mkdtemp())
             probe_img = d / "probe.png"
             _Img.new("RGB", (512, 512), (240, 240, 240)).save(probe_img)
@@ -4861,7 +4650,7 @@ class App:
             self.model_status.value = f"图片模型不可用：{str(ex)[:120]}"
             self.toast(str(ex), False)
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -4877,7 +4666,7 @@ class App:
                      ft.ElevatedButton("开始", bgcolor=ACCENT, color="white", on_click=go)])
         self.page.dialog = self.dlg
         self.dlg.open = True
-        self.page.update()
+        self._safe_update()
 
     def _run_smoke(self):
         import time as _t
@@ -4897,7 +4686,7 @@ class App:
                                 ft.Text(msg, size=11, color=MUTED, expand=True)], spacing=8))
             self.diag_list.controls = list(rows)
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -4967,7 +4756,7 @@ class App:
                                 ft.Text(msg, size=11, color=MUTED, expand=True)], spacing=8))
             self.diag_list.controls = list(rows)
             try:
-                self.page.update()
+                self._safe_update()
             except Exception:
                 pass
 
@@ -5073,7 +4862,7 @@ class App:
             if getattr(self, "price_status", None) is not None:
                 self.price_status.value = "价格获取失败，检查 API Key/网络后点刷新"
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
     def _refresh_instances(self):
@@ -5126,7 +4915,7 @@ class App:
                                       else "把上面的机器码发给管理员登记；登记后点「重新检测」"))
         self._apply_license_state()
         try:
-            self.page.update()
+            self._safe_update()
         except Exception:
             pass
 
@@ -5143,7 +4932,7 @@ class App:
                               "lat": round(time.time() - t0, 1), "ts": time.time()}
             self._apply_api_state()
             self.toast(str(e), False)
-        self.page.update()
+        self._safe_update()
 
     def _do_image(self, kind):
         svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
@@ -5168,7 +4957,7 @@ class App:
             self.img_results.controls.append(ft.Row([ft.Icon(icon, size=15, color=color),
                                                      ft.Text(res.value if res.ok else res.error, size=11,
                                                              color=MUTED, selectable=True)], spacing=8))
-            self.page.update()
+            self._safe_update()
 
         targets = self._wb_selected_paths() if hasattr(self, "_wb_selected_paths") else list(self.picked)
         results = runner.run(list(targets), job, done)
@@ -5176,13 +4965,13 @@ class App:
         self.img_status.value = f"完成：成功 {ok} / {len(results)}"
         self.img_status.color = ACCENT_2 if ok == len(results) else "#FFB020"
         self.img_busy.visible = False
-        self.page.update()
+        self._safe_update()
 
     def _on_files(self, e):
         if e.files:
             self.picked = [Path(f.path) for f in e.files]
             self.img_status.value = f"已选择 {len(self.picked)} 张图"
-            self.page.update()
+            self._safe_update()
 
     def _maybe_quota(self, msg: str) -> None:
         txt = str(msg)
@@ -5203,7 +4992,7 @@ class App:
                              ft.ElevatedButton("去充值", bgcolor="#F0A020", color="#1A1200", on_click=go)])
                 self.page.dialog = self.dlg
                 self.dlg.open = True
-                self.page.update()
+                self._safe_update()
             except Exception:
                 self.toast("额度不足，请去站点充值", False)
 
@@ -5211,8 +5000,64 @@ class App:
         self.page.snack_bar.content = ft.Text(msg, color=TEXT)
         self.page.snack_bar.bgcolor = "#1F5137" if ok else "#5A1F28"
         self.page.snack_bar.open = True
-        self.page.update()
+        self._safe_update()
+
+    def _safe_update(self):
+        """串行化 UI 更新：避免后台线程并发 page.update 导致卡死/重连。"""
+        if getattr(self, "_building_page", False):
+            return
+        lock = getattr(self, "_ui_lock", None)
+        try:
+            if lock is not None:
+                with lock:
+                    self.page.update()
+            else:
+                self.page.update()
+        except Exception as ex:  # noqa: BLE001
+            now = time.time()
+            if now - float(getattr(self, "_update_err_ts", 0) or 0) > 5:
+                self._update_err_ts = now
+                try:
+                    from ..config import config_dir
+                    p = config_dir() / "error.log"
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    with p.open("a", encoding="utf-8") as f:
+                        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} UI_UPDATE {type(ex).__name__}: {ex}\n")
+                except Exception:
+                    pass
+
+
+def _install_crash_log():
+    """把主线程/子线程未捕获异常写到配置目录 error.log，便于排查“重启/闪退”。"""
+    import sys as _sys
+    import threading as _th
+    from ..config import config_dir
+
+    def _write(kind, exc_type, exc, tb):
+        try:
+            import traceback
+            p = config_dir() / "error.log"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with p.open("a", encoding="utf-8") as f:
+                f.write(f"\n===== {time.strftime('%Y-%m-%d %H:%M:%S')} {kind} =====\n")
+                f.write("".join(traceback.format_exception(exc_type, exc, tb)))
+        except Exception:
+            pass
+
+    def _hook(exc_type, exc, tb):
+        _write("UNCAUGHT", exc_type, exc, tb)
+        _sys.__excepthook__(exc_type, exc, tb)
+
+    def _thook(args):
+        _write("THREAD", args.exc_type, args.exc_value, args.exc_traceback)
+
+    _sys.excepthook = _hook
+    try:
+        _th.excepthook = _thook
+    except Exception:
+        pass
 
 
 def run():
+    _install_crash_log()
     ft.app(target=lambda page: App(page), assets_dir="assets")

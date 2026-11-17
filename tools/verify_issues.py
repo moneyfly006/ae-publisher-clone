@@ -372,18 +372,35 @@ def main():
     app5.page = FakePage()
     app5.cfg = AppConfig({"upload_full_cid": ""})
     app5.ws_endpoint = ""
+    app5._cookies = lambda: (_ for _ in ()).throw(RuntimeError("无 Cookie"))
     app5._open_cleanup_dialog()
     dlg = app5.page.dialog
     dlg_text = " ".join(texts([dlg])) if dlg is not None else ""
     check("清理旧图对话框可打开", dlg is not None and getattr(dlg, "open", False), type(dlg).__name__)
-    check("对话框含扫描/清理/相册入口",
-          all(k in dlg_text for k in ("扫描", "开始清理", "打开相册页面")), dlg_text[:100])
-    check("两种清理模式都在", "安全清理" in dlg_text and "扫描并删除" in dlg_text, dlg_text[:100])
-
-    app5.space_text = ft.Text("")
-    app5._cookies = lambda: (_ for _ in ()).throw(RuntimeError("无 Cookie"))
+    check("对话框含扫描/删除选中/按时间/相册入口",
+          all(k in dlg_text for k in ("扫描", "删除选中", "按时间删除", "打开相册页面")), dlg_text[:120])
+    check("说明自动清理接口未开放", "未开放" in dlg_text, dlg_text[-80:])
     app5._load_space_info()
-    check("空间读取失败给提示不崩", "读取失败" in app5.space_text.value, app5.space_text.value)
+    check("空间读取失败不崩", app5._space_info is None, str(getattr(app5, "_space_info", "missing")))
+
+    # 选中删除 / 按时间删除（假接口）
+    class _DelDxm(FakeDxm):
+        def __init__(self):
+            self.deleted = []
+
+        def album_delete_ids(self, ids):
+            self.deleted.extend(ids if isinstance(ids, list) else [ids])
+            return {}
+
+        def album_delete_before(self, days, full_cid=""):
+            self.before = days
+            return {"data": {"deleteCount": 3}}
+
+    _d = _DelDxm()
+    _r = ac.delete_ids(_d, ["11", "22"])
+    check("清理：按选中 id 删除", _r["ok"] and _d.deleted == ["11", "22"], str(_r))
+    _r = ac.delete_older_than(_d, 0)
+    check("清理：按时间删除（0 天）", _r["ok"] and _d.before == 0, str(_r))
 
     # ============================== #6 单产品耗时（合并页面 + 传参）
     section("#6 单产品页面加载次数")
@@ -425,7 +442,7 @@ def main():
             pass
     check("侧栏含「任务与日志」", "任务与日志" in labels, str(labels))
     check("侧栏含「提示词」", "提示词" in labels, "")
-    check("侧栏含「预览」", "预览" in labels, "")
+    check("侧栏不再有「预览」（已删除）", "预览" not in labels, "")
     root_row = page.controls[0] if page.controls else None
     check("两侧等高（STRETCH）",
           root_row is not None and getattr(root_row, "vertical_alignment", None) == ft.CrossAxisAlignment.STRETCH,
@@ -435,7 +452,7 @@ def main():
     nav_items = []
     for c in scroll_cols:
         nav_items.extend(texts(c.controls))
-    check("滚动列内含全部导航项", all(x in nav_items for x in ("任务与日志", "提示词", "预览", "概览")),
+    check("滚动列内含全部导航项", all(x in nav_items for x in ("任务与日志", "提示词", "概览")),
           str(nav_items)[:120])
 
     # ============================== #8 授权状态
@@ -585,6 +602,7 @@ def main():
             {"group": "sku", "target": 1, "refs": "all", "prompt": "白底", "mode": "edit"},
         ]),
         "designated_edit_prompt": "默认提示词",
+        "image_cache_enable": False,
     })
     pub2 = Publisher(pcfg)
     fake_svc = FakeImgSvc()
@@ -815,7 +833,7 @@ def main():
             self.calls.append(("gen", prompt[:12])); return ["http://x/gen.png"]
 
     jcfg = AppConfig({"image_simple_rules": rj, "image_ai_jobs": jj,
-                      "api_key": "sk", "translate_prompt": ""})
+                      "api_key": "sk", "translate_prompt": "", "image_cache_enable": False})
     pubj = _Pub(jcfg)
     svc2 = ImgSvc2()
     pubj._img_service = lambda: svc2
@@ -829,6 +847,46 @@ def main():
           or outj["images"][0].startswith("http://x/simple"), str(outj["images"]))
     check("引擎：步骤有记录", any(s.name.startswith("简单处理") for s in resj.steps)
           and any(s.name.startswith("精细任务") for s in resj.steps), resj.log()[:160])
+
+    section("模板持久化 / 详情 API / 页面去重")
+    app6 = App.__new__(App)
+    app6.page = FakePage()
+    app6.cfg = AppConfig({"store_id": "1", "store_name": "A", "template_product_id": "9",
+                          "template_product_title": "模板T",
+                          "template_snapshot": json.dumps({"fields": {"category": "X"}, "attributes": ["A=B"]})})
+    app6.shop_dd = type("D", (), {"value": "1", "options": []})()
+    app6.tpl_preview_box = ft.Container()
+    app6.tpl_snapshot_text = ft.Text("")
+    app6._sync_shops = lambda: None
+    app6._on_shop_change()
+    check("模板：同店铺刷新不清模板", app6.cfg.template_product_id == "9", str(app6.cfg.template_product_id))
+    app6.shop_dd.value = "2"
+    app6._on_shop_change()
+    check("模板：换店铺才清模板", app6.cfg.template_product_id == "", "")
+
+    from aeclone.integrations.dianxiaomi import DianxiaomiClient as _DX
+
+    class _DetailDX(_DX):
+        def __init__(self):
+            pass
+
+        def _get(self, key, params=None):
+            return {"data": {"product": {
+                "id": "123", "subject": "测试模板商品", "categoryId": "100", "freightTemplateId": "200",
+                "grossWeight": 12.5, "packageLength": 30, "packageWidth": 20, "packageHeight": 10,
+                "imageURLs": "https://x/a.jpg;https://x/b.jpg",
+                "aeopAeProductPropertys": json.dumps([
+                    {"attrName": "Brand Name", "attrValue": "ACME"},
+                    {"attrName": "Origin", "attrValue": "China"},
+                    {"attrName": "Model Number", "attrValue": "M1"},
+                ], ensure_ascii=False),
+                "productManual": "https://x/m.pdf",
+            }}}
+
+    _snap = _DetailDX().template_snapshot("123")
+    check("模板：API 读取字段", _snap["fields"]["weight"] == "12.5" and
+          any("Brand Name=ACME" == a for a in _snap["attributes"]), str(_snap["attributes"])[:120])
+    check("模板：API 读取说明书", _snap["values"].get("商品说明书", {}).get("v") == "https://x/m.pdf", "")
 
     section("界面：价格页 / 图片页 / 工作台（假接口）")
     import aeclone.ui.app as _m
@@ -1147,6 +1205,33 @@ def main():
     qt = time.time() - t0
     _m.Publisher = real_pub
     check("多任务：队列并发完成", qt < 0.28, f"{qt:.2f}s")
+
+    # 模板本地库：dict 结构 + 保存后能打开模板库
+    app7 = App.__new__(App)
+    app7.page = FakePage()
+    app7.cfg = AppConfig({"template_product_title": "库模板1",
+                          "template_product_id": "555",
+                          "template_snapshot": json.dumps({"fields": {"category": "C"}, "attributes": ["A=B"]}),
+                          "template_values": json.dumps({"品牌": {"t": "text", "v": "X"}}),
+                          "template_library": "{}"})
+    app7.tpl_snapshot_text = ft.Text("")
+    app7._log = lambda *a, **k: None
+    app7._save_tpl_local_quick()
+    import json as _jj
+    _lib = _jj.loads(app7.cfg.template_library or "{}")
+    check("模板库：保存为 name→记录", isinstance(_lib, dict) and "库模板1" in _lib, str(_lib)[:80])
+    app7._template_library_dialog()
+    check("模板库：保存后可打开不崩", app7.page.dialog is not None and getattr(app7.page.dialog, "open", False), "")
+
+    # 页面去重：日志页不再有版本更新/视频；设置页有版本
+    uapp._switch(10)
+    logs_labels = " ".join(texts(uapp.content.controls))
+    check("去重：日志页无检查更新", "检查更新" not in logs_labels, logs_labels[:80])
+    check("去重：日志页无生成视频", "生成主图视频" not in logs_labels, "")
+    uapp._switch(8)
+    set_labels2 = " ".join(texts(uapp.content.controls))
+    check("去重：版本在设置里", "当前版本" in set_labels2 and "检查更新" in set_labels2, "")
+    check("去重：侧栏无预览", "预览" not in " ".join(texts(uapp.page.controls)), "")
 
     # 未授权时不允许开始
     uapp.cfg.set("license_enforce", True)

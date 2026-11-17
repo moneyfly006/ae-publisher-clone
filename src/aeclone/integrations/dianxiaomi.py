@@ -26,9 +26,7 @@ ENDPOINTS = {
     "album_upload_url": "/api/album/toUploadPicFromNet.json",   # 实测：按 URL 上传图片
     "video_callback": "/api/smtmedia/callback.json",
     "product_save": "/api/smtProduct/add.json",   # 实测：编辑器保存
-    "product_detail": "/api/smtProduct/edit.json",  # 实测：编辑器加载
-    "product_detail": "",
-    "category": "",
+    "product_detail": "/api/smtProduct/edit.json",  # 编辑器加载（接口返回可能为 HTML，需兜底）
     "template_search": "/api/smtAdjustPrice/list.json",   # 实测：区域调价模板列表
     "attribute_template": "/api/smtAttributeTemplate/list.json",
     # ---- 图片空间清理（从相册页 chunk 逆向得到，ISSUES #5）----
@@ -188,6 +186,54 @@ class DianxiaomiClient:
                 "size": inner.get("pageSize") or size,
                 "locked": int(data.get("lockedCount") or inner.get("lockedCount") or 0)}
         return items, meta
+
+    def template_snapshot(self, product_id: str) -> dict:
+        """从店小秘商品详情接口生成模板快照（不需要打开浏览器）。"""
+        import json as _j
+        d = self._get("product_detail", {"id": str(product_id)})
+        p = (d.get("data") or {}).get("product") or {}
+        if not p:
+            raise DianxiaomiError("没取到商品详情")
+        attrs = []
+        try:
+            raw = p.get("aeopAeProductPropertys") or "[]"
+            for a in (_j.loads(raw) if isinstance(raw, str) else raw) or []:
+                if not isinstance(a, dict):
+                    continue
+                name = str(a.get("attrName") or "").strip()
+                val = str(a.get("attrValue") or "").strip()
+                if name and val and val.upper() not in ("NONE", "NULL"):
+                    attrs.append(f"{name}={val}")
+        except Exception:
+            attrs = []
+        amap = {}
+        for pair in attrs:
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                amap[k.strip().lower()] = v.strip()
+        fields = {
+            "category": str(p.get("categoryId") or ""),
+            "freight": str(p.get("freightTemplateId") or ""),
+            "brand": amap.get("brand name") or amap.get("brand") or "",
+            "origin": amap.get("origin") or amap.get("place of origin") or "",
+            "weight": str(p.get("grossWeight") or p.get("addWeight") or ""),
+            "size": "x".join(str(p.get(k) or "") for k in ("packageLength", "packageWidth", "packageHeight")),
+        }
+        values = {}
+        if fields["brand"]:
+            values["品牌"] = {"t": "text", "v": fields["brand"]}
+        if fields["origin"]:
+            values["产地"] = {"t": "text", "v": fields["origin"]}
+        if amap.get("model number"):
+            values["型号"] = {"t": "text", "v": amap["model number"]}
+        if fields["weight"]:
+            values["包装后重量"] = {"t": "text", "v": fields["weight"]}
+        if p.get("productManual"):
+            values["商品说明书"] = {"t": "file", "v": str(p.get("productManual"))}
+        imgs = [x for x in str(p.get("imageURLs") or "").split(";") if x.strip().startswith("http")]
+        return {"title": str(p.get("subject") or ""), "id": str(p.get("id") or product_id),
+                "fields": fields, "attributes": attrs, "values": values, "images": imgs,
+                "skus": p.get("smtProductSkuList") or p.get("aeopAeProductSKUs") or []}
 
     def album_delete_ids(self, ids: list[str] | str) -> Any:
         """按图片 id 批量删除（ids 逗号拼接；已锁定图片站点会跳过）。"""

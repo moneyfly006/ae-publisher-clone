@@ -369,12 +369,30 @@ class AppConfig:
         try:
             return cls(json.loads(p.read_text(encoding="utf-8")))
         except Exception:
+            # 主配置损坏时用备份，避免“重启后配置全丢”
+            try:
+                bak = p.with_suffix(".bak")
+                if bak.exists():
+                    return cls(json.loads(bak.read_text(encoding="utf-8")))
+            except Exception:
+                pass
             return cls()
 
     def save(self) -> None:
+        """原子写：先写临时文件，再替换；保留一份 .bak 防止断电损坏。"""
+        import os as _os
+        import shutil as _sh
         p = self.path()
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(self._d, ensure_ascii=False, indent=2), encoding="utf-8")
+        data = json.dumps(self._d, ensure_ascii=False, indent=2)
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(data, encoding="utf-8")
+        try:
+            if p.exists():
+                _sh.copy2(p, p.with_suffix(".bak"))
+        except Exception:
+            pass
+        _os.replace(tmp, p)
 
 
 _lock = threading.Lock()

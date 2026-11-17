@@ -98,7 +98,7 @@ def to_candidates(files: list[dict]) -> list[CleanupCandidate]:
 
 
 def scan(client, days: int = 30, full_cid: str = "", page_size: int = 100,
-         max_pages: int = 5) -> CleanupPlan:
+         max_pages: int = 20) -> CleanupPlan:
     """扫描「N 天前上传」的图片（只读，不删除）。"""
     import datetime as _dt
     try:
@@ -136,6 +136,25 @@ def delete_candidates(client, plan: CleanupPlan, batch: int = 50) -> dict:
     errors: list[str] = []
     for i in range(0, len(ids), max(1, batch)):
         chunk = ids[i:i + batch]
+        try:
+            client.album_delete_ids(chunk)
+            deleted += len(chunk)
+        except Exception as ex:  # noqa: BLE001
+            failed += len(chunk)
+            errors.append(str(ex)[:120])
+    return {"ok": failed == 0 and deleted > 0, "deleted": deleted,
+            "failed": failed, "errors": errors[:3]}
+
+
+def delete_ids(client, ids: list[str]) -> dict:
+    """按选中的图片 id 删除（最安全可控；已锁定图片站点会跳过）。"""
+    ids = [str(x) for x in (ids or []) if str(x).strip()]
+    if not ids:
+        return {"ok": False, "deleted": 0, "failed": 0, "errors": ["没有选中图片"]}
+    deleted = failed = 0
+    errors: list[str] = []
+    for i in range(0, len(ids), 50):
+        chunk = ids[i:i + 50]
         try:
             client.album_delete_ids(chunk)
             deleted += len(chunk)
