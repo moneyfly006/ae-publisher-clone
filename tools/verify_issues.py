@@ -603,7 +603,7 @@ def main():
           str(out["skus"][0]))
     check("方案：编辑调用带多图素材", any(c[0] == "edit_many" and c[1] >= 2 for c in fake_svc.calls),
           str(fake_svc.calls))
-    check("方案：每条都有结果步骤", any("方案1" in x for x in steps), str(steps)[:160])
+    check("方案：每条都有结果步骤", any("精细任务1" in x for x in steps), str(steps)[:160])
 
     pub3 = Publisher(pcfg)
     res3 = PublishResult(product_id="p2", ok=True)
@@ -730,6 +730,224 @@ def main():
     check("水印：右下角像素被改写", px != (250, 250, 250), str(px))
     text_out = add_watermark(base_img, "@brand", d4 / "out2.png", position="center")
     check("水印：支持文字水印", Path(text_out).exists(), str(text_out))
+
+    # ============================== 第 4 轮：价格页 / 工作台 / 图片方案 UI
+    section("价格页（去 JSON + 阶梯/区域/批发）")
+    from aeclone.services.pricing import (compute_price, rows_to_tiers, tiers_to_rows,
+                                          rows_to_regional, regional_to_rows,
+                                          rows_to_wholesale, wholesale_to_rows)
+    pc = AppConfig({"goods_cost": "100", "price_multiplier": "1.35", "price_fixed_add": "5",
+                    "price_mode": "multiplier"})
+    r = compute_price(pc, 100)
+    check("价格：倍率+固定加价", r.final == 140.0, str(r.final))
+    pc.set("tuoguan_price_tiered_enabled", True)
+    pc.set("tuoguan_price_tiers", rows_to_tiers([{"min": 0, "max": 200, "multiplier": 1.5}]))
+    r = compute_price(pc, 100)
+    check("价格：阶梯按成本区间", r.final == 155.0 and r.tier_multiplier == 1.5, f"{r.final} {r.tier_multiplier}")
+    check("价格：阶梯表格往返", tiers_to_rows(pc.tuoguan_price_tiers)[0]["multiplier"] == 1.5, pc.tuoguan_price_tiers)
+    pc.set("price_mode", "commission")
+    pc.set("platform_commission", "10")
+    pc.set("sales_profit", "20")
+    r = compute_price(pc, 100)
+    check("价格：佣金利润模式参与计算", r.mode == "commission" and r.final > 100, f"{r.mode} {r.final}")
+    pc.set("regional_pricing", True)
+    pc.set("adjust_price_template_detail", rows_to_regional([{"currency": "USD", "rate": 1.0},
+                                                             {"currency": "EUR", "rate": 0.9}]))
+    r = compute_price(pc, 100)
+    check("价格：区域倍率", abs(r.regional.get("EUR", 0) - round(r.final * 0.9, 2)) < 0.01,
+          str(r.regional))
+    check("价格：区域表格往返", regional_to_rows(pc.adjust_price_template_detail)[0]["currency"] == "USD", "")
+    pc.set("wholesale_enable", True)
+    pc.set("wholesale_tiers", rows_to_wholesale([{"min_qty": 10, "price": 9.9},
+                                                 {"min_qty": 50, "price": 8.8}]))
+    r = compute_price(pc, 100)
+    check("价格：批发价参与", len(r.wholesale) == 2 and r.wholesale[0]["min_qty"] == 10, str(r.wholesale))
+
+    section("图片方案（简单规则 + 精细任务）")
+    from aeclone.services import image_jobs as ij
+    from aeclone.services import image_presets as ipr
+    rj = ij.rows_to_rules([{"group": "main", "range": "1-3", "ops": ["white", "watermark"]},
+                           {"group": "detail", "range": "1-5", "ops": ["translate"]}])
+    check("方案：简单规则往返", len(ij.parse_rules(rj)) == 2 and ij.parse_rules(rj)[1]["group"] == "detail", rj)
+    jj = ij.rows_to_jobs([{"group": "main", "index": 1, "refs": [2, 3], "prompt": "合成主图",
+                           "mode": "generate", "count": 1, "insert": "first"},
+                          {"group": "sku", "index": 2, "refs": "", "prompt": "", "mode": "edit"}])
+    check("方案：精细任务（空提示词丢弃）", len(ij.parse_jobs(jj)) == 1, jj)
+    check("方案：素材序号解析", ij.refs_indices("all", 4, exclude=2) == [1, 3, 4], "")
+    check("方案：中文预设存在", len(ipr.presets_for("main")) >= 3 and ipr.get_preset("main", "white_studio"),
+          "")
+    check("方案：预设英文底层", "white background" in ipr.get_preset("main", "white_studio")["en"].lower(), "")
+    check("方案：翻译预设中文名", "英语" not in ipr.translate_prompt("en") and "Translate" in ipr.translate_prompt("en"),
+          ipr.translate_prompt("en")[:60])
+
+    # 旧配置迁移（指定编辑）
+    old_cfg = AppConfig({"designated_edit_enable": True, "designated_edit_indices": "1,2",
+                         "designated_edit_prompt": "换背景", "white_bg_enable": True,
+                         "white_background_pic_1": "1", "white_background_pic_2": "2"})
+    rj2, jj2 = ij.migrate(old_cfg, with_global=True)
+    check("迁移：指定编辑→精细任务", len(ij.parse_jobs(jj2)) == 2, jj2)
+    check("迁移：全局白底→简单规则", len(ij.parse_rules(rj2)) >= 1, rj2)
+
+    # 发布引擎：简单规则 + 精细任务（假服务）
+    from aeclone.services.publisher import Publisher as _Pub, PublishResult as _PR2
+
+    class ImgSvc2:
+        def __init__(self):
+            self.calls = []
+
+        def combined(self, fp):
+            self.calls.append(("combined", str(fp)))
+            return "http://x/simple.png"
+
+        def white_background(self, fp):
+            self.calls.append(("white", str(fp))); return "http://x/w.png"
+
+        def remove_watermark(self, fp):
+            self.calls.append(("wm", str(fp))); return "http://x/wm.png"
+
+        def edit(self, fp, prompt):
+            self.calls.append(("edit", prompt[:20])); return "http://x/e.png"
+
+        def edit_many(self, files, prompt, tag=""):
+            self.calls.append(("many", len(list(files)), prompt[:12])); return "http://x/many.png"
+
+        def generate(self, prompt, **k):
+            self.calls.append(("gen", prompt[:12])); return ["http://x/gen.png"]
+
+    jcfg = AppConfig({"image_simple_rules": rj, "image_ai_jobs": jj,
+                      "api_key": "sk", "translate_prompt": ""})
+    pubj = _Pub(jcfg)
+    svc2 = ImgSvc2()
+    pubj._img_service = lambda: svc2
+    pubj._fetch = lambda url, workdir=None: Path(fake_url_file(url))
+    resj = _PR2(product_id="j", ok=True)
+    outj = pubj._apply_image_jobs({"id": "j", "images": ["http://x/a.png", "http://x/b.png", "http://x/c.png"],
+                                    "detail_images": ["http://x/d.png"], "skus": [
+                                        {"sku": "s1", "image": "http://x/s1.png"}]}, resj)
+    check("引擎：简单规则替换", outj["images"].count("http://x/simple.png") >= 3, str(outj["images"]))
+    check("引擎：精细任务生成插到第 1 张", outj["images"][0].startswith("http://x/many")
+          or outj["images"][0].startswith("http://x/simple"), str(outj["images"]))
+    check("引擎：步骤有记录", any(s.name.startswith("简单处理") for s in resj.steps)
+          and any(s.name.startswith("精细任务") for s in resj.steps), resj.log()[:160])
+
+    section("界面：价格页 / 图片页 / 工作台（假接口）")
+    import aeclone.ui.app as _m
+    import aeclone.integrations.browser_cookies as _bc
+
+    _m.verify_license = lambda *a, **k: {"ok": True, "message": "授权有效", "expiry": ""}
+    _m.Scheduler.start = lambda self, runner, interval=30: None
+    _m.App._probe_api_async = lambda self, force=False: None
+    _m.App._check_license = lambda self: None
+    _bc.resolve = lambda *a, **k: _bc.CookieSource("手动配置", True, {"dxm_i": "x"})
+
+    class DxmUI:
+        def __init__(self, *a, **k): pass
+
+        def product_page(self, page=1, size=30, shop_id=None, status=None, keyword=None):
+            return ([{"id": "1", "title": "吊车A", "status": "editingRequired",
+                      "images": ["http://x/a.png", "http://x/b.png"], "skus": [1]}],
+                    {"total": 1, "total_pages": 1, "page": page, "size": size})
+
+        def user_info(self): return {"account": "tester"}
+        def upload_image_from_url(self, u, full_cid=""): return {}
+        def search_price_templates(self, kw="", **k):
+            return [{"id": "11", "name": "欧洲模板"}]
+
+    _m.DianxiaomiClient = DxmUI
+
+    class ImgUI:
+        def __init__(self, *a, **k): pass
+        def white_background(self, p): return "http://x/white.png"
+        def remove_watermark(self, p): return "http://x/wm.png"
+        def edit(self, p, prompt): return "http://x/edit.png"
+        def combined(self, p): return "http://x/simple.png"
+
+    _m.ImageService = ImgUI
+    import aeclone.services as _svc
+    _svc.ImageService = ImgUI
+    import aeclone.services.image_pipeline as _ip
+    _ip.ImageService = ImgUI
+
+    class _Resp:
+        content = b"\x89PNG\r\n\x1a\n" + b"0" * 80
+        def raise_for_status(self): pass
+
+    import requests as _rq2
+    _rq2.get = lambda *a, **k: _Resp()
+
+    import threading as _th2
+    _real_th2 = _th2.Thread
+
+    class _SyncTh:
+        def __init__(self, target=None, args=(), kwargs=None, daemon=None, **k):
+            self.t, self.a, self.kw = target, args, kwargs or {}
+
+        def start(self):
+            if self.t:
+                self.t(*self.a, **self.kw)
+
+        def is_alive(self): return False
+
+    ui_cfg = AppConfig({"onboarded": True, "api_key": "sk-test", "store_id": "1",
+                        "store_name": "测试店", "start_page": 5})
+    save_config(ui_cfg)
+    up = FakePage()
+    uapp = _m.App(up)
+    check("界面：图片页构建", len(uapp._p_image()) >= 3, "")
+    img_labels = " ".join(texts(uapp.content.controls))
+    check("界面：图片页无 JSON 字样", "JSON" not in img_labels, img_labels[:80])
+    check("界面：有简单处理/精细处理", "简单处理" in img_labels and "精细处理" in img_labels, "")
+    # 点「添加一条」（精细任务）后才能看到预设下拉
+    add_btns = [c for c in walk(uapp.content.controls) if getattr(c, "text", "") == "添加一条"]
+    for b in add_btns:
+        b.on_click(FakeEvent())
+    check("界面：有中文预设下拉", any(getattr(c, "label", "") == "中文预设" for c in walk(uapp.content.controls)), "")
+
+    # 价格页
+    uapp._switch(6)
+    price_labels = " ".join(texts(uapp.content.controls))
+    check("界面：价格页无 JSON 字样", "JSON" not in price_labels, price_labels[:80])
+    check("界面：有阶梯/区域/批发", all(k in price_labels for k in ("阶梯价格", "区域倍率", "批发价")), "")
+    # 点一次计算
+    calc_btn = next((c for c in walk(uapp.content.controls) if getattr(c, "text", "") == "计算"), None)
+    check("界面：价格试算可点", calc_btn is not None, "")
+    if calc_btn:
+        calc_btn.on_click(FakeEvent())
+        check("界面：试算有结果", str(uapp.price_out.value).startswith("¥"), str(uapp.price_out.value))
+    # 区域模板搜索（list 返回不再崩）
+    search_btn = next((c for c in walk(uapp.content.controls) if getattr(c, "text", "") == "搜索"), None)
+    if search_btn:
+        _th2.Thread = _SyncTh
+        try:
+            search_btn.on_click(FakeEvent())
+        finally:
+            _th2.Thread = _real_th2
+        check("界面：区域模板搜索不崩", "失败" not in uapp.tpl_status.value and len(uapp.tpl_list.controls) >= 1,
+              uapp.tpl_status.value)
+
+    # 工作台
+    uapp._switch(9)
+    wb_labels = " ".join(texts(uapp.content.controls))
+    check("界面：工作台有连接/产品/处理/队列", all(k in wb_labels for k in ("连接", "产品", "图片处理", "任务队列")), "")
+    uapp._cookies = lambda *a, **k: {"dxm_i": "x"}
+    _th2.Thread = _SyncTh
+    try:
+        uapp._wb_load_products(1)
+    finally:
+        _th2.Thread = _real_th2
+    check("工作台：产品可加载", len(uapp.wb_prod_table.rows) == 1, str(len(uapp.wb_prod_table.rows)))
+    uapp.wb_selected.add("1")
+    uapp._wb_sel_refresh()
+    _th2.Thread = _SyncTh
+    try:
+        uapp._wb_pick_images()
+    finally:
+        _th2.Thread = _real_th2
+    check("工作台：取图成功", len(uapp.picked) == 2, str(len(uapp.picked)))
+    uapp._wb_process("white")
+    check("工作台：白底处理", len(uapp.wb_results.controls) >= 1, str(len(uapp.wb_results.controls)))
+    uapp._upload_results()
+    check("工作台：上传不崩", True, "")
 
     # ============================== 汇总
     section("汇总")

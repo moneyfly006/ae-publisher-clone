@@ -101,14 +101,18 @@ DEFAULTS: dict = {
     "apply_template_on_save": True,
     # AI 主图生成 / 指定图片编辑
     "main_image_generate_enable": False,
-    "main_image_generate_prompt": "Professional e-commerce hero image of {title}. {subject} centered, occupying 80% of frame, pure white background (#FFFFFF), soft diffused studio lighting, no harsh shadows, sharp focus, high detail, accurate colors, 1:1 square composition, catalog quality. No text, no watermark, no logo, no props, no people, no border.",
+    "main_image_generate_prompt": "电商主图：{title}，让 {subject} 居中并占画面约 80%，纯白背景（#FFFFFF），柔和棚拍光，阴影自然，细节清晰，颜色准确，1:1 正方形，画册级质感。不要文字、不要水印、不要 Logo、不要多余道具、不要人物、不要边框。",
     "main_image_generate_count": "1",
     "image_gen_model": "qwen-image-3.0",
     "designated_edit_enable": False,
     "designated_edit_indices": "",
-    "designated_edit_prompt": "Clean up this product photo for e-commerce: remove all watermarks, logos, QR codes, promotional badges and overlay text; keep the product shape, color, texture and proportions exactly unchanged; reconstruct the covered areas naturally without blur or artifacts; result looks like an original studio photo. No added text.",
-    # 逐图编辑方案（JSON 列表）：每条 = 目标组/序号 + 参考图 + 提示词 + 编辑/生成
+    "designated_edit_prompt": "把这张商品图处理成可直接上架的电商图：去掉所有水印、Logo、二维码、促销角标和叠加文字；商品本体的形状、颜色、材质和比例完全不变；被遮挡的区域自然补全，不要模糊和瑕疵；效果像原始棚拍图一样干净。不要新增任何文字。",
+    # 逐图编辑方案（旧版，保留用于迁移）
     "image_edit_plans": "[]",
+    # 新版图片处理：简单规则（按范围）+ 精细任务（按单图提示词）
+    "image_edit_mode": "fine",          # simple | fine（默认精细）
+    "image_simple_rules": "[]",
+    "image_ai_jobs": "[]",
     # 文生图时是否把现有主图当参考素材（图生图，而不是纯文生图）
     "main_image_generate_use_refs": True,
     # 四合一：append=追加为主图最后一张 / first=放到主图第一张
@@ -128,7 +132,7 @@ DEFAULTS: dict = {
     "single_edit_detail_pic_indices": "",
     # 背景生成
     "background_gen_rules": "[]",
-    "background_gen_sku_prompt": "Replace the background with a clean studio backdrop (pure white or very light neutral gray), keep the product identical in shape, color, material and proportions, add a soft natural contact shadow, even lighting, no text, no props.",
+    "background_gen_sku_prompt": "把背景换成干净的摄影棚背景（纯白或极浅的中性灰），商品本体的形状、颜色、材质和比例保持不变，加一层自然的接触阴影，光线均匀，不要文字、不要道具。",
     "background_gen_detail_replace": False,
     # 上传 / 视频
     "upload_full_cid": "",
@@ -169,7 +173,7 @@ DEFAULTS: dict = {
     # 详情图翻译
     "translate_detail_pic_enable": False,
     "translate_detail_pic_indices": "",
-    "translate_prompt": "Translate every visible text element on the image into natural English suitable for e-commerce, keep the original typography, layout, colors and positions; do not translate the product itself; do not add new text; if no text exists, return the image unchanged.",
+    "translate_prompt": "把这张图里所有可见文字翻译成自然的英文（适合电商），保持原有排版、字体、颜色和位置不变；不要翻译商品本身；不要新增文字；如果图里没有文字，就原样返回。",
     # 详情图审查范围
     "detail_review_first_count": 0,
     "detail_review_last_count": 0,
@@ -217,7 +221,7 @@ DEFAULTS: dict = {
     "white_bg_enable": True,
     "watermark_enable": True,
     "edit_enable": False,
-    "edit_prompt": "Clean and localize this product image: remove watermarks, logos, QR codes and promotional stickers; keep the product unchanged; output a clean e-commerce ready image without any text overlay.",
+    "edit_prompt": "清理并本地化这张商品图：去掉水印、Logo、二维码和促销贴纸；保持商品本体颜色、形状、材质不变；输出干净可直接上架的电商图，画面里不要出现任何文字。",
     "four_in_one": False,
     # ---- 价格 ----
     "price_mode": "multiplier",          # multiplier | free_shipping

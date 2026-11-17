@@ -116,7 +116,6 @@ def schema_advanced():
         ("水印叠加", [Field("overlay_watermark_enable", "叠加水印到主图", "bool"),
                       Field("overlay_position", "位置（bottom-right/center…）"),
                       Field("overlay_opacity", "透明度 0-1")]),
-        ("SKU 图替换", [Field("sku_image_replace", "替换表 JSON（SKU→图片URL）", "multiline")]),
         ("SKU", [Field("max_sku_count", "SKU 数量上限"),
                  Field("custom_sku_prefix", "SKU 前缀"),
                  Field("sku_split_char", "SKU 分隔符"),
@@ -220,7 +219,6 @@ def schema_image():
             Field("marketing_image_count", "营销图数量"),
             Field("marketing_image_prompt", "营销图提示词", "multiline"),
             Field("wholesale_enable", "启用批发价", "bool"),
-            Field("wholesale_tiers", "批发阶梯 JSON（如 [{\"min_qty\":10,\"price\":9.9}]）", "multiline"),
         ]),
         ("通用", [
             Field("four_in_one", "四合一拼图", "bool"),
@@ -230,7 +228,6 @@ def schema_image():
             Field("overlay_watermark_enable", "叠加水印", "bool"),
             Field("overlay_position", "水印位置"),
             Field("overlay_opacity", "水印透明度"),
-            Field("background_gen_rules", "背景生成规则 JSON", "multiline"),
         ]),
         ("主图视频", [
             Field("generate_main_video", "发布时生成主图视频", "bool"),
@@ -251,22 +248,20 @@ def schema_image():
 def schema_price():
     return [
         ("模式", [Field("price_mode", "价格模式", "select", ["multiplier", "free_shipping", "commission"]),
-                  Field("price_multiplier", "价格倍率（自定义，如 1.35）"),
+                  Field("price_multiplier", "价格倍率（如 1.35）"),
                   Field("price_fixed_add", "固定加价（元）"),
-                  Field("price_fixed_add", "固定加价"),
-                  Field("regional_pricing", "区域调价", "bool")]),
-        ("成本", [Field("goods_cost", "商品成本"),
-                  Field("platform_commission", "平台佣金%"),
-                  Field("sales_profit", "期望利润%"),
-                  Field("default_express_price", "默认运费")]),
-        ("区域模板", [Field("adjust_price_template_detail", "区域倍率 JSON（如 {\"USD\":1.0,\"EUR\":0.92}）", "multiline")]),
-        ("阶梯", [Field("tuoguan_price_tiered_enabled", "启用阶梯倍率", "bool"),
-                  Field("tuoguan_price_tiers", "阶梯规则 JSON", "multiline")]),
+                  Field("regional_pricing", "启用区域倍率", "bool")]),
+        ("成本", [Field("goods_cost", "商品成本（元）"),
+                  Field("platform_commission", "平台佣金 %"),
+                  Field("sales_profit", "期望利润 %"),
+                  Field("default_express_price", "默认运费（包邮模式用）")]),
+        ("阶梯", [Field("tuoguan_price_tiered_enabled", "启用阶梯倍率（按成本区间）", "bool")]),
+        ("批发", [Field("wholesale_enable", "启用批发价", "bool")]),
     ]
 
 
 def schema_variant():
-    return [("映射", [Field("variant_mappings", "属性映射 JSON", "multiline")])]
+    return []
 
 
 def schema_prompts():
@@ -2202,7 +2197,13 @@ class App:
                     ft.OutlinedButton("清空已应用属性", on_click=lambda e: self._clear_attrs())], spacing=10),
             self.attr_status, self.attr_list], spacing=8))
 
-        return [view[0], self._watermark_card(), self._combo_card(), attr_card] + view[1:]
+        sku_map_card = card(ft.Column([
+            h1("SKU 图替换", 15),
+            muted("把某个 SKU 的图片换成指定 URL；用表格填写，不用写 JSON"),
+            ft.Row([ft.ElevatedButton("打开替换表", icon=ft.Icons.SWAP_HORIZ, bgcolor=CARD_2, color=TEXT,
+                                      on_click=lambda e: self._sku_replace_dialog())], spacing=10, wrap=True),
+        ], spacing=8))
+        return [view[0], self._watermark_card(), self._combo_card(), sku_map_card, attr_card] + view[1:]
 
     # ---------- 水印文件（可选文件 + 预览 + 状态）----------
     def _watermark_card(self):
@@ -2357,23 +2358,39 @@ class App:
             self.combo_preview,
         ], spacing=8))
 
-    # ---------- 逐图编辑方案（每张图单独提示词 + 多图素材）----------
-    def _plans_card(self):
-        from ..services.image_edit_plans import parse, dumps, describe, GROUP_LABELS
+    # ---------- 图片处理：简单规则 + 精细任务（无 JSON）----------
+    def _image_jobs_ui(self):
+        from ..services.image_jobs import (parse_rules, rows_to_rules, parse_jobs, rows_to_jobs,
+                                          migrate, GROUP_LABELS, OP_LABELS)
+        from ..services.image_presets import presets_for, get_preset
 
-        state = {"slots": parse(self.cfg.image_edit_plans), "timer": None}
-        rows_col = ft.Column(spacing=6)
+        # 旧配置（指定编辑/逐图方案/全局开关）一次性迁移
+        try:
+            rj, jj = migrate(self.cfg, with_global=True)
+            if rj != (self.cfg.image_simple_rules or "[]") or jj != (self.cfg.image_ai_jobs or "[]"):
+                self.cfg.set("image_simple_rules", rj)
+                self.cfg.set("image_ai_jobs", jj)
+                save_config(self.cfg)
+        except Exception:
+            pass
+
+        state = {"group": "main",
+                 "rules": parse_rules(self.cfg.image_simple_rules),
+                 "jobs": parse_jobs(self.cfg.image_ai_jobs),
+                 "timer": None}
+        body = ft.Column(spacing=8)
         status = ft.Text("", size=11, color=MUTED)
-        self._plan_rows_col = rows_col
-        self._plan_state = state
+        tab_row = ft.Row(spacing=8)
 
         def persist():
-            self.cfg.set("image_edit_plans", dumps(state["slots"]))
+            self.cfg.set("image_simple_rules", rows_to_rules(state["rules"]))
+            self.cfg.set("image_ai_jobs", rows_to_jobs(state["jobs"]))
             save_config(self.cfg)
-            desc = describe(state["slots"])
-            status.value = (f"已保存 {len(state['slots'])} 条方案：" + "；".join(desc[:2])) if desc \
-                else "未配置方案（刊登时不会做逐图编辑）"
-            status.color = ACCENT_2 if state["slots"] else MUTED
+            g = state["group"]
+            n_rules = len([r for r in state["rules"] if r["group"] == g])
+            n_jobs = len([j for j in state["jobs"] if j["group"] == g])
+            status.value = f"{GROUP_LABELS[g]}：{n_rules} 条简单规则 · {n_jobs} 条精细任务"
+            status.color = ACCENT_2 if (n_rules or n_jobs) else MUTED
             try:
                 self.page.update()
             except Exception:
@@ -2386,155 +2403,33 @@ class App:
                     t.cancel()
                 except Exception:
                     pass
-            timer = threading.Timer(0.6, persist)
+            timer = threading.Timer(0.5, persist)
             timer.daemon = True
             state["timer"] = timer
             timer.start()
 
-        def row_widgets(slot: dict):
-            group_dd = ft.Dropdown(
-                width=112, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                value=slot.get("group", "main"),
-                options=[ft.dropdown.Option(k, v) for k, v in GROUP_LABELS.items()])
-            target = ft.TextField(label="第几张", value=str(slot.get("target", 1)), width=78,
-                                  bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            refs = ft.TextField(label="参考图（1,2 / 3-5 / all）", value=str(slot.get("refs") or ""),
-                                width=176, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                helper_text="素材：会和目标图一起交给模型")
-            prompt = ft.TextField(label="这一张的提示词", value=str(slot.get("prompt") or ""),
-                                  multiline=True, min_lines=2, max_lines=4, expand=True,
-                                  bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            mode = ft.Dropdown(
-                width=168, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                value=slot.get("mode", "edit"),
-                options=[ft.dropdown.Option("edit", "编辑（以目标图为主）"),
-                         ft.dropdown.Option("generate", "生成（以参考图为素材）")])
-            add_new = ft.Checkbox(label="追加为新图", value=bool(slot.get("add_new")))
+        # ---------- 简单规则行 ----------
+        def rule_row(rule: dict, g: str):
+            rng = ft.TextField(label="图片范围（1-5 / 1,3,4）", value=str(rule.get("range") or "1-5"),
+                               width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            cbs = {}
+            for op in ("white", "watermark", "translate"):
+                cbs[op] = ft.Checkbox(label=OP_LABELS[op], value=op in (rule.get("ops") or []))
 
             def sync(e=None):
-                slot["group"] = group_dd.value or "main"
-                try:
-                    slot["target"] = max(1, int(target.value or 1))
-                except Exception:
-                    slot["target"] = 1
-                slot["refs"] = str(refs.value or "").strip()
-                slot["prompt"] = str(prompt.value or "").strip()
-                slot["mode"] = mode.value or "edit"
-                slot["add_new"] = bool(add_new.value)
-                schedule_persist()
-
-            for c in (group_dd, mode):
-                c.on_change = sync
-            for c in (target, refs, prompt):
-                c.on_change = sync
-            add_new.on_change = sync
-
-            def remove(e):
-                try:
-                    state["slots"].remove(slot)
-                except ValueError:
-                    pass
-                render()
+                rule["range"] = str(rng.value or "1-5")
+                rule["ops"] = [op for op, cb in cbs.items() if cb.value]
+                if not rule["ops"]:
+                    try:
+                        state["rules"].remove(rule)
+                    except ValueError:
+                        pass
+                    render()
                 persist()
 
-            return ft.Container(
-                content=ft.Column([
-                    ft.Row([group_dd, target, refs, mode], spacing=8, wrap=True),
-                    prompt,
-                    ft.Row([add_new,
-                            ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A",
-                                          tooltip="删除这一条", on_click=remove)], spacing=8),
-                ], spacing=6),
-                bgcolor=CARD_2, border_radius=10, padding=10)
-
-        def render():
-            rows_col.controls = [row_widgets(s) for s in state["slots"]] or \
-                [ft.Text("还没有逐图方案。点「添加一条」→ 选组（主图/描述图/SKU图）、第几张、参考图（可多张）和这一张的提示词。",
-                         size=11, color=MUTED)]
-            try:
-                self.page.update()
-            except Exception:
-                pass
-
-        def add_row(e=None):
-            state["slots"].append({"group": "main", "target": len(state["slots"]) + 1,
-                                   "refs": "all", "prompt": "", "mode": "edit", "add_new": False})
-            render()
-
-        def import_designated(e):
-            """把老「主图指定编辑」一键转成方案。"""
-            idx = str(getattr(self.cfg, "designated_edit_indices", "") or "").strip()
-            prompt = str(getattr(self.cfg, "designated_edit_prompt", "") or "").strip()
-            from ..services.image_index import parse_indices
-            nums = parse_indices(idx, 12) if idx else []
-            if not nums:
-                self.toast("「主图指定编辑」里没有序号可导入", False); return
-            for n in nums:
-                state["slots"].append({"group": "main", "target": n, "refs": "all",
-                                       "prompt": prompt, "mode": "edit", "add_new": False})
-            render(); persist()
-            self.toast(f"已导入 {len(nums)} 条主图指定编辑")
-
-        def clear_all(e):
-            state["slots"] = []
-            render(); persist()
-
-        render()
-        status.value = (f"已保存 {len(state['slots'])} 条方案") if state["slots"] else "未配置方案（刊登时不会做逐图编辑）"
-        status.color = ACCENT_2 if state["slots"] else MUTED
-        return card(ft.Column([
-            h1("逐图编辑方案（关键）", 15),
-            muted("老软件那种「指定哪张图用什么提示词、素材用哪几张」：每条 = 目标组 + 第几张 + 参考图（可多张）+ 提示词"),
-            muted("· 编辑：以目标图为主，参考图一起作为素材（图生图） · 生成：以参考图为素材生成新图或追加"),
-            muted("· 参考图支持 1,2,3 / 3-5 / all（all = 该组全部图片）；参考图不在 1~4 张时超出部分会被忽略"),
-            ft.Row([ft.ElevatedButton("添加一条", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=add_row),
-                    ft.OutlinedButton("从「主图指定编辑」导入", icon=ft.Icons.SOUTH, on_click=import_designated),
-                    ft.OutlinedButton("清空方案", icon=ft.Icons.DELETE_SWEEP, on_click=clear_all)], spacing=10, wrap=True),
-            rows_col, status,
-        ], spacing=8))
-
-    # ---------- 背景生成规则（逐图换背景，可加/删）----------
-    def _bg_rules_card(self):
-        import json as _j
-        try:
-            rules = _j.loads(self.cfg.background_gen_rules or "[]")
-            if not isinstance(rules, list):
-                rules = []
-        except Exception:
-            rules = []
-        state = {"rules": [r for r in rules if isinstance(r, dict)]}
-        rows_col = ft.Column(spacing=6)
-        status = ft.Text("", size=11, color=MUTED)
-
-        def persist():
-            self.cfg.set("background_gen_rules", _j.dumps(state["rules"], ensure_ascii=False))
-            save_config(self.cfg)
-            status.value = f"已保存 {len(state['rules'])} 条规则" if state["rules"] else "未配置规则"
-            status.color = ACCENT_2 if state["rules"] else MUTED
-            try:
-                self.page.update()
-            except Exception:
-                pass
-
-        POSITIONS = ["main_1", "main_2", "main_3", "main_4", "main_5", "main_6", "all_main",
-                     "detail_1", "detail_2", "detail_3", "detail_4"]
-
-        def row_widgets(rule: dict):
-            pos = ft.Dropdown(width=150, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                              value=str(rule.get("position") or "main_1"),
-                              options=[ft.dropdown.Option(x) for x in POSITIONS])
-            prompt = ft.TextField(label="换背景要求", value=str(rule.get("prompt") or ""),
-                                  multiline=True, min_lines=2, max_lines=3, expand=True,
-                                  bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                  hint_text="例：换成浅灰摄影棚背景，保留产品与接触阴影")
-
-            def sync(e=None):
-                rule["position"] = pos.value or "main_1"
-                rule["prompt"] = str(prompt.value or "").strip()
-                persist()
-
-            pos.on_change = sync
-            prompt.on_change = sync
+            rng.on_change = lambda e: schedule_persist()
+            for cb in cbs.values():
+                cb.on_change = sync
 
             def remove(e):
                 try:
@@ -2544,33 +2439,190 @@ class App:
                 render(); persist()
 
             return ft.Container(
-                content=ft.Row([pos, prompt, ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A",
-                                                           on_click=remove)], spacing=8),
+                content=ft.Row([rng, cbs["white"], cbs["watermark"], cbs["translate"],
+                                ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
+                               spacing=8, wrap=True),
                 bgcolor=CARD_2, border_radius=10, padding=10)
 
+        # ---------- 精细任务行 ----------
+        def job_row(job: dict, g: str):
+            idx = ft.Dropdown(label="第几张图", width=110, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                              value=str(min(8, max(1, int(job.get("index") or 1)))),
+                              options=[ft.dropdown.Option(str(i)) for i in range(1, 9)])
+            preset_dd = ft.Dropdown(label="中文预设", width=230, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                    value=str(job.get("preset") or "custom"),
+                                    options=[ft.dropdown.Option("custom", "自定义（直接写）")] +
+                                            [ft.dropdown.Option(p["key"], p["zh"]) for p in presets_for(g)])
+            prompt = ft.TextField(label="这一张图的提示词（可改）", value=str(job.get("prompt") or ""),
+                                  multiline=True, min_lines=2, max_lines=4, expand=True,
+                                  bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            desc = ft.Text("", size=10, color=MUTED)
+            mode = ft.Dropdown(label="方式", width=150, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                               value=str(job.get("mode") or "edit"),
+                               options=[ft.dropdown.Option("edit", "编辑（用这张图）"),
+                                        ft.dropdown.Option("generate", "生成（用素材图）")])
+            refs_box = ft.Row(spacing=2)
+            insert = ft.Dropdown(label="放哪里", width=130, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                 value=str(job.get("insert") or "first"),
+                                 options=[ft.dropdown.Option("first", "插到第 1 张"),
+                                          ft.dropdown.Option("last", "放到最后"),
+                                          ft.dropdown.Option("replace", "替换这张")])
+            count = ft.Dropdown(label="生成数量", width=110, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                value=str(job.get("count") or 1),
+                                options=[ft.dropdown.Option(str(i)) for i in (1, 2, 3)])
+            refs_state = set(str(job.get("refs") or "").replace("，", ",").replace(" ", "").split(","))
+            refs_state.discard("")
+
+            def sync_refs(e=None):
+                job["refs"] = ",".join(sorted([x for x in refs_state if x.isdigit()], key=int))
+                schedule_persist()
+
+            for i in range(1, 7):
+                cb = ft.Checkbox(label=str(i), value=str(i) in refs_state, width=44)
+
+                def on_cb(e, _i=i, _cb=cb):
+                    if _cb.value:
+                        refs_state.add(str(_i))
+                    else:
+                        refs_state.discard(str(_i))
+                    sync_refs()
+
+                cb.on_change = on_cb
+                refs_box.controls.append(cb)
+
+            def sync(e=None):
+                try:
+                    job["index"] = int(idx.value or 1)
+                except Exception:
+                    job["index"] = 1
+                job["prompt"] = str(prompt.value or "").strip()
+                job["mode"] = mode.value or "edit"
+                job["insert"] = insert.value or "first"
+                try:
+                    job["count"] = int(count.value or 1)
+                except Exception:
+                    job["count"] = 1
+                schedule_persist()
+
+            def on_preset(e):
+                p = get_preset(g, preset_dd.value)
+                if p:
+                    prompt.value = p["en"]
+                    desc.value = p["desc"]
+                    job["prompt"] = p["en"]
+                    job["preset"] = p["key"]
+                    schedule_persist()
+                else:
+                    job["preset"] = "custom"
+                    schedule_persist()
+                try:
+                    self.page.update()
+                except Exception:
+                    pass
+
+            preset_dd.on_change = on_preset
+            idx.on_change = sync
+            mode.on_change = sync
+            insert.on_change = sync
+            count.on_change = sync
+            def on_prompt_edit(e):
+                # 手改提示词后视为自定义
+                job["preset"] = "custom"
+                preset_dd.value = "custom"
+                sync()
+            prompt.on_change = on_prompt_edit
+
+            def remove(e):
+                try:
+                    state["jobs"].remove(job)
+                except ValueError:
+                    pass
+                render(); persist()
+
+            return ft.Container(
+                content=ft.Column([
+                    ft.Row([idx, preset_dd, mode, insert, count,
+                            ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
+                           spacing=8, wrap=True),
+                    prompt,
+                    ft.Row([ft.Text("素材图（多选，和第几张一起交给 AI）:", size=10, color=MUTED), refs_box],
+                           spacing=6, wrap=True),
+                    desc,
+                ], spacing=6),
+                bgcolor=CARD_2, border_radius=10, padding=10)
+
+        # ---------- 渲染 ----------
         def render():
-            rows_col.controls = [row_widgets(r) for r in state["rules"]] or \
-                [ft.Text("未配置规则。添加一条 → 选「主图第几张 / 全部主图 / 描述图第几张」并写换背景要求。",
-                         size=11, color=MUTED)]
+            g = state["group"]
+            rules = [r for r in state["rules"] if r["group"] == g]
+            jobs = [j for j in state["jobs"] if j["group"] == g]
+
+            def add_rule(e=None):
+                state["rules"].append({"group": g, "range": "1-3", "ops": ["white"] if g == "main" else ["watermark"]})
+                render(); persist()
+
+            def add_job(e=None):
+                state["jobs"].append({"group": g, "index": 1, "refs": "", "prompt": "",
+                                      "mode": "edit", "count": 1, "insert": "first"})
+                render(); persist()
+
+            def quick_all(ops):
+                def _run(e):
+                    state["rules"].append({"group": g, "range": "1-20", "ops": list(ops)})
+                    render(); persist()
+                return _run
+
+            rules_card = card(ft.Column([
+                h1("简单处理（勾选即可，不用写提示词）", 15),
+                muted("白底 / 去水印 / 翻译，按范围批量做；费用低、速度快"),
+                ft.Row([ft.ElevatedButton("添加一条", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=add_rule),
+                        ft.OutlinedButton("全部白底", on_click=quick_all(["white"])),
+                        ft.OutlinedButton("全部去水印", on_click=quick_all(["watermark"])),
+                        ft.OutlinedButton("全部翻译", on_click=quick_all(["translate"]))], spacing=8, wrap=True),
+                ft.Column([rule_row(r, g) for r in rules] or
+                          [ft.Text("还没有简单规则。点「添加一条」，选范围并勾选要做的处理。", size=11, color=MUTED)],
+                          spacing=6),
+            ], spacing=8))
+
+            jobs_card = card(ft.Column([
+                h1("精细处理（给某几张图写提示词）", 15),
+                muted("每条 = 第几张图 + 你要的效果（中文预设点一下就有）；素材多选表示「结合这几张图一起交给 AI」"),
+                muted("例：第 1 张选「多图合成主图」、素材勾 2,3,4 → 生成的新主图插到第 1 张，原图顺延"),
+                ft.Row([ft.ElevatedButton("添加一条", icon=ft.Icons.ADD, bgcolor=ACCENT_2, color="#04231C",
+                                          on_click=add_job)], spacing=8, wrap=True),
+                ft.Column([job_row(j, g) for j in jobs] or
+                          [ft.Text("还没有精细任务。点「添加一条」，选第几张图和中文预设即可。", size=11, color=MUTED)],
+                          spacing=6),
+            ], spacing=8))
+
+            body.controls = [jobs_card, rules_card]
+            for b in tab_row.controls:
+                on = getattr(b, "data", "") == g
+                b.bgcolor = ACCENT if on else CARD_2
+                b.color = "white" if on else TEXT
             try:
                 self.page.update()
             except Exception:
                 pass
 
-        def add_row(e=None):
-            state["rules"].append({"position": f"main_{len(state['rules']) + 1}", "prompt": ""})
+        def switch(g):
+            state["group"] = g
             render()
+            persist()
+
+        for key in ("main", "detail", "sku"):
+            b = ft.ElevatedButton(GROUP_LABELS[key], bgcolor=CARD_2, color=TEXT,
+                                  on_click=lambda e, _g=key: switch(_g))
+            b.data = key
+            tab_row.controls.append(b)
 
         render()
-        status.value = f"已保存 {len(state['rules'])} 条规则" if state["rules"] else "未配置规则"
-        status.color = ACCENT_2 if state["rules"] else MUTED
         return card(ft.Column([
-            h1("背景替换规则（逐图换背景）", 15),
-            muted("每条规则 = 一张图 + 一段换背景要求；刊登时按规则逐张调用图像编辑（保留商品本体）"),
-            ft.Row([ft.ElevatedButton("添加规则", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=add_row)],
-                   spacing=10, wrap=True),
-            rows_col, status,
-        ], spacing=8))
+            h1("图片处理方案", 15),
+            muted("先选分组（主图 / 描述图 / SKU 图），再决定「简单处理」还是「精细处理」；两侧可同时用"),
+            tab_row,
+            body, status,
+        ], spacing=10))
 
     def _four_in_one_local(self, e=None):
         """把当前选中的图（前 4 张）拼成一张，追加到图片墙与结果里。"""
@@ -2718,7 +2770,7 @@ class App:
             label="通用编辑提示词（只对「通用编辑」按钮生效）", value=self.cfg.edit_prompt or "",
             multiline=True, min_lines=2, max_lines=4, expand=True,
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            helper_text="逐图不同的提示词请用下面的「逐图编辑方案」")
+            helper_text="逐张不同提示词，请用下面的「图片处理方案 → 精细处理」")
         tool = card(ft.Column([
             h1("图片工具", 15),
             ft.Row([ft.OutlinedButton("选择图片", icon=ft.Icons.UPLOAD_FILE, on_click=pick),
@@ -2729,37 +2781,314 @@ class App:
                     self.img_busy], spacing=10, wrap=True),
             self.img_quick_prompt,
             self.img_status, self.img_results], spacing=10))
-        return [view[0], tool, self._plans_card(), self._bg_rules_card()] + view[1:]
+        return [view[0], tool, self._image_jobs_ui()] + view[1:]
 
+    # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):
+        from ..services.pricing import (compute_price, tiers_to_rows, rows_to_tiers,
+                                        regional_to_rows, rows_to_regional,
+                                        wholesale_to_rows, rows_to_wholesale)
         self._current = 6
-        self.base_input = ft.TextField(label="原始价格（试算）", value="100", width=180,
-                                       bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.price_out = ft.Text("—", color=ACCENT_2, size=16, weight=ft.FontWeight.BOLD)
+        view = self._render("价格设置", schema_price())
 
-        def calc(e):
+        # ---- 试算 ----
+        try:
+            _base_cost = float(self.cfg.goods_cost or 0)
+        except Exception:
+            _base_cost = 0.0
+        self.base_input = ft.TextField(label="成本（试算）", value=str(_base_cost or 100),
+                                       width=160, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.price_out = ft.Text("—", color=ACCENT_2, size=15, weight=ft.FontWeight.BOLD, selectable=True)
+        self.price_break = ft.Text("", size=11, color=MUTED, selectable=True)
+
+        def calc(e=None):
             try:
                 base = float(self.base_input.value or 0)
-                mult = float(self.cfg.price_multiplier or 1.2)
-                add = float(self.cfg.price_fixed_add or 0)
-                if self.cfg.price_mode == "free_shipping":
-                    r = calc_free_shipping(base, float(self.cfg.default_express_price or 0),
-                                           float(self.cfg.sales_profit or 0) / 100)
-                else:
-                    r = calc_multiplier(base, mult, add)
-                self.price_out.value = f"¥{r.final}（{r.note}）"
+                r = compute_price(self.cfg, base)
+                lines = [f"成本 ¥{base:.2f} → 售价 ¥{r.final:.2f}",
+                         f"模式：{r.note or r.mode}"
+                         + (f" · 阶梯倍率 {r.tier_multiplier:g}" if r.tier_multiplier else "")]
+                if r.regional:
+                    lines.append("区域价：" + " · ".join(f"{k} {v:.2f}" for k, v in list(r.regional.items())[:6]))
+                if r.wholesale:
+                    lines.append("批发价：" + " · ".join(f"≥{w['min_qty']}件 ¥{w['price']}"
+                                                        for w in r.wholesale[:4]))
+                self.price_out.value = f"¥{r.final:.2f}"
+                self.price_break.value = "\n".join(lines)
             except Exception as ex:
-                self.price_out.value = f"计算失败：{ex}"
-            self.page.update()
+                self.price_out.value = "计算失败"
+                self.price_break.value = str(ex)[:120]
+            try:
+                self.page.update()
+            except Exception:
+                pass
 
+        calc_card = card(ft.Column([
+            h1("价格试算", 15),
+            muted("用的就是刊登时同一套算法（模式 → 阶梯 → 区域 → 批发）"),
+            ft.Row([self.base_input, ft.ElevatedButton("计算", icon=ft.Icons.CALCULATE, bgcolor=ACCENT,
+                                                       color="white", on_click=calc)], spacing=10),
+            self.price_out, self.price_break,
+        ], spacing=8))
+
+        # ---- 阶梯价格表格 ----
+        tier_state = {"rows": tiers_to_rows(getattr(self.cfg, "tuoguan_price_tiers", "[]"))}
+        tier_col = ft.Column(spacing=6)
+        tier_status = ft.Text("", size=11, color=MUTED)
+
+        def tier_persist():
+            self.cfg.set("tuoguan_price_tiers", rows_to_tiers(tier_state["rows"]))
+            save_config(self.cfg)
+            tier_status.value = (f"已保存 {len(tier_state['rows'])} 档（按成本区间套倍率）"
+                                 if tier_state["rows"] else "未设置阶梯：全部按上面的价格倍率")
+            tier_status.color = ACCENT_2 if tier_state["rows"] else MUTED
+            try:
+                self.page.update()
+            except Exception:
+                pass
+            calc()
+
+        def tier_row(row: dict):
+            lo = ft.TextField(label="成本下限", value=f"{row.get('min', 0):g}", width=110,
+                              bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            hi = ft.TextField(label="成本上限", value=f"{row.get('max', 0):g}", width=110,
+                              bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            mult = ft.TextField(label="倍率", value=f"{row.get('multiplier', 1):g}", width=90,
+                                bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            out = ft.Text("", size=11, color=ACCENT_2, width=110)
+
+            def sync(e=None):
+                try:
+                    row["min"] = float(lo.value or 0)
+                    row["max"] = float(hi.value or 1e18)
+                    row["multiplier"] = float(mult.value or 1)
+                except Exception:
+                    return
+                try:
+                    out.value = f"成本 {row['min']:g} → ¥{row['min'] * row['multiplier']:g}"
+                except Exception:
+                    out.value = ""
+                tier_persist()
+
+            for c in (lo, hi, mult):
+                c.on_change = sync
+            try:
+                out.value = f"成本 {row['min']:g} → ¥{row['min'] * row['multiplier']:g}"
+            except Exception:
+                pass
+
+            def remove(e):
+                try:
+                    tier_state["rows"].remove(row)
+                except ValueError:
+                    pass
+                tier_render(); tier_persist()
+
+            return ft.Row([lo, hi, mult, out,
+                           ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
+                          spacing=8, wrap=True)
+
+        def tier_render():
+            tier_col.controls = [tier_row(r) for r in tier_state["rows"]] or [
+                ft.Text("还没有阶梯。点「添加一档」，例如 0-100 用 1.5 倍、100-1000 用 1.35 倍。", size=11, color=MUTED)]
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def tier_add(e=None):
+            tier_state["rows"].append({"min": 0 if not tier_state["rows"] else
+                                       tier_state["rows"][-1].get("max", 100), "max": 100, "multiplier": 1.35})
+            tier_render(); tier_persist()
+
+        def tier_template(e):
+            tier_state["rows"] = [{"min": 0, "max": 100, "multiplier": 1.5},
+                                  {"min": 100, "max": 500, "multiplier": 1.4},
+                                  {"min": 500, "max": 100000, "multiplier": 1.3}]
+            tier_render(); tier_persist()
+
+        tier_render()
+        tier_card = card(ft.Column([
+            h1("阶梯价格", 15),
+            muted("按成本落在哪一档，就用该档倍率（成本 × 倍率 + 固定加价）"),
+            ft.Row([ft.ElevatedButton("添加一档", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=tier_add),
+                    ft.OutlinedButton("套用示例（3 档）", icon=ft.Icons.AUTO_AWESOME, on_click=tier_template)],
+                   spacing=10, wrap=True),
+            tier_col, tier_status,
+        ], spacing=8))
+
+        # ---- 区域倍率表格 ----
+        reg_state = {"rows": regional_to_rows(getattr(self.cfg, "adjust_price_template_detail", "{}"))}
+        reg_col = ft.Column(spacing=6)
+        reg_status = ft.Text("", size=11, color=MUTED)
+
+        def reg_persist():
+            self.cfg.set("adjust_price_template_detail", rows_to_regional(reg_state["rows"]))
+            save_config(self.cfg)
+            reg_status.value = (f"已设置 {len(reg_state['rows'])} 个币种倍率"
+                                if reg_state["rows"] else "未设置区域倍率：开启「区域倍率」后生效")
+            reg_status.color = ACCENT_2 if reg_state["rows"] else MUTED
+            try:
+                self.page.update()
+            except Exception:
+                pass
+            calc()
+
+        def reg_row(row: dict):
+            cur = ft.Dropdown(label="币种", width=110, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                              value=str(row.get("currency") or "USD"),
+                              options=[ft.dropdown.Option(c) for c in CURRENCIES])
+            rate = ft.TextField(label="倍率", value=f"{row.get('rate', 1):g}", width=100,
+                                bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+            def sync(e=None):
+                row["currency"] = cur.value or "USD"
+                try:
+                    row["rate"] = float(rate.value or 1)
+                except Exception:
+                    return
+                reg_persist()
+
+            cur.on_change = sync
+            rate.on_change = sync
+
+            def remove(e):
+                try:
+                    reg_state["rows"].remove(row)
+                except ValueError:
+                    pass
+                reg_render(); reg_persist()
+
+            return ft.Row([cur, rate,
+                           ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
+                          spacing=8, wrap=True)
+
+        def reg_render():
+            reg_col.controls = [reg_row(r) for r in reg_state["rows"]] or [
+                ft.Text("还没有区域倍率。点「添加币种」，或直接点「套用常用币种」。", size=11, color=MUTED)]
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def reg_add(e=None):
+            used = {r.get("currency") for r in reg_state["rows"]}
+            nxt = next((c for c in CURRENCIES if c not in used), "USD")
+            reg_state["rows"].append({"currency": nxt, "rate": 1.0})
+            reg_render(); reg_persist()
+
+        def reg_common(e=None):
+            reg_state["rows"] = [{"currency": c, "rate": r} for c, r in
+                                 (("USD", 1.0), ("EUR", 0.92), ("GBP", 0.79), ("RUB", 12.5), ("BRL", 5.4))]
+            reg_render(); reg_persist()
+
+        reg_render()
+        reg_card = card(ft.Column([
+            h1("区域倍率", 15),
+            muted("成交价按币种展示（人民币价 × 倍率），用于核对各站点价格；不影响商品人民币价"),
+            ft.Row([ft.ElevatedButton("添加币种", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=reg_add),
+                    ft.OutlinedButton("套用常用币种", icon=ft.Icons.AUTO_AWESOME, on_click=reg_common)],
+                   spacing=10, wrap=True),
+            reg_col, reg_status,
+        ], spacing=8))
+
+        # ---- 店小秘区域调价模板（搜索/选用）----
         self.tpl_kw = ft.TextField(label="模板关键词", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.tpl_list = ft.Column(spacing=4)
         self.tpl_status = ft.Text("", size=12, color=MUTED)
+        self.tpl_selected = ft.Text("", size=11, color=ACCENT_2)
 
         def search(e):
-            self.tpl_status.value = "搜索中…"; self.page.update()
+            self.tpl_status.value = "搜索中…"
+            try:
+                self.page.update()
+            except Exception:
+                pass
             threading.Thread(target=self._search_templates, daemon=True).start()
 
+        def clear_selected(e):
+            self.cfg.set("adjust_price_template_id", "")
+            self.cfg.set("adjust_price_template_name", "")
+            save_config(self.cfg)
+            self.tpl_selected.value = "未选择店小秘模板"
+            self.page.update()
+
+        self.tpl_selected.value = ("已选店小秘模板：" + str(self.cfg.adjust_price_template_name or "-"))
+        tpl_card = card(ft.Column([
+            h1("店小秘区域调价模板", 15),
+            muted("从店小秘读取已建好的调价模板并选用；模板 ID/名称会记录到配置里用于对账"),
+            ft.Row([self.tpl_kw, ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, on_click=search),
+                    ft.OutlinedButton("清除已选", on_click=clear_selected)], spacing=10, wrap=True),
+            self.tpl_selected, self.tpl_status, self.tpl_list,
+        ], spacing=8))
+
+        # ---- 批发价表格 ----
+        ws_state = {"rows": wholesale_to_rows(getattr(self.cfg, "wholesale_tiers", "[]"))}
+        ws_col = ft.Column(spacing=6)
+        ws_status = ft.Text("", size=11, color=MUTED)
+
+        def ws_persist():
+            self.cfg.set("wholesale_tiers", rows_to_wholesale(ws_state["rows"]))
+            save_config(self.cfg)
+            ws_status.value = (f"已保存 {len(ws_state['rows'])} 档批发价"
+                               if ws_state["rows"] else "未设置批发价")
+            ws_status.color = ACCENT_2 if ws_state["rows"] else MUTED
+            try:
+                self.page.update()
+            except Exception:
+                pass
+            calc()
+
+        def ws_row(row: dict):
+            qty = ft.TextField(label="起订量", value=str(row.get("min_qty", 10)), width=110,
+                               bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            price = ft.TextField(label="单价（元）", value=str(row.get("price", 0)), width=120,
+                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+            def sync(e=None):
+                try:
+                    row["min_qty"] = int(float(qty.value or 0))
+                    row["price"] = float(price.value or 0)
+                except Exception:
+                    return
+                ws_persist()
+
+            qty.on_change = sync
+            price.on_change = sync
+
+            def remove(e):
+                try:
+                    ws_state["rows"].remove(row)
+                except ValueError:
+                    pass
+                ws_render(); ws_persist()
+
+            return ft.Row([qty, price,
+                           ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
+                          spacing=8, wrap=True)
+
+        def ws_render():
+            ws_col.controls = [ws_row(r) for r in ws_state["rows"]] or [
+                ft.Text("未设置批发价。点「添加一档」，例如 ≥10 件 ¥9.9。", size=11, color=MUTED)]
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def ws_add(e=None):
+            ws_state["rows"].append({"min_qty": 10, "price": 9.9})
+            ws_render(); ws_persist()
+
+        ws_render()
+        ws_card = card(ft.Column([
+            h1("批发价", 15),
+            muted("按起订量分档；刊登时随价格结果一起计算（是否写入店铺看平台字段）"),
+            ft.Row([ft.ElevatedButton("添加一档", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=ws_add)],
+                   spacing=10, wrap=True),
+            ws_col, ws_status,
+        ], spacing=8))
+
+        # ---- 本地区域模板（保存/套用倍数表）----
         self.lib_name = ft.TextField(label="模板名称", width=160, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.lib_dd = ft.Dropdown(width=220, bgcolor=CARD_2, color=TEXT, border_color=CARD_2, options=[])
 
@@ -2777,24 +3106,23 @@ class App:
             name = (self.lib_name.value or "").strip()
             if not name:
                 self.toast("请输入模板名称", False); return
-            try:
-                rates = json.loads(self.cfg.adjust_price_template_detail or "{}")
-            except Exception:
-                self.toast("区域倍率 JSON 格式错误", False); return
-            lib = [t for t in (self.cfg.price_template_library or []) if isinstance(t, dict) and t.get("name") != name]
+            rates = {r.get("currency"): r.get("rate") for r in reg_state["rows"] if r.get("currency")}
+            lib = [t for t in (self.cfg.price_template_library or [])
+                   if isinstance(t, dict) and t.get("name") != name]
             lib.append({"name": name, "rates": rates})
             self.cfg.price_template_library = lib
             save_config(self.cfg)
             _lib_refresh()
-            self.toast(f"已保存模板：{name}")
+            self.toast(f"已保存模板：{name}（{len(rates)} 个币种）")
 
         def lib_apply(e):
             name = self.lib_dd.value
             for t in (self.cfg.price_template_library or []):
                 if isinstance(t, dict) and t.get("name") == name:
-                    self.cfg.adjust_price_template_detail = json.dumps(t.get("rates") or {}, ensure_ascii=False)
-                    save_config(self.cfg)
-                    self.toast(f"已应用模板：{name}（保存配置后生效）")
+                    reg_state["rows"] = [{"currency": k, "rate": v}
+                                         for k, v in (t.get("rates") or {}).items()]
+                    reg_render(); reg_persist()
+                    self.toast(f"已套用模板：{name}")
                     return
             self.toast("未找到模板", False)
 
@@ -2807,51 +3135,60 @@ class App:
             self.toast("已删除")
 
         _lib_refresh()
-        lib_card = card(ft.Column([h1("本地区域模板", 15),
-                                   muted("把当前「区域倍率 JSON」存成模板，换产品或换店铺时一键套用（不依赖店小秘）"),
+        lib_card = card(ft.Column([h1("区域倍率模板", 15),
+                                   muted("把当前币种倍率存成模板，换店铺/换品类一键套用"),
                                    ft.Row([self.lib_name,
-                                           ft.ElevatedButton("保存当前", icon=ft.Icons.SAVE, bgcolor=CARD_2, color=TEXT, on_click=lib_save),
+                                           ft.ElevatedButton("保存当前", icon=ft.Icons.SAVE, bgcolor=CARD_2,
+                                                             color=TEXT, on_click=lib_save),
                                            self.lib_dd,
-                                           ft.ElevatedButton("应用", icon=ft.Icons.CHECK, bgcolor=ACCENT, color="white", on_click=lib_apply),
-                                           ft.OutlinedButton("删除", on_click=lib_del)], spacing=10, wrap=True)], spacing=8))
+                                           ft.ElevatedButton("应用", icon=ft.Icons.CHECK, bgcolor=ACCENT,
+                                                             color="white", on_click=lib_apply),
+                                           ft.OutlinedButton("删除", on_click=lib_del)], spacing=10, wrap=True)],
+                                 spacing=8))
 
-        tpl_card = card(ft.Column([h1("区域调价模板", 15),
-                                   ft.Row([self.tpl_kw, ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, on_click=search)], spacing=10),
-                                   self.tpl_status, self.tpl_list], spacing=10))
-
-        calc_card = card(ft.Column([h1("价格试算", 15), ft.Row([self.base_input,
-                                                                 ft.ElevatedButton("计算", on_click=calc),
-                                                                 self.price_out], spacing=14)], spacing=10))
-        view = self._render("价格设置", schema_price())
-        return [view[0], calc_card, lib_card, tpl_card] + view[1:]
+        return [view[0], calc_card, tier_card, reg_card, tpl_card, ws_card, lib_card] + view[1:]
 
     def _search_templates(self):
         try:
             ck = self._cookies()
             client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
             data = client.search_price_templates(self.tpl_kw.value or "")
-            items = (data.get("data") or {})
-            items = items.get("list") if isinstance(items, dict) else items
+            # 兼容 list / dict 两种返回（旧代码按 dict 取，必崩）
+            if isinstance(data, dict):
+                inner = data.get("data") or data
+                items = inner.get("list") if isinstance(inner, dict) else inner
+            else:
+                items = data
             items = items or []
             rows = []
             for t in items[:30]:
+                if not isinstance(t, dict):
+                    continue
                 name = t.get("name") or t.get("templateName") or str(t.get("id", ""))
                 tid = str(t.get("id", ""))
 
                 def apply(e, _tid=tid, _name=name):
-                    self.cfg.adjust_price_template_id = _tid
-                    self.cfg.adjust_price_template_name = _name
+                    self.cfg.set("adjust_price_template_id", _tid)
+                    self.cfg.set("adjust_price_template_name", _name)
                     save_config(self.cfg)
+                    self.tpl_selected.value = f"已选店小秘模板：{_name}（{_tid}）"
                     self.toast(f"已应用模板：{_name}")
+                    try:
+                        self.page.update()
+                    except Exception:
+                        pass
 
                 rows.append(ft.ListTile(title=ft.Text(name, size=13, color=TEXT),
                                         subtitle=ft.Text(tid, size=10, color=MUTED), on_click=apply))
-            self.tpl_list.controls = rows or [ft.Text("无结果（接口路径可能需校正）", size=12, color="#FFB020")]
+            self.tpl_list.controls = rows or [ft.Text("没有找到模板（可先在店小秘里创建区域调价模板）", size=12, color="#FFB020")]
             self.tpl_status.value = f"共 {len(rows)} 个模板"
         except Exception as ex:
-            self.tpl_status.value = f"搜索失败：{ex}"
+            self.tpl_status.value = f"搜索失败：{str(ex)[:120]}"
             self.tpl_list.controls = []
-        self.page.update()
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def _p_variant(self):
         self._current = 7
@@ -2955,91 +3292,53 @@ class App:
 
     def _p_workbench(self):
         self._current = 9
-        self.wb_urls = ft.TextField(label="图片 URL（每行一个）", multiline=True, min_lines=4, max_lines=8,
-                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.wb_prompt = ft.TextField(label="「编辑」用的提示词（逐张不同请到「AI图片处理 → 逐图编辑方案」）",
-                                      value=self.cfg.edit_prompt or "", multiline=True, min_lines=2, max_lines=3,
-                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.wb_status = ft.Text("未加载图片", color=MUTED, size=12)
+        ok, ck_text = self._cookie_status_text()
+        self.wb_conn = ft.Text(("Cookie：" + ck_text), size=12,
+                               color=ACCENT_2 if ok else "#FF6B6B")
+        self.wb_conn_hint = muted("加载不了产品时先看这里：没有 Cookie 就点「粘贴 Cookie」或「启动浏览器」")
+        self.wb_status = ft.Text("未加载产品", color=MUTED, size=12)
         self.wb_results = ft.Column(spacing=4)
-        self.wb_wall = ft.Row(spacing=8, wrap=True, scroll=ft.ScrollMode.AUTO)
+        self.wb_wall = ft.Row(spacing=8, wrap=True)
         self.wb_sel_paths: set[str] = set()
         self.wb_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
+        self.wb_urls = ft.TextField(label="图片 URL（每行一个，也可从产品取图）", multiline=True,
+                                    min_lines=3, max_lines=6, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.wb_prompt = ft.TextField(label="「编辑」提示词（中文/英文均可；逐张不同请到「AI图片处理 → 精细任务」）",
+                                      value=self.cfg.edit_prompt or "", multiline=True, min_lines=2, max_lines=3,
+                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
 
-        def load(e):
-            urls = [u.strip() for u in (self.wb_urls.value or "").splitlines() if u.strip()]
-            if not urls:
-                self.toast("请输入图片 URL", False); return
-            self.wb_status.value = f"共 {len(urls)} 个链接，开始下载…"
-            self.page.update()
-            threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
-
-        def _start(kind):
-            self.wb_busy.visible = True
+        # ---- 连接 ----
+        def recheck(e):
+            ok2, txt2 = self._cookie_status_text(refresh=True)
+            self.wb_conn.value = "Cookie：" + txt2
+            self.wb_conn.color = ACCENT_2 if ok2 else "#FF6B6B"
+            if ok2:
+                threading.Thread(target=self._wb_check_login, daemon=True).start()
+            else:
+                self.toast("仍未读到 Cookie，请粘贴 Cookie 或启动浏览器", False)
             try:
                 self.page.update()
             except Exception:
                 pass
-            threading.Thread(target=self._wb_process, args=(kind,), daemon=True).start()
 
-        def run(kind):
-            if not self.picked:
-                self.toast("请先加载图片", False); return
-            if not self.cfg.api_key:
-                self.toast("请先设置 API Key", False); return
-            targets = self._wb_selected_paths()
-            n = len(targets)
-            price = self._price_of(self.cfg.model_image_edit)
-            total = n * price
-            limit = float(self.cfg.cost_warn_threshold or 5)
-            if price > 0 and total > limit:
-                def cancel(e):
-                    self._close_dialog()
-                def go(e):
-                    self._close_dialog()
-                    _start(kind)
-                self.dlg = ft.AlertDialog(
-                    title=ft.Text("费用确认"),
-                    content=ft.Text(f"本次将处理 {n} 张图（模型 {self.cfg.model_image_edit}，¥{price:.3f}/张）\n"
-                                    f"预计花费 ¥{total:.2f}，超过提醒阈值 ¥{limit:.2f}。\n是否继续？"),
-                    actions=[ft.TextButton("取消", on_click=cancel),
-                             ft.ElevatedButton("继续", bgcolor=ACCENT, color="white", on_click=go)])
-                self.page.dialog = self.dlg
-                self.dlg.open = True
-                self.page.update()
-                return
-            _start(kind)
+        def open_browser(e):
+            threading.Thread(target=self._connect_browser, daemon=True).start()
 
-        self.q = TaskQueue()
-        self.q_text = ft.Text("", size=12, color=MUTED)
-        self._refresh_queue()
+        conn_card = card(ft.Column([
+            h1("1 · 连接", 15),
+            ft.Row([self.wb_conn,
+                    ft.OutlinedButton("重新检测 Cookie", icon=ft.Icons.REFRESH, on_click=recheck),
+                    ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self._paste_cookie()),
+                    ft.OutlinedButton("启动浏览器（兜底）", icon=ft.Icons.OPEN_IN_BROWSER, on_click=open_browser),
+                    ft.OutlinedButton("打开店小秘", icon=ft.Icons.LINK,
+                                      on_click=lambda e: self._open_dxm_page())], spacing=8, wrap=True),
+            self.wb_conn_hint,
+                ], spacing=8))
 
-        def enqueue(e):
-            pool = {}
-            for p in (self.products or []):
-                pool[str(p.get("id"))] = p
-            for p in (getattr(self, "wb_rows", None) or []):
-                pool.setdefault(str(p.get("id")), p)
-            if not pool:
-                self.toast("没有可入队的产品：先「加载」产品列表或先跑一次上架", False)
-                return
-            chosen = ([pool[str(pid)] for pid in self.wb_selected if str(pid) in pool]
-                      if getattr(self, "wb_selected", None) else list(pool.values()))
-            self._queue_products = pool
-            n = self.q.add_many(chosen)
-            self._refresh_queue()
-            self.toast(f"已入队 {n} 个产品（共 {len(chosen)} 个选中）")
-
-        def process(e):
-            items = self.q.pending()
-            if not items:
-                self.toast("队列为空", False); return
-            threading.Thread(target=self._process_queue, daemon=True).start()
-
-        # ---- 产品列表（草稿/在线/待审核 + 搜索 + 分页 + 全选） ----
+        # ---- 产品列表 ----
         self.wb_status_sel = ft.Dropdown(
             value="editingRequired", width=150, bgcolor=CARD_2, color=TEXT, border_color=CARD_2,
-            options=[ft.dropdown.Option("editingRequired", "草稿"),
+            options=[ft.dropdown.Option("editingRequired", "草稿/待发布"),
                      ft.dropdown.Option("onSelling", "在线"),
                      ft.dropdown.Option("auditing", "待审核"),
                      ft.dropdown.Option("offline", "已下架"),
@@ -3055,45 +3354,21 @@ class App:
                      ft.DataColumn(ft.Text("产品", size=11, color=MUTED)),
                      ft.DataColumn(ft.Text("状态", size=11, color=MUTED)),
                      ft.DataColumn(ft.Text("图/SKU", size=11, color=MUTED))],
-            rows=[], column_spacing=16, heading_row_height=28, data_row_min_height=30,)
+            rows=[], column_spacing=16, heading_row_height=28, data_row_min_height=32)
+        self.wb_prod_box = ft.Column([self.wb_prod_table], scroll=ft.ScrollMode.AUTO, height=300)
 
         def load_products(e=None):
-            try:
-                ck = self._cookies()
-                dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            except Exception as ex:
-                self.toast(f"未连接浏览器：{ex}", False); return
-            st = self.wb_status_sel.value or None
-            kw = (self.wb_kw.value or "").strip() or None
-            try:
-                items, meta = dxm.product_page(self.wb_page_no, 30, (getattr(self.cfg, 'shop_id', '') or self.cfg.store_id or None), st, kw)
-            except Exception as ex:
-                self.toast(f"加载失败：{ex}", False); return
-            self.wb_rows = items
-            rows = []
-            for it in items:
-                pid = str(it.get("id") or "")
-                cb = ft.Checkbox(value=pid in self.wb_selected,
-                                 on_change=lambda e, _p=pid: self._wb_toggle(_p, e.control.value))
-                rows.append(ft.DataRow(cells=[
-                    ft.DataCell(cb),
-                    ft.DataCell(ft.Text((it.get("title") or "")[:52], size=11, color=TEXT)),
-                    ft.DataCell(ft.Text(it.get("status") or "", size=11, color=MUTED)),
-                    ft.DataCell(ft.Text(f"{len(it.get('images') or [])}/{len(it.get('skus') or [])}", size=11, color=MUTED)),
-                ]))
-            self.wb_prod_table.rows = rows
-            self.wb_page_info.value = f"第 {meta.get('page') or self.wb_page_no}/{meta.get('total_pages') or 1} 页 · 共 {meta.get('total') or 0} 个"
-            self._wb_sel_refresh()
-            self.page.update()
+            self.wb_page_no = 1
+            self._wb_load_products(1)
 
         def prev_page(e):
             if self.wb_page_no > 1:
                 self.wb_page_no -= 1
-                load_products()
+                self._wb_load_products(self.wb_page_no)
 
         def next_page(e):
             self.wb_page_no += 1
-            load_products()
+            self._wb_load_products(self.wb_page_no)
 
         def select_all(e):
             val = bool(e.control.value)
@@ -3103,66 +3378,219 @@ class App:
                     self.wb_selected.add(pid)
                 else:
                     self.wb_selected.discard(pid)
-            load_products()
+            self._wb_sel_refresh()
 
         def pick_images(e):
-            if not self.wb_selected:
-                self.toast("请先勾选产品", False); return
-            urls: list[str] = []
-            for it in self.wb_rows:
-                if str(it.get("id")) in self.wb_selected:
-                    urls.extend([u for u in (it.get("images") or []) if isinstance(u, str)])
-            urls = [u for i, u in enumerate(urls) if u and u not in urls[:i]]
-            if not urls:
-                self.toast("选中的产品没有图片", False); return
-            self.wb_status.value = f"已选 {len(self.wb_selected)} 个产品，下载 {len(urls)} 张图…"
-            self.page.update()
-            threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
+            self._wb_pick_images()
 
-        self.wb_prod_card = card(ft.Column([
-            h1("产品图片", 15),
-            muted("从店小秘拉取产品，勾选后取图，可直接做白底/去水印/编辑/视频"),
+        prod_card = card(ft.Column([
+            h1("2 · 产品", 15),
+            muted("先「加载」产品，再勾选产品 → 取图；也可以直接粘贴图片 URL"),
             ft.Row([self.wb_status_sel, self.wb_kw,
-                    ft.ElevatedButton("加载", icon=ft.Icons.SEARCH, bgcolor=CARD_2, color=TEXT, on_click=load_products)], spacing=8, wrap=True),
+                    ft.ElevatedButton("加载", icon=ft.Icons.SEARCH, bgcolor=ACCENT, color="white",
+                                      on_click=load_products)], spacing=8, wrap=True),
             ft.Row([ft.OutlinedButton("上一页", on_click=prev_page),
                     ft.OutlinedButton("下一页", on_click=next_page),
                     self.wb_page_info], spacing=8, wrap=True),
             ft.Row([ft.Checkbox(label="全选本页", on_change=select_all), self.wb_sel_text,
-                    ft.ElevatedButton("取选中图片", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=ACCENT, color="white", on_click=pick_images),
-                    ], spacing=10, wrap=True),
-            self.wb_prod_table,
+                    ft.ElevatedButton("取选中图片", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=ACCENT_2,
+                                      color="#04231C", on_click=pick_images)], spacing=10, wrap=True),
+            self.wb_prod_box,
         ], spacing=8))
 
-        self.q_panel = card(ft.Column([h1("任务队列", 15), self.q_text,
-                                       ft.Row([ft.ElevatedButton("产品入队", icon=ft.Icons.ADD_TASK, on_click=enqueue),
-                                               ft.ElevatedButton("处理队列(dry-run)", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white", on_click=process),
-                                               ft.OutlinedButton("清理已完成", on_click=lambda e: (self.q.clear_done(), self._refresh_queue())),
-                                               ft.OutlinedButton("重试失败", icon=ft.Icons.REPLAY,
-                                                                 on_click=lambda e: self._retry_failed_queue())], spacing=10, wrap=True)], spacing=8))
-        return [h1("图片工作台"), muted("批量白底 / 去水印 / 编辑 / 主图视频（走你的 API 站点计费）"), self.wb_prod_card, self.q_panel,
-                card(ft.Column([self.wb_urls,
-                                ft.Row([ft.ElevatedButton("加载图片", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=load),
-                                        ft.OutlinedButton("从已拉取产品取图", icon=ft.Icons.INVENTORY_2, on_click=lambda e: self._images_from_products()),
-                                        ft.ElevatedButton("白底", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
-                                        ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
-                                        ft.ElevatedButton("编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
-                                        ft.OutlinedButton("四合一拼图", icon=ft.Icons.GRID_VIEW,
-                                                          on_click=self._four_in_one_local),
-                                        ft.OutlinedButton("暂停", on_click=lambda e: self._wb_ctl("pause")),
-                                        ft.OutlinedButton("继续", on_click=lambda e: self._wb_ctl("resume")),
-                                        ft.OutlinedButton("取消", on_click=lambda e: self._wb_ctl("cancel")),
-                                        ft.ElevatedButton("生成视频", icon=ft.Icons.MOVIE, bgcolor="#7C5CFF", color="white",
-                                                          on_click=lambda e: threading.Thread(target=self._wb_make_video, daemon=True).start()),
-                                        ft.ElevatedButton("上传结果到相册", icon=ft.Icons.CLOUD_UPLOAD, bgcolor="#F0A020", color="#1A1200",
-                                                          on_click=lambda e: threading.Thread(target=self._upload_results, daemon=True).start()),
-                                        ft.OutlinedButton("清理旧图 / 空间", icon=ft.Icons.DELETE_SWEEP,
-                                                          on_click=lambda e: self._open_cleanup_dialog()),
-                                        self.wb_busy], spacing=10, wrap=True),
-                                self.wb_prompt,
-                                self.wb_status,
-                                ft.Text("点选要处理的图片（默认全选）", size=11, color=MUTED),
-                                self.wb_wall], spacing=10)),
-                card(self.wb_results)]
+        # ---- 图片处理 ----
+        def run(kind):
+            if not self.picked:
+                self.toast("请先取图：加载产品 → 勾选 → 取选中图片", False); return
+            if not self.cfg.api_key:
+                self.toast("请先设置 API Key", False); return
+            self.wb_busy.visible = True
+            try:
+                self.page.update()
+            except Exception:
+                pass
+            threading.Thread(target=self._wb_process, args=(kind,), daemon=True).start()
+
+        def four_in_one(e):
+            self._four_in_one_local()
+
+        def make_video(e):
+            threading.Thread(target=self._wb_make_video, daemon=True).start()
+
+        def upload(e):
+            threading.Thread(target=self._upload_results, daemon=True).start()
+
+        def cleanup(e):
+            self._open_cleanup_dialog()
+
+        def fill_from_products(e):
+            self._images_from_products()
+
+        img_card = card(ft.Column([
+            h1("3 · 图片处理", 15),
+            muted("简单处理：白底 / 去水印 / 翻译 / 四合一；精细处理：填提示词后点「编辑」"),
+            ft.Row([ft.ElevatedButton("白底", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
+                    ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
+                    ft.ElevatedButton("翻译成英文", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("translate")),
+                    ft.ElevatedButton("编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
+                    ft.OutlinedButton("四合一拼图", icon=ft.Icons.GRID_VIEW, on_click=four_in_one),
+                    ft.OutlinedButton("生成视频", icon=ft.Icons.MOVIE, on_click=make_video),
+                    ft.OutlinedButton("上传结果到相册", icon=ft.Icons.CLOUD_UPLOAD, on_click=upload),
+                    ft.OutlinedButton("清理旧图 / 空间", icon=ft.Icons.DELETE_SWEEP, on_click=cleanup),
+                    self.wb_busy], spacing=8, wrap=True),
+            ft.Row([self.wb_urls,
+                    ft.OutlinedButton("加载图片", icon=ft.Icons.DOWNLOAD, on_click=lambda e: self._wb_load_urls()),
+                    ft.OutlinedButton("从已拉取产品取图", icon=ft.Icons.INVENTORY_2, on_click=fill_from_products)],
+                   spacing=8, wrap=True),
+            self.wb_prompt,
+            self.wb_status,
+            ft.Text("图片墙：点勾选要处理的图（默认全选）", size=11, color=MUTED),
+            self.wb_wall,
+            self.wb_results,
+        ], spacing=8))
+
+        # ---- 队列 ----
+        self.q = TaskQueue()
+        self.q_text = ft.Text("", size=12, color=MUTED)
+        self._refresh_queue()
+
+        def enqueue(e):
+            pool = {}
+            for p in (self.products or []):
+                pool[str(p.get("id"))] = p
+            for p in (getattr(self, "wb_rows", None) or []):
+                pool.setdefault(str(p.get("id")), p)
+            if not pool:
+                self.toast("没有可入队的产品：先「加载」产品列表", False)
+                return
+            chosen = ([pool[str(pid)] for pid in self.wb_selected if str(pid) in pool]
+                      if self.wb_selected else list(pool.values()))
+            self._queue_products = pool
+            n = self.q.add_many(chosen)
+            self._refresh_queue()
+            self.toast(f"已入队 {n} 个产品")
+
+        def process(e):
+            if not self.q.pending():
+                self.toast("队列为空", False); return
+            threading.Thread(target=self._process_queue, daemon=True).start()
+
+        q_card = card(ft.Column([h1("4 · 任务队列", 15), self.q_text,
+                                 ft.Row([ft.ElevatedButton("产品入队", icon=ft.Icons.ADD_TASK, on_click=enqueue),
+                                         ft.ElevatedButton("处理队列(dry-run)", icon=ft.Icons.PLAY_ARROW,
+                                                           bgcolor=ACCENT, color="white", on_click=process),
+                                         ft.OutlinedButton("清理已完成",
+                                                           on_click=lambda e: (self.q.clear_done(), self._refresh_queue())),
+                                         ft.OutlinedButton("重试失败", icon=ft.Icons.REPLAY,
+                                                           on_click=lambda e: self._retry_failed_queue())],
+                                        spacing=10, wrap=True)], spacing=8))
+        return [h1("图片工作台"), muted("加载产品 → 取图 → 白底/去水印/翻译/编辑/四合一 → 上传或合成视频"),
+                conn_card, prod_card, img_card, q_card]
+
+    # ---------- 工作台内部 ----------
+    def _open_dxm_page(self):
+        url = "https://www.dianxiaomi.com/web/smt/smtProductList/offline"
+        if self.ws_endpoint:
+            try:
+                open_url_via_cdp(self.ws_endpoint, url)
+                return
+            except Exception:
+                pass
+        try:
+            self.page.launch_url(url)
+        except Exception:
+            self.toast(f"请在浏览器打开 {url}", False)
+
+    def _wb_check_login(self):
+        try:
+            ck = self._cookies()
+            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            info = dxm.user_info()
+            self.wb_conn.value = f"已登录：{info.get('account') or info.get('id') or '-'}"
+            self.wb_conn.color = ACCENT_2
+        except Exception as ex:  # noqa: BLE001
+            self.wb_conn.value = f"登录检测失败：{str(ex)[:80]}"
+            self.wb_conn.color = "#FF6B6B"
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _wb_load_products(self, page: int = 1):
+        self.wb_status.value = f"加载第 {page} 页…"
+        self.wb_status.color = MUTED
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+        def work():
+            try:
+                ck = self._cookies()
+                dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+                status = self.wb_status_sel.value or None
+                kw = (self.wb_kw.value or "").strip() or None
+                sid = getattr(self.cfg, "shop_id", "") or self.cfg.store_id or None
+                items, meta = dxm.product_page(page, 30, sid, status, kw)
+                self.wb_rows = items or []
+                rows = []
+                for it in self.wb_rows:
+                    pid = str(it.get("id") or "")
+                    cb = ft.Checkbox(value=pid in self.wb_selected,
+                                     on_change=lambda e, _p=pid: self._wb_toggle(_p, e.control.value))
+                    rows.append(ft.DataRow(cells=[
+                        ft.DataCell(cb),
+                        ft.DataCell(ft.Text((it.get("title") or "")[:48] or pid, size=11, color=TEXT)),
+                        ft.DataCell(ft.Text(str(it.get("status") or ""), size=10, color=MUTED)),
+                        ft.DataCell(ft.Text(f"{len(it.get('images') or [])}/{len(it.get('skus') or [])}",
+                                            size=10, color=MUTED)),
+                    ]))
+                self.wb_prod_table.rows = rows
+                self.wb_page_info.value = (f"第 {meta.get('page') or page}/{meta.get('total_pages') or 1} 页 · "
+                                           f"共 {meta.get('total') or 0} 个")
+                self.wb_status.value = (f"已加载 {len(self.wb_rows)} 个产品"
+                                        if self.wb_rows else "这一页没有产品（换个状态或关键词试试）")
+                self.wb_status.color = ACCENT_2 if self.wb_rows else "#FFB020"
+                self._wb_sel_refresh()
+            except Exception as ex:  # noqa: BLE001
+                self.wb_status.value = f"加载失败：{str(ex)[:120]}（先检查上面的 Cookie）"
+                self.wb_status.color = "#FF6B6B"
+                self.toast(f"加载失败：{ex}", False)
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _wb_pick_images(self):
+        if not self.wb_selected:
+            self.toast("请先勾选产品", False); return
+        urls: list[str] = []
+        for it in self.wb_rows:
+            if str(it.get("id")) in self.wb_selected:
+                urls.extend([u for u in (it.get("images") or []) if isinstance(u, str)])
+        urls = [u for i, u in enumerate(urls) if u and u not in urls[:i]]
+        if not urls:
+            self.toast("选中的产品没有图片", False); return
+        self.wb_status.value = f"已选 {len(self.wb_selected)} 个产品，下载 {len(urls)} 张图…"
+        self.wb_status.color = MUTED
+        try:
+            self.page.update()
+        except Exception:
+            pass
+        threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
+
+    def _wb_load_urls(self):
+        urls = [u.strip() for u in (self.wb_urls.value or "").splitlines() if u.strip()]
+        if not urls:
+            self.toast("请输入图片 URL", False); return
+        self.wb_status.value = f"下载 {len(urls)} 张图…"
+        try:
+            self.page.update()
+        except Exception:
+            pass
+        threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
 
     def _wb_make_video(self):
         if not self.picked:
@@ -3370,12 +3798,16 @@ class App:
 
         _prompt = str(getattr(getattr(self, "wb_prompt", None), "value", "") or "").strip() \
             or (self.cfg.edit_prompt or "clean product photo")
+        _translate = (getattr(self.cfg, "translate_prompt", "") or "").strip() or \
+            "Translate all visible text in the image into natural English, keep layout, colors and typography unchanged; do not add new text."
 
         def job(idx, path):
             if kind == "white":
                 return svc.white_background(Path(path))
             if kind == "watermark":
                 return svc.remove_watermark(Path(path))
+            if kind == "translate":
+                return svc.edit(Path(path), _translate)
             return svc.edit(Path(path), _prompt)
 
         def done(res):

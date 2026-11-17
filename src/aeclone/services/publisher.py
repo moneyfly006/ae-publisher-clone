@@ -190,73 +190,143 @@ class Publisher:
         p[key] = lst
         return True
 
-    def _apply_edit_plans(self, p: dict, res, dry_run: bool = False) -> dict:
-        """执行「逐图编辑方案」：每张图可单独给提示词 + 一组参考图。"""
-        from .image_edit_plans import parse as _parse_plans, refs_indices, GROUP_LABELS
-        slots = _parse_plans(getattr(self.cfg, "image_edit_plans", ""))
-        if not slots:
+    def _apply_simple_ops(self, url: str, ops: list[str]) -> str:
+        """对单张图做简单处理（白底/去水印/翻译），返回新 URL。"""
+        svc = self._img_service()
+        ops = [o for o in (ops or []) if o in ("white", "watermark", "translate")]
+        if not ops:
+            return url
+        fp = self._fetch(url)
+        if set(ops) == {"white", "watermark"}:
+            return str(svc.combined(fp))
+        cur = url
+        for op in ops:
+            if op == "white":
+                new = svc.white_background(fp)
+            elif op == "watermark":
+                new = svc.remove_watermark(fp)
+            else:
+                from .image_presets import translate_prompt
+                new = svc.edit(fp, (getattr(self.cfg, "translate_prompt", "") or "").strip()
+                               or translate_prompt("en"))
+            cur = str(new)
+            if ops[-1] != op:
+                fp = self._fetch(cur)
+        return cur
+
+    def _apply_image_jobs(self, p: dict, res, dry_run: bool = False) -> dict:
+        """执行「简单规则 + 精细任务」（新引擎；旧配置自动迁移）。"""
+        from .image_jobs import parse_rules, parse_jobs, refs_indices, migrate, GROUP_LABELS
+        rules = parse_rules(getattr(self.cfg, "image_simple_rules", "[]"))
+        jobs = parse_jobs(getattr(self.cfg, "image_ai_jobs", "[]"))
+        if not rules and not jobs:
+            try:
+                rj, jj = migrate(self.cfg)
+                rules, jobs = parse_rules(rj), parse_jobs(jj)
+            except Exception:
+                rules, jobs = [], []
+        if not rules and not jobs:
             return p
         if dry_run:
-            add_step(res, "逐图编辑方案", True, f"dry-run 跳过 {len(slots)} 条")
+            add_step(res, "图片方案", True,
+                     f"dry-run 跳过（简单规则 {len(rules)} 条 / 精细任务 {len(jobs)} 条）")
             return p
+
         svc = self._img_service()
-        default_prompt = (getattr(self.cfg, "designated_edit_prompt", "") or "").strip()
-        done = failed = 0
-        workdir = None
-        for i, slot in enumerate(slots, 1):
-            group = slot["group"]
-            prompt = slot["prompt"] or default_prompt
+        # ---- 简单规则 ----
+        for rule in rules:
+            group = rule["group"]
             urls = self._group_urls(p, group)
-            tgt_i = slot["target"] - 1
+            if not urls:
+                continue
+            idx = []
+            from .image_index import parse_indices as _pi
+            idx = _pi(rule.get("range") or "1-20", len(urls)) or []
+            done = failed = 0
+            for i in idx:
+                try:
+                    new = self._apply_simple_ops(urls[i - 1], rule["ops"])
+                    if new and new != urls[i - 1]:
+                        self._set_group_url(p, group, i - 1, str(new))
+                        urls = self._group_urls(p, group)
+                        done += 1
+                except Exception:
+                    failed += 1
+            add_step(res, f"简单处理·{GROUP_LABELS.get(group, group)}", failed == 0 and done > 0,
+                     f"成功 {done} / 失败 {failed}")
+
+        # ---- 精细任务 ----
+        for n, job in enumerate(jobs, 1):
+            group = job["group"]
+            urls = self._group_urls(p, group)
+            if not urls:
+                continue
+            tgt_i = int(job["index"]) - 1
             target = urls[tgt_i] if 0 <= tgt_i < len(urls) else ""
-            refs = refs_indices(slot["refs"], len(urls), exclude=slot["target"])
-            if slot["mode"] == "generate" and not slot["refs"]:
-                refs = list(range(1, min(len(urls), 4) + 1))
-                refs = [r for r in refs if r != slot["target"]]
+            refs = refs_indices(job.get("refs"), len(urls), exclude=int(job["index"]))
             ref_urls = [urls[r - 1] for r in refs if 0 <= r - 1 < len(urls) and urls[r - 1]]
-            if slot["mode"] == "edit" and not target:
-                add_step(res, f"方案{i}", False, f"{GROUP_LABELS.get(group, group)} 第{slot['target']}张不存在")
-                continue
+            prompt = str(job.get("prompt") or "").strip()
             if not prompt:
-                add_step(res, f"方案{i}", False, "提示词为空")
+                add_step(res, f"精细任务{n}", False, "提示词为空")
                 continue
-            files = []
+            if job["mode"] == "edit" and not target:
+                add_step(res, f"精细任务{n}", False, f"{GROUP_LABELS.get(group, group)} 第{job['index']}张不存在")
+                continue
             try:
                 import tempfile as _tf
                 from pathlib import Path as _P
-                workdir = workdir or _P(_tf.mkdtemp())
-                if slot["mode"] == "edit" and target:
+                workdir = _P(_tf.mkdtemp())
+                files = []
+                if job["mode"] == "edit" and target:
                     files.append(self._fetch(target, workdir))
                 for u in ref_urls[:4]:
                     files.append(self._fetch(u, workdir))
+                if not files and target:
+                    files.append(self._fetch(target, workdir))
                 if not files:
-                    add_step(res, f"方案{i}", False, "没有可用素材")
-                    continue
-                if slot["mode"] == "generate" and not target and not ref_urls:
-                    new_url = svc.generate(prompt)[0]
-                else:
-                    new_url = svc.edit_many(files, prompt,
-                                            tag=f"方案{i} · {GROUP_LABELS.get(group, group)}")
-                if not new_url:
+                    raise RuntimeError("没有可用素材图")
+                count = int(job.get("count") or 1) if job["mode"] == "generate" else 1
+                made: list[str] = []
+                for _ in range(max(1, min(3, count))):
+                    u = svc.edit_many(files, prompt,
+                                      tag=f"精细任务{n}·{GROUP_LABELS.get(group, group)}")
+                    if u:
+                        made.append(str(u))
+                if not made:
                     raise RuntimeError("接口未返回图片")
             except Exception as ex:  # noqa: BLE001
-                failed += 1
-                add_step(res, f"方案{i}", False, str(ex)[:100])
+                add_step(res, f"精细任务{n}", False, str(ex)[:100])
                 continue
-            append = bool(slot["add_new"]) or slot["mode"] == "generate"
-            idx = len(urls) if append else tgt_i
-            if self._set_group_url(p, group, idx, str(new_url)):
-                done += 1
-                add_step(res, f"方案{i}", True,
-                         f"{GROUP_LABELS.get(group, group)} " +
-                         ("+新图" if append else f"第{slot['target']}张") +
-                         f" · 素材 {len(files)} 张")
+            insert = job.get("insert") or ("first" if job["mode"] == "generate" else "replace")
+            if insert == "first":
+                for u in reversed(made):
+                    urls.insert(0, u)
+                self._set_group_list(p, group, urls)
+            elif insert == "last":
+                urls.extend(made)
+                self._set_group_list(p, group, urls)
             else:
-                failed += 1
-                add_step(res, f"方案{i}", False, "目标位置不存在")
-        if done or failed:
-            add_step(res, "逐图编辑结果", failed == 0, f"成功 {done} / 失败 {failed}")
+                for k, u in enumerate(made):
+                    self._set_group_url(p, group, tgt_i + k, u)
+            add_step(res, f"精细任务{n}", True,
+                     f"{GROUP_LABELS.get(group, group)} · 素材 {len(files)} 张 · "
+                     + ("插到第1张" if insert == "first" else "放到最后" if insert == "last" else "替换原图"))
         return p
+
+    @staticmethod
+    def _set_group_list(p: dict, group: str, urls: list[str]) -> None:
+        if group == "sku":
+            skus = p.get("skus") or []
+            for sku, u in zip(skus, urls):
+                if u:
+                    sku["processed_image"] = u
+            return
+        key = "detail_images" if group == "detail" else "images"
+        p[key] = list(urls)
+
+    # 兼容旧名（测试与老调用）
+    def _apply_edit_plans(self, p: dict, res, dry_run: bool = False) -> dict:
+        return self._apply_image_jobs(p, res, dry_run=dry_run)
 
     def _apply_template(self, p: dict, res) -> dict:
         """套用模板快照：类目/运费/属性（属性缺失时用模板的）。"""
@@ -308,44 +378,14 @@ class Publisher:
         return p
 
     def _price(self, p: dict) -> dict:
-        import json as _j
+        """统一走 services.pricing.compute_price，保证试算与刊登一致。"""
+        from .pricing import compute_price
         base = float(p.get("cost") or self.cfg.goods_cost or 0)
-        mode = self.cfg.price_mode
-        if mode == "commission":
-            r = calc_with_commission(base, float(self.cfg.price_multiplier or 1.2),
-                                     float(self.cfg.price_fixed_add or 0),
-                                     float(self.cfg.platform_commission or 0) / 100,
-                                     float(self.cfg.sales_profit or 0) / 100)
-        elif mode == "free_shipping":
-            r = calc_free_shipping(base, float(self.cfg.default_express_price or 0),
-                                   float(self.cfg.sales_profit or 0) / 100)
-            if self.cfg.regional_pricing:
-                from .pricing import regional_prices
-                p["regional"] = regional_prices(r.final, {"USD": 1.0, "EUR": 0.92, "GBP": 0.79})
-        elif mode == "multiplier" or True:
-            r = calc_multiplier(base, float(self.cfg.price_multiplier or 1.2),
-                                float(self.cfg.price_fixed_add or 0))
-            tpl_raw = (getattr(self.cfg, "adjust_price_template_detail", "") or "").strip()
-            if tpl_raw not in ("", "{}") and self.cfg.regional_pricing:
-                try:
-                    import json as _j2
-                    rate_map = _j2.loads(tpl_raw)
-                    if isinstance(rate_map, dict) and rate_map:
-                        from .pricing import regional_prices
-                        p["regional"] = regional_prices(r.final, {k: float(v) for k, v in rate_map.items()})
-                except Exception:
-                    pass
-
-            if self.cfg.tuoguan_price_tiered_enabled:
-                try:
-                    tiers = _j.loads(self.cfg.tuoguan_price_tiers or "[]")
-                    if tiers:
-                        from .pricing import apply_tier
-                        new_final = apply_tier(base, tiers)
-                        if new_final != base:
-                            r = type(r)(r.base, r.multiplier, r.fixed_add, new_final, "阶梯倍率")
-                except Exception:
-                    pass
+        r = compute_price(self.cfg, base)
+        if r.regional:
+            p["regional"] = dict(r.regional)
+        if r.wholesale:
+            p["wholesale"] = r.wholesale
         p["price_result"] = r
         return p
 
@@ -894,12 +934,16 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "图片AI处理", False, str(ex)[:100])
 
-            # 逐图编辑方案（每张图单独提示词 + 多图素材），放在常规处理之后、转存之前
-            if (getattr(self.cfg, "image_edit_plans", "") or "").strip() not in ("", "[]"):
+            # 图片方案（简单规则 + 精细任务；兼容旧逐图/指定编辑），放在常规处理之后、转存之前
+            _has_img_jobs = any(
+                (getattr(self.cfg, k, "") or "").strip() not in ("", "[]")
+                for k in ("image_simple_rules", "image_ai_jobs", "image_edit_plans"))
+            _has_img_jobs = _has_img_jobs or bool(getattr(self.cfg, "designated_edit_enable", False))
+            if _has_img_jobs:
                 try:
-                    p = self._apply_edit_plans(p, res, dry_run=dry_run)
+                    p = self._apply_image_jobs(p, res, dry_run=dry_run)
                 except Exception as ex:  # noqa: BLE001
-                    add_step(res, "逐图编辑方案", False, str(ex)[:100])
+                    add_step(res, "图片方案", False, str(ex)[:100])
 
             if getattr(self.cfg, "overlay_watermark_enable", False) and (self.cfg.watermark or "").strip():
                 try:
