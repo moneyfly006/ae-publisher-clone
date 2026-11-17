@@ -711,16 +711,25 @@ class Publisher:
                     add_step(res, "图片转存", False, str(ex)[:100])
 
             if not dry_run and self.dxm and p.get("images"):
-                uploaded, failed = 0, 0
+                uploaded, failed, space_full = 0, 0, False
                 for u in p["images"][:20]:
                     try:
                         self.dxm.upload_image_from_url(str(u), full_cid=getattr(self.cfg, "upload_full_cid", "") or "")
                         uploaded += 1
                     except Exception as ex:  # noqa: BLE001
+                        _msg = str(ex)
+                        if "空间不足" in _msg or "空间已满" in _msg or "no space" in _msg.lower():
+                            space_full = True
+                            break
                         failed += 1
-                        p.setdefault("upload_errors", []).append(str(ex)[:120])
-                res.steps.append(Step("图片上传", uploaded > 0 or failed == 0,
-                                      f"成功 {uploaded} / 失败 {failed}"))
+                        p.setdefault("upload_errors", []).append(_msg[:120])
+                if space_full:
+                    add_step(res, "图片上传", True,
+                             f"店小秘图片空间不足，已跳过上传（改用外链 URL，不影响刊登）")
+                    emit("图片上传", "图片空间不足", "已跳过，外链 URL 可正常使用", "WARN")
+                else:
+                    add_step(res, "图片上传", uploaded > 0 or failed == 0,
+                             f"成功 {uploaded} / 失败 {failed}")
 
             if (self.cfg.review_detail_img_enable and p.get("detail_images")):
                 try:

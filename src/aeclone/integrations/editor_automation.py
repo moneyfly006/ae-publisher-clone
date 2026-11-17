@@ -102,7 +102,7 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
 
         if not try_click():
             raise RuntimeError("未找到保存/更新按钮")
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(1800)
         # 处理确认弹窗（欧盟合规 / 发布确认等）
         for txt in ("继续发布", "确定", "确认", "继续", "知道了"):
             try:
@@ -113,7 +113,7 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
                     break
             except Exception:
                 continue
-        page.wait_for_timeout(9000)
+        page.wait_for_timeout(3500)
 
         if not seen.get("save"):
             if try_click():
@@ -227,7 +227,11 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
     applied = []
     try:
         page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
-        page.wait_for_timeout(10000)
+        try:
+            page.wait_for_selector(".ant-form-item", timeout=25000)
+        except Exception:
+            pass
+        page.wait_for_timeout(1200)
         fields = (snapshot or {}).get("fields") or {}
         attrs = (snapshot or {}).get("attributes") or []
 
@@ -469,7 +473,11 @@ def publish_from_list(ws_endpoint: str, product_id: str, confirm: bool = False,
     page.on("response", _on_resp)
     try:
         page.goto(LIST_URL, wait_until="domcontentloaded", timeout=timeout)
-        page.wait_for_timeout(12000)
+        try:
+            page.wait_for_selector(".vxe-table--body tbody tr", timeout=30000)
+        except Exception:
+            pass
+        page.wait_for_timeout(2500)
 
         # 在列表里按标题找到目标行（列表不显示产品 ID，只能按标题匹配）
         rows = page.locator(".vxe-table--body tbody tr")
@@ -538,7 +546,7 @@ def publish_from_list(ws_endpoint: str, product_id: str, confirm: bool = False,
                     break
             except Exception:
                 continue
-        page.wait_for_timeout(12000)
+        page.wait_for_timeout(6000)
 
         if dry_run:
             if captured.get("url"):
