@@ -24,6 +24,15 @@ class ApiClient:
         self.session = session or requests.Session()
         if proxy:
             self.session.proxies.update({"http": proxy, "https": proxy})
+        # 模型不可用时的自动回退（主模型 -> 备用模型）
+        self.fallback: dict[str, str] = {
+            "qwen-image-3.0": "qwen-image-2.1-turbo",
+            "qwen-image-2.1-turbo": "qwen-image-2.1-turbo",
+            "z-image-turbo": "z-image-turbo",
+            "deepseek-reasoner": "deepseek-chat",
+            "deepseek-chat": "qwen-plus",
+            "qwen3-vl-plus": "qwen-plus",
+        }
 
     # ---------- 基础 ----------
     def _headers(self, extra: dict | None = None) -> dict:
@@ -136,7 +145,17 @@ class ApiClient:
             timeout=self.timeout,
         )
         if r.status_code >= 400:
-            raise ApiError(self._extract_error(r), r.status_code, r.text[:500])
+            msg = self._extract_error(r)
+            alt = self._fallback_for(model, "image")
+            if alt and self._is_model_missing(msg):
+                data["model"] = alt
+                r2 = self.session.post(self._url("/v1/images/edits"), headers=self._headers(),
+                                       data=data, files=files, timeout=self.timeout)
+                if r2.status_code < 400:
+                    arr2 = r2.json().get("data") or []
+                    if arr2:
+                        return arr2[0].get("url", "")
+            raise ApiError(msg, r.status_code, r.text[:500])
         arr = r.json().get("data") or []
         if not arr:
             raise ApiError("图片接口未返回结果", r.status_code, r.text[:300])
@@ -151,11 +170,34 @@ class ApiClient:
             timeout=self.timeout,
         )
         if r.status_code >= 400:
-            raise ApiError(self._extract_error(r), r.status_code, r.text[:500])
+            msg = self._extract_error(r)
+            alt = self._fallback_for(model, "image")
+            if alt and self._is_model_missing(msg):
+                payload["model"] = alt
+                r2 = self.session.post(self._url("/v1/images/generations"),
+                                       headers=self._headers({"Content-Type": "application/json"}),
+                                       data=json.dumps(payload).encode(), timeout=self.timeout)
+                if r2.status_code < 400:
+                    arr2 = r2.json().get("data") or []
+                    if arr2:
+                        return arr2[0].get("url", "")
+            raise ApiError(msg, r.status_code, r.text[:500])
         arr = r.json().get("data") or []
         if not arr:
             raise ApiError("图片接口未返回结果", r.status_code, r.text[:300])
         return arr[0].get("url", "")
+
+    @staticmethod
+    def _is_model_missing(msg: str) -> bool:
+        low = (msg or "").lower()
+        return any(k in low for k in ("model_not_found", "no available channel", "model not found",
+                                      "does not exist", "无可用渠道", "模型不存在", "invalid model"))
+
+    def _fallback_for(self, model: str, kind: str = "image") -> str | None:
+        alt = self.fallback.get(model)
+        if not alt or alt == model:
+            alt = "qwen-image-2.1-turbo" if kind == "image" else "qwen-plus"
+        return alt if alt != model else None
 
     @staticmethod
     def _extract_error(r: requests.Response) -> str:

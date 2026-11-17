@@ -2972,12 +2972,27 @@ class App:
             self.page.update()
 
     def _maybe_quota(self, msg: str) -> None:
-        if any(k in str(msg) for k in ("额度", "余额", "quota", "insufficient", "欠费")):
+        txt = str(msg)
+        if any(k in txt for k in ("额度", "余额", "quota", "insufficient", "欠费", "billing")):
             try:
-                self.page.launch_url("https://api.moneyfly.club")
+                def go(e):
+                    self._close_dialog()
+                    try:
+                        self.page.launch_url(self.cfg.api_base or "https://api.moneyfly.club")
+                    except Exception:
+                        pass
+                self.dlg = ft.AlertDialog(
+                    title=ft.Text("额度不足"),
+                    content=ft.Text(f"本次调用被拒绝：{txt[:160]}\n\n当前价格参考：\n"
+                                    f"· 图片编辑 {self.cfg.model_image_edit}（¥{self._price_of(self.cfg.model_image_edit):.3f}/张）\n"
+                                    f"· 图片生成 {self.cfg.model_image_gen}（¥{self._price_of(self.cfg.model_image_gen):.3f}/张）"),
+                    actions=[ft.TextButton("稍后", on_click=lambda e: self._close_dialog()),
+                             ft.ElevatedButton("去充值", bgcolor="#F0A020", color="#1A1200", on_click=go)])
+                self.page.dialog = self.dlg
+                self.dlg.open = True
+                self.page.update()
             except Exception:
-                pass
-            self.toast("额度不足，已打开充值页面", False)
+                self.toast("额度不足，请去站点充值", False)
 
     def toast(self, msg, ok=True):
         self.page.snack_bar.content = ft.Text(msg, color=TEXT)
