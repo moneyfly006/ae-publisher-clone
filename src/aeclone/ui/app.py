@@ -313,8 +313,15 @@ class App:
                                  content=ft.Text("A", size=15, weight=ft.FontWeight.BOLD, color="#0B0D12")),
                     ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
                                muted("极光上架")], spacing=0)], spacing=10),
-            ft.Container(height=14), col, ft.Container(expand=True),
-
+            ft.Container(height=14), col,
+            ft.Container(height=8),
+            ft.Container(
+                content=ft.Row([ft.Icon(ft.Icons.TERMINAL, size=16, color=MUTED),
+                                ft.Text("日志监控", color=MUTED, size=13)], spacing=10),
+                padding=ft.padding.symmetric(horizontal=12, vertical=8), border_radius=10,
+                on_click=lambda e: self._open_log_panel(), ink=True),
+            ft.Container(expand=True),
+            ft.Row([ft.Icon(ft.Icons.VERIFIED_USER, size=14, color=ACCENT_2), self.license_text], spacing=6),
         ]))
         self.content = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14)
         self.page.add(ft.Row([sidebar, ft.Container(expand=True, content=self.content,
@@ -2456,6 +2463,80 @@ class App:
         return [h1("任务与日志"), bar,
                 card(ft.Column([h1("定时任务", 14)] + sched_rows, spacing=6)),
                 card(ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO, height=360))]
+
+    def _open_log_panel(self):
+        """全局日志侧栏：任意页面可唤出，实时刷新。"""
+        if getattr(self, "log_panel_open", False):
+            return
+        self.log_panel_open = True
+        self.log_panel_level = ft.Dropdown(width=110, value="全部", bgcolor=CARD_2, color=TEXT, border_color=CARD_2,
+                                           options=[ft.dropdown.Option(x) for x in ("全部", "INFO", "WARN", "ERROR")],
+                                           on_change=lambda e: self._render_log_panel())
+        self.log_panel_list = ft.Column(spacing=2, height=380, scroll=ft.ScrollMode.AUTO, auto_scroll=True)
+        self.log_panel_list.controls = [ft.Text(x, size=11, color=self._log_color(lv), selectable=True)
+                                        for _, lv, x in self._log_panel_items()]
+        self.log_panel_dlg = ft.AlertDialog(
+            title=ft.Row([ft.Text("日志监控"), self.log_panel_level,
+                          ft.TextButton("清空", on_click=lambda e: self._clear_logs()),
+                          ft.TextButton("导出", on_click=lambda e: self._export_logs())], spacing=12),
+            content=ft.Container(content=self.log_panel_list, width=760),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_log_panel())])
+        try:
+            self.page.dialog = self.log_panel_dlg
+            self.log_panel_dlg.open = True
+            self.page.update()
+        except Exception:
+            pass
+        threading.Thread(target=self._log_panel_loop, daemon=True).start()
+
+    @staticmethod
+    def _log_color(lv: str) -> str:
+        return {"ERROR": "#FF6B6B", "WARN": "#FFB020"}.get(str(lv).upper(), MUTED)
+
+    def _log_panel_items(self) -> list[tuple]:
+        rows = getattr(self, "log_rows", [])[-300:]
+        lv = getattr(self, "log_panel_level", None)
+        want = (lv.value if lv is not None else "全部") or "全部"
+        if want != "全部":
+            rows = [r for r in rows if str(r[1]).upper() == want]
+        return rows
+
+    def _log_panel_loop(self):
+        while getattr(self, "log_panel_open", False):
+            try:
+                self._render_log_panel()
+            except Exception:
+                break
+            time.sleep(2.0)
+
+    def _render_log_panel(self):
+        if getattr(self, "log_panel_list", None) is None:
+            return
+        self.log_panel_list.controls = [ft.Text(f"{t} [{lv}] {m}", size=11, color=self._log_color(lv), selectable=True)
+                                        for t, lv, m in self._log_panel_items()]
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _close_log_panel(self):
+        self.log_panel_open = False
+        try:
+            self.log_panel_dlg.open = False
+            self.page.update()
+        except Exception:
+            pass
+
+    def _clear_logs(self):
+        getattr(self, "log_rows", []).clear()
+        self._render_log_panel()
+
+    def _export_logs(self):
+        from pathlib import Path as _P
+        out = _P.home() / "Downloads" / f"aurora-logs-{time.strftime('%Y%m%d-%H%M%S')}.txt"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text("\n".join(f"{t} [{lv}] {m}" for t, lv, m in getattr(self, "log_rows", [])), encoding="utf-8")
+        self.toast(f"已导出：{out}")
 
     def _log(self, msg, level="INFO"):
         ts = time.strftime("%H:%M:%S")
