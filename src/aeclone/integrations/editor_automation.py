@@ -57,7 +57,12 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
     page.on("response", _on_resp)
     try:
         page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
-        page.wait_for_timeout(9000)
+        # 编辑器较重，等按钮出现再继续
+        try:
+            page.wait_for_selector('button:has-text("更新"), button:has-text("保存")', timeout=45000)
+        except Exception:
+            pass
+        page.wait_for_timeout(3000)
 
         title_input = page.locator("input[type=text]").first
         old = title_input.input_value(timeout=8000)
@@ -75,10 +80,20 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
         page.wait_for_timeout(800)
 
         def try_click() -> bool:
-            for label in ("保存", "更新", "保存并发布", "提交"):
+            selectors = [
+                'button:has-text("更新")', 'button:has-text("保存")',
+                'a.btn:has-text("更新")', 'a.btn:has-text("保存")',
+                '.btn:has-text("更新")',
+                'button:has-text("保存并发布")', 'button:has-text("提交")',
+            ]
+            for sel in selectors:
                 try:
-                    loc = page.get_by_role("button", name=label, exact=True).first
+                    loc = page.locator(sel).first
                     if loc.count() > 0:
+                        try:
+                            loc.scroll_into_view_if_needed(timeout=3000)
+                        except Exception:
+                            pass
                         loc.click(timeout=8000)
                         return True
                 except Exception:

@@ -123,6 +123,7 @@ def _launch_exe(exe: str, user_data_dir: str | None = None, port: int | None = N
     args = [
         exe,
         f"--remote-debugging-port={port}",
+        "--remote-allow-origins=*",
         f"--user-data-dir={profile}",
         "--no-first-run",
         "--no-default-browser-check",
