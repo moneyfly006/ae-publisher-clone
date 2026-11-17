@@ -217,6 +217,15 @@ DEFAULTS: dict = {
     "default_express_price": "0",
     "adjust_price_template_id": "",
     "adjust_price_template_name": "",
+    "marketing_image_enable": False,
+    "marketing_image_count": 1,
+    "marketing_image_prompt": (
+        "Create a marketing lifestyle image for this product: place the product in a clean modern "
+        "usage scene matching its purpose, natural lighting, shallow depth of field, product remains "
+        "the focus and unchanged in shape/color; no text, no logo, no watermark, 1:1 composition."
+    ),
+    "wholesale_enable": False,
+    "wholesale_tiers": "[]",
     "price_template_library": [],
     "prompt_sets": [],
     "active_prompt_set": "",

@@ -131,7 +131,7 @@ def _launch_exe(exe: str, user_data_dir: str | None = None, port: int | None = N
     ]
     if headless:
         args.append("--headless=new")
-    args.append("about:blank")
+    args.append(url or "about:blank")
     proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     deadline = time.time() + 20

@@ -16,7 +16,8 @@ def ensure_browser(cfg, force_show: bool = False) -> dict:
     if inst:
         from ..config import config_dir
         profile = str(config_dir().parent / "AuroraListInstances" / inst / "chrome-profile")
-    info = launch_browser("chrome", port=port, user_data_dir=profile)
+    info = launch_browser("chrome", port=port, user_data_dir=profile,
+                          url="https://www.dianxiaomi.com/web/smt/smtProductList/offline")
     if getattr(cfg, "browser_hide", True) and not force_show:
         try:
             hide_window(info.get("ws", ""))

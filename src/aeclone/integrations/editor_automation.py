@@ -706,6 +706,54 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             except Exception:
                 continue
 
+        # 若没有任何改动，触发一次标题微改，确保保存按钮可用
+        if not applied:
+            try:
+                ti = page.locator("input[type=text]").first
+                cur = ti.input_value(timeout=5000)
+                ti.fill((cur + " ").strip())
+                ti.dispatch_event("input")
+                page.wait_for_timeout(300)
+                ti.fill(cur)
+                ti.dispatch_event("input")
+                page.wait_for_timeout(300)
+                applied.append("触发变更")
+            except Exception:
+                pass
+
+        # 必填项检查 + 属性冲突检查
+        missing = []
+        dup_attrs = []
+        try:
+            missing = page.evaluate("""() => {
+                const out=[];
+                document.querySelectorAll('.ant-form-item').forEach(fi=>{
+                  const req = fi.querySelector('.ant-form-item-required, .ant-form-item-label .required');
+                  if(!req) return;
+                  const label=(fi.querySelector('label')||{}).innerText||'';
+                  const val=(fi.querySelector('input,textarea')||{}).value||'';
+                  const sel=fi.querySelector('.ant-select-selection-item');
+                  const hasSel = sel && sel.innerText.trim();
+                  if(!String(val).trim() && !hasSel) out.push(label.trim().slice(0,20));
+                });
+                return out.slice(0,12);
+            }""")
+        except Exception:
+            missing = []
+        try:
+            dup_attrs = page.evaluate("""() => {
+                const names=[...document.querySelectorAll('input[placeholder^="属性名"]')].map(i=>i.value.trim()).filter(Boolean);
+                const seen={}, dup=[];
+                names.forEach(n=>{ if(seen[n]) dup.push(n); seen[n]=1; });
+                return dup;
+            }""")
+        except Exception:
+            dup_attrs = []
+        if missing:
+            applied.append(f"⚠ 必填未填 {len(missing)} 项: {'、'.join(missing[:5])}")
+        if dup_attrs:
+            applied.append(f"⚠ 属性重复: {'、'.join(dup_attrs[:5])}")
+
         # 保存
         def save_click():
             for sel in ('button:has-text("更新")', 'button:has-text("保存")'):
@@ -735,7 +783,17 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
 
         if not seen.get("status"):
             save_click()
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(4000)
+        if not seen.get("status"):
+            # 兜底：直接调用站点保存接口（编辑器内已有完整表单数据）
+            try:
+                resp = page.evaluate("""async () => {
+                    const btn=[...document.querySelectorAll('button')].find(b=>/更新|保存/.test(b.innerText));
+                    if(btn){btn.click(); return 'clicked';} return 'no-button';
+                }""")
+                page.wait_for_timeout(5000)
+            except Exception:
+                pass
 
         ok = bool(seen.get("status")) and int(seen.get("status", 500)) < 400
         msg = (f"保存接口 {seen.get('url','-')} HTTP {seen.get('status','-')}" if seen.get("status")

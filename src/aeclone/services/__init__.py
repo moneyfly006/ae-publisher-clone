@@ -123,6 +123,14 @@ class ImageService:
             t.detail = str(url)[-40:]
             return url
 
+    def marketing(self, image: Path, prompt: str, n: int = 1) -> list[str]:
+        """基于主图生成营销场景图（走编辑模型，保留商品本体）。"""
+        m = model_of(self.cfg, "image_edit")
+        with track("营销图", (prompt or "")[:24], model=m, cost=BUS.price_of(m) * max(1, n)) as t:
+            url = self.client.images_edit(m, prompt, [image])
+            t.detail = str(url)[-40:]
+            return [url]
+
     def merge(self, images: Iterable[Path], prompt: str = "Merge these product photos into one clean product image on a white background.") -> str:
         m = model_of(self.cfg, "image_edit")
         imgs = list(images)

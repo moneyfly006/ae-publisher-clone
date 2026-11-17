@@ -704,6 +704,26 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "水印叠加", False, str(ex)[:80])
 
+            # 营销场景图（基于主图生成，追加到详情图）
+            if getattr(self.cfg, "marketing_image_enable", False) and p.get("images") and not dry_run:
+                try:
+                    import tempfile as _tf, requests as _rq
+                    from pathlib import Path as _Pm
+                    from . import ImageService
+                    from ..api import ApiClient as _ACm
+                    d_m = _Pm(_tf.mkdtemp())
+                    src = d_m / "m0.png"
+                    src.write_bytes(_rq.get(str(p["images"][0]), timeout=60).content)
+                    svc = ImageService(_ACm(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
+                    out = svc.marketing(src, getattr(self.cfg, "marketing_image_prompt", ""),
+                                        int(getattr(self.cfg, "marketing_image_count", 1) or 1))
+                    if out:
+                        p.setdefault("detail_images", [])
+                        p["detail_images"] = list(p["detail_images"]) + [u for u in out if u]
+                        add_step(res, "营销图", True, f"{len(out)} 张已生成")
+                except Exception as ex:  # noqa: BLE001
+                    add_step(res, "营销图", False, str(ex)[:80])
+
             if p.get("images"):
                 try:
                     p = self._publicize_images(p, res, dry_run=dry_run)

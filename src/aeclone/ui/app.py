@@ -204,6 +204,13 @@ def schema_image():
             Field("img_sku_edit", "SKU 图精细编辑", "bool"),
             Field("translate_sku_pic", "SKU 图文字翻译", "bool"),
         ]),
+        ("营销与批发", [
+            Field("marketing_image_enable", "生成营销场景图", "bool"),
+            Field("marketing_image_count", "营销图数量"),
+            Field("marketing_image_prompt", "营销图提示词", "multiline"),
+            Field("wholesale_enable", "启用批发价", "bool"),
+            Field("wholesale_tiers", "批发阶梯 JSON（如 [{\"min_qty\":10,\"price\":9.9}]）", "multiline"),
+        ]),
         ("通用", [
             Field("four_in_one", "四合一拼图", "bool"),
             Field("pad_main_images_from_extra", "主图不足用描述图补", "bool"),
