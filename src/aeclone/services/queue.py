@@ -36,6 +36,15 @@ class TaskQueue:
             try:
                 data = json.loads(p.read_text(encoding="utf-8"))
                 self.items = [QueueItem(**d) for d in data]
+                # 崩溃恢复：上次遗留的 running 视为未完成，重新排队
+                recovered = 0
+                for i in self.items:
+                    if i.status == "running":
+                        i.status = "pending"
+                        i.message = "上次中断，已重新排队"
+                        recovered += 1
+                if recovered:
+                    self.save()
             except Exception:
                 self.items = []
 
@@ -69,6 +78,18 @@ class TaskQueue:
                 i.message = message
                 break
         self.save()
+
+    def retry_failed(self) -> int:
+        """把失败的项重新放回待处理。"""
+        n = 0
+        for i in self.items:
+            if i.status == "failed":
+                i.status = "pending"
+                i.message = ""
+                n += 1
+        if n:
+            self.save()
+        return n
 
     def clear_done(self) -> int:
         before = len(self.items)

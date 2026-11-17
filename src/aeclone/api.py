@@ -183,9 +183,6 @@ class ApiClient:
             data=json.dumps(payload).encode(),
             timeout=self.timeout,
         )
-        _pe("API", "POST /v1/images/edits", f"HTTP {r.status_code} · {len(files)} 张图",
-            "OK" if r.status_code < 400 else "ERROR", model, 0.0,
-            __import__("time").time() - _t0)
         _pe("API", "POST /v1/images/generations", f"HTTP {r.status_code} · n={n}",
             "OK" if r.status_code < 400 else "ERROR", model, 0.0,
             __import__("time").time() - _t0)

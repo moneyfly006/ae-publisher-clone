@@ -12,10 +12,21 @@ class HostError(RuntimeError):
     pass
 
 
+_CACHE: dict[str, str] = {}
+
+
+def _hash_of(path) -> str:
+    import hashlib
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 def upload(path: Path, base: str = DEFAULT_HOST, timeout: int = 60) -> str:
     path = Path(path)
     if not path.exists():
         raise HostError(f"文件不存在: {path}")
+    h = _hash_of(path)
+    if h in _CACHE:
+        return _CACHE[h]
     with open(path, "rb") as f:
         r = requests.post(f"{base.rstrip('/')}/upload",
                           files={"file": (path.name, f, "image/png")}, timeout=timeout)
@@ -25,4 +36,5 @@ def upload(path: Path, base: str = DEFAULT_HOST, timeout: int = 60) -> str:
     url = data.get("url")
     if not url:
         raise HostError(f"未返回 URL: {data}")
+    _CACHE[h] = url
     return url

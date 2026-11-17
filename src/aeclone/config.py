@@ -110,6 +110,7 @@ DEFAULTS: dict = {
     "proxy_enabled": False,
     "proxy_url": "",
     "generate_main_video": False,
+    "upload_main_video": True,
     "use_template_video": False,
     "template_video_path": "",
     "overwrite_existing_video": False,

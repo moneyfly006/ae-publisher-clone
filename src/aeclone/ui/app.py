@@ -314,7 +314,15 @@ class App:
                                  content=ft.Text("A", size=15, weight=ft.FontWeight.BOLD, color="#0B0D12")),
                     ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
                                muted("极光上架")], spacing=0)], spacing=10),
-            ft.Container(height=14), col,
+            ft.Container(height=12),
+            ft.Container(
+                content=ft.Row([ft.Icon(ft.Icons.ROCKET_LAUNCH, size=18, color="#0B0D12"),
+                                ft.Text("启动上架", size=14, weight=ft.FontWeight.BOLD, color="#0B0D12")],
+                               spacing=8, alignment=ft.MainAxisAlignment.CENTER),
+                bgcolor=ACCENT, border_radius=12, padding=ft.padding.symmetric(vertical=12, horizontal=10),
+                on_click=lambda e: self._start(), ink=True),
+            ft.Container(height=10),
+            col,
             ft.Container(height=8),
             ft.Container(
                 content=ft.Row([ft.Icon(ft.Icons.TERMINAL, size=16, color=MUTED),
@@ -381,14 +389,58 @@ class App:
 
     def _render(self, title, schemas, extra=None):
         out = [h1(title)]
+        self._autosave_status = ft.Text("修改即自动保存", size=11, color=MUTED)
         for name, fields in schemas:
             c, refs = section(name, fields, self.cfg)
             self.field_refs.extend(refs)
+            for f in refs:
+                self._bind_autosave(f)
             out.append(c)
         if extra:
             out.append(extra)
-        out.append(self._save_row())
+        out.append(ft.Row([self._autosave_status,
+                           ft.OutlinedButton("恢复默认", icon=ft.Icons.RESTART_ALT,
+                                             on_click=lambda e: self._reset())], spacing=12))
         return out
+
+    def _bind_autosave(self, f):
+        if f.ctrl is None:
+            return
+        def handler(e, _f=f):
+            try:
+                self._autosave(_f)
+            except Exception:
+                pass
+        try:
+            f.ctrl.on_change = handler
+        except Exception:
+            pass
+
+    def _autosave(self, f):
+        """任意设置改动后 0.6 秒自动落盘（防抖，避免每键一写）。"""
+        try:
+            k, v = f.read()
+            self.cfg.set(k, v)
+        except Exception:
+            return
+        timer = getattr(self, "_autosave_timer", None)
+        if timer:
+            try:
+                timer.cancel()
+            except Exception:
+                pass
+        def _flush():
+            try:
+                save_config(self.cfg)
+                if getattr(self, "_autosave_status", None) is not None:
+                    self._autosave_status.value = f"已自动保存 {time.strftime('%H:%M:%S')}"
+                    self.page.update()
+            except Exception:
+                pass
+        t = threading.Timer(0.6, _flush)
+        t.daemon = True
+        self._autosave_timer = t
+        t.start()
 
     def _save_row(self):
         def save(e):
@@ -599,8 +651,10 @@ class App:
             errs.append("未填写 API Key")
         if not (cfg.store_id or cfg.store_name):
             errs.append("未选择店铺（点「同步店铺/模板」）")
-        if not (cfg.product_template_id or cfg.product_template_name):
-            errs.append("未选择产品模板")
+        if not any((cfg.product_template_id, cfg.product_template_name,
+                    getattr(cfg, "template_product_id", ""), getattr(cfg, "template_product_title", ""),
+                    (getattr(cfg, "template_snapshot", "") or "").strip() not in ("", "{}"))):
+            errs.append("未选择产品模板（可在「店铺设置 → 选择模板」选一个）")
         try:
             if int(cfg.edit_sum) <= 0:
                 errs.append("编辑产品数量必须大于 0")
@@ -628,6 +682,22 @@ class App:
         return errs
 
     def _start(self):
+        # 启动前先把当前配置全部落盘（含未失焦的输入）
+        try:
+            for f in self.field_refs:
+                try:
+                    k, v = f.read()
+                    self.cfg.set(k, v)
+                except Exception:
+                    continue
+            save_config(self.cfg)
+        except Exception:
+            pass
+        # 立刻跳到「任务与日志」，让用户看到实时进度
+        try:
+            self._switch(10)
+        except Exception:
+            pass
         errs = self._validate()
         if errs:
             dlg = ft.AlertDialog(title=ft.Text("启动前检查未通过"),
@@ -2169,7 +2239,9 @@ class App:
         self.q_panel = card(ft.Column([h1("任务队列", 15), self.q_text,
                                        ft.Row([ft.ElevatedButton("产品入队", icon=ft.Icons.ADD_TASK, on_click=enqueue),
                                                ft.ElevatedButton("处理队列(dry-run)", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white", on_click=process),
-                                               ft.OutlinedButton("清理已完成", on_click=lambda e: (self.q.clear_done(), self._refresh_queue()))], spacing=10)], spacing=8))
+                                               ft.OutlinedButton("清理已完成", on_click=lambda e: (self.q.clear_done(), self._refresh_queue())),
+                                               ft.OutlinedButton("重试失败", icon=ft.Icons.REPLAY,
+                                                                 on_click=lambda e: self._retry_failed_queue())], spacing=10, wrap=True)], spacing=8))
         return [h1("图片工作台"), muted("批量白底 / 去水印 / 编辑 / 主图视频（走你的 API 站点计费）"), self.wb_prod_card, self.q_panel,
                 card(ft.Column([self.wb_urls,
                                 ft.Row([ft.ElevatedButton("加载图片", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=load),
@@ -2262,6 +2334,11 @@ class App:
             self.page.update()
         except Exception:
             pass
+
+    def _retry_failed_queue(self):
+        n = self.q.retry_failed()
+        self._refresh_queue()
+        self.toast(f"已重新排队 {n} 个失败任务" if n else "没有失败任务")
 
     def _refresh_queue(self):
         st = self.q.stats()
@@ -2412,6 +2489,8 @@ class App:
 
     def _p_logs(self):
         self._current = 10
+        self.logs_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
+        self.logs_progress_text = ft.Text("空闲", size=12, color=MUTED)
         self.log_level = ft.Dropdown(width=120, value="全部", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                      options=[ft.dropdown.Option(x) for x in ("全部","INFO","WARN","ERROR")],
                                      on_change=lambda e: self._refresh_log_table())
@@ -2475,7 +2554,8 @@ class App:
             jobs = []
         sched_rows = [ft.Text(f"{j.product_id} · {time.strftime('%m-%d %H:%M', time.localtime(j.run_at))} · {j.title[:20]}",
                               size=11, color=TEXT) for j in jobs[:8]] or [ft.Text("暂无定时任务", size=11, color=MUTED)]
-        return [h1("任务与日志"), bar,
+        prog_card_logs = card(ft.Column([h1("实时进度", 15), self.logs_progress_text, self.logs_progress], spacing=8))
+        return [prog_card_logs, h1("任务与日志"), bar,
                 card(ft.Column([h1("定时任务", 14)] + sched_rows, spacing=6)),
                 card(ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO, height=360))]
 
@@ -2496,6 +2576,21 @@ class App:
             if total:
                 self.ov_progress.value = min(1.0, done / max(1, total))
                 self.ov_progress_text.value = f"步骤 {done}/{total} · {used:.1f}s · ¥{cost:.3f}"
+            # 同步日志页进度
+            if getattr(self, "logs_progress", None) is not None:
+                if total:
+                    self.logs_progress.value = min(1.0, done / max(1, total))
+                    self.logs_progress_text.value = f"步骤 {done}/{total} · {used:.1f}s · 累计 ¥{cost:.3f}"
+            # 把结构化事件也写进「任务与日志」表格
+            try:
+                if not hasattr(self, "log_rows"):
+                    self.log_rows = []
+                self.log_rows.append((time.strftime("%H:%M:%S", time.localtime(ev.ts)), ev.level, ev.text()))
+                self.log_rows = self.log_rows[-1000:]
+                if getattr(self, "log_table", None) is not None:
+                    self._refresh_log_table()
+            except Exception:
+                pass
             self.ov_recent.controls = [
                 ft.Text(f"{time.strftime('%H:%M:%S', time.localtime(e.ts))} {e.text()}", size=10,
                         color=self._log_color(e.level), selectable=True)

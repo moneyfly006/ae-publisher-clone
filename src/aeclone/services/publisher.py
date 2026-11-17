@@ -403,8 +403,14 @@ class Publisher:
                 add_step(res, "背景生成", True, f"{done_bg} 张")
         return p
 
-    def _publicize_images(self, p: dict, res) -> dict:
-        """把私有图片下载后转存到我们的服务器，得到公网可访问 URL。"""
+    def _publicize_images(self, p: dict, res, dry_run: bool = False) -> dict:
+        """把私有图片下载后转存到我们的服务器，得到公网可访问 URL。
+
+        dry-run 时跳过下载/上传（预演只需计划，不需要真实公网 URL），速度快 20 倍以上。
+        """
+        if dry_run:
+            add_step(res, "图片转存", True, f"dry-run 跳过（{len(p.get('images') or [])} 张）")
+            return p
         import tempfile
         from pathlib import Path as _P
         from .hosting import upload as host_upload
@@ -671,7 +677,7 @@ class Publisher:
 
             if p.get("images"):
                 try:
-                    p = self._publicize_images(p, res)
+                    p = self._publicize_images(p, res, dry_run=dry_run)
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "图片转存", False, str(ex)[:100])
 
@@ -828,6 +834,15 @@ class Publisher:
                         add_step(res, "模板写回", r_tpl.ok, r_tpl.message[:60])
                     except Exception as ex:  # noqa: BLE001
                         add_step(res, "模板写回", False, str(ex)[:80])
+                # 主图视频：先上传视频再保存
+                if p.get("main_video") and getattr(self.cfg, "upload_main_video", True):
+                    try:
+                        from ..integrations.editor_automation import attach_video
+                        rv = attach_video(self.ws_endpoint, str(p.get("id", "")), str(p["main_video"]))
+                        add_step(res, "视频上传", rv.ok, rv.message[:80])
+                    except Exception as ex:  # noqa: BLE001
+                        add_step(res, "视频上传", False, str(ex)[:80])
+
                 r = update_and_save(self.ws_endpoint, str(p.get("id", "")),
                                     p.get("title_en") or None)
                 if not r.ok:

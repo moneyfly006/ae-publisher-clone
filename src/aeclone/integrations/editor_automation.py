@@ -343,3 +343,89 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
             pass
         browser.close()
         pw.stop()
+
+
+def attach_video(ws_endpoint: str, product_id: str, video_path: str, timeout: int = 180000) -> SaveResult:
+    """在编辑器里上传主图视频：点「添加视频」→ 选择本地文件 → 等待上传完成 → 保存。"""
+    from pathlib import Path as _P
+    vp = _P(video_path)
+    if not vp.exists():
+        return SaveResult(False, f"视频不存在：{video_path}")
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    saved = {"ok": False, "msg": ""}
+    try:
+        page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
+        try:
+            page.wait_for_selector('button:has-text("添加视频")', timeout=45000)
+        except Exception:
+            pass
+        page.wait_for_timeout(2500)
+
+        # 点开视频上传区
+        clicked = False
+        for sel in ('button:has-text("添加视频")', '.btn:has-text("添加视频")', 'text=添加视频'):
+            try:
+                loc = page.locator(sel).first
+                if loc.count() > 0:
+                    loc.scroll_into_view_if_needed(timeout=3000)
+                    loc.click(timeout=6000)
+                    clicked = True
+                    break
+            except Exception:
+                continue
+        page.wait_for_timeout(2000)
+
+        # 找到文件输入并上传
+        inputs = page.locator('input[type="file"]')
+        n = inputs.count()
+        if n == 0:
+            return SaveResult(False, "未找到视频文件输入框（可能改版）")
+        target = None
+        for i in range(n):
+            try:
+                acc = (inputs.nth(i).get_attribute("accept") or "").lower()
+                if "video" in acc or "mp4" in acc:
+                    target = inputs.nth(i)
+                    break
+            except Exception:
+                continue
+        target = target or inputs.nth(0)
+        target.set_input_files(str(vp), timeout=30000)
+
+        # 等上传完成（出现进度/成功提示，或按钮变为可保存）
+        deadline = __import__("time").time() + 120
+        while __import__("time").time() < deadline:
+            page.wait_for_timeout(3000)
+            body = page.inner_text("body")
+            if any(k in body for k in ("上传成功", "视频已添加", "100%", "处理完成")):
+                break
+        page.wait_for_timeout(3000)
+
+        # 保存
+        for sel in ('button:has-text("更新")', 'button:has-text("保存")'):
+            try:
+                b = page.locator(sel).first
+                if b.count() > 0:
+                    b.click(timeout=8000)
+                    saved["ok"] = True
+                    saved["msg"] = f"视频已上传并保存（{vp.name}）"
+                    break
+            except Exception:
+                continue
+        if not saved["ok"]:
+            saved["msg"] = "视频已选择，但未找到保存按钮"
+        page.wait_for_timeout(4000)
+        return SaveResult(saved["ok"], saved["msg"])
+    except Exception as e:  # noqa: BLE001
+        return SaveResult(False, f"视频上传失败：{str(e)[:160]}")
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        try:
+            browser.close()
+        except Exception:
+            pass
+        pw.stop()
