@@ -1549,6 +1549,59 @@ class App:
         self.dlg.open = True
         self.page.update()
 
+    def _search_attr_templates(self):
+        try:
+            ck = self._cookies()
+            client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            items = client.attribute_templates(self.cfg.shop_id or None, (self.attr_kw.value or "").strip())
+            rows = []
+            for t in items[:40]:
+                name = t.get("name") or t.get("templateName") or str(t.get("id", ""))
+                tid = str(t.get("id", ""))
+                attrs = t.get("attributes") or t.get("attrList") or t.get("data") or []
+                pairs = []
+                if isinstance(attrs, dict):
+                    pairs = [f"{k}={v}" for k, v in attrs.items()]
+                elif isinstance(attrs, list):
+                    for a in attrs:
+                        if isinstance(a, dict):
+                            k = a.get("name") or a.get("attrName") or ""
+                            v = a.get("value") or a.get("attrValue") or ""
+                            if k:
+                                pairs.append(f"{k}={v}")
+                        elif isinstance(a, str) and "=" in a:
+                            pairs.append(a)
+                elif isinstance(attrs, str) and "=" in attrs:
+                    pairs = [x for x in attrs.split("\n") if "=" in x]
+
+                def apply(e, _tid=tid, _name=name, _pairs=pairs):
+                    self.cfg.attribute_template_id = _tid
+                    self.cfg.custom_attributes = _pairs
+                    save_config(self.cfg)
+                    self.attr_status.value = f"已应用 {_name}（{len(_pairs)} 条属性）"
+                    self.toast(f"已应用属性模板：{_name}")
+
+                rows.append(ft.ListTile(
+                    title=ft.Text(name, size=13, color=TEXT),
+                    subtitle=ft.Text(f"{tid} · {len(pairs)} 条属性", size=10, color=MUTED),
+                    on_click=apply))
+            self.attr_list.controls = rows or [ft.Text("没有属性模板（可先在店小秘创建）", size=12, color="#FFB020")]
+            self.attr_status.value = f"共 {len(rows)} 个模板"
+        except Exception as ex:
+            self.attr_status.value = f"搜索失败：{ex}"
+            self.attr_list.controls = []
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _clear_attrs(self):
+        self.cfg.custom_attributes = []
+        self.cfg.attribute_template_id = ""
+        save_config(self.cfg)
+        self.attr_status.value = "已清空"
+        self.toast("已清空自定义属性")
+
     def _close_dialog(self):
         self.dlg.open = False
         self.page.update()
@@ -1565,7 +1618,26 @@ class App:
             kept = [f for f in fields if f.key not in others]
             if kept:
                 deduped.append((sec_name, kept))
-        return self._render("高级设置", deduped)
+        view = self._render("高级设置", deduped)
+
+        self.attr_kw = ft.TextField(label="属性模板关键词", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.attr_status = ft.Text("", size=12, color=MUTED)
+        self.attr_list = ft.Column(spacing=4)
+
+        def attr_search(e):
+            self.attr_status.value = "搜索中…"
+            self.page.update()
+            threading.Thread(target=self._search_attr_templates, daemon=True).start()
+
+        attr_card = card(ft.Column([
+            h1("属性模板", 15),
+            muted("从店小秘属性模板读取「属性名=值」，发布时自动填入编辑器"),
+            ft.Row([self.attr_kw,
+                    ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, bgcolor=CARD_2, color=TEXT, on_click=attr_search),
+                    ft.OutlinedButton("清空已应用属性", on_click=lambda e: self._clear_attrs())], spacing=10),
+            self.attr_status, self.attr_list], spacing=8))
+
+        return [view[0], attr_card] + view[1:]
 
     def _p_ai(self):
         self._current = 3

@@ -179,6 +179,8 @@ DEFAULTS: dict = {
     "adjust_price_template_id": "",
     "adjust_price_template_name": "",
     "price_template_library": [],
+    "custom_attributes": [],
+    "attribute_template_id": "",
     # ---- 变种 ----
     "variant_mappings": "[]",
     # ---- 视频 / 发布 ----

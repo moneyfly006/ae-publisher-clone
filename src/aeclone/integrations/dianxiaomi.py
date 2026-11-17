@@ -279,6 +279,17 @@ class DianxiaomiClient:
         page_obj = ((data.get("data") or {}).get("page") or {})
         return page_obj.get("list") or []
 
+    def attribute_templates(self, shop_id=None, keyword: str = "", page: int = 1, size: int = 50) -> list[dict]:
+        """速卖通属性模板列表（实测 /api/smtAttributeTemplate/list.json）。"""
+        params = {"pageNo": page, "pageSize": size}
+        if shop_id:
+            params["shopId"] = shop_id
+        if keyword:
+            params["searchValue"] = keyword
+        data = self._get("attribute_template", params)
+        page_obj = ((data.get("data") or {}).get("page") or {})
+        return page_obj.get("list") or []
+
     def video_callback(self, file_id: str, file_name: str, file_size: int) -> Any:
         return self._post("video_callback", {"fileId": file_id, "fileName": file_name, "fileSize": file_size})
 

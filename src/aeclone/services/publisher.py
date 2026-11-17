@@ -797,7 +797,16 @@ class Publisher:
                 if snap_json and getattr(self.cfg, "apply_template_on_save", True):
                     try:
                         import json as _jt
-                        r_tpl = apply_template_fields(self.ws_endpoint, str(p.get("id", "")), _jt.loads(snap_json))
+                        _snap = _jt.loads(snap_json)
+                        # 合并自定义属性（来自属性模板 / 手工填写）
+                        _extra = getattr(self.cfg, "custom_attributes", None) or []
+                        if _extra:
+                            _attrs = list(_snap.get("attributes") or [])
+                            for _x in _extra:
+                                if isinstance(_x, str) and "=" in _x and _x not in _attrs:
+                                    _attrs.append(_x)
+                            _snap["attributes"] = _attrs
+                        r_tpl = apply_template_fields(self.ws_endpoint, str(p.get("id", "")), _snap)
                         res.steps.append(Step("模板写回", r_tpl.ok, r_tpl.message[:60]))
                     except Exception as ex:  # noqa: BLE001
                         res.steps.append(Step("模板写回", False, str(ex)[:80]))
