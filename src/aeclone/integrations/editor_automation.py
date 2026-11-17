@@ -82,7 +82,6 @@ def read_form_values(ws_endpoint: str, product_id: str, timeout: int = 90000) ->
             browser.close()
         except Exception:
             pass
-        pw.stop()
 
 
 def apply_form_values(page, values: dict) -> list[str]:
@@ -221,8 +220,22 @@ def _norm_attr(name: str) -> str:
     return SYS_ATTR_ALIASES.get(n, n)
 
 
+_PW_SINGLETON = {"pw": None}
+
+
+def _pw():
+    """复用同一个 Playwright 实例，避免重复 start 引发的 asyncio loop 冲突。"""
+    try:
+        if _PW_SINGLETON["pw"] is None:
+            _PW_SINGLETON["pw"] = sync_playwright().start()
+        return _PW_SINGLETON["pw"]
+    except Exception:
+        _PW_SINGLETON["pw"] = sync_playwright().start()
+        return _PW_SINGLETON["pw"]
+
+
 def _connect(ws: str):
-    pw = sync_playwright().start()
+    pw = _pw()
     browser = pw.chromium.connect_over_cdp(ws, timeout=30000)
     ctx = browser.contexts[0] if browser.contexts else browser.new_context()
     return pw, browser, ctx
@@ -244,7 +257,6 @@ def read_title(ws_endpoint: str, product_id: str, timeout: int = 60000) -> str:
         except Exception:
             pass
         browser.close()
-        pw.stop()
 
 
 def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = None,
@@ -358,7 +370,6 @@ def update_and_save(ws_endpoint: str, product_id: str, new_title: str | None = N
         except Exception:
             pass
         browser.close()
-        pw.stop()
 
 
 def publish_product(ws_endpoint: str, product_id: str, confirm: bool = False,
@@ -422,7 +433,6 @@ def publish_product(ws_endpoint: str, product_id: str, confirm: bool = False,
         except Exception:
             pass
         browser.close()
-        pw.stop()
 
 
 def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
@@ -552,7 +562,6 @@ def apply_template_fields(ws_endpoint: str, product_id: str, snapshot: dict,
         except Exception:
             pass
         browser.close()
-        pw.stop()
 
 
 def attach_video(ws_endpoint: str, product_id: str, video_path: str, timeout: int = 180000) -> SaveResult:
@@ -638,7 +647,6 @@ def attach_video(ws_endpoint: str, product_id: str, video_path: str, timeout: in
             browser.close()
         except Exception:
             pass
-        pw.stop()
 
 
 LIST_URL = "https://www.dianxiaomi.com/web/smt/smtProductList/offline"
@@ -779,7 +787,6 @@ def publish_from_list(ws_endpoint: str, product_id: str, confirm: bool = False,
             browser.close()
         except Exception:
             pass
-        pw.stop()
 
 
 def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = None,
@@ -1178,4 +1185,3 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             browser.close()
         except Exception:
             pass
-        pw.stop()
