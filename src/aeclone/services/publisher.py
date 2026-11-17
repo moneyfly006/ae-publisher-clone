@@ -1356,7 +1356,8 @@ class Publisher:
                                    weight=(getattr(self.cfg, "spec_weight", "") or None),
                                    length=(getattr(self.cfg, "spec_length", "") or None),
                                    width=(getattr(self.cfg, "spec_width", "") or None),
-                                   height=(getattr(self.cfg, "spec_height", "") or None))
+                                   height=(getattr(self.cfg, "spec_height", "") or None),
+                                   skus=(p.get("skus") if getattr(self.cfg, "write_sku_codes_to_product", True) else None))
                 if not r.ok:
                     raise RuntimeError(r.message)
                 add_step(res, "保存到店小秘", True, r.message[:200])

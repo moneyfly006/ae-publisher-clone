@@ -206,6 +206,7 @@ def schema_image():
             Field("image_concurrency", "单产品图片并发数（1-8，越大越快）"),
             Field("write_main_images_to_product", "AI 主图写回商品（替换主图）", "bool"),
             Field("write_detail_html_to_product", "AI 详情写回商品", "bool"),
+            Field("write_sku_codes_to_product", "SKU 编码写回商品", "bool"),
         ]),
         ("主图", [
             Field("main_image_generate_enable", "AI 生成主图（文生图）", "bool"),

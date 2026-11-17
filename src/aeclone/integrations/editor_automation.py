@@ -1089,6 +1089,68 @@ def _fill_specs(page, stock=None, weight=None, length=None, width=None, height=N
     return n
 
 
+def _fill_sku_names(page, skus: list[dict] | None) -> int:
+    """写回 SKU 自定义名称（编辑器暴露的「自定义名称」输入框才写）。"""
+    if not skus:
+        return 0
+    names = []
+    for s in skus:
+        if isinstance(s, dict):
+            names.append(str(s.get("optimized_name") or s.get("name") or s.get("sku") or "").strip())
+    if not names:
+        return 0
+    n = 0
+    for sel in ('input[placeholder*="自定义名称"]', 'input[placeholder*="SKU名称"]'):
+        try:
+            inputs = page.locator(sel)
+            for i in range(min(inputs.count(), len(names))):
+                if not names[i]:
+                    continue
+                try:
+                    el = inputs.nth(i)
+                    if not el.is_visible():
+                        continue
+                    el.fill(names[i][:20])
+                    el.press("Tab")
+                    n += 1
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    return n
+
+
+def _fill_sku_codes(page, skus: list[dict] | None) -> int:
+    """按行写回 SKU 编码/自定义名称（编辑器有 SKU编码 输入框）。"""
+    if not skus:
+        return 0
+    vals = []
+    for s in skus:
+        if not isinstance(s, dict):
+            continue
+        vals.append(str(s.get("optimized_name") or s.get("sku") or s.get("name") or "").strip())
+    if not vals:
+        return 0
+    n = 0
+    try:
+        inputs = page.locator('input[placeholder="SKU编码"]')
+        for i in range(min(inputs.count(), len(vals))):
+            if not vals[i]:
+                continue
+            try:
+                el = inputs.nth(i)
+                if not el.is_visible():
+                    continue
+                el.fill(vals[i])
+                el.press("Tab")
+                n += 1
+            except Exception:
+                continue
+    except Exception:
+        return 0
+    return n
+
+
 def _replace_main_images(page, urls: list[str]) -> bool | None:
     """通过「选择图片 -> 网络图片」替换主图；成功才允许保存。
 
@@ -1165,7 +1227,8 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
                    do_publish: bool = False, form_values: dict | None = None,
                    video_path: str | None = None, images: list[str] | None = None,
                    detail_html: str | None = None, price: float | None = None,
-                   stock=None, weight=None, length=None, width=None, height=None) -> SaveResult:
+                   stock=None, weight=None, length=None, width=None, height=None,
+                   skus: list[dict] | None = None) -> SaveResult:
     """一次打开编辑器完成：写模板字段 → 改标题 →（上传视频）→ 保存 →（可选发布）。
 
     相比 apply_template_fields + update_and_save 两次开页面，省一次导航约 20~40s。
@@ -1555,6 +1618,14 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             _sn = _fill_specs(page, stock, weight, length, width, height)
             if _sn:
                 applied.append(f"库存/规格 {_sn} 项")
+
+        if skus:
+            _nn = _fill_sku_names(page, skus)
+            _kn = _fill_sku_codes(page, skus)
+            if _nn:
+                applied.append(f"SKU名称 {_nn} 行")
+            if _kn:
+                applied.append(f"SKU编码 {_kn} 行")
 
         # AI 详情 HTML：写进描述富文本 iframe
         if detail_html:
