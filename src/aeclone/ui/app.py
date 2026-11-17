@@ -470,14 +470,17 @@ class App:
             self.scheduler.start(self._run_scheduled)
         except Exception as ex:
             self._log(f"调度器启动失败：{ex}", "WARN")
-        try:
-            from ..integrations.browser_cookies import describe, resolve
-            src = resolve("dianxiaomi.com", manual=getattr(self.cfg, "manual_cookies", None))
-            self.cookie_src = src
-            self._log(f"Cookie 源：{describe(src)}" + ("" if src.ok else f"（{src.error[:60]}）"),
-                      "INFO" if src.ok else "WARN")
-        except Exception as ex:
-            self._log(f"Cookie 检测异常：{ex}", "WARN")
+        def _detect_cookie():
+            try:
+                from ..integrations.browser_cookies import describe, resolve
+                src = resolve("dianxiaomi.com", manual=getattr(self.cfg, "manual_cookies", None))
+                self.cookie_src = src
+                self._cookie_ts = time.time()
+                self._log(f"Cookie 源：{describe(src)}" + ("" if src.ok else f"（{src.error[:60]}）"),
+                          "INFO" if src.ok else "WARN")
+            except Exception as ex:
+                self._log(f"Cookie 检测异常：{ex}", "WARN")
+        threading.Thread(target=_detect_cookie, daemon=True).start()
 
         try:
             self._maybe_wizard()
@@ -1019,42 +1022,38 @@ class App:
             self._switch(10)
         except Exception:
             pass
-        # 授权校验：未授权不允许开始（防止白嫖/重复机器码）
+        # 授权校验：未授权不允许开始；但不要在 UI 线程里阻塞等网络
         try:
             if getattr(self.cfg, "license_enforce", True) and not (self.license_state or {}).get("ok"):
                 from ..license import machine_code as _mc
-                from ..license import verify as _verify
-                self._log("开始前检查授权…")
-                res = _verify(self.cfg.license_server,
-                              identity_override=str(getattr(self.cfg, "license_identity", "") or ""),
-                              public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""))
-                self.license_state = res
-                if not res.get("ok"):
-                    st = getattr(self, "license_text", None)
-                    if st is not None:
-                        st.value = "未授权"
-                        st.color = "#FF6B6B"
-                    code = _mc()
-                    dlg = ft.AlertDialog(
-                        title=ft.Text("未授权，暂时不能开始"),
-                        content=ft.Column([
-                            ft.Text("把这台电脑的机器码发给管理员登记后，点「重新检测」即可：", size=12, color=TEXT),
-                            ft.Text(code, size=16, weight=ft.FontWeight.BOLD, color=ACCENT_2, selectable=True),
-                            ft.Text(str(res.get("message") or "")[:120], size=11, color="#FFB020"),
-                        ], spacing=8, width=460),
-                        actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
-                                 ft.TextButton("复制机器码", on_click=lambda e: self._copy_machine(code)),
-                                 ft.ElevatedButton("重新检测", bgcolor=ACCENT, color="white",
-                                                   on_click=lambda e: (setattr(dlg, "open", False),
-                                                                       threading.Thread(target=self._check_license,
-                                                                                        daemon=True).start(),
-                                                                       self._safe_update()))])
-                    self.page.dialog = dlg
-                    dlg.open = True
-                    self._safe_update()
+                state = self.license_state or {}
+                cached_ok = bool(getattr(self.cfg, "license_cache_ok", False)) and \
+                    (time.time() - float(getattr(self.cfg, "license_cache_ts", 0) or 0) < 12 * 3600)
+                exp = str(getattr(self.cfg, "license_cache_expiry", "") or "")
+                if cached_ok and exp and exp < __import__("datetime").date.today().isoformat():
+                    cached_ok = False
+                if not state:
+                    threading.Thread(target=self._check_license, daemon=True).start()
+                    if not cached_ok:
+                        self._log("授权检测中，本次启动已阻止（请 1~3 秒后再点启动）", "WARN")
+                        self.toast("正在检测授权，请稍后再点启动", False)
+                        return
+                    self._log("使用上次授权缓存启动，后台复核中…", "INFO")
+                else:
+                    self._show_license_block(str(state.get("message") or "未授权"))
                     return
         except Exception as ex:
             self._log(f"授权检查异常：{ex}", "WARN")
+        if getattr(self, "_running", False):
+            self.toast("正在运行，请等当前任务结束或点「停止」", False)
+            return
+        self._stop_requested = False
+        try:
+            if getattr(self, "run_status", None) is not None:
+                self.run_status.value = "状态：运行中…"
+                self.run_status.color = ACCENT_2
+        except Exception:
+            pass
         errs = self._validate()
         if errs:
             dlg = ft.AlertDialog(title=ft.Text("启动前检查未通过"),
@@ -1117,6 +1116,43 @@ class App:
         except Exception:
             pass
 
+    def _show_license_block(self, message: str = ""):
+        from ..license import machine_code as _mc
+        code = _mc()
+        st = getattr(self, "license_text", None)
+        if st is not None:
+            st.value = "未授权"
+            st.color = "#FF6B6B"
+        dlg = ft.AlertDialog(
+            title=ft.Text("未授权，暂时不能开始"),
+            content=ft.Column([
+                ft.Text("把这台电脑的机器码发给管理员登记后，点「重新检测」即可：", size=12, color=TEXT),
+                ft.Text(code, size=16, weight=ft.FontWeight.BOLD, color=ACCENT_2, selectable=True),
+                ft.Text(str(message or "")[:120], size=11, color="#FFB020"),
+            ], spacing=8, width=460),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
+                     ft.TextButton("复制机器码", on_click=lambda e: self._copy_machine(code)),
+                     ft.ElevatedButton("重新检测", bgcolor=ACCENT, color="white",
+                                       on_click=lambda e: (setattr(dlg, "open", False),
+                                                           threading.Thread(target=self._check_license,
+                                                                            daemon=True).start(),
+                                                           self._safe_update()))])
+        self.page.dialog = dlg
+        dlg.open = True
+        self._safe_update()
+
+    def _request_stop(self, e=None):
+        self._stop_requested = True
+        try:
+            if getattr(self, "run_status", None) is not None:
+                self.run_status.value = "状态：已请求停止（当前任务结束后停）"
+                self.run_status.color = "#FFB020"
+        except Exception:
+            pass
+        self._log("已请求停止：当前产品/任务结束后停止", "WARN")
+        self.toast("已请求停止")
+        self._safe_update()
+
     def _copy_machine(self, code: str = ""):
         from ..license import machine_code as _mc
         code = code or _mc()
@@ -1141,7 +1177,32 @@ class App:
                 pass
 
     def _run_pipeline(self):
-        """并发处理多个产品（老软件同样支持多线程跑），进度条改为「并行中」。"""
+        """并发处理多个产品；带停止请求与心跳日志，避免看起来“卡死”。"""
+        if getattr(self, "_running", False):
+            self._log("已有任务在运行，忽略本次启动", "WARN")
+            return
+        self._running = True
+        self._stop_requested = False
+        hb_stop = threading.Event()
+        state = {"done": 0, "current": "", "total": 0}
+
+        def finish(msg: str = ""):
+            self._running = False
+            hb_stop.set()
+            try:
+                if getattr(self, "run_status", None) is not None:
+                    self.run_status.value = "状态：" + (msg or "空闲")
+                    self.run_status.color = ACCENT_2 if "完成" in (msg or "") else MUTED
+            except Exception:
+                pass
+            try:
+                if getattr(self, "ov_progress", None) is not None:
+                    self.ov_progress.value = 1
+                    self.ov_progress_text.value = msg or "空闲"
+                    self._safe_update()
+            except Exception:
+                pass
+
         try:
             ck = self._cookies()
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
@@ -1152,7 +1213,10 @@ class App:
             prods = dxm.pending_products(limit=limit, shop_id=self.cfg.store_id or None)
             self.products = prods
             if not prods:
-                self._log("没有可编辑（待发布）的产品", "WARN"); return
+                self._log("没有可编辑（待发布）的产品", "WARN")
+                finish("没有待处理产品")
+                return
+            state["total"] = len(prods)
             workers = max(1, min(int(getattr(self.cfg, "concurrency", 3) or 3), 8, len(prods)))
             self._log(f"本次待处理 {len(prods)} 个产品，并发 {workers}", "INFO")
             try:
@@ -1163,12 +1227,22 @@ class App:
             except Exception:
                 pass
 
+            def heartbeat():
+                while not hb_stop.wait(15):
+                    self._log(f"运行中：已完成 {state['done']}/{state['total']} · 当前 {state['current'] or '-'}", "INFO")
+
+            threading.Thread(target=heartbeat, daemon=True).start()
+
             ok_n = fail_n = 0
             lock = threading.Lock()
 
             def work(item):
                 i, prod = item
                 nonlocal ok_n, fail_n
+                if self._stop_requested:
+                    self._log(f"[{i}/{len(prods)}] 已停止，跳过 {prod.get('id')}", "WARN")
+                    return
+                state["current"] = f"{prod.get('title') or prod.get('id')}"[:40]
                 self._log(f"[{i}/{len(prods)}] {prod['id']} {(prod.get('title') or '')[:40]}", "INFO")
                 try:
                     local_ck = dict(ck)
@@ -1187,24 +1261,25 @@ class App:
                     with lock:
                         fail_n += 1
                     self._log(f"   失败：{ex}", "ERROR")
+                finally:
+                    with lock:
+                        state["done"] += 1
 
             import concurrent.futures as _cf
             with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
                 list(ex.map(work, list(enumerate(prods, 1))))
-            self._log(f"完成：成功 {ok_n} / 失败 {fail_n}", "INFO")
+            self._log(f"完成：成功 {ok_n} / 失败 {fail_n}" + ("（已按请求停止）" if self._stop_requested else ""), "INFO")
             try:
                 history.record("pipeline", ok_n, fail_n)
             except Exception:
                 pass
-            try:
-                if getattr(self, "ov_progress", None) is not None:
-                    self.ov_progress.value = 1
-                    self.ov_progress_text.value = f"完成：成功 {ok_n} / 失败 {fail_n}"
-                    self._safe_update()
-            except Exception:
-                pass
+            finish(f"完成：成功 {ok_n} / 失败 {fail_n}")
         except Exception as ex:
             self._log(f"运行异常：{ex}", "ERROR")
+            finish("运行异常")
+        finally:
+            self._running = False
+            hb_stop.set()
 
     def _self_test(self):
         from ..services.text_pipeline import TextPipeline
@@ -1303,14 +1378,12 @@ class App:
         self.store_status = ft.Text("点击「读取并同步」获取店铺与模板", size=12, color=MUTED)
 
         def refresh_cookie(e):
-            ok, text = self._cookie_status_text(refresh=True)
-            self.cookie_status.value = f"Cookie：{text}"
-            self.cookie_status.color = ACCENT_2 if ok else "#FFB020"
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-            self.toast(("Cookie 可用：" if ok else "Cookie 仍不可用：") + text, ok)
+            def go():
+                ok, text = self._cookie_status_text(refresh=True)
+                self.cookie_status.value = f"Cookie：{text}"
+                self.cookie_status.color = ACCENT_2 if ok else "#FFB020"
+                self.toast(("Cookie 可用：" if ok else "Cookie 仍不可用：") + text, ok)
+            threading.Thread(target=go, daemon=True).start()
 
         def sync(e):
             self.store_status.value = "正在读取…"; self._safe_update()
@@ -1324,8 +1397,7 @@ class App:
                     ft.OutlinedButton("重新检测 Cookie", icon=ft.Icons.REFRESH, on_click=refresh_cookie),
                     ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self._paste_cookie()),
                     ft.OutlinedButton("启动浏览器（兜底）", icon=ft.Icons.OPEN_IN_BROWSER,
-                                      on_click=lambda e: threading.Thread(target=self._connect_browser, daemon=True).start()),
-                    ft.OutlinedButton("从链接采集", icon=ft.Icons.LINK, on_click=lambda e: self._collect_dialog())],
+                                      on_click=lambda e: threading.Thread(target=self._connect_browser, daemon=True).start())],
                    spacing=10, wrap=True),
             self.store_status,
         ], spacing=10))
@@ -1387,51 +1459,6 @@ class App:
                                    on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))
 
     # ---------- 对接动作 ----------
-    def _collect_dialog(self):
-        url_field = ft.TextField(label="商品链接（1688 / 阿里国际 / 其它）", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        out = ft.TextField(label="采集结果", multiline=True, min_lines=6, read_only=True,
-                           bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-
-        state = {"collected": None}
-
-        def to_queue(e):
-            c = state.get("collected")
-            if not c or not c.ok:
-                self.toast("请先采集成功", False); return
-            try:
-                from ..services.collector import to_product
-                prod = to_product(c)
-                self.products = [prod] + [x for x in getattr(self, "products", []) if x.get("id") != ""]
-                self.toast("已加入产品列表（未入库，可先试跑）")
-                self._log(f"采集并入列：{prod['title'][:30]}")
-                dlg.open = False; self._safe_update()
-            except Exception as ex:
-                self.toast(f"失败：{ex}", False)
-
-        def run(e):
-            out.value = "采集中…"; self._safe_update()
-            def go():
-                try:
-                    from ..services.collector import collect
-                    r = collect((url_field.value or "").strip())
-                    if r.ok:
-                        state["collected"] = r
-                        out.value = f"标题：{r.title}\n图片：{len(r.images)} 张\n价格：{r.price or '-'}\n\n" + "\n".join(r.images[:8])
-                        self._log(f"采集成功：{r.title[:30]} / {len(r.images)} 张图")
-                    else:
-                        out.value = f"采集失败（可能需要登录或页面需 JS）：{r.error}"
-                except Exception as ex:
-                    out.value = f"异常：{ex}"
-                self._safe_update()
-            threading.Thread(target=go, daemon=True).start()
-
-        dlg = ft.AlertDialog(title=ft.Text("从链接采集商品"),
-                             content=ft.Column([url_field, out], spacing=10, width=560),
-                             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
-                                      ft.TextButton("加入队列", on_click=to_queue),
-                                      ft.ElevatedButton("开始采集", bgcolor=ACCENT, color="white", on_click=run)])
-        self.page.dialog = dlg; dlg.open = True; self._safe_update()
-
     def _template_library_dialog(self):
         import json as _j
         lib = _tpl_lib_load(self.cfg.template_library)
@@ -1765,11 +1792,23 @@ class App:
         raise RuntimeError("未读取到店小秘 Cookie：请点「粘贴 Cookie」，或点「启动浏览器（兜底）」登录一次")
 
     def _cookie_status_text(self, refresh: bool = False, allow_cdp: bool = False) -> tuple[bool, str]:
-        """给界面显示的 Cookie 状态（不抛错、不阻塞：默认不连 CDP）。"""
+        """给界面显示的 Cookie 状态。
+
+        默认**不读本机 Cookie 库**（macOS 解密可能弹 Keychain，导致界面像卡死），
+        只用手动配置/缓存；点「重新检测」时才在后台线程真正读取。
+        """
         from ..integrations.browser_cookies import describe, resolve
         cached = getattr(self, "cookie_src", None)
-        if not refresh and cached is not None and (time.time() - getattr(self, "_cookie_ts", 0)) < 60:
-            return bool(cached.ok and cached.cookies), describe(cached)
+        if not refresh:
+            if cached is not None and (time.time() - getattr(self, "_cookie_ts", 0)) < 60:
+                return bool(cached.ok and cached.cookies), describe(cached)
+            manual = getattr(self.cfg, "manual_cookies", None)
+            if isinstance(manual, dict) and manual:
+                src = resolve("dianxiaomi.com", manual=manual, ws_endpoint="", use_local=False)
+                self.cookie_src = src
+                self._cookie_ts = time.time()
+                return True, describe(src)
+            return False, "未检测（点「重新检测 Cookie」）"
         try:
             src = resolve("dianxiaomi.com", manual=getattr(self.cfg, "manual_cookies", None),
                           ws_endpoint=self.ws_endpoint if allow_cdp else "")
@@ -1999,6 +2038,13 @@ class App:
         """把当前使用的模板（快照 + 表单值）存到本地模板库；读取全部在后台。"""
         try:
             import json as _j
+            try:
+                _snap_chk = _j.loads(getattr(self.cfg, "template_snapshot", "") or "{}")
+            except Exception:
+                _snap_chk = {}
+            if not (_snap_chk.get("fields") or _snap_chk.get("attributes")):
+                self.toast("当前没有模板参数可保存：请先选模板产品并读取参数", False)
+                return
             name = self.cfg.template_product_title or "未命名模板"
             lib = _tpl_lib_load(self.cfg.template_library)
             rec = {"name": name, "product_id": self.cfg.template_product_id or "",
@@ -3375,17 +3421,15 @@ class App:
 
         # ---- 连接 ----
         def recheck(e):
-            ok2, txt2 = self._cookie_status_text(refresh=True)
-            self.wb_conn.value = "Cookie：" + txt2
-            self.wb_conn.color = ACCENT_2 if ok2 else "#FF6B6B"
-            if ok2:
-                threading.Thread(target=self._wb_check_login, daemon=True).start()
-            else:
-                self.toast("仍未读到 Cookie，请粘贴 Cookie 或启动浏览器", False)
-            try:
-                self._safe_update()
-            except Exception:
-                pass
+            def go():
+                ok2, txt2 = self._cookie_status_text(refresh=True)
+                self.wb_conn.value = "Cookie：" + txt2
+                self.wb_conn.color = ACCENT_2 if ok2 else "#FF6B6B"
+                if ok2:
+                    self._wb_check_login()
+                else:
+                    self.toast("仍未读到 Cookie，请粘贴 Cookie 或启动浏览器", False)
+            threading.Thread(target=go, daemon=True).start()
 
         def open_browser(e):
             threading.Thread(target=self._connect_browser, daemon=True).start()
@@ -3747,6 +3791,12 @@ class App:
 
     def _process_queue(self):
         """队列并发处理（受「并发数」限制），失败不影响其它任务。"""
+        if getattr(self, "_running", False):
+            self._log("已有任务在运行，队列稍后再处理", "WARN")
+            self.toast("已有任务在运行", False)
+            return
+        self._running = True
+        self._stop_requested = False
         try:
             ck = self._cookies()
             DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
@@ -3757,6 +3807,7 @@ class App:
         by_id.update({str(k): v for k, v in getattr(self, "_queue_products", {}).items()})
         items = self.q.pending()
         if not items:
+            self._running = False
             self.toast("队列为空", False)
             return
         workers = max(1, min(int(getattr(self.cfg, "concurrency", 3) or 3), 8, len(items)))
@@ -3764,6 +3815,9 @@ class App:
         counts = {"ok": 0, "fail": 0}
 
         def work(item):
+            if self._stop_requested:
+                self._log(f"已停止，跳过队列 {item.product_id}", "WARN")
+                return
             base = by_id.get(item.product_id, {})
             prod = {"id": item.product_id,
                     "title": base.get("title") or item.title,
@@ -3790,11 +3844,14 @@ class App:
 
         self._log(f"队列开始：{len(items)} 个任务，并发 {workers}")
         import concurrent.futures as _cf
-        with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
-            list(ex.map(work, items))
+        try:
+            with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
+                list(ex.map(work, items))
+        finally:
+            self._running = False
         ok, fail = counts["ok"], counts["fail"]
         history.record("queue", ok, fail)
-        self._log(f"队列完成：成功 {ok} / 失败 {fail}")
+        self._log(f"队列完成：成功 {ok} / 失败 {fail}" + ("（已按请求停止）" if self._stop_requested else ""))
         self.toast(f"队列处理完成：成功 {ok} / 失败 {fail}")
 
     def _images_from_products(self):
@@ -4154,6 +4211,7 @@ class App:
         self._current = 10
         self.logs_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
         self.logs_progress_text = ft.Text("空闲", size=12, color=MUTED)
+        self.run_status = ft.Text("状态：空闲", size=12, color=MUTED)
         self.log_level = ft.Dropdown(width=120, value="全部", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                      options=[ft.dropdown.Option(x) for x in ("全部","INFO","WARN","ERROR")],
                                      on_change=lambda e: self._refresh_log_table())
@@ -4172,6 +4230,8 @@ class App:
             self.toast(f"已导出：{out}")
 
         bar = card(ft.Row([
+            ft.ElevatedButton("停止任务", icon=ft.Icons.STOP_CIRCLE, bgcolor="#D9534F", color="white",
+                              on_click=self._request_stop),
             ft.ElevatedButton("导出日志", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=export),
             self.log_level,
             ft.ElevatedButton("清空", icon=ft.Icons.DELETE_OUTLINE, bgcolor=CARD_2, color=TEXT,
@@ -4217,7 +4277,8 @@ class App:
             muted("到点后自动在「待发布」列表里批量发布；商品本身在保存阶段已写入店小秘"),
             *(sched_rows or [ft.Text("暂无定时任务", size=11, color=MUTED)]),
         ], spacing=6))
-        prog_card_logs = card(ft.Column([h1("实时进度", 15), self.logs_progress_text, self.logs_progress], spacing=8))
+        prog_card_logs = card(ft.Column([ft.Row([h1("实时进度", 15), self.run_status], spacing=12),
+                                         self.logs_progress_text, self.logs_progress], spacing=8))
         return [prog_card_logs, h1("任务与日志"), bar, sched_card,
                 card(ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO, height=360))]
 
@@ -4381,6 +4442,17 @@ class App:
             self._refresh_log_table()
 
     def _refresh_log_table(self):
+        # 事件很多时不要每条都重建表格（会把 UI 拖死），0.5 秒合并一次
+        now = time.time()
+        if now - float(getattr(self, "_log_refresh_ts", 0) or 0) < 0.5:
+            t = getattr(self, "_log_refresh_timer", None)
+            if t is None or not t.is_alive():
+                t = threading.Timer(0.5, self._refresh_log_table)
+                t.daemon = True
+                self._log_refresh_timer = t
+                t.start()
+            return
+        self._log_refresh_ts = now
         rows = getattr(self, "log_rows", [])
         lv = getattr(self, "log_level", None)
         want = lv.value if lv is not None else "全部"
@@ -4898,6 +4970,13 @@ class App:
                              identity_override=str(getattr(self.cfg, "license_identity", "") or ""),
                              public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""))
         self.license_state = res
+        try:
+            self.cfg.set("license_cache_ok", bool(res.get("ok")))
+            self.cfg.set("license_cache_expiry", str(res.get("expiry") or ""))
+            self.cfg.set("license_cache_ts", int(time.time()) if res.get("ok") else 0)
+            save_config(self.cfg)
+        except Exception:
+            pass
         msg = res.get("message") or ("授权有效" if res.get("ok") else "未授权")
         self.license_text.value = "授权有效" if res.get("ok") else "未授权"
         self.license_text.color = ACCENT_2 if res.get("ok") else "#FF6B6B"

@@ -17,6 +17,9 @@ DEFAULTS: dict = {
     "license_server": "https://license.moneyfly.club",
     "license_enforce": True,                              # 未授权时禁止开始上架
     "license_identity": "",                               # 可选：从老软件复制过来的旧授权 ID
+    "license_cache_ok": False,                            # 上次授权结果（避免每次启动阻塞网络）
+    "license_cache_expiry": "",
+    "license_cache_ts": 0,
     "license_public_key": "",                             # 可选：服务端换公钥时覆盖内置公钥
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
     "image_cache_enable": True,                           # 相同图片+相同处理只调用一次（跨产品复用）

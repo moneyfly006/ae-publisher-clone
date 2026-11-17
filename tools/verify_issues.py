@@ -1221,7 +1221,8 @@ def main():
     _lib = _jj.loads(app7.cfg.template_library or "{}")
     check("模板库：保存为 name→记录", isinstance(_lib, dict) and "库模板1" in _lib, str(_lib)[:80])
     app7._template_library_dialog()
-    check("模板库：保存后可打开不崩", app7.page.dialog is not None and getattr(app7.page.dialog, "open", False), "")
+    _lib_text = " ".join(texts([app7.page.dialog]))
+    check("模板库：保存后可打开且能看到", "库模板1" in _lib_text, _lib_text[:100])
 
     # 页面去重：日志页不再有版本更新/视频；设置页有版本
     uapp._switch(10)
@@ -1232,10 +1233,18 @@ def main():
     set_labels2 = " ".join(texts(uapp.content.controls))
     check("去重：版本在设置里", "当前版本" in set_labels2 and "检查更新" in set_labels2, "")
     check("去重：侧栏无预览", "预览" not in " ".join(texts(uapp.page.controls)), "")
+    uapp._switch(1)
+    store_labels = " ".join(texts(uapp.content.controls))
+    check("采集：不可用功能已删除", "从链接采集" not in store_labels, "")
+    uapp._switch(10)
+    log_labels2 = " ".join(texts(uapp.content.controls))
+    check("运行：日志页有停止任务/状态", "停止任务" in log_labels2 and "状态" in log_labels2, "")
+    uapp._request_stop()
+    check("运行：停止标记生效", getattr(uapp, "_stop_requested", False) is True, "")
 
     # 未授权时不允许开始
     uapp.cfg.set("license_enforce", True)
-    uapp.license_state = {}
+    uapp.license_state = {"ok": False, "message": "未授权：该设备尚未登记", "expiry": ""}
     uapp._run_pipeline = lambda: started.update({"pipeline": True})
     started["pipeline"] = False
     with _mock.patch.object(_m, "verify_license", return_value={

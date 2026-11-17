@@ -48,7 +48,7 @@ def build_slideshow(images: list[Path], out_path: Path, seconds_per_image: float
         cmd = [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(listfile),
                "-r", "30", "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
                "-movflags", "+faststart", str(out_path)]
-        proc = run(cmd, capture_output=True, text=True)
+        proc = run(cmd, capture_output=True, text=True, timeout=600)
         if proc.returncode != 0:
             raise VideoError(f"ffmpeg 失败：{proc.stderr[-400:]}")
     return out_path
@@ -59,14 +59,14 @@ def probe(ffmpeg: str | None = None) -> dict:
     if not exe:
         return {"available": False, "path": ""}
     try:
-        out = subprocess.run([exe, "-version"], capture_output=True, text=True).stdout.splitlines()[0]
+        out = subprocess.run([exe, "-version"], capture_output=True, text=True, timeout=10).stdout.splitlines()[0]
     except Exception:
         out = ""
     return {"available": True, "path": exe, "version": out}
 
 
 def run_ffmpeg(cmd: list[str]) -> None:
-    proc = run(cmd, capture_output=True, text=True)
+    proc = run(cmd, capture_output=True, text=True, timeout=600)
     if proc.returncode != 0:
         raise RuntimeError(f"ffmpeg 失败：{proc.stderr[-400:]}")
 
@@ -160,7 +160,7 @@ def generate_carousel_video(images: list[Path], out_path: Path, slot_seconds: fl
     cmd += ["-filter_complex", ";".join(parts), "-map", f"[{cur}]",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
             "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path)]
-    proc = run(cmd, capture_output=True, text=True)
+    proc = run(cmd, capture_output=True, text=True, timeout=600)
     if proc.returncode != 0:
         raise VideoError(f"ffmpeg 失败：{proc.stderr[-500:]}")
     return out_path
