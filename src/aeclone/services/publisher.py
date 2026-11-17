@@ -188,7 +188,7 @@ class Publisher:
                 from . import ImageService
                 d = _P(_tf.mkdtemp()); fp = d / "in.png"
                 fp.write_bytes(_rq.get(str(url), timeout=90).content)
-                svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout))
+                svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
                 return svc.combined(fp) or str(url)
             except Exception:
                 pass

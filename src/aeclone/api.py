@@ -142,8 +142,8 @@ class ApiClient:
             raise ApiError("图片接口未返回结果", r.status_code, r.text[:300])
         return arr[0].get("url", "")
 
-    def images_generate(self, model: str, prompt: str, size: str = "1024x1024") -> str:
-        payload = {"model": model, "prompt": prompt, "size": size, "n": 1}
+    def images_generate(self, model: str, prompt: str, size: str = "1024x1024", n: int = 1) -> str:
+        payload = {"model": model, "prompt": prompt, "size": size, "n": max(1, int(n))}
         r = self.session.post(
             self._url("/v1/images/generations"),
             headers=self._headers({"Content-Type": "application/json"}),

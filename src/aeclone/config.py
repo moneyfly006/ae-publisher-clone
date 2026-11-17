@@ -10,6 +10,11 @@ APP_NAME = "AuroraList"
 
 DEFAULTS: dict = {
     # ---- 基础 / API ----
+    "model_text": "qwen-plus",
+    "model_vision": "qwen3-vl-plus",
+    "model_image_edit": "qwen-image-2.1-turbo",
+    "model_image_gen": "z-image-turbo",
+    "cost_warn_threshold": 5.0,
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "license_server": "https://license.moneyfly.club",

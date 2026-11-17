@@ -14,6 +14,20 @@ from ..config import AppConfig
 TEXT_MODEL = "qwen-plus"
 IMAGE_MODEL = "qwen-image-2.1-turbo"
 VISION_MODEL = "qwen3-vl-plus"
+IMAGE_GEN_MODEL = "z-image-turbo"
+
+
+def model_of(cfg, kind: str) -> str:
+    """按配置取模型名（kind: text/vision/image_edit/image_gen）。"""
+    defaults = {"text": TEXT_MODEL, "vision": VISION_MODEL,
+                "image_edit": IMAGE_MODEL, "image_gen": IMAGE_GEN_MODEL}
+    key = {"text": "model_text", "vision": "model_vision",
+           "image_edit": "model_image_edit", "image_gen": "model_image_gen"}[kind]
+    try:
+        v = getattr(cfg, key, "") if cfg is not None else ""
+    except Exception:
+        v = ""
+    return (v or "").strip() or defaults[kind]
 
 PROMPT_WHITE_BG = (
     "Remove the background completely and place the product on a pure white background (#FFFFFF). "
@@ -46,20 +60,20 @@ class TextService:
         self.cfg = cfg
 
     def translate_title(self, title: str) -> str:
-        return self.client.chat(TEXT_MODEL, [
+        return self.client.chat(model_of(getattr(self, "cfg", None), "text"), [
             {"role": "system", "content": self.cfg.title_prompt},
             {"role": "user", "content": title},
         ])
 
     def write_detail(self, title: str) -> str:
-        return self.client.chat(TEXT_MODEL, [
+        return self.client.chat(model_of(getattr(self, "cfg", None), "text"), [
             {"role": "system", "content": self.cfg.detail_prompt},
             {"role": "user", "content": title},
         ], max_tokens=1200)
 
     def optimize_skus(self, names: list[str]) -> list[str]:
         text = "\n".join(names)
-        out = self.client.chat(TEXT_MODEL, [
+        out = self.client.chat(model_of(getattr(self, "cfg", None), "text"), [
             {"role": "system", "content": self.cfg.sku_prompt},
             {"role": "user", "content": text},
         ], max_tokens=800)
@@ -68,24 +82,28 @@ class TextService:
 
 
 class ImageService:
-    def __init__(self, client: ApiClient):
+    def __init__(self, client: ApiClient, cfg=None):
         self.client = client
+        self.cfg = cfg
 
     def white_background(self, image: Path) -> str:
-        return self.client.images_edit(IMAGE_MODEL, PROMPT_WHITE_BG, [image])
+        return self.client.images_edit(model_of(self.cfg, "image_edit"), PROMPT_WHITE_BG, [image])
 
     def remove_watermark(self, image: Path) -> str:
-        return self.client.images_edit(IMAGE_MODEL, PROMPT_WATERMARK, [image])
+        return self.client.images_edit(model_of(self.cfg, "image_edit"), PROMPT_WATERMARK, [image])
 
     def combined(self, image: Path) -> str:
         """白底 + 去水印 合并成一次 AI 调用（省一半成本）。"""
-        return self.client.images_edit(IMAGE_MODEL, PROMPT_COMBINED, [image])
+        return self.client.images_edit(model_of(self.cfg, "image_edit"), PROMPT_COMBINED, [image])
 
     def edit(self, image: Path, prompt: str) -> str:
-        return self.client.images_edit(IMAGE_MODEL, prompt, [image])
+        return self.client.images_edit(model_of(self.cfg, "image_edit"), prompt, [image])
+
+    def generate(self, prompt: str, size: str = "1024x1024", n: int = 1) -> list[str]:
+        return self.client.images_generate(model_of(self.cfg, "image_gen"), prompt, size, n)
 
     def merge(self, images: Iterable[Path], prompt: str = "Merge these product photos into one clean product image on a white background.") -> str:
-        return self.client.images_edit(IMAGE_MODEL, prompt, list(images))
+        return self.client.images_edit(model_of(self.cfg, "image_edit"), prompt, list(images))
 
 
 class BatchRunner:

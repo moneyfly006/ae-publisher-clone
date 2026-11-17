@@ -6,7 +6,7 @@ from pathlib import Path
 
 import requests
 
-from . import ImageService, VISION_MODEL
+from . import ImageService, model_of
 from .image_index import pick as pick_indices
 from ..api import ApiClient
 from ..config import AppConfig
@@ -39,7 +39,7 @@ class ImagePipeline:
     def __init__(self, cfg: AppConfig, client: ApiClient | None = None, workdir: Path | None = None):
         self.cfg = cfg
         self.client = client or ApiClient(cfg.api_base, cfg.api_key, cfg.timeout)
-        self.svc = ImageService(self.client)
+        self.svc = ImageService(self.client, self.cfg)
         self.workdir = workdir or (Path.home() / ".auroralist" / "cache")
 
     def _download(self, url: str) -> Path:
@@ -100,7 +100,7 @@ class ImagePipeline:
     def has_text(self, image_url: str) -> bool:
         """图片理解预检：判断图上是否有文字（有才翻译，省一次生图）。"""
         try:
-            out = self.client.chat(VISION_MODEL, [{
+            out = self.client.chat(model_of(self.cfg, "vision"), [{
                 "role": "user",
                 "content": [
                     {"type": "text", "text": "这张商品图上是否有任何文字、字母或数字？只回答「有」或「无」。"},

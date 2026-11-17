@@ -38,7 +38,7 @@ class ImageWorkflow:
     def _ensure(self):
         if self.svc is None:
             from ..api import ApiClient
-            self.svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout))
+            self.svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
         return self.svc
 
     def process_one(self, path, mode: str = "simple", edit_prompt: str = "") -> Result:
