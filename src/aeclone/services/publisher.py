@@ -475,9 +475,24 @@ class Publisher:
                 urls.append(host_upload(fp))
             except Exception:
                 continue
+
+        # 回传店小秘相册：水印图先进图片库，商品再用相册 URL（老软件同款做法）
+        album_ok = 0
+        if urls and self.dxm is not None and getattr(self.cfg, "watermark_upload_album", True) and self.cfg.watermark:
+            full_cid = getattr(self.cfg, "upload_full_cid", "") or ""
+            for u in urls:
+                try:
+                    self.dxm.upload_image_from_url(str(u), full_cid=full_cid)
+                    album_ok += 1
+                except Exception:
+                    continue
+            if album_ok:
+                add_step(res, "水印回传相册", True, f"{album_ok} 张已入店小秘图片库")
+
         if urls:
             p["images"] = urls
-        add_step(res, "本地图片处理", bool(urls), f"{len(urls)} 张已托管")
+        add_step(res, "本地图片处理", bool(urls),
+                 f"{len(urls)} 张已托管" + (f"（相册 {album_ok}）" if album_ok else ""))
         return p
 
     # ---------- 主流程 ----------
@@ -789,7 +804,14 @@ class Publisher:
                             except Exception:
                                 continue
                         if len(files) >= 2:
-                            out = d2 / "main.mp4"
+                            # 视频落到本地目录（老软件也是先存本地再上传）
+                            try:
+                                from pathlib import Path as _PV
+                                vdir = _PV(getattr(self.cfg, "video_output_dir", "") or (_PV.home() / "Movies" / "AuroraList"))
+                                vdir.mkdir(parents=True, exist_ok=True)
+                                out = vdir / f"{p.get('id','product')}-{int(__import__('time').time())}.mp4"
+                            except Exception:
+                                out = d2 / "main.mp4"
                             generate_carousel_video(
                                 files, out,
                                 slot_seconds=float(getattr(self.cfg, "video_slot_seconds", 2.5) or 2.5),

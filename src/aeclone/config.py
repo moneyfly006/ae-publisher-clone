@@ -153,6 +153,7 @@ DEFAULTS: dict = {
     "combo_prefix": "套装",
     "combo_multiplier": "2",
     "overlay_watermark_enable": False,
+    "watermark_upload_album": True,
     "overlay_position": "bottom-right",
     "overlay_opacity": "0.7",
     "sku_image_replace": "{}",
