@@ -1091,6 +1091,14 @@ def main():
     check("设置：有 API 购买入口", "购买 / 充值 API" in set_labels, "")
     check("设置：有测试连接", "测试连接" in set_labels, "")
     check("设置：多开入口", "多开 / 多任务" in set_labels and "创建并启动" in set_labels, "")
+    check("设置：没有授权中心按钮（管理员用）", "授权中心" not in set_labels, "")
+    check("设置：不显示 API 地址", "API 地址" not in set_labels, "")
+    check("设置：只显示 API Key 输入", "API Key" in set_labels, "")
+    from aeclone.services import FIXED_MODELS, model_of as _mo
+    check("设置：显示固定模型", all(m in set_labels for m in FIXED_MODELS.values()), str(FIXED_MODELS))
+    check("模型：配置改不动固定模型", _mo(type("C", (), {"model_text": "deepseek-chat"})(), "text") == "qwen-plus", "")
+    check("设置：没有模型下拉", not any(getattr(c, "label", "") in ("文本（标题/描述/SKU）", "图片编辑（白底/去水印/精修）")
+                                        for c in walk(uapp.content.controls)), "")
     api_key_fields = [c for c in walk(uapp.content.controls) if getattr(c, "label", "") == "API Key"]
     check("设置：API Key 只有一个输入框", len(api_key_fields) <= 1, str(len(api_key_fields)))
 

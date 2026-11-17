@@ -180,3 +180,36 @@
 - 真实授权接口实测：未登记 → `ok=false, authorized=false`（设置页显示红色未授权 + 机器码）
 
 ![设置（机器码 / API / 模型）](screenshots/new/round5-settings.png)
+
+---
+
+## 第 6 轮：固定模型 + 设置再简化 + 视频模块核查（2026-11-17）
+
+### 用户要求 → 处理
+
+| # | 要求 | 处理 |
+|---|---|---|
+| 27 | 固定模型，不让客户选择 | 新增 `services.FIXED_MODELS`：文本 `qwen-plus`、视觉 `qwen3-vl-plus`、图片编辑 `qwen-image-2.1-turbo`、图片生成 `z-image-turbo`；`model_of()` 忽略配置；设置页只显示模型名（无下拉、无「恢复推荐」）；删掉 `image_gen_model` / `model_*` 配置项与旧的下拉逻辑 |
+| 28 | 去掉「授权中心」按钮（管理员才看） | 已删除该按钮及 `license_url` 配置项，设置页只剩「复制机器码 / 重新检测」 |
+| 29 | API 不显示地址，只显示 token | 设置 API 卡只保留 API Key 输入（可显隐）+ 并发/超时 + 测试连接 + 购买/充值；API 地址固定为 `https://api.moneyfly.club`（内部常量，不展示） |
+| 30 | 上传/视频模块是否有用 | 核查：**有用**（ffmpeg 合成实测 0.2s 出 12KB mp4；编辑器可上传主图视频；发布链路已接）。处理：设置页不再重复展示；视频开关收进「AI图片处理 → 主图视频」；删除从未被代码使用的 `upload_category_name`；`upload_full_cid` 移到「高级设置 → 上传」 |
+
+### 真机模型验证（2026-11-17，使用真实 Key）
+
+| 能力 | 固定模型 | 实测 |
+|---|---|---|
+| 文本（标题/描述/SKU） | `qwen-plus` | 200，标题生成 4.1s：`3 Ton Mini Spider Crane with 20m Boom, Tracked Electric for CAT` |
+| 视觉（审查/估重） | `qwen3-vl-plus` | 200，3.4s，正确识别图片 |
+| 图片编辑（白底/去水印/翻译/多图） | `qwen-image-2.1-turbo` | 200，9.4~12.8s；中文提示词「翻译图中文字、保持排版」返回可访问图片（`132.226.1.44:8099`） |
+| 图片生成（文生图主图） | `z-image-turbo` | 200，6.1s，返回 1024 图 |
+| 对比：`qwen-image-3.0` | 未固定 | 200 但 **43.3s/张**、¥0.3，故不用于默认生成 |
+
+> 结论：中文提示词可直接用；图片编辑固定用 2.1-turbo（快、¥0.2），生成用 z-image-turbo（6s、¥0.2）。
+
+### 回归
+
+- `tools/verify_issues.py`：**176/176 通过**（新增固定模型 3 项、设置清理 4 项）
+- `tools/button_audit.py`：305 个回调，仍只剩历史 FilePicker 假错
+- 截图：设置页（机器码 / 仅 Token / 固定模型）
+
+![设置页（固定模型、无授权中心、无 API 地址）](screenshots/new/round6-settings.png)

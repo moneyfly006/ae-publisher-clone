@@ -794,7 +794,8 @@ class Publisher:
                     emit("提示词方案", _set_name, f"品类={_cat or '-'}", "INFO")
             except Exception:
                 pass
-            if not BUS.price_of(self.cfg.model_image_edit):
+            from . import model_of as _model_of
+            if not BUS.price_of(_model_of(self.cfg, "image_edit")):
                 try:
                     from ..api import ApiClient as _AC
                     _rows = _AC(self.cfg.api_base, self.cfg.api_key, 20).pricing()
@@ -896,7 +897,8 @@ class Publisher:
             if getattr(self.cfg, "main_image_generate_enable", False):
                 try:
                     from ..api import ApiClient
-                    model = getattr(self.cfg, "image_gen_model", "qwen-image-3.0") or "qwen-image-3.0"
+                    from . import model_of as _model_of_gen
+                    model = _model_of_gen(self.cfg, "image_gen")
                     prompt = (getattr(self.cfg, "main_image_generate_prompt", "") or "").strip()
                     prompt = prompt or (p.get("title_en") or p.get("title", "") or "商品主图")
                     if "{title}" in prompt:

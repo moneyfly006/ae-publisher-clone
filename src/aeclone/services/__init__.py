@@ -17,18 +17,30 @@ IMAGE_MODEL = "qwen-image-2.1-turbo"
 VISION_MODEL = "qwen3-vl-plus"
 IMAGE_GEN_MODEL = "z-image-turbo"
 
+# 模型已固定（真机实测 2026-11-17）：文本 qwen-plus、视觉 qwen3-vl-plus、
+# 图片编辑 qwen-image-2.1-turbo（约 13s/张）、图片生成 z-image-turbo（约 6s/张、¥0.2）。
+# 不再让客户自选，避免选到不可用/超慢/超贵的模型。
+FIXED_MODELS = {
+    "text": TEXT_MODEL,
+    "vision": VISION_MODEL,
+    "image_edit": IMAGE_MODEL,
+    "image_gen": IMAGE_GEN_MODEL,
+}
 
-def model_of(cfg, kind: str) -> str:
-    """按配置取模型名（kind: text/vision/image_edit/image_gen）。"""
-    defaults = {"text": TEXT_MODEL, "vision": VISION_MODEL,
-                "image_edit": IMAGE_MODEL, "image_gen": IMAGE_GEN_MODEL}
-    key = {"text": "model_text", "vision": "model_vision",
-           "image_edit": "model_image_edit", "image_gen": "model_image_gen"}[kind]
-    try:
-        v = getattr(cfg, key, "") if cfg is not None else ""
-    except Exception:
-        v = ""
-    return (v or "").strip() or defaults[kind]
+FIXED_MODEL_LABELS = {
+    "text": "文本（标题/描述/SKU）",
+    "vision": "视觉（图片审查/估重）",
+    "image_edit": "图片编辑（白底/去水印/翻译/多图合成）",
+    "image_gen": "图片生成（文生图主图）",
+}
+
+
+def model_of(cfg=None, kind: str = "text") -> str:
+    """返回固定模型名（kind: text/vision/image_edit/image_gen）。
+
+    故意忽略配置里的 model_*：客户不需要也不允许自己选模型。
+    """
+    return FIXED_MODELS.get(kind, TEXT_MODEL)
 
 PROMPT_WHITE_BG = (
     "Remove the background completely and place the product on a pure white background (#FFFFFF). "

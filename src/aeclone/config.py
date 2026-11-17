@@ -10,15 +10,11 @@ APP_NAME = "AuroraList"
 
 DEFAULTS: dict = {
     # ---- 基础 / API ----
-    "model_text": "qwen-plus",
-    "model_vision": "qwen3-vl-plus",
-    "model_image_edit": "qwen-image-2.1-turbo",
-    "model_image_gen": "z-image-turbo",
+    # 模型已固定（见 services/__init__.py FIXED_MODELS），这里不再提供 model_* 配置项
     "cost_warn_threshold": 5.0,
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "license_server": "https://license.moneyfly.club",
-    "license_url": "https://license.moneyfly.club",      # 授权中心（给客户看/联系管理员）
     "license_enforce": True,                              # 未授权时禁止开始上架
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
     "image_cache_enable": True,                           # 相同图片+相同处理只调用一次（跨产品复用）
@@ -108,7 +104,6 @@ DEFAULTS: dict = {
     "main_image_generate_enable": False,
     "main_image_generate_prompt": "电商主图：{title}，让 {subject} 居中并占画面约 80%，纯白背景（#FFFFFF），柔和棚拍光，阴影自然，细节清晰，颜色准确，1:1 正方形，画册级质感。不要文字、不要水印、不要 Logo、不要多余道具、不要人物、不要边框。",
     "main_image_generate_count": "1",
-    "image_gen_model": "qwen-image-3.0",
     "designated_edit_enable": False,
     "designated_edit_indices": "",
     "designated_edit_prompt": "把这张商品图处理成可直接上架的电商图：去掉所有水印、Logo、二维码、促销角标和叠加文字；商品本体的形状、颜色、材质和比例完全不变；被遮挡的区域自然补全，不要模糊和瑕疵；效果像原始棚拍图一样干净。不要新增任何文字。",
@@ -141,7 +136,6 @@ DEFAULTS: dict = {
     "background_gen_detail_replace": False,
     # 上传 / 视频
     "upload_full_cid": "",
-    "upload_category_name": "",
     "video_slot_seconds": 2.5,
     "video_transition_seconds": 0.5,
     "video_size": "1080x1080",

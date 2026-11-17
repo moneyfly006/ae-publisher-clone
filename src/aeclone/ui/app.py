@@ -14,7 +14,7 @@ import flet as ft
 from ..api import ApiClient
 from ..config import AppConfig, config_dir, get_config, save_config
 from ..license import verify as verify_license
-from ..services import BatchRunner, ImageService, TextService
+from ..services import BatchRunner, ImageService, TextService, model_of
 from ..services.pricing import calc_multiplier, calc_free_shipping
 from ..services.variants import auto_map, parse_mapping_json
 from ..integrations.cdp import launch_edge, launch_browser, open_url_via_cdp, BrowserError
@@ -109,6 +109,7 @@ def schema_store():
 def schema_advanced():
     return [
         ("基础", [Field("edit_sum", "编辑产品数量"), Field("watermark", "水印图片路径")]),
+        ("上传", [Field("upload_full_cid", "店小秘相册分类 ID（可留空 = 未分类）")]),
         ("定时发布", [Field("schedule_publish", "启用定时发布", "bool"),
                       Field("schedule_time", "发布时间（如 2026-11-12 09:00）")]),
         ("套装", [Field("combo_enable", "生成套装 SKU", "bool"),
@@ -181,7 +182,6 @@ def schema_image():
     return [
         ("主图", [
             Field("main_image_generate_enable", "AI 生成主图（文生图）", "bool"),
-            Field("image_gen_model", "生图模型"),
             Field("main_image_generate_prompt", "生成提示词", "multiline"),
             Field("main_image_generate_count", "生成数量"),
             Field("main_image_generate_use_refs", "文生图用现有主图当素材（图生图）", "bool"),
@@ -231,6 +231,10 @@ def schema_image():
         ]),
         ("主图视频", [
             Field("generate_main_video", "发布时生成主图视频", "bool"),
+            Field("upload_main_video", "保存时上传主图视频", "bool"),
+            Field("use_template_video", "使用模板视频（需填路径）", "bool"),
+            Field("template_video_path", "模板视频路径"),
+            Field("overwrite_existing_video", "覆盖产品已有视频", "bool"),
             Field("video_slot_seconds", "每张停留秒数"),
             Field("video_transition_seconds", "转场秒数"),
             Field("video_size", "视频尺寸（如 1080x1080）"),
@@ -293,16 +297,6 @@ def schema_prompts():
             Field("review_main_img_prompt", "主图审查提示词", "multiline"),
             Field("review_detail_img_prompt", "详情图审查提示词", "multiline"),
         ]),
-    ]
-
-
-def schema_settings(cfg):
-    """设置页只保留「上传 / 视频」这类低频项；授权、API、模型、多开改成独立卡片。"""
-    return [
-        ("上传 / 视频", [Field("upload_full_cid", "相册分类 ID"), Field("upload_category_name", "相册分类名"),
-                        Field("generate_main_video", "生成主图视频", "bool"),
-                        Field("use_template_video", "使用模板视频", "bool"),
-                        Field("overwrite_existing_video", "覆盖已有视频", "bool")]),
     ]
 
 
@@ -988,6 +982,7 @@ class App:
 
     def _start(self):
         # 启动前先把当前配置全部落盘（含未失焦的输入）
+        self._save_api_fields()
         try:
             for f in self.field_refs:
                 try:
@@ -1079,6 +1074,25 @@ class App:
             except Exception:
                 pass
             raise
+
+    def _save_api_fields(self):
+        """把设置页 API 卡里的值落盘（输入即保存，启动前也会再存一次）。"""
+        try:
+            if getattr(self, "api_key_field", None) is not None:
+                self.cfg.set("api_key", str(self.api_key_field.value or "").strip())
+            if getattr(self, "cfg_concurrency", None) is not None:
+                try:
+                    self.cfg.set("concurrency", max(1, min(8, int(float(self.cfg_concurrency.value or 3)))))
+                except Exception:
+                    pass
+            if getattr(self, "cfg_timeout", None) is not None:
+                try:
+                    self.cfg.set("timeout", max(30, int(float(self.cfg_timeout.value or 180))))
+                except Exception:
+                    pass
+            save_config(self.cfg)
+        except Exception:
+            pass
 
     def _copy_machine(self, code: str = ""):
         from ..license import machine_code as _mc
@@ -4086,7 +4100,7 @@ class App:
             from ..services.prompt_presets import title_variants
             mode = self.ab_mode.value or "标题"
             client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
-            model = model_of(self.cfg, "text")
+            model = model_of(self.cfg, 'text')
             try:
                 if mode == "标题":
                     a_prompt = self.cfg.title_prompt
@@ -4130,10 +4144,10 @@ class App:
                     ub = svc.generate(b_prompt, "1024x1024", 1)
                     for col, url, tag, pr in ((self.try_a_col, ua, "A", a_prompt),
                                                 (self.try_b_col, ub, "B", b_prompt)):
-                        col.controls = [ft.Text(f"{tag} · {self.cfg.model_image_gen}", size=10, color=MUTED),
+                        col.controls = [ft.Text(f"{tag} · {model_of(None, 'image_gen')}", size=10, color=MUTED),
                                         ft.Image(src=str(url), width=320, height=320, fit=ft.ImageFit.CONTAIN),
                                         ft.Text(str(url)[:70], size=9, color=MUTED, selectable=True)]
-                    self.try_status.value = f"完成：两张图各扣约 ¥{BUS.price_of(self.cfg.model_image_gen):.2f}"
+                    self.try_status.value = f"完成：两张图各扣约 ¥{BUS.price_of(model_of(None, 'image_gen')):.2f}"
             except Exception as ex:
                 self.try_status.value = f"失败：{str(ex)[:140]}"
             try:
@@ -4233,7 +4247,7 @@ class App:
             if self.cfg.watermark_enable:
                 acts.append("主图去水印")
             if self.cfg.enable_ai_title:
-                acts.append(f"AI 标题（{self.cfg.model_text}）")
+                acts.append(f"AI 标题（{model_of(None, 'text')}）")
             if self.cfg.enable_ai_detail:
                 acts.append("AI 描述（HTML）")
             if self.cfg.enable_ai_sku and skus:
@@ -4247,7 +4261,7 @@ class App:
             self.pv_actions.controls = [ft.Text(f"{i}. {a}", size=11, color=TEXT) for i, a in enumerate(acts, 1)]
 
             # 费用预估
-            edit_price = self._price_of(self.cfg.model_image_edit)
+            edit_price = self._price_of(model_of(None, 'image_edit'))
             n_edit = 0
             if self.cfg.white_bg_enable:
                 n_edit += 1
@@ -4602,7 +4616,6 @@ class App:
 
     def _p_settings(self):
         self._current = 8
-        view = self._render("设置", schema_settings(self.cfg))
 
         # ---------------- 授权 ----------------
         from ..license import machine_code as _mcode
@@ -4627,21 +4640,13 @@ class App:
                 pass
             threading.Thread(target=self._check_license, daemon=True).start()
 
-        def open_lic(e):
-            url = str(getattr(self.cfg, "license_url", "") or "https://license.moneyfly.club")
-            try:
-                self.page.launch_url(url)
-            except Exception:
-                self.toast(f"请在浏览器打开 {url}", False)
-
         lic_card = card(ft.Column([
             h1("授权", 15),
             muted("每台电脑的机器码都不同。把机器码发给管理员登记后，点「重新检测」即可使用"),
             ft.Row([ft.Text("机器码：", size=12, color=MUTED), self.machine_text], spacing=8, wrap=True),
             ft.Row([ft.ElevatedButton("复制机器码", icon=ft.Icons.COPY, bgcolor=ACCENT, color="white",
                                       on_click=copy_code),
-                    ft.OutlinedButton("重新检测", icon=ft.Icons.REFRESH, on_click=recheck_lic),
-                    ft.OutlinedButton("打开授权中心", icon=ft.Icons.LOCK_OUTLINE, on_click=open_lic)],
+                    ft.OutlinedButton("重新检测", icon=ft.Icons.REFRESH, on_click=recheck_lic)],
                    spacing=8, wrap=True),
             self.lic_status, self.lic_detail,
         ], spacing=8))
@@ -4658,27 +4663,29 @@ class App:
         self.api_key_field = ft.TextField(label="API Key", value=str(self.cfg.api_key or ""),
                                           password=True, can_reveal_password=True, width=460,
                                           bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.api_base_field = ft.TextField(label="API 地址", value=str(self.cfg.api_base or ""), width=460,
-                                           bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.api_status = ft.Text("", size=11, color=MUTED)
         self.cfg_concurrency = ft.TextField(label="并发数（同时处理几个产品）",
                                             value=str(self.cfg.concurrency or 3), width=220,
                                             bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.cfg_timeout = ft.TextField(label="超时（秒）", value=str(self.cfg.timeout or 180), width=160,
                                         bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        # 输入即保存（0.6s 防抖），避免客户改完 Key 直接点启动却没落盘
+        def _api_autosave(e=None):
+            t = getattr(self, "_api_timer", None)
+            if t:
+                try:
+                    t.cancel()
+                except Exception:
+                    pass
+            timer = threading.Timer(0.6, self._save_api_fields)
+            timer.daemon = True
+            self._api_timer = timer
+            timer.start()
+        for _c in (self.api_key_field, self.cfg_concurrency, self.cfg_timeout):
+            _c.on_change = _api_autosave
 
         def save_api(e=None):
-            self.cfg.set("api_key", str(self.api_key_field.value or "").strip())
-            self.cfg.set("api_base", str(self.api_base_field.value or "").strip() or "https://api.moneyfly.club")
-            try:
-                self.cfg.set("concurrency", int(float(self.cfg_concurrency.value or 3)))
-            except Exception:
-                pass
-            try:
-                self.cfg.set("timeout", int(float(self.cfg_timeout.value or 180)))
-            except Exception:
-                pass
-            save_config(self.cfg)
+            self._save_api_fields()
             self.api_status.value = "已保存"
             self.api_status.color = ACCENT_2
             try:
@@ -4719,7 +4726,7 @@ class App:
         api_card = card(ft.Column([
             h1("API", 15),
             muted("填好 API Key 即可用；没有 Key 或额度不足时，点「购买/充值」去你的 API 后台"),
-            self.api_base_field, self.api_key_field,
+            self.api_key_field,
             ft.Row([self.cfg_concurrency, self.cfg_timeout,
                     ft.ElevatedButton("保存", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white", on_click=save_api),
                     ft.OutlinedButton("测试连接", icon=ft.Icons.WIFI_TETHERING, on_click=test_api),
@@ -4729,32 +4736,21 @@ class App:
             self.api_status,
         ], spacing=8))
 
-        # ---------------- 模型 ----------------
-        self.model_dd = {}
-        self.model_cost_text = ft.Text("", size=12, color=ACCENT_2)
-        self.model_status = ft.Text("模型加载中…", size=11, color=MUTED)
-
-        def _build_model_card():
-            dd = {}
-            for kind, label in (("image_edit", "图片编辑（白底/去水印/精修）"),
-                                ("image_gen", "图片生成（文生图/多图合成）"),
-                                ("text", "文本（标题/描述/SKU）"),
-                                ("vision", "视觉（图片审查/估重）")):
-                dd[kind] = ft.Dropdown(label=label, width=430, bgcolor=CARD_2, border_color=CARD_2,
-                                       color=TEXT, options=[])
-                self.model_dd[kind] = dd[kind]
-            return card(ft.Column([
-                h1("模型", 15),
-                muted("默认就用推荐模型；想省钱/换效果再改，改完自动保存"),
-                dd["image_edit"], dd["image_gen"], dd["text"], dd["vision"],
-                ft.Row([ft.ElevatedButton("刷新模型", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
-                                          on_click=lambda e: threading.Thread(target=self._load_models, args=(True,), daemon=True).start()),
-                        ft.OutlinedButton("恢复推荐", icon=ft.Icons.RESTART_ALT, on_click=lambda e: self._reset_models())],
-                       spacing=8, wrap=True),
-                self.model_cost_text, self.model_status], spacing=8))
-
-        model_card = _build_model_card()
-        threading.Thread(target=self._load_models, args=(False,), daemon=True).start()
+        # ---------------- 模型（已固定，不提供选择） ----------------
+        from ..services import FIXED_MODELS, FIXED_MODEL_LABELS
+        self.model_status = ft.Text("模型已固定，无需设置；价格见下方「模型价格」", size=11, color=MUTED)
+        model_rows = []
+        for kind in ("text", "vision", "image_edit", "image_gen"):
+            model_rows.append(ft.Row([
+                ft.Text(FIXED_MODEL_LABELS[kind], size=12, color=MUTED, width=300),
+                ft.Text(FIXED_MODELS[kind], size=12, color=TEXT, weight=ft.FontWeight.BOLD),
+            ], spacing=10, wrap=True))
+        model_card = card(ft.Column([
+            h1("AI 模型", 15),
+            muted("已按实测结果固定，客户无需选择，避免选到不可用/超慢/超贵的模型"),
+            *model_rows,
+            self.model_status,
+        ], spacing=8))
 
         # ---------------- 多开 ----------------
         self.inst_name = ft.TextField(label="新实例名称（如 店铺2）", width=240,
@@ -4823,109 +4819,7 @@ class App:
             spacing=8))
         threading.Thread(target=self._load_prices, daemon=True).start()
 
-        return [view[0], lic_card, api_card, model_card, inst_card, upd, diag_card, price_card] + view[1:]
-
-    def _reset_models(self):
-        """一键恢复推荐模型（老软件也是默认一套，不用用户琢磨）。"""
-        defaults = {"model_image_edit": "qwen-image-2.1-turbo",
-                    "model_image_gen": "z-image-turbo",
-                    "model_text": "qwen-plus",
-                    "model_vision": "qwen3-vl-plus"}
-        for k, v in defaults.items():
-            self.cfg.set(k, v)
-        save_config(self.cfg)
-        for kind, key in (("image_edit", "model_image_edit"), ("image_gen", "model_image_gen"),
-                          ("text", "model_text"), ("vision", "model_vision")):
-            dd = getattr(self, "model_dd", {}).get(kind)
-            if dd is not None:
-                dd.value = defaults[key]
-        self.toast("已恢复推荐模型")
-        try:
-            self.page.update()
-        except Exception:
-            pass
-
-    def _load_models(self, force: bool = False):
-        """从 /api/pricing 拉取模型（缓存 5 分钟），按类型分到 4 个下拉并标注价格。"""
-        try:
-            from ..api import ApiClient
-            rows = ApiClient(self.cfg.api_base, self.cfg.api_key, 20,
-                             proxy=self.cfg.proxy_url if getattr(self.cfg, "proxy_enabled", False) else "").pricing(force=force)
-        except Exception as ex:
-            if hasattr(self, "model_status"):
-                self.model_status.value = f"模型/价格获取失败：{str(ex)[:80]}"
-            return
-        if not rows:
-            if hasattr(self, "model_status"):
-                self.model_status.value = "没有取到模型：先填 API Key 并点「测试连接」"
-            return
-        img = [r for r in rows if r["per_call"] > 0]
-        txt = [r for r in rows if r["per_call"] <= 0]
-        cur = {"image_edit": self.cfg.model_image_edit, "image_gen": self.cfg.model_image_gen,
-               "text": self.cfg.model_text, "vision": self.cfg.model_vision}
-
-        def opts(items, with_price=True):
-            out = []
-            for r in sorted(items, key=lambda x: x["model"]):
-                if str(r["model"]).startswith("gpt-"):
-                    continue
-                label = f"{r['model']} · ¥{r['per_call']:.3f}/张" if with_price else                         f"{r['model']} · 倍率 {r['ratio']:.2f}"
-                out.append(ft.dropdown.Option(r["model"], label))
-            return out
-
-        if not hasattr(self, "model_dd"):
-            return
-        for kind in ("image_edit", "image_gen"):
-            dd = self.model_dd.get(kind)
-            if dd is None:
-                continue
-            dd.options = opts(img)
-            names = [o.key for o in dd.options]
-            dd.value = cur[kind] if cur[kind] in names else (names[0] if names else None)
-            dd.on_change = lambda e, _k=kind: self._save_model(_k, e.control.value)
-        for kind in ("text", "vision"):
-            dd = self.model_dd.get(kind)
-            if dd is None:
-                continue
-            dd.options = opts(txt, with_price=False)
-            names = [o.key for o in dd.options]
-            dd.value = cur[kind] if cur[kind] in names else (names[0] if names else None)
-            dd.on_change = lambda e, _k=kind: self._save_model(_k, e.control.value)
-
-        self.model_cost_text.value = self._model_cost_hint(img)
-        self.model_status.value = f"已加载 {len(rows)} 个模型（图片 {len(img)} / 文本 {len(txt)}）"
-        try:
-            self.page.update()
-        except Exception:
-            pass
-
-    def _model_cost_hint(self, img_rows=None) -> str:
-        try:
-            edit_price = next((r["per_call"] for r in (img_rows or [])
-                               if r["model"] == self.cfg.model_image_edit), 0)
-            gen_price = next((r["per_call"] for r in (img_rows or [])
-                              if r["model"] == self.cfg.model_image_gen), 0)
-            if not edit_price and not gen_price:
-                return f"当前：编辑 {self.cfg.model_image_edit} / 生成 {self.cfg.model_image_gen}"
-            return (f"单次预计费用：编辑 ¥{edit_price:.3f}/张 · 生成 ¥{gen_price:.3f}/张"
-                    f"（文本/视觉按 token，通常 < ¥0.01/次）")
-        except Exception:
-            return ""
-
-    def _save_model(self, kind: str, value: str):
-        key = {"image_edit": "model_image_edit", "image_gen": "model_image_gen",
-               "text": "model_text", "vision": "model_vision"}[kind]
-        setattr(self.cfg, key, value)
-        save_config(self.cfg)
-        self.model_status.value = f"已保存：{key} = {value}"
-        try:
-            self.model_cost_text.value = self._model_cost_hint(
-                [{"model": self.cfg.model_image_edit, "per_call": self._price_of(self.cfg.model_image_edit)},
-                 {"model": self.cfg.model_image_gen, "per_call": self._price_of(self.cfg.model_image_gen)}])
-            self.page.update()
-        except Exception:
-            pass
-        self.toast(f"已切换到 {value}")
+        return [lic_card, api_card, model_card, inst_card, upd, diag_card, price_card]
 
     def _price_of(self, model: str) -> float:
         try:
@@ -4947,7 +4841,7 @@ class App:
             _Img.new("RGB", (512, 512), (240, 240, 240)).save(probe_img)
             svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
             url = svc.edit(probe_img, "return the same simple image, no changes")
-            self.model_status.value = f"图片模型可用：{self.cfg.model_image_edit} → {str(url)[:70]}"
+            self.model_status.value = f"图片模型可用：{model_of(None, 'image_edit')} → {str(url)[:70]}"
             self.toast("图片模型测试通过")
         except Exception as ex:
             self.model_status.value = f"图片模型不可用：{str(ex)[:120]}"
@@ -5012,25 +4906,25 @@ class App:
         # 3 文本
         t0 = _t.time()
         try:
-            out = client.chat(model_of(self.cfg, "text"), [{"role": "user", "content": "回复 OK"}], max_tokens=8)
-            add("文本对话", bool(out), f"{model_of(self.cfg,'text')} · {_t.time()-t0:.1f}s")
+            out = client.chat(model_of(self.cfg, 'text'), [{"role": "user", "content": "回复 OK"}], max_tokens=8)
+            add("文本对话", bool(out), f"{model_of(self.cfg, 'text')} · {_t.time()-t0:.1f}s")
         except Exception as ex:
             add("文本对话", False, str(ex)[:90])
         # 4 视觉
         t0 = _t.time()
         try:
-            out = client.chat(model_of(self.cfg, "vision"), [{"role": "user", "content": [
+            out = client.chat(model_of(self.cfg, 'vision'), [{"role": "user", "content": [
                 {"type": "text", "text": "图里是什么颜色？两个字"},
                 {"type": "image_url", "image_url": {"url": "https://sc04.alicdn.com/kf/H36d2c1e2529d4ab18cab919a38f33e25D.jpg"}}]}],
                 max_tokens=12)
-            add("视觉读图", bool(out), f"{model_of(self.cfg,'vision')} · {_t.time()-t0:.1f}s")
+            add("视觉读图", bool(out), f"{model_of(self.cfg, 'vision')} · {_t.time()-t0:.1f}s")
         except Exception as ex:
             add("视觉读图", False, str(ex)[:90])
         # 5 文生图
         t0 = _t.time()
         try:
-            url = client.images_generate(model_of(self.cfg, "image_gen"), "a simple white cube on gray background", "1024x1024", 1)
-            add("文生图", bool(url), f"{model_of(self.cfg,'image_gen')} · {_t.time()-t0:.1f}s")
+            url = client.images_generate(model_of(self.cfg, 'image_gen'), "a simple white cube on gray background", "1024x1024", 1)
+            add("文生图", bool(url), f"{model_of(self.cfg, 'image_gen')} · {_t.time()-t0:.1f}s")
         except Exception as ex:
             add("文生图", False, str(ex)[:90])
         # 6 图像编辑
@@ -5041,7 +4935,7 @@ class App:
             _Img.new("RGB", (512, 512), (230, 230, 230)).save(probe)
             svc = ImageService(client, self.cfg)
             url = svc.edit(probe, "keep the image unchanged")
-            add("图像编辑", bool(url), f"{model_of(self.cfg,'image_edit')} · {_t.time()-t0:.1f}s")
+            add("图像编辑", bool(url), f"{model_of(self.cfg, 'image_edit')} · {_t.time()-t0:.1f}s")
         except Exception as ex:
             add("图像编辑", False, str(ex)[:90])
 
@@ -5287,8 +5181,8 @@ class App:
                 self.dlg = ft.AlertDialog(
                     title=ft.Text("额度不足"),
                     content=ft.Text(f"本次调用被拒绝：{txt[:160]}\n\n当前价格参考：\n"
-                                    f"· 图片编辑 {self.cfg.model_image_edit}（¥{self._price_of(self.cfg.model_image_edit):.3f}/张）\n"
-                                    f"· 图片生成 {self.cfg.model_image_gen}（¥{self._price_of(self.cfg.model_image_gen):.3f}/张）"),
+                                    f"· 图片编辑 {model_of(None, 'image_edit')}（¥{self._price_of(model_of(None, 'image_edit')):.3f}/张）\n"
+                                    f"· 图片生成 {model_of(None, 'image_gen')}（¥{self._price_of(model_of(None, 'image_gen')):.3f}/张）"),
                     actions=[ft.TextButton("稍后", on_click=lambda e: self._close_dialog()),
                              ft.ElevatedButton("去充值", bgcolor="#F0A020", color="#1A1200", on_click=go)])
                 self.page.dialog = self.dlg
