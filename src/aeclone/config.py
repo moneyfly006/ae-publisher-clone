@@ -133,6 +133,7 @@ DEFAULTS: dict = {
     "video_cover": True,
     "video_fade_edges": True,
     "video_output_dir": "",
+    "eu_qualification": "否",
     "browser_hide": True,          # 连接后隐藏/最小化浏览器窗口（后台运行）
     "browser_headless_login": False, # 首次登录保持可见
     "cdp_port": 9333,

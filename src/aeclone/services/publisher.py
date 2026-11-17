@@ -929,6 +929,7 @@ class Publisher:
                 try:
                     import json as _jf
                     _fv = _jf.loads(getattr(self.cfg, "template_values", "") or "{}")
+                    _fv["__eu__"] = getattr(self.cfg, "eu_qualification", "否")
                 except Exception:
                     _fv = {}
                 r = apply_and_save(self.ws_endpoint, str(p.get("id", "")), _snap_obj,

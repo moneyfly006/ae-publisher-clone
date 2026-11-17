@@ -936,10 +936,40 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
         except Exception:
             pass
 
+        # 商品说明书：优先复用模板里的文件
+        manual_done = False
+        try:
+            tpl_manual = (form_values or {}).get("商品说明书", {})
+            tpl_url = (tpl_manual or {}).get("v") if isinstance(tpl_manual, dict) else None
+            if tpl_url and str(tpl_url).startswith("http"):
+                import requests as _rq, tempfile as _tf
+                from pathlib import Path as _Pmm
+                data = _rq.get(str(tpl_url), timeout=60).content
+                if data:
+                    ext = ".pdf" if data[:4] == b"%PDF" else ".docx"
+                    local = _Pmm(_tf.gettempdir()) / ("tpl_manual" + ext)
+                    local.write_bytes(data)
+                    fi = page.locator('.ant-form-item', has_text="商品说明书").first
+                    if fi.count() > 0:
+                        if fi.locator('input[type=file]').count() == 0:
+                            btn = fi.get_by_text("上传文件").first
+                            if btn.count() > 0:
+                                btn.click(timeout=4000); page.wait_for_timeout(1200)
+                        ins = fi.locator('input[type=file]')
+                        if ins.count() == 0:
+                            ins = page.locator('.ant-modal input[type=file], input[type=file]')
+                        if ins.count() > 0:
+                            ins.first.set_input_files(str(local))
+                            page.wait_for_timeout(6000)
+                            applied.append("商品说明书(复用模板)")
+                            manual_done = True
+        except Exception:
+            manual_done = False
+
         # 商品说明书：本地生成 PDF 并上传
         try:
             fi = page.locator('.ant-form-item', has_text="商品说明书").first
-            if fi.count() > 0:
+            if fi.count() > 0 and not manual_done:
                 has_file = fi.locator('input[type=file]').count() > 0
                 if not has_file:
                     btn = fi.get_by_text("上传文件").first
@@ -966,8 +996,9 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
         try:
             sw = page.locator('.ant-form-item', has_text="是否提交欧盟资质").locator('.ant-switch').first
             if sw.count() > 0:
-                checked = sw.get_attribute("aria-checked")
-                if checked != "false":
+                _want = str((form_values or {}).get("__eu__", "否"))
+                checked = sw.get_attribute("aria-checked") == "true"
+                if checked != (_want in ("是", "yes", "true")):
                     sw.click(timeout=3000); page.wait_for_timeout(600)
                 else:
                     sw.click(timeout=3000); page.wait_for_timeout(500)
@@ -1057,6 +1088,11 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
                 document.querySelectorAll('.ant-form-item').forEach(fi=>{
                   const req = fi.querySelector('.ant-form-item-required, .ant-form-item-label .required');
                   if(!req) return;
+                  // 开关类（如欧盟资质）只要有明确状态即视为已填
+                  if (fi.querySelector('.ant-switch')) return;
+                  // 上传类：已存在文件/链接即视为已填
+                  const up = fi.querySelector('.ant-upload-list-item, .ant-upload-list-item-name, a[href^="http"]');
+                  if (up) return;
                   const label=(fi.querySelector('label')||{}).innerText||'';
                   const val=(fi.querySelector('input,textarea')||{}).value||'';
                   const sel=fi.querySelector('.ant-select-selection-item');

@@ -135,6 +135,7 @@ def schema_advanced():
         ("运行", [Field("auto_save_products", "自动保存到店小秘（关闭=只试跑）", "bool"),
                   Field("publish_action", "发布动作", "select", ["save_only", "publish"]),
                   Field("browser_hide", "浏览器后台运行（连接后自动最小化）", "bool"),
+                  Field("eu_qualification", "是否提交欧盟资质", "select", ["否", "是"]),
                   Field("cdp_port", "浏览器调试端口（多开时每个实例不同）")]),
     ]
 
