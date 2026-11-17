@@ -6,7 +6,7 @@ from pathlib import Path
 
 import requests
 
-from . import ImageService
+from . import ImageService, VISION_MODEL
 from .image_index import pick as pick_indices
 from ..api import ApiClient
 from ..config import AppConfig
@@ -96,6 +96,21 @@ class ImagePipeline:
             expr = ""
         selected = pick_indices(urls, expr) if expr else urls
         return [self.run(u) for u in selected]
+
+    def has_text(self, image_url: str) -> bool:
+        """图片理解预检：判断图上是否有文字（有才翻译，省一次生图）。"""
+        try:
+            out = self.client.chat(VISION_MODEL, [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "这张商品图上是否有任何文字、字母或数字？只回答「有」或「无」。"},
+                    {"type": "image_url", "image_url": {"url": image_url}},
+                ],
+            }], max_tokens=8)
+            txt = (out or "").strip()
+            return "有" in txt and "无" not in txt
+        except Exception:
+            return True
 
     def review(self, image_url: str, kind: str = "main") -> str:
         prompt = self.cfg.review_main_img_prompt if kind == "main" else self.cfg.review_detail_img_prompt

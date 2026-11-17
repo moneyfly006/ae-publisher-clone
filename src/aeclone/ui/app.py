@@ -1,6 +1,7 @@
 """AuroraList · 现代化界面（schema 驱动，覆盖老软件全部设置项）。"""
 from __future__ import annotations
 
+import datetime
 import tempfile
 import threading
 import time
@@ -19,7 +20,7 @@ from ..integrations.bitbrowser import BitBrowser
 from ..integrations.zhanfu import ZhanfuBrowser
 from ..services.publisher import Publisher, demo_product
 from ..integrations.dianxiaomi import DianxiaomiClient, ENDPOINTS
-from ..services.video import build_slideshow, probe as video_probe
+from ..services.video import build_slideshow, generate_carousel_video, probe as video_probe
 from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
 from ..services import history
@@ -206,6 +207,15 @@ def schema_image():
             Field("overlay_position", "水印位置"),
             Field("overlay_opacity", "水印透明度"),
             Field("background_gen_rules", "背景生成规则 JSON", "multiline"),
+        ]),
+        ("主图视频", [
+            Field("generate_main_video", "发布时生成主图视频", "bool"),
+            Field("video_slot_seconds", "每张停留秒数"),
+            Field("video_transition_seconds", "转场秒数"),
+            Field("video_size", "视频尺寸（如 1080x1080）"),
+            Field("video_cover", "铺满裁剪（否则留白）", "bool"),
+            Field("video_fade_edges", "首尾淡入淡出", "bool"),
+            Field("video_output_dir", "视频输出目录（留空用默认）"),
         ]),
         ("精细编辑提示词", [
             Field("edit_enable", "启用通用编辑", "bool"),
@@ -1797,11 +1807,108 @@ class App:
                 self.toast("队列为空", False); return
             threading.Thread(target=self._process_queue, daemon=True).start()
 
+        # ---- 产品列表（草稿/在线/待审核 + 搜索 + 分页 + 全选） ----
+        self.wb_status_sel = ft.Dropdown(
+            value="editingRequired", width=150, bgcolor=CARD_2, color=TEXT, border_color=CARD_2,
+            options=[ft.dropdown.Option("editingRequired", "草稿"),
+                     ft.dropdown.Option("onSelling", "在线"),
+                     ft.dropdown.Option("auditing", "待审核"),
+                     ft.dropdown.Option("offline", "已下架"),
+                     ft.dropdown.Option("", "全部")])
+        self.wb_kw = ft.TextField(label="搜索标题", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.wb_page_no = 1
+        self.wb_page_info = ft.Text("", size=12, color=MUTED)
+        self.wb_sel_text = ft.Text("已选 0 个产品 / 0 张图", size=12, color=MUTED)
+        self.wb_selected: set[str] = set()
+        self.wb_rows: list[dict] = []
+        self.wb_prod_table = ft.DataTable(
+            columns=[ft.DataColumn(ft.Text("选", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("产品", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("状态", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("图/SKU", size=11, color=MUTED))],
+            rows=[], column_spacing=16, heading_row_height=28, data_row_min_height=30,)
+
+        def load_products(e=None):
+            try:
+                ck = self._cookies()
+                dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            except Exception as ex:
+                self.toast(f"未连接浏览器：{ex}", False); return
+            st = self.wb_status_sel.value or None
+            kw = (self.wb_kw.value or "").strip() or None
+            try:
+                items, meta = dxm.product_page(self.wb_page_no, 30, self.cfg.shop_id or None, st, kw)
+            except Exception as ex:
+                self.toast(f"加载失败：{ex}", False); return
+            self.wb_rows = items
+            rows = []
+            for it in items:
+                pid = str(it.get("id") or "")
+                cb = ft.Checkbox(value=pid in self.wb_selected,
+                                 on_change=lambda e, _p=pid: self._wb_toggle(_p, e.control.value))
+                rows.append(ft.DataRow(cells=[
+                    ft.DataCell(cb),
+                    ft.DataCell(ft.Text((it.get("title") or "")[:52], size=11, color=TEXT)),
+                    ft.DataCell(ft.Text(it.get("status") or "", size=11, color=MUTED)),
+                    ft.DataCell(ft.Text(f"{len(it.get('images') or [])}/{len(it.get('skus') or [])}", size=11, color=MUTED)),
+                ]))
+            self.wb_prod_table.rows = rows
+            self.wb_page_info.value = f"第 {meta.get('page') or self.wb_page_no}/{meta.get('total_pages') or 1} 页 · 共 {meta.get('total') or 0} 个"
+            self._wb_sel_refresh()
+            self.page.update()
+
+        def prev_page(e):
+            if self.wb_page_no > 1:
+                self.wb_page_no -= 1
+                load_products()
+
+        def next_page(e):
+            self.wb_page_no += 1
+            load_products()
+
+        def select_all(e):
+            val = bool(e.control.value)
+            for it in self.wb_rows:
+                pid = str(it.get("id") or "")
+                if val:
+                    self.wb_selected.add(pid)
+                else:
+                    self.wb_selected.discard(pid)
+            load_products()
+
+        def pick_images(e):
+            if not self.wb_selected:
+                self.toast("请先勾选产品", False); return
+            urls: list[str] = []
+            for it in self.wb_rows:
+                if str(it.get("id")) in self.wb_selected:
+                    urls.extend([u for u in (it.get("images") or []) if isinstance(u, str)])
+            urls = [u for i, u in enumerate(urls) if u and u not in urls[:i]]
+            if not urls:
+                self.toast("选中的产品没有图片", False); return
+            self.wb_status.value = f"已选 {len(self.wb_selected)} 个产品，下载 {len(urls)} 张图…"
+            self.page.update()
+            threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
+
+        self.wb_prod_card = card(ft.Column([
+            h1("产品图片", 15),
+            muted("从店小秘拉取产品，勾选后取图，可直接做白底/去水印/编辑/视频"),
+            ft.Row([self.wb_status_sel, self.wb_kw,
+                    ft.ElevatedButton("加载", icon=ft.Icons.SEARCH, bgcolor=CARD_2, color=TEXT, on_click=load_products)], spacing=8, wrap=True),
+            ft.Row([ft.OutlinedButton("上一页", on_click=prev_page),
+                    ft.OutlinedButton("下一页", on_click=next_page),
+                    self.wb_page_info], spacing=8, wrap=True),
+            ft.Row([ft.Checkbox(label="全选本页", on_change=select_all), self.wb_sel_text,
+                    ft.ElevatedButton("取选中图片", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=ACCENT, color="white", on_click=pick_images),
+                    ], spacing=10, wrap=True),
+            self.wb_prod_table,
+        ], spacing=8))
+
         self.q_panel = card(ft.Column([h1("任务队列", 15), self.q_text,
                                        ft.Row([ft.ElevatedButton("产品入队", icon=ft.Icons.ADD_TASK, on_click=enqueue),
                                                ft.ElevatedButton("处理队列(dry-run)", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white", on_click=process),
                                                ft.OutlinedButton("清理已完成", on_click=lambda e: (self.q.clear_done(), self._refresh_queue()))], spacing=10)], spacing=8))
-        return [h1("图片工作台"), muted("批量白底 / 去水印 / 编辑（走你的 API 站点计费）"), self.q_panel,
+        return [h1("图片工作台"), muted("批量白底 / 去水印 / 编辑 / 主图视频（走你的 API 站点计费）"), self.wb_prod_card, self.q_panel,
                 card(ft.Column([self.wb_urls,
                                 ft.Row([ft.ElevatedButton("加载图片", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=load),
                                         ft.OutlinedButton("从已拉取产品取图", icon=ft.Icons.INVENTORY_2, on_click=lambda e: self._images_from_products()),
@@ -1811,11 +1918,56 @@ class App:
                                         ft.OutlinedButton("暂停", on_click=lambda e: self._wb_ctl("pause")),
                                         ft.OutlinedButton("继续", on_click=lambda e: self._wb_ctl("resume")),
                                         ft.OutlinedButton("取消", on_click=lambda e: self._wb_ctl("cancel")),
+                                        ft.ElevatedButton("生成视频", icon=ft.Icons.MOVIE, bgcolor="#7C5CFF", color="white",
+                                                          on_click=lambda e: threading.Thread(target=self._wb_make_video, daemon=True).start()),
                                         ft.ElevatedButton("上传结果到相册", icon=ft.Icons.CLOUD_UPLOAD, bgcolor="#F0A020", color="#1A1200",
                                                           on_click=lambda e: threading.Thread(target=self._upload_results, daemon=True).start()),
                                         self.wb_busy], spacing=10),
                                 self.wb_status], spacing=10)),
                 card(self.wb_results)]
+
+    def _wb_make_video(self):
+        if not self.picked:
+            self.toast("请先取图（选产品 → 取选中图片）", False); return
+        info = video_probe()
+        if not info["available"]:
+            self.toast("未检测到 ffmpeg，请先安装", False); return
+        try:
+            outdir = Path(self.cfg.video_output_dir) if self.cfg.video_output_dir else (Path.home() / "Movies" / "AuroraList")
+            outdir.mkdir(parents=True, exist_ok=True)
+            out = outdir / f"carousel-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
+            self._log(f"开始合成视频：{len(self.picked)} 张图 → {out}")
+            generate_carousel_video(
+                list(self.picked), out,
+                slot_seconds=float(self.cfg.video_slot_seconds or 2.5),
+                transition_seconds=float(self.cfg.video_transition_seconds or 0.5),
+                size=str(self.cfg.video_size or "1080x1080"),
+                cover=bool(self.cfg.video_cover),
+                fade_edges=bool(self.cfg.video_fade_edges),
+            )
+            self._log(f"视频已生成：{out}")
+            self.toast(f"视频已生成：{out}")
+        except Exception as ex:
+            self._log(f"视频生成失败：{ex}")
+            self.toast(str(ex), False)
+
+    def _wb_toggle(self, pid: str, on: bool):
+        if on:
+            self.wb_selected.add(pid)
+        else:
+            self.wb_selected.discard(pid)
+        self._wb_sel_refresh()
+
+    def _wb_sel_refresh(self):
+        n_img = 0
+        for it in getattr(self, "wb_rows", []):
+            if str(it.get("id")) in self.wb_selected:
+                n_img += len(it.get("images") or [])
+        self.wb_sel_text.value = f"已选 {len(self.wb_selected)} 个产品 / {n_img} 张图"
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def _refresh_queue(self):
         st = self.q.stats()
@@ -1977,9 +2129,18 @@ class App:
             info = video_probe()
             if not info["available"]:
                 self.toast("未检测到 ffmpeg，请先安装", False); return
-            out = Path(tempfile.gettempdir()) / "aurora-main-video.mp4"
             try:
-                build_slideshow(list(self.picked), out)
+                outdir = Path(self.cfg.video_output_dir) if self.cfg.video_output_dir else (Path.home() / "Movies" / "AuroraList")
+                outdir.mkdir(parents=True, exist_ok=True)
+                out = outdir / f"carousel-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
+                generate_carousel_video(
+                    list(self.picked), out,
+                    slot_seconds=float(self.cfg.video_slot_seconds or 2.5),
+                    transition_seconds=float(self.cfg.video_transition_seconds or 0.5),
+                    size=str(self.cfg.video_size or "1080x1080"),
+                    cover=bool(self.cfg.video_cover),
+                    fade_edges=bool(self.cfg.video_fade_edges),
+                )
                 self._log(f"视频已生成：{out}")
                 self.toast(f"视频已生成：{out}")
             except Exception as ex:

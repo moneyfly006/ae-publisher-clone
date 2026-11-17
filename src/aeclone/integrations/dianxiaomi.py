@@ -176,12 +176,15 @@ class DianxiaomiClient:
         }
 
     def product_page(self, page: int = 1, size: int = 100, shop_id=None,
-                     status: str | None = None) -> tuple[list[dict], dict]:
+                     status: str | None = None, keyword: str | None = None) -> tuple[list[dict], dict]:
         params: dict = {"page": page, "pageSize": size}
         if shop_id:
             params["shopId"] = shop_id
         if status:
             params["productStatusType"] = status
+        if keyword:
+            params["productName"] = keyword
+            params["searchType"] = "productName"
         data = self._get("product_list", params)
         inner = data.get("data") or {}
         po = inner.get("page") or {}

@@ -16,11 +16,14 @@ class ApiError(RuntimeError):
 
 
 class ApiClient:
-    def __init__(self, base: str, key: str, timeout: int = 180, session: requests.Session | None = None):
+    def __init__(self, base: str, key: str, timeout: int = 180, session: requests.Session | None = None,
+                 proxy: str = ""):
         self.base = base.rstrip("/")
         self.key = key.strip()
         self.timeout = timeout
         self.session = session or requests.Session()
+        if proxy:
+            self.session.proxies.update({"http": proxy, "https": proxy})
 
     # ---------- 基础 ----------
     def _headers(self, extra: dict | None = None) -> dict:

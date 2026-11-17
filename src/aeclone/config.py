@@ -94,8 +94,17 @@ DEFAULTS: dict = {
     # 上传 / 视频
     "upload_full_cid": "",
     "upload_category_name": "",
+    "video_slot_seconds": 2.5,
+    "video_transition_seconds": 0.5,
+    "video_size": "1080x1080",
+    "video_cover": True,
+    "video_fade_edges": True,
+    "video_output_dir": "",
+    "proxy_enabled": False,
+    "proxy_url": "",
     "generate_main_video": False,
     "use_template_video": False,
+    "template_video_path": "",
     "overwrite_existing_video": False,
     # 区域调价模板（本地）
     "adjust_price_template_detail": "{}",

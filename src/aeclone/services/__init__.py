@@ -13,6 +13,7 @@ from ..config import AppConfig
 
 TEXT_MODEL = "qwen-plus"
 IMAGE_MODEL = "qwen-image-2.1-turbo"
+VISION_MODEL = "qwen3-vl-plus"
 
 PROMPT_WHITE_BG = (
     "Remove the background completely and place the product on a pure white background (#FFFFFF). "
@@ -156,3 +157,10 @@ class BatchRunner:
                 f.result()
         results.sort(key=lambda r: r.index)
         return results
+
+
+def client_from_config(cfg, timeout: int | None = None) -> "ApiClient":
+    """按配置创建 API 客户端（自动带上代理设置）。"""
+    from ..api import ApiClient
+    proxy = cfg.proxy_url if getattr(cfg, "proxy_enabled", False) and getattr(cfg, "proxy_url", "") else ""
+    return ApiClient(cfg.api_base, cfg.api_key, timeout or cfg.timeout, proxy=proxy)

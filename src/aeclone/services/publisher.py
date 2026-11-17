@@ -263,6 +263,20 @@ class Publisher:
                 res.steps.append(Step("详情图处理", done > 0, f"{done}/{len(out)} 张"))
 
         # 主图文字翻译
+        if getattr(self.cfg, "translate_main_pic_enable", False) and main and getattr(self.cfg, "translate_image_understanding", False):
+            kept = []
+            for it in main:
+                _u = it.get("url") if isinstance(it, dict) else str(it)
+                try:
+                    _has = ip.has_text(str(_u))
+                except Exception:
+                    _has = True
+                if _has:
+                    kept.append(it)
+                else:
+                    res.steps.append(Step("翻译预检", True, f"无文字，跳过 {str(_u)[-20:]}"))
+            main = kept or main
+
         if getattr(self.cfg, "translate_main_pic_enable", False) and main:
             from .image_index import pick as _pk
             expr = getattr(self.cfg, "translate_main_pic_indices", "") or ""
@@ -733,8 +747,15 @@ class Publisher:
                     import tempfile as _tf
                     from pathlib import Path as _P2
                     import requests as _rq2
-                    from .video import build_slideshow, probe as _vp
-                    if _vp()["available"]:
+                    from .video import build_slideshow, generate_carousel_video, probe as _vp
+
+                    # 已存在视频且未允许覆盖 → 跳过
+                    if p.get("main_video") and not getattr(self.cfg, "overwrite_existing_video", False):
+                        res.steps.append(Step("主图视频", True, "已存在视频，跳过"))
+                    elif getattr(self.cfg, "use_template_video", False) and getattr(self.cfg, "template_video_path", ""):
+                        p["main_video"] = str(self.cfg.template_video_path)
+                        res.steps.append(Step("主图视频", True, "使用模板视频"))
+                    elif _vp()["available"]:
                         d2 = _P2(_tf.mkdtemp())
                         files = []
                         for i, u in enumerate(p["images"][:6]):
@@ -745,9 +766,18 @@ class Publisher:
                                 continue
                         if len(files) >= 2:
                             out = d2 / "main.mp4"
-                            build_slideshow(files, out)
+                            generate_carousel_video(
+                                files, out,
+                                slot_seconds=float(getattr(self.cfg, "video_slot_seconds", 2.5) or 2.5),
+                                transition_seconds=float(getattr(self.cfg, "video_transition_seconds", 0.5) or 0.5),
+                                size=str(getattr(self.cfg, "video_size", "1080x1080") or "1080x1080"),
+                                cover=bool(getattr(self.cfg, "video_cover", True)),
+                                fade_edges=bool(getattr(self.cfg, "video_fade_edges", True)),
+                            )
                             p["main_video"] = str(out)
                             res.steps.append(Step("主图视频", True, str(out)))
+                        else:
+                            res.steps.append(Step("主图视频", False, "可用图片不足 2 张"))
                 except Exception as ex:  # noqa: BLE001
                     res.steps.append(Step("主图视频", False, str(ex)[:80]))
 

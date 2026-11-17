@@ -93,3 +93,73 @@ def extract_frames(src: Path, out_dir: Path, fps: float = 1.0) -> list[Path]:
     cmd = [info["path"], "-y", "-i", str(src), "-vf", f"fps={fps}", str(pat)]
     run_ffmpeg(cmd)
     return sorted(out_dir.glob("frame_*.png"))
+
+
+def _cover_filter(size: str, fps: int = 30) -> str:
+    """等比放大后居中裁剪（cover），不留白边。"""
+    w, h = size.split(":")
+    return (f"scale={w}:{h}:force_original_aspect_ratio=increase,"
+            f"crop={w}:{h},fps={fps},format=yuv420p,setsar=1")
+
+
+def _pad_filter(size: str, fps: int = 30) -> str:
+    w, h = size.split(":")
+    return (f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+            f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=white,fps={fps},format=yuv420p,setsar=1")
+
+
+def generate_carousel_video(images: list[Path], out_path: Path, slot_seconds: float = 2.5,
+                            transition_seconds: float = 0.5, size: str = "1080x1080",
+                            cover: bool = True, fade_edges: bool = True) -> Path:
+    """把多张主图合成带交叉淡化转场的轮播视频（对齐老软件 generate_carousel_video）。
+
+    Args:
+        images: 图片路径列表（按播放顺序）
+        out_path: 输出 mp4 路径
+        slot_seconds: 每张图停留时长（含转场重叠）
+        transition_seconds: 两张图之间的交叉淡化时长
+        size: 输出尺寸，形如 "1080x1080"
+        cover: True=铺满裁剪，False=留白居中
+        fade_edges: 首尾是否淡入淡出
+    """
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        raise VideoError("未找到 ffmpeg，请先安装（或随包分发 ffmpeg）")
+    imgs = [Path(p) for p in images if Path(p).exists()]
+    if not imgs:
+        raise VideoError("没有可用的图片")
+    if len(imgs) == 1:
+        return build_slideshow(imgs, out_path, seconds_per_image=max(slot_seconds, 1.0), size=size.replace(":", "x"))
+
+    size = size.replace("*", ":").replace("x", ":")
+    slot = max(float(slot_seconds), 0.6)
+    trans = min(max(float(transition_seconds), 0.1), slot - 0.2 if slot > 0.8 else 0.1)
+    vf = _cover_filter(size) if cover else _pad_filter(size)
+
+    cmd = [ffmpeg, "-y"]
+    for img in imgs:
+        cmd += ["-loop", "1", "-t", f"{slot + 0.3:.2f}", "-i", str(img)]
+
+    parts = []
+    for i in range(len(imgs)):
+        parts.append(f"[{i}:v]{vf}[v{i}]")
+
+    cur = "v0"
+    for i in range(1, len(imgs)):
+        offset = i * (slot - trans)
+        nxt = f"x{i}"
+        parts.append(f"[{cur}][v{i}]xfade=transition=fade:duration={trans:.2f}:offset={offset:.2f}[{nxt}]")
+        cur = nxt
+
+    if fade_edges:
+        total = len(imgs) * slot - (len(imgs) - 1) * trans
+        parts.append(f"[{cur}]fade=t=in:st=0:d=0.4,fade=t=out:st={max(total - 0.5, 0):.2f}:d=0.5[vout]")
+        cur = "vout"
+
+    cmd += ["-filter_complex", ";".join(parts), "-map", f"[{cur}]",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path)]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise VideoError(f"ffmpeg 失败：{proc.stderr[-500:]}")
+    return out_path
