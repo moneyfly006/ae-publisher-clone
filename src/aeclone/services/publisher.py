@@ -1045,6 +1045,14 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "图片AI处理", False, str(ex)[:100])
 
+            if getattr(self.cfg, "write_detail_html_to_product", True) and p.get("detail_images"):
+                _imgs_html = "".join(
+                    f'<p><img src="{str(u)}" style="max-width:100%;" /></p>'
+                    for u in p["detail_images"][:20] if str(u).startswith("http"))
+                if _imgs_html:
+                    p["detail_html"] = (p.get("detail_html") or "") + _imgs_html
+                    add_step(res, "详情图写回", True, f"{min(len(p['detail_images']), 20)} 张")
+
             if getattr(self.cfg, "main_as_detail", False) and p.get("images"):
                 dimgs = list(p.get("detail_images") or [])
                 for u in p["images"]:
@@ -1334,7 +1342,17 @@ class Publisher:
                                                and (p.get("images") or []) != (product.get("images") or []))
                                            else None),
                                    detail_html=((p.get("detail_html") or None)
-                                                if getattr(self.cfg, "write_detail_html_to_product", True) else None))
+                                                if getattr(self.cfg, "write_detail_html_to_product", True) else None),
+                                   price=(float(p["price_result"].final)
+                                          if getattr(self.cfg, "write_price_to_product", True)
+                                          and p.get("price_result") and float(p["price_result"].final) > 0
+                                          else None),
+                                   stock=(str((p.get("skus") or [{}])[0].get("stock") or "")
+                                          if p.get("skus") else None),
+                                   weight=(getattr(self.cfg, "spec_weight", "") or None),
+                                   length=(getattr(self.cfg, "spec_length", "") or None),
+                                   width=(getattr(self.cfg, "spec_width", "") or None),
+                                   height=(getattr(self.cfg, "spec_height", "") or None))
                 if not r.ok:
                     raise RuntimeError(r.message)
                 add_step(res, "保存到店小秘", True, r.message[:200])

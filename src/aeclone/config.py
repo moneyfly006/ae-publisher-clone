@@ -27,6 +27,7 @@ DEFAULTS: dict = {
     "main_as_detail": False,                              # 主图同时作为详情图
     "write_main_images_to_product": True,                 # AI 主图写回商品
     "write_detail_html_to_product": True,                 # AI 详情写回商品
+    "write_price_to_product": True,                       # 价格写回商品
     "keep_main_images_local": False,                      # 保留主图/AI图到本地
     "custom_detail_text_enable": True,                    # 添加自定义详情文本/图片
     "delete_detail_text": False,                          # 删除详情原有文本

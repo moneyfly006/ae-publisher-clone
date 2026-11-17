@@ -1043,6 +1043,52 @@ def _set_detail_html(page, html: str) -> bool:
     return False
 
 
+def _fill_prices(page, price: float | None) -> int:
+    """把商品价格写入 SKU 行「零售价」输入框（没有 SKU 时不处理）。"""
+    if not price or price <= 0:
+        return 0
+    n = 0
+    try:
+        inputs = page.locator('input[placeholder="零售价"]')
+        for i in range(inputs.count()):
+            el = inputs.nth(i)
+            try:
+                if not el.is_visible():
+                    continue
+                el.fill(f"{float(price):.2f}")
+                el.press("Tab")
+                n += 1
+            except Exception:
+                continue
+    except Exception:
+        return 0
+    return n
+
+
+def _fill_specs(page, stock=None, weight=None, length=None, width=None, height=None) -> int:
+    """把库存/重量/尺寸写入编辑器对应输入框（SKU 行都会填）。"""
+    vals = [("库存", stock), ("重量", weight), ("长", length), ("宽", width), ("高", height)]
+    n = 0
+    for ph, v in vals:
+        if v is None or str(v).strip() == "":
+            continue
+        try:
+            inputs = page.locator(f'input[placeholder="{ph}"]')
+            for i in range(inputs.count()):
+                el = inputs.nth(i)
+                try:
+                    if not el.is_visible():
+                        continue
+                    el.fill(str(v))
+                    el.press("Tab")
+                    n += 1
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    return n
+
+
 def _replace_main_images(page, urls: list[str]) -> bool | None:
     """通过「选择图片 -> 网络图片」替换主图；成功才允许保存。
 
@@ -1118,7 +1164,8 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
                    new_title: str | None = None, timeout: int = 60000,
                    do_publish: bool = False, form_values: dict | None = None,
                    video_path: str | None = None, images: list[str] | None = None,
-                   detail_html: str | None = None) -> SaveResult:
+                   detail_html: str | None = None, price: float | None = None,
+                   stock=None, weight=None, length=None, width=None, height=None) -> SaveResult:
     """一次打开编辑器完成：写模板字段 → 改标题 →（上传视频）→ 保存 →（可选发布）。
 
     相比 apply_template_fields + update_and_save 两次开页面，省一次导航约 20~40s。
@@ -1497,6 +1544,17 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
         if video_path:
             rv = _attach_video_in_page(page, str(video_path))
             applied.append(("视频：" if rv.ok else "视频失败：") + rv.message[:40])
+
+        # 价格：写入 SKU 行「零售价」
+        if price:
+            _pn = _fill_prices(page, price)
+            if _pn:
+                applied.append(f"价格 {price:.2f}（{_pn} 行）")
+
+        if any(v not in (None, "") for v in (stock, weight, length, width, height)):
+            _sn = _fill_specs(page, stock, weight, length, width, height)
+            if _sn:
+                applied.append(f"库存/规格 {_sn} 项")
 
         # AI 详情 HTML：写进描述富文本 iframe
         if detail_html:

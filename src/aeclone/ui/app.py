@@ -287,6 +287,7 @@ def schema_price():
                   Field("default_express_price", "默认运费（包邮模式用）")]),
         ("阶梯", [Field("tuoguan_price_tiered_enabled", "启用阶梯倍率（按成本区间）", "bool")]),
         ("批发", [Field("wholesale_enable", "启用批发价", "bool")]),
+        ("写回", [Field("write_price_to_product", "价格写回商品（零售价）", "bool")]),
     ]
 
 

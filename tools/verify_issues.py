@@ -649,7 +649,8 @@ def main():
     calls = {}
 
     def fake_apply(ws, pid, snap=None, title=None, *, form_values=None, do_publish=False, video_path=None,
-                   images=None, detail_html=None):
+                   images=None, detail_html=None, price=None, stock=None,
+                   weight=None, length=None, width=None, height=None):
         calls.update({"ws": ws, "pid": pid, "form_values": form_values, "do_publish": do_publish,
                       "video": video_path})
         return _ea.SaveResult(True, "保存接口 HTTP 200")
