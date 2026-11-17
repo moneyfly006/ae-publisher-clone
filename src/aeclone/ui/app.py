@@ -1573,7 +1573,88 @@ class App:
 
     def _p_review(self):
         self._current = 4
-        return self._render("内容审查", schema_review())
+        view = self._render("内容审查", schema_review())
+
+        self.rev_status = ft.Text("未开始", size=12, color=MUTED)
+        self.rev_table = ft.DataTable(
+            columns=[ft.DataColumn(ft.Text("产品", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("文本", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("主图", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("结论", size=11, color=MUTED))],
+            rows=[], column_spacing=14, heading_row_height=28, data_row_min_height=26)
+        self.rev_scope = ft.Dropdown(value="editingRequired", width=140, bgcolor=CARD_2, color=TEXT,
+                                     border_color=CARD_2,
+                                     options=[ft.dropdown.Option("editingRequired", "草稿"),
+                                              ft.dropdown.Option("onSelling", "在线")])
+        self.rev_limit = ft.TextField(label="审查数量", value="10", width=110,
+                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+        def start(e):
+            threading.Thread(target=self._run_review, daemon=True).start()
+
+        card_rev = card(ft.Column([
+            h1("审查结果", 15),
+            muted("拉取店铺产品，逐条跑文本审查 + 主图审查；不合规会标红（发布时可按设置拦截）"),
+            ft.Row([self.rev_scope, self.rev_limit,
+                    ft.ElevatedButton("开始审查", icon=ft.Icons.FACT_CHECK, bgcolor=ACCENT, color="white", on_click=start),
+                    self.rev_status], spacing=10, wrap=True),
+            self.rev_table,
+        ], spacing=8))
+        return [view[0], card_rev] + view[1:]
+
+    def _run_review(self):
+        try:
+            limit = int(self.rev_limit.value or 10)
+        except Exception:
+            limit = 10
+        try:
+            ck = self._cookies()
+            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            items = dxm.iter_products(self.cfg.shop_id or None, self.rev_scope.value or None, limit, 3)
+        except Exception as ex:
+            self.toast(f"拉取产品失败：{ex}", False); return
+        tp = TextPipeline(self.cfg)
+        ip = ImagePipeline(self.cfg)
+        self.rev_status.value = f"审查中… 0/{len(items)}"
+        rows = []
+        bad = 0
+        for i, it in enumerate(items, 1):
+            title = str(it.get("title") or "")
+            text_verdict = "跳过"
+            if self.cfg.review_text_enable and title:
+                r = tp.review_text(title)
+                text_verdict = "通过" if r.ok and "不符合" not in r.value else ("不合规" if r.ok else "失败")
+            img_verdict = "跳过"
+            imgs = it.get("images") or []
+            if self.cfg.review_main_img_enable and imgs:
+                try:
+                    v = ip.review(str(imgs[0]), "main")
+                    img_verdict = "不合规" if any(k in v for k in ("不符合", "违规", "建议删除", "含联系方式")) else "通过"
+                except Exception:
+                    img_verdict = "失败"
+            ok = "不合规" not in (text_verdict, img_verdict) and "失败" not in (text_verdict, img_verdict)
+            bad += 0 if ok else 1
+            color = ACCENT_2 if ok else "#FF6B6B"
+            rows.append(ft.DataRow(cells=[
+                ft.DataCell(ft.Text(title[:44], size=11, color=TEXT)),
+                ft.DataCell(ft.Text(text_verdict, size=11, color=MUTED)),
+                ft.DataCell(ft.Text(img_verdict, size=11, color=MUTED)),
+                ft.DataCell(ft.Text("通过" if ok else "需处理", size=11, color=color)),
+            ]))
+            self.rev_table.rows = list(rows)
+            self.rev_status.value = f"审查中… {i}/{len(items)}"
+            try:
+                self.page.update()
+            except Exception:
+                pass
+        self.rev_status.value = f"完成：{len(items)} 个产品，{bad} 个需处理"
+        self.rev_status.color = "#FF6B6B" if bad else ACCENT_2
+        self._log(f"内容审查完成：{len(items)} 个，{bad} 个需处理")
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
 
     def _p_image(self):
         self._current = 5
