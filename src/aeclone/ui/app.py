@@ -2363,7 +2363,7 @@ class App:
 
     def _wb_process(self, kind):
         svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
-        runner = BatchRunner(self.cfg.concurrency, retries=1)
+        runner = BatchRunner(self.cfg.concurrency, retries=int(self.cfg.retry_max or 1), retry_delay=float(self.cfg.retry_delay or 2.0))
         self.wb_runner = runner
         self.wb_results.controls = []
 
@@ -3021,7 +3021,7 @@ class App:
     def _do_image(self, kind):
         svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
         self.img_results.controls = []
-        runner = BatchRunner(self.cfg.concurrency)
+        runner = BatchRunner(self.cfg.concurrency, retries=int(self.cfg.retry_max or 1), retry_delay=float(self.cfg.retry_delay or 2.0))
 
         def job(idx, path):
             if kind == "white":

@@ -19,6 +19,8 @@ DEFAULTS: dict = {
     "api_key": "",
     "license_server": "https://license.moneyfly.club",
     "concurrency": 3,
+    "retry_max": 1,
+    "retry_delay": 2.0,
     "timeout": 180,
     # ---- 店铺 / 浏览器 / 模板 ----
     "browser_type": "本机Chrome",
