@@ -82,6 +82,8 @@ class Publisher:
         p = dict(product)
         p["title"] = (p.get("title") or "").strip()
         prefix = (getattr(self.cfg, "custom_sku_prefix", "") or "").strip()
+        if not getattr(self.cfg, "custom_sku_prefix_enable", True):
+            prefix = ""
         only_prefix = getattr(self.cfg, "only_sku_prefix_checkbox", False)
         split_ch = getattr(self.cfg, "sku_split_char", "-") or "-"
         stock = getattr(self.cfg, "stock_quantity", "") or ""
@@ -913,10 +915,11 @@ class Publisher:
                     pos = (self.cfg.detail_text_position or "head").lower()
                     if getattr(self.cfg, "move_detail_text", False) and head:
                         pos = "head"
-                    if head and pos in ("head", "both"):
-                        html = f"<p>{head}</p>" + html
-                    if tail and pos in ("tail", "both"):
-                        html = html + f"<p>{tail}</p>"
+                    if getattr(self.cfg, "custom_detail_text_enable", True):
+                        if head and pos in ("head", "both"):
+                            html = f"<p>{head}</p>" + html
+                        if tail and pos in ("tail", "both"):
+                            html = html + f"<p>{tail}</p>"
                     p["detail_html"] = html
 
             if self.cfg.enable_ai_sku and p.get("skus"):
@@ -1041,6 +1044,14 @@ class Publisher:
                     p = self._ai_images(p, res)
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "图片AI处理", False, str(ex)[:100])
+
+            if getattr(self.cfg, "main_as_detail", False) and p.get("images"):
+                dimgs = list(p.get("detail_images") or [])
+                for u in p["images"]:
+                    if u and u not in dimgs:
+                        dimgs.append(u)
+                p["detail_images"] = dimgs
+                add_step(res, "主图转详情", True, f"详情图共 {len(dimgs)} 张")
 
             # 图片方案（简单规则 + 精细任务；兼容旧逐图/指定编辑），放在常规处理之后、转存之前
             _has_img_jobs = any(

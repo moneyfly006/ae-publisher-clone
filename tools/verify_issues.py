@@ -1261,11 +1261,16 @@ def main():
           ("审核中" in (_ar.error or "") or "auditing" in (_ar.error or "")), _ar.error or "")
 
     # AI图片处理：总开关/并发/快速模式入口
-    uapp._switch(5)
+    uapp._switch(3)
     img_labels = " ".join(texts(uapp.content.controls))
-    check("图片：总开关存在", "启用 AI 图片处理（总开关）" in img_labels, "")
-    check("图片：并发设置存在", "单产品图片并发数" in img_labels, "")
-    check("图片：一键快速模式", "一键快速模式" in img_labels, "")
+    check("AI：合并页可打开", "AI图片设置" in img_labels, "")
+    check("AI：图片总开关存在", "启用 AI 图片处理（总开关）" in img_labels, "")
+    check("AI：并发设置存在", "单产品图片并发数" in img_labels, "")
+    check("AI：一键快速模式", "一键快速模式" in img_labels, "")
+    _titles = [getattr(c, "title", None) for c in walk(uapp.content.controls)]
+    _titles = [getattr(x, "value", x) for x in _titles if x is not None]
+    check("AI：简单/通用编辑分区", any("图片简单编辑" in str(x) for x in _titles) and
+          any("图片通用编辑" in str(x) for x in _titles), str(_titles)[:120])
 
     # 页面去重：日志页不再有版本更新/视频；设置页有版本
     uapp._switch(10)

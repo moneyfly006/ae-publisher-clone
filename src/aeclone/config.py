@@ -24,6 +24,15 @@ DEFAULTS: dict = {
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
     "log_auto_follow": True,                              # 日志总是跳到最新
     "ai_image_enable": True,                              # AI 图片处理总开关
+    "main_as_detail": False,                              # 主图同时作为详情图
+    "keep_main_images_local": False,                      # 保留主图/AI图到本地
+    "custom_detail_text_enable": True,                    # 添加自定义详情文本/图片
+    "delete_detail_text": False,                          # 删除详情原有文本
+    "keep_custom_attributes": True,                       # 保留商品自己的自定义属性
+    "split_product_price": False,                         # 产品信息/价格分离处理
+    "original_box": False,                                # 是否原箱
+    "prefer_collected_weight": True,                      # 优先采集重量尺寸
+    "custom_sku_prefix_enable": True,                     # 启用自定义 SKU 前缀
     "image_concurrency": 4,                               # 单产品内图片并发数
     "image_cache_enable": True,                           # 相同图片+相同处理只调用一次（跨产品复用）
     "image_cache_days": 7,

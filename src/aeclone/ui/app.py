@@ -423,9 +423,9 @@ class App:
         self.nav_buttons = []
         groups = [
             ("", [("概览", ft.Icons.DASHBOARD_OUTLINED, 0)]),
-            ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("高级设置", ft.Icons.TUNE, 2)]),
-            ("AI 设置", [("AI 智能填写", ft.Icons.AUTO_FIX_HIGH, 3), ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4)]),
-            ("AI图片处理", [("AI图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 9)]),
+            ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("属性设置", ft.Icons.TUNE, 2)]),
+            ("AI 设置", [("AI图片设置", ft.Icons.AUTO_AWESOME, 3)]),
+            ("图片", [("图片工作台", ft.Icons.GRID_VIEW, 9)]),
             ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
             ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("提示词", ft.Icons.EDIT_NOTE, 11),
                       ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
@@ -2813,9 +2813,104 @@ class App:
         except Exception:
             pass
 
+    def _fast_image_mode(self, e=None):
+        """老软件式快速模式：只保留白底/去水印/SKU白底 + 标题/详情。"""
+        for _k in ("main_image_generate_enable", "img_main_edit", "designated_edit_enable",
+                   "translate_main_pic_enable", "translate_detail_pic_enable", "translate_sku_pic",
+                   "img_detail_white_bg", "img_detail_remove_wm", "img_detail_edit",
+                   "img_sku_remove_wm", "img_sku_edit", "marketing_image_enable",
+                   "generate_main_video", "enable_ai_weight",
+                   "review_main_img_enable", "review_detail_img_enable", "review_text_enable",
+                   "four_in_one", "overlay_watermark_enable"):
+            self.cfg.set(_k, False)
+        self.cfg.set("ai_image_enable", True)
+        self.cfg.set("image_concurrency", 4)
+        try:
+            self.cfg.set("concurrency", max(4, int(getattr(self.cfg, "concurrency", 4) or 4)))
+        except Exception:
+            self.cfg.set("concurrency", 4)
+        save_config(self.cfg)
+        self.toast("已切换快速模式：只保留白底/去水印/SKU白底 + 标题/详情，图片并发 4")
+        self._switch(3)
+
     def _p_ai(self):
+        """AI图片设置：按老软件合并成 智能填写/内容审查/简单编辑/通用编辑/批处理。"""
         self._current = 3
-        return self._render("AI 智能填写", schema_ai())
+        self.field_refs = []
+        self._autosave_status = ft.Text("修改即自动保存", size=11, color=MUTED)
+
+        def add_section(title: str, schemas, expanded: bool = False, extra=None):
+            controls = []
+            for name, fields in schemas:
+                c, refs = section(name, fields, self.cfg)
+                self.field_refs.extend(refs)
+                for f in refs:
+                    self._bind_autosave(f)
+                controls.append(c)
+            if extra is not None:
+                controls.append(extra)
+            return ft.ExpansionTile(title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=TEXT),
+                                    controls=controls, initially_expanded=expanded,
+                                    icon_color=ACCENT, collapsed_icon_color=MUTED)
+
+        # 图片步骤字段：按老软件拆成「简单编辑 / 通用编辑」
+        img_map = {f.key: f for _sec, fs in schema_image() for f in fs}
+        simple_keys = [
+            "white_bg_enable", "white_background_pic_1", "white_background_pic_2",
+            "watermark_enable", "remove_watermark_pic_1", "remove_watermark_pic_2",
+            "translate_main_pic_enable", "translate_main_pic_indices",
+            "white_background_detail_pic_indices", "img_detail_white_bg", "img_detail_remove_wm",
+            "translate_detail_pic_enable", "translate_detail_pic_indices",
+            "white_background_sku_pic", "img_sku_white_bg", "img_sku_remove_wm",
+            "translate_sku_pic", "translate_image_understanding",
+        ]
+        general_keys = [
+            "ai_image_enable", "image_concurrency",
+            "main_image_generate_enable", "main_image_generate_prompt", "main_image_generate_count",
+            "main_image_generate_use_refs", "img_main_edit", "designated_edit_enable",
+            "designated_edit_indices", "designated_edit_prompt",
+            "marketing_image_enable", "marketing_image_count", "marketing_image_prompt",
+            "background_gen_sku_prompt", "edit_enable", "edit_prompt",
+        ]
+        simple = []
+        for name, fields in schema_image():
+            fs = [f for f in fields if f.key in simple_keys]
+            if fs:
+                simple.append((name, fs))
+        general = []
+        for name, fields in schema_image():
+            fs = [f for f in fields if f.key in general_keys]
+            if fs:
+                general.append((name, fs))
+
+        cards = [
+            add_section("AI 智能填写", schema_ai(), expanded=True),
+            add_section("内容审查", schema_review(), expanded=False),
+            add_section("图片简单编辑", simple, expanded=True),
+            add_section("图片通用编辑", general, expanded=False, extra=self._image_jobs_ui()),
+        ]
+        fast_card = card(ft.Column([
+            h1("速度 / 功能开关", 15),
+            muted("每个 AI 步骤都有独立开关；关掉即跳过。快速模式关闭审查/估重/营销/翻译/视频等耗时项。"),
+            ft.Row([ft.ElevatedButton("一键快速模式（推荐）", icon=ft.Icons.BOLT, bgcolor=ACCENT_2,
+                                      color="#04231C", on_click=self._fast_image_mode)], spacing=8, wrap=True),
+        ], spacing=8))
+        batch = card(ft.Column([
+            h1("AI 图片批处理", 15),
+            muted("对选中的产品/图片单独跑 AI；进入图片工作台可加载产品、取图、批量白底/去水印/翻译/编辑。"),
+            ft.Row([ft.ElevatedButton("打开图片工作台", icon=ft.Icons.GRID_VIEW, bgcolor=ACCENT,
+                                      color="white", on_click=lambda e: self._switch(9)),
+                    ft.OutlinedButton("选择本地图片", icon=ft.Icons.UPLOAD_FILE,
+                                      on_click=lambda e: self.file_picker.pick_files(
+                                          allow_multiple=True, allowed_extensions=["png", "jpg", "jpeg", "webp"]))],
+                   spacing=10, wrap=True),
+        ], spacing=8))
+        return [h1("AI图片设置"),
+                muted("API Key 仍在「设置」页填写；这里放 AI 文案、审查、图片处理的开关与范围"),
+                *cards, fast_card, batch,
+                ft.Row([self._autosave_status,
+                        ft.OutlinedButton("恢复默认", icon=ft.Icons.RESTART_ALT, on_click=lambda e: self._reset())],
+                       spacing=12)]
 
     def _p_review(self):
         self._current = 4
@@ -2940,24 +3035,7 @@ class App:
             self.img_quick_prompt,
             self.img_status, self.img_results], spacing=10))
         def fast_mode(e):
-            # 只保留最影响上架速度的核心步骤；每个开关仍可单独再开
-            for _k in ("main_image_generate_enable", "img_main_edit", "designated_edit_enable",
-                       "translate_main_pic_enable", "translate_detail_pic_enable", "translate_sku_pic",
-                       "img_detail_white_bg", "img_detail_remove_wm", "img_detail_edit",
-                       "img_sku_remove_wm", "img_sku_edit", "marketing_image_enable",
-                       "generate_main_video", "enable_ai_weight",
-                       "review_main_img_enable", "review_detail_img_enable", "review_text_enable",
-                       "four_in_one", "overlay_watermark_enable"):
-                self.cfg.set(_k, False)
-            self.cfg.set("ai_image_enable", True)
-            self.cfg.set("image_concurrency", 4)
-            try:
-                self.cfg.set("concurrency", max(4, int(getattr(self.cfg, "concurrency", 4) or 4)))
-            except Exception:
-                self.cfg.set("concurrency", 4)
-            save_config(self.cfg)
-            self.toast("已切换快速模式：只保留白底/去水印/SKU白底 + 标题/详情，图片并发 4")
-            self._switch(5)
+            self._fast_image_mode(e)
 
         self.img_fast_btn = ft.ElevatedButton("一键快速模式（推荐）", icon=ft.Icons.BOLT,
                                               bgcolor=ACCENT_2, color="#04231C", on_click=fast_mode)
@@ -4871,7 +4949,46 @@ class App:
             spacing=8))
         threading.Thread(target=self._load_prices, daemon=True).start()
 
-        return [lic_card, api_card, model_card, inst_card, upd, diag_card, price_card]
+        # ---------------- 额外选项（老软件「设置」页） ----------------
+        def sw(key, label):
+            ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)), active_color=ACCENT)
+            def on(e, _k=key):
+                self.cfg.set(_k, bool(e.control.value))
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
+        self.publish_pos = ft.Dropdown(
+            label="发布到什么地方", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "publish_action", "save_only") or "save_only"),
+            options=[ft.dropdown.Option("save_only", "待发布"), ft.dropdown.Option("publish", "直接发布")])
+        def set_pub(e):
+            self.cfg.set("publish_action", str(self.publish_pos.value or "save_only"))
+            save_config(self.cfg)
+        self.publish_pos.on_change = set_pub
+        extra_card = card(ft.Column([
+            h1("额外选项", 15),
+            muted("老软件「设置」页的常用开关；每个开关都会实际影响保存/发布流程"),
+            ft.Row([sw("prefer_collected_weight", "优先使用采集重量尺寸"),
+                    sw("four_in_one", "四合一主图"),
+                    sw("main_as_detail", "启用主图作为详情图"),
+                    sw("pad_main_images_from_extra", "主图不足6张时用额外图片补齐"),
+                    sw("keep_main_images_local", "保留主图及AI生成图片至本地")], spacing=14, wrap=True),
+            ft.Row([sw("custom_detail_text_enable", "添加自定义详情文本或图片"),
+                    sw("delete_detail_text", "删除详情原有文本"),
+                    sw("copy_sku_to_detail", "复制SKU至详情")], spacing=14, wrap=True),
+            ft.Row([sw("modify_stock_999", "修改库存为999"),
+                    sw("original_box", "是否原箱"),
+                    sw("auto_generate_sku_code", "自动生成唯一商品编码"),
+                    sw("check_banned_word", "违禁词检查")], spacing=14, wrap=True),
+            ft.Row([sw("use_template_video", "使用模板产品视频"),
+                    sw("generate_main_video", "生成主图轮播视频"),
+                    sw("keep_custom_attributes", "保留自定义属性"),
+                    sw("split_product_price", "启用产品信息/价格分离处理")], spacing=14, wrap=True),
+            ft.Row([self.publish_pos], spacing=10, wrap=True),
+        ], spacing=10))
+
+        return [lic_card, api_card, model_card, extra_card, inst_card, upd, diag_card, price_card]
 
     def _price_of(self, model: str) -> float:
         try:
