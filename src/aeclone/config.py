@@ -178,6 +178,7 @@ DEFAULTS: dict = {
     "default_express_price": "0",
     "adjust_price_template_id": "",
     "adjust_price_template_name": "",
+    "price_template_library": [],
     # ---- 变种 ----
     "variant_mappings": "[]",
     # ---- 视频 / 发布 ----

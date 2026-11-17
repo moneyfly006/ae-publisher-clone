@@ -29,6 +29,8 @@ ENDPOINTS = {
     "product_detail": "/api/smtProduct/edit.json",  # 实测：编辑器加载
     "product_detail": "",
     "category": "",
+    "template_search": "/api/smtAdjustPrice/list.json",   # 实测：区域调价模板列表
+    "attribute_template": "/api/smtAttributeTemplate/list.json",
 }
 
 
@@ -267,8 +269,15 @@ class DianxiaomiClient:
         data = self._post("upload_sign", {"fileName": file_name, "fileSize": file_size})
         return (data.get("data") or data) if isinstance(data, dict) else {}
 
-    def search_price_templates(self, keyword: str = "") -> Any:
-        return self._get("template_search", {"keyword": keyword})
+    def search_price_templates(self, keyword: str = "", page: int = 1, size: int = 50) -> list[dict]:
+        """区域调价模板列表（实测接口 /api/smtAdjustPrice/list.json）。"""
+        params = {"pageNo": page, "pageSize": size}
+        if keyword:
+            params["searchValue"] = keyword
+            params["searchType"] = 1
+        data = self._get("template_search", params)
+        page_obj = ((data.get("data") or {}).get("page") or {})
+        return page_obj.get("list") or []
 
     def video_callback(self, file_id: str, file_name: str, file_size: int) -> Any:
         return self._post("video_callback", {"fileId": file_id, "fileName": file_name, "fileSize": file_size})

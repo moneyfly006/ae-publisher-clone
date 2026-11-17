@@ -1713,6 +1713,61 @@ class App:
             self.tpl_status.value = "搜索中…"; self.page.update()
             threading.Thread(target=self._search_templates, daemon=True).start()
 
+        self.lib_name = ft.TextField(label="模板名称", width=160, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.lib_dd = ft.Dropdown(width=220, bgcolor=CARD_2, color=TEXT, border_color=CARD_2, options=[])
+
+        def _lib_refresh():
+            lib = self.cfg.price_template_library or []
+            if not isinstance(lib, list):
+                lib = []
+            self.lib_dd.options = [ft.dropdown.Option(str(t.get("name"))) for t in lib if isinstance(t, dict)]
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def lib_save(e):
+            name = (self.lib_name.value or "").strip()
+            if not name:
+                self.toast("请输入模板名称", False); return
+            try:
+                rates = json.loads(self.cfg.adjust_price_template_detail or "{}")
+            except Exception:
+                self.toast("区域倍率 JSON 格式错误", False); return
+            lib = [t for t in (self.cfg.price_template_library or []) if isinstance(t, dict) and t.get("name") != name]
+            lib.append({"name": name, "rates": rates})
+            self.cfg.price_template_library = lib
+            save_config(self.cfg)
+            _lib_refresh()
+            self.toast(f"已保存模板：{name}")
+
+        def lib_apply(e):
+            name = self.lib_dd.value
+            for t in (self.cfg.price_template_library or []):
+                if isinstance(t, dict) and t.get("name") == name:
+                    self.cfg.adjust_price_template_detail = json.dumps(t.get("rates") or {}, ensure_ascii=False)
+                    save_config(self.cfg)
+                    self.toast(f"已应用模板：{name}（保存配置后生效）")
+                    return
+            self.toast("未找到模板", False)
+
+        def lib_del(e):
+            name = self.lib_dd.value
+            self.cfg.price_template_library = [t for t in (self.cfg.price_template_library or [])
+                                              if not (isinstance(t, dict) and t.get("name") == name)]
+            save_config(self.cfg)
+            _lib_refresh()
+            self.toast("已删除")
+
+        _lib_refresh()
+        lib_card = card(ft.Column([h1("本地区域模板", 15),
+                                   muted("把当前「区域倍率 JSON」存成模板，换产品或换店铺时一键套用（不依赖店小秘）"),
+                                   ft.Row([self.lib_name,
+                                           ft.ElevatedButton("保存当前", icon=ft.Icons.SAVE, bgcolor=CARD_2, color=TEXT, on_click=lib_save),
+                                           self.lib_dd,
+                                           ft.ElevatedButton("应用", icon=ft.Icons.CHECK, bgcolor=ACCENT, color="white", on_click=lib_apply),
+                                           ft.OutlinedButton("删除", on_click=lib_del)], spacing=10, wrap=True)], spacing=8))
+
         tpl_card = card(ft.Column([h1("区域调价模板", 15),
                                    ft.Row([self.tpl_kw, ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, on_click=search)], spacing=10),
                                    self.tpl_status, self.tpl_list], spacing=10))
@@ -1721,7 +1776,7 @@ class App:
                                                                  ft.ElevatedButton("计算", on_click=calc),
                                                                  self.price_out], spacing=14)], spacing=10))
         view = self._render("价格设置", schema_price())
-        return [view[0], calc_card, tpl_card] + view[1:]
+        return [view[0], calc_card, lib_card, tpl_card] + view[1:]
 
     def _search_templates(self):
         try:
