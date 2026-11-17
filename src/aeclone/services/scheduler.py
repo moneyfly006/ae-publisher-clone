@@ -45,9 +45,26 @@ class Scheduler:
                            encoding="utf-8")
 
     def add(self, product_id: str, run_at: float, title: str = "") -> Job:
+        # 同一产品只保留一条待执行任务，避免重复发布
+        self.jobs = [j for j in self.jobs if not (j.product_id == str(product_id) and j.status == "pending")]
         job = Job(product_id=str(product_id), run_at=run_at, title=title)
         self.jobs.append(job); self.save()
         return job
+
+    def cancel(self, product_id: str) -> int:
+        """取消某产品的待执行定时任务，返回取消条数。"""
+        n = 0
+        for j in self.jobs:
+            if j.status == "pending" and j.product_id == str(product_id):
+                j.status = "cancelled"
+                j.message = "已手动取消"
+                n += 1
+        if n:
+            self.save()
+        return n
+
+    def pending_jobs(self) -> list[Job]:
+        return sorted(self.pending(), key=lambda j: j.run_at)
 
     def due(self) -> list[Job]:
         now = time.time()

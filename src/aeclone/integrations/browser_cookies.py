@@ -61,3 +61,55 @@ def read_best(domain: str = "dianxiaomi.com") -> CookieSource:
 
 def is_logged_in(cookies: dict) -> bool:
     return any(k in cookies for k in ("dxm_i", "dxm_t", "JSESSIONID"))
+
+
+# ---------------- 统一取 Cookie 入口 ----------------
+# 优先级（ISSUES #1）：手动粘贴/配置 → 已开浏览器（CDP）→ 本机 Cookie 库
+# 原因：本机 Cookie 库在新版 Chrome 上常因 Keychain/加密读不到（显示「0 个」），
+# 而实际能用的往往是配置里注入过的 Cookie 或已启动的浏览器会话。
+SOURCE_MANUAL = "手动配置"
+SOURCE_CDP = "已开浏览器"
+SOURCE_LOCAL = "本机 Cookie 库"
+
+
+def resolve(domain: str = "dianxiaomi.com", manual: dict | None = None,
+            ws_endpoint: str = "", use_local: bool = True) -> CookieSource:
+    """按「手动 → CDP → 本机库」顺序解析可用 Cookie。"""
+    errors: list[str] = []
+
+    # 1) 配置里的手动 Cookie（注入过就一直可用，不依赖浏览器）
+    if isinstance(manual, dict) and manual:
+        return CookieSource(SOURCE_MANUAL, True, {str(k): str(v) for k, v in manual.items()})
+
+    # 2) 已经启动的浏览器会话（CDP；最新、最可靠）
+    if ws_endpoint:
+        try:
+            from .cdp import cookies_via_cdp
+            ck = cookies_via_cdp(ws_endpoint, domains=["dianxiaomi"])
+            if ck:
+                return CookieSource(SOURCE_CDP, True, ck)
+            errors.append("已开浏览器：未读到 dianxiaomi Cookie")
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"已开浏览器：{type(e).__name__}: {e}")
+
+    # 3) 本机浏览器 Cookie 库（可能因加密/权限读不到）
+    if use_local:
+        src = read_best(domain)
+        if src.ok and src.cookies:
+            return CookieSource(f"{SOURCE_LOCAL}（{src.name}）", True, src.cookies)
+        errors.append(src.error or "本机 Cookie 库：未读到 Cookie")
+
+    return CookieSource("auto", False, {}, " | ".join(errors)[:300])
+
+
+def describe(src: CookieSource) -> str:
+    """给用户看的 Cookie 状态文案。"""
+    if src.ok:
+        extra = ""
+        try:
+            if not is_logged_in(src.cookies):
+                extra = "（缺少登录标识，可能已过期）"
+        except Exception:
+            pass
+        return f"{src.name} · {len(src.cookies)} 个{extra}"
+    return f"{src.name} · 0 个（读取失败，可粘贴）"

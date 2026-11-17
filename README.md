@@ -29,18 +29,36 @@ git tag v0.1.0 && git push origin v0.1.0
 ## 目录
 
 ```
-main.py                 入口
-src/aeclone/config.py   配置存储
-src/aeclone/api.py      OpenAI 兼容客户端
-src/aeclone/services.py 业务服务（文本/图片）
-src/aeclone/license.py  授权校验
-src/aeclone/ui/app.py   Flet 界面
-.github/workflows/      CI 打包
+main.py                          入口（支持 --page N 指定启动页）
+src/aeclone/config.py            配置存储（改任意项自动落盘）
+src/aeclone/api.py               OpenAI 兼容客户端（文本/图像编辑/文生图）
+src/aeclone/services/            业务服务
+  ├─ publisher.py                刊登流程（模板/图片/AI/保存/发布/定时）
+  ├─ image_edit_plans.py         逐图编辑方案（每张图独立提示词 + 多图素材）
+  ├─ image_ops.py                本地图片：水印 / 四合一 / 补方图
+  ├─ combo.py                    套装 SKU 展开
+  ├─ album_cleanup.py            店小秘图片空间统计 / 清理旧图
+  └─ scheduler.py                定时发布队列
+src/aeclone/integrations/        店小秘 API / CDP / 编辑器自动化 / Cookie
+src/aeclone/ui/app.py            Flet 界面
+tools/verify_issues.py           离线回归（109 项）
+tools/button_audit.py            全按钮回调遍历
+.github/workflows/               CI 打包
 ```
+
+## 图片编辑要点
+
+- **逐图编辑方案**（AI 图片处理 → 逐图编辑方案）：每条 = 目标组（主图/描述图/SKU 图）+ 第几张 +
+  参考图（`1,2,3` / `3-5` / `all`，可多张）+ 这一张的提示词 + 编辑/生成 + 是否追加为新图。
+  执行时把「目标图 + 参考图」一起作为多图素材调用 `/v1/images/edits`（图生图）。
+- **文生图带素材**：默认以现有主图为参考图，而不是凭空生成；可在「主图」组里关闭。
+- **四合一**：AI 图片处理 → 通用 → 四合一拼图 + 位置（追加/第一张）；工具条与图片工作台也有一键按钮。
+- **背景替换规则**：每条规则 = 图（`main_n` / `all_main` / `detail_n`）+ 换背景要求，逐张执行。
 
 ## 路线图
 
 - [x] 配置 / API 客户端 / 文本与图片服务 / 基础 UI
-- [ ] 店小秘采集与发布流程（需要接口协议）
-- [ ] 浏览器自动化（Playwright）
-- [ ] SKU 变种映射、价格模板
+- [x] 店小秘采集与发布流程（真实保存 + 发布 + 定时）
+- [x] 浏览器自动化（Playwright / CDP）
+- [x] SKU 变种映射、价格模板、套装 SKU
+- [x] 逐图编辑方案 / 多图素材 / 四合一 / 图片空间清理

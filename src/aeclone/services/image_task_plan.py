@@ -42,7 +42,8 @@ def build_plan(cfg, product: dict | None = None) -> ImagePlan:
         prompt = (getattr(cfg, "main_image_generate_prompt", "") or "").strip()
         if not prompt:
             plan.blockers.append("AI 生成主图：提示词为空")
-        plan.steps.append(f"生成主图 ×{getattr(cfg, 'main_image_generate_count', '1')}")
+        refs = "参考现有主图" if getattr(cfg, "main_image_generate_use_refs", True) else "纯文生图"
+        plan.steps.append(f"生成主图 ×{getattr(cfg, 'main_image_generate_count', '1')}（{refs}）")
 
     if cfg.white_bg_enable:
         pos = _fmt_positions(f"{cfg.white_background_pic_1}-{cfg.white_background_pic_2}", n_main)
@@ -92,7 +93,14 @@ def build_plan(cfg, product: dict | None = None) -> ImagePlan:
         plan.steps.append("背景生成")
 
     if cfg.four_in_one:
-        plan.steps.append("四合一")
+        pos = "放主图第 1 张" if str(getattr(cfg, "four_in_one_position", "append")) == "first" else "追加到主图末尾"
+        plan.steps.append("四合一（" + pos + "）")
+
+    from .image_edit_plans import parse as _parse_plans, describe as _describe
+    _plans = _parse_plans(getattr(cfg, "image_edit_plans", ""))
+    if _plans:
+        for _line in _describe(_plans)[:6]:
+            plan.steps.append("逐图方案：" + _line)
 
     if getattr(cfg, "overlay_watermark_enable", False):
         if not (getattr(cfg, "watermark", "") or "").strip():

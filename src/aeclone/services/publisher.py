@@ -41,14 +41,41 @@ def add_step(res, name, ok, detail=""):
         BUS.done_stage()
 
 
+def parse_run_at(text: str) -> float:
+    """把「2026-11-12 09:00」/「2026-11-12T09:00」解析成时间戳（本地时区）。"""
+    import datetime as _dt
+    import time as _t
+    raw = str(text or "").strip().replace("T", " ")
+    if not raw:
+        raise ValueError("定时时间为空")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%m-%d %H:%M"):
+        try:
+            dt = _dt.datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+        if dt.year == 1900:
+            now = _dt.datetime.now()
+            dt = dt.replace(year=now.year)
+            if dt < now:
+                dt = dt.replace(year=now.year + 1)
+        return _t.mktime(dt.timetuple())
+    raise ValueError(f"时间格式不对：{text}（示例 2026-11-12 09:00）")
+
+
+_parse_run_at = parse_run_at   # 兼容内部旧名
+
+
 class Publisher:
-    def __init__(self, cfg, dxm=None, text_service=None, image_service=None, ws_endpoint: str = ""):
+    def __init__(self, cfg, dxm=None, text_service=None, image_service=None, ws_endpoint: str = "",
+                 scheduler=None):
         self.cfg = cfg
         self.dxm = dxm
         self.text = text_service
         self.image = image_service
         self.ws_endpoint = ws_endpoint
+        self.scheduler = scheduler
         self.image_pipeline = ImagePipeline(cfg)
+        self._img_svc = image_service
 
     # ---------- 单步 ----------
     def _normalize(self, product: dict) -> dict:
@@ -70,30 +97,165 @@ class Publisher:
             elif stock:
                 sku["stock"] = stock
         if getattr(self.cfg, "combo_enable", False):
+            from .combo import expand as _combo_expand
             try:
                 factor = float(getattr(self.cfg, "combo_multiplier", "2") or 2)
             except Exception:
                 factor = 2.0
-            pref = getattr(self.cfg, "combo_prefix", "套装") or "套装"
-            base_skus = list(p.get("skus") or [])
-            combo = []
-            for sku in base_skus:
-                c = dict(sku)
-                name = str(sku.get("sku") or sku.get("name") or "")
-                c["sku"] = f"{pref}-{name}" if name else f"{pref}-{len(combo)+1}"
-                try:
-                    if sku.get("price") is not None:
-                        c["price"] = round(float(sku["price"]) * factor, 2)
-                except Exception:
-                    pass
-                combo.append(c)
-            p["skus"] = base_skus + combo
+            pref = str(getattr(self.cfg, "combo_prefix", "套装") or "套装").strip() or "套装"
+            fallback = None
+            try:
+                fallback = float(p.get("cost") or getattr(self.cfg, "goods_cost", 0) or 0) or None
+            except Exception:
+                fallback = None
+            p["skus"] = _combo_expand(list(p.get("skus") or []), pref, factor, fallback)
         try:
             limit = int(self.cfg.max_sku_count or 256)
             p["skus"] = (p.get("skus") or [])[:limit]
         except Exception:
             p["skus"] = p.get("skus") or []
         p["images"] = p.get("images") or []
+        return p
+
+    def _form_values(self) -> dict:
+        """模板抓取到的表单值 + 欧盟资质/责任人（编辑器按 label 回填）。"""
+        import json as _jf
+        try:
+            fv = _jf.loads(getattr(self.cfg, "template_values", "") or "{}")
+            if not isinstance(fv, dict):
+                fv = {}
+        except Exception:
+            fv = {}
+        fv["__eu__"] = getattr(self.cfg, "eu_qualification", "否")
+        fv["__eu_name__"] = getattr(self.cfg, "eu_responsible_name", "")
+        fv["__eu_address__"] = getattr(self.cfg, "eu_responsible_address", "")
+        fv["__eu_email__"] = getattr(self.cfg, "eu_responsible_email", "")
+        fv["__eu_phone__"] = getattr(self.cfg, "eu_responsible_phone", "")
+        return fv
+
+    # ---------- 逐图编辑方案（图生图 / 多图素材）----------
+    def _img_service(self):
+        if self._img_svc is None:
+            from ..api import ApiClient
+            from . import ImageService
+            self._img_svc = ImageService(
+                ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
+        return self._img_svc
+
+    def _edit_with_prompt(self, url: str, prompt: str) -> str:
+        """对单张 URL 用指定提示词做一次编辑，返回新 URL。"""
+        svc = self._img_service()
+        fp = self._fetch(url)
+        return str(svc.edit(fp, prompt))
+
+    def _fetch(self, url: str, workdir=None):
+        """下载图片到本地（供多图素材上传用）。"""
+        import tempfile
+        from pathlib import Path as _P
+        import requests as _rq
+        d = _P(workdir or tempfile.mkdtemp())
+        name = str(url).split("?")[0].split("/")[-1] or "img.png"
+        if not name.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+            name += ".png"
+        fp = d / f"{abs(hash(url)) % 10**8}_{name}"
+        if not fp.exists():
+            r = _rq.get(str(url), timeout=60)
+            r.raise_for_status()
+            fp.write_bytes(r.content)
+        return fp
+
+    @staticmethod
+    def _group_urls(p: dict, group: str) -> list[str]:
+        if group == "sku":
+            out = []
+            for sku in p.get("skus") or []:
+                out.append(str(sku.get("processed_image") or sku.get("image") or sku.get("imageUrl") or ""))
+            return out
+        key = "detail_images" if group == "detail" else "images"
+        return [str(u) for u in (p.get(key) or [])]
+
+    @staticmethod
+    def _set_group_url(p: dict, group: str, idx: int, url: str) -> bool:
+        if group == "sku":
+            skus = p.get("skus") or []
+            if 0 <= idx < len(skus):
+                skus[idx]["processed_image"] = url
+                return True
+            return False
+        key = "detail_images" if group == "detail" else "images"
+        lst = list(p.get(key) or [])
+        while len(lst) <= idx:
+            lst.append("")
+        lst[idx] = url
+        p[key] = lst
+        return True
+
+    def _apply_edit_plans(self, p: dict, res, dry_run: bool = False) -> dict:
+        """执行「逐图编辑方案」：每张图可单独给提示词 + 一组参考图。"""
+        from .image_edit_plans import parse as _parse_plans, refs_indices, GROUP_LABELS
+        slots = _parse_plans(getattr(self.cfg, "image_edit_plans", ""))
+        if not slots:
+            return p
+        if dry_run:
+            add_step(res, "逐图编辑方案", True, f"dry-run 跳过 {len(slots)} 条")
+            return p
+        svc = self._img_service()
+        default_prompt = (getattr(self.cfg, "designated_edit_prompt", "") or "").strip()
+        done = failed = 0
+        workdir = None
+        for i, slot in enumerate(slots, 1):
+            group = slot["group"]
+            prompt = slot["prompt"] or default_prompt
+            urls = self._group_urls(p, group)
+            tgt_i = slot["target"] - 1
+            target = urls[tgt_i] if 0 <= tgt_i < len(urls) else ""
+            refs = refs_indices(slot["refs"], len(urls), exclude=slot["target"])
+            if slot["mode"] == "generate" and not slot["refs"]:
+                refs = list(range(1, min(len(urls), 4) + 1))
+                refs = [r for r in refs if r != slot["target"]]
+            ref_urls = [urls[r - 1] for r in refs if 0 <= r - 1 < len(urls) and urls[r - 1]]
+            if slot["mode"] == "edit" and not target:
+                add_step(res, f"方案{i}", False, f"{GROUP_LABELS.get(group, group)} 第{slot['target']}张不存在")
+                continue
+            if not prompt:
+                add_step(res, f"方案{i}", False, "提示词为空")
+                continue
+            files = []
+            try:
+                import tempfile as _tf
+                from pathlib import Path as _P
+                workdir = workdir or _P(_tf.mkdtemp())
+                if slot["mode"] == "edit" and target:
+                    files.append(self._fetch(target, workdir))
+                for u in ref_urls[:4]:
+                    files.append(self._fetch(u, workdir))
+                if not files:
+                    add_step(res, f"方案{i}", False, "没有可用素材")
+                    continue
+                if slot["mode"] == "generate" and not target and not ref_urls:
+                    new_url = svc.generate(prompt)[0]
+                else:
+                    new_url = svc.edit_many(files, prompt,
+                                            tag=f"方案{i} · {GROUP_LABELS.get(group, group)}")
+                if not new_url:
+                    raise RuntimeError("接口未返回图片")
+            except Exception as ex:  # noqa: BLE001
+                failed += 1
+                add_step(res, f"方案{i}", False, str(ex)[:100])
+                continue
+            append = bool(slot["add_new"]) or slot["mode"] == "generate"
+            idx = len(urls) if append else tgt_i
+            if self._set_group_url(p, group, idx, str(new_url)):
+                done += 1
+                add_step(res, f"方案{i}", True,
+                         f"{GROUP_LABELS.get(group, group)} " +
+                         ("+新图" if append else f"第{slot['target']}张") +
+                         f" · 素材 {len(files)} 张")
+            else:
+                failed += 1
+                add_step(res, f"方案{i}", False, "目标位置不存在")
+        if done or failed:
+            add_step(res, "逐图编辑结果", failed == 0, f"成功 {done} / 失败 {failed}")
         return p
 
     def _apply_template(self, p: dict, res) -> dict:
@@ -277,7 +439,7 @@ class Publisher:
             for it in main:
                 _u = it.get("url") if isinstance(it, dict) else str(it)
                 try:
-                    _has = ip.has_text(str(_u))
+                    _has = self.image_pipeline.has_text(str(_u))
                 except Exception:
                     _has = True
                 if _has:
@@ -375,7 +537,7 @@ class Publisher:
             if n:
                 add_step(res, "SKU图翻译", True, f"{n} 张")
 
-        # 背景生成（AI 换背景）
+        # 背景生成（AI 换背景）：每条规则用自己的提示词，不再复用全局 edit_prompt
         rules_raw = (getattr(self.cfg, "background_gen_rules", "") or "").strip()
         if rules_raw not in ("", "[]"):
             try:
@@ -384,23 +546,40 @@ class Publisher:
             except Exception:
                 rules = []
             done_bg = 0
+            failed_bg = 0
             for rule in (rules or [])[:6]:
-                pos = str(rule.get("position", ""))
-                prompt = rule.get("prompt", "") or "专业电商白底展示图"
-                idx = 0
-                if pos.startswith("main_"):
-                    try:
-                        idx = int(pos.split("_")[1]) - 1
-                    except Exception:
-                        idx = 0
-                    if 0 <= idx < len(p.get("images") or []):
-                        try:
-                            p["images"][idx] = self._run_ops(p["images"][idx], False, False, True)
+                if not isinstance(rule, dict):
+                    continue
+                pos = str(rule.get("position", "") or "")
+                prompt = str(rule.get("prompt", "") or "").strip() or \
+                    (getattr(self.cfg, "background_gen_sku_prompt", "") or "").strip()
+                if not prompt:
+                    continue
+                try:
+                    if pos.startswith("main"):
+                        parts = pos.split("_")
+                        idx = (int(parts[1]) - 1) if len(parts) > 1 and parts[1].isdigit() else 0
+                        imgs = p.get("images") or []
+                        if 0 <= idx < len(imgs):
+                            p["images"][idx] = self._edit_with_prompt(str(imgs[idx]), prompt)
                             done_bg += 1
-                        except Exception:
-                            pass
-            if done_bg:
-                add_step(res, "背景生成", True, f"{done_bg} 张")
+                    elif pos.startswith("detail"):
+                        parts = pos.split("_")
+                        idx = (int(parts[1]) - 1) if len(parts) > 1 and parts[1].isdigit() else 0
+                        dimgs = p.get("detail_images") or []
+                        if 0 <= idx < len(dimgs):
+                            dimgs[idx] = self._edit_with_prompt(str(dimgs[idx]), prompt)
+                            p["detail_images"] = dimgs
+                            done_bg += 1
+                    elif pos in ("all_main", "main_all"):
+                        for i, u in enumerate(p.get("images") or []):
+                            p["images"][i] = self._edit_with_prompt(str(u), prompt)
+                            done_bg += 1
+                except Exception:
+                    failed_bg += 1
+            if done_bg or failed_bg:
+                add_step(res, "背景生成", failed_bg == 0 and done_bg > 0,
+                         f"成功 {done_bg} / 失败 {failed_bg}")
         return p
 
     def _publicize_images(self, p: dict, res, dry_run: bool = False) -> dict:
@@ -465,7 +644,11 @@ class Publisher:
 
         if self.cfg.four_in_one and len(local) >= 2:
             try:
-                local.append(four_in_one(local[:4], d / "four.png"))
+                four = four_in_one(local[:4], d / "four.png")
+                if str(getattr(self.cfg, "four_in_one_position", "append") or "append") == "first":
+                    local.insert(0, four)
+                else:
+                    local.append(four)
             except Exception:
                 pass
 
@@ -613,26 +796,57 @@ class Publisher:
                         or getattr(self.cfg, "translate_detail_pic_enable", False)
                         or getattr(self.cfg, "translate_main_pic_enable", False)
                         or getattr(self.cfg, "translate_sku_pic", False))
-            # AI 主图生成（文生图）
+            # AI 主图生成（文生图 / 以现有主图为素材的图生图）
             if getattr(self.cfg, "main_image_generate_enable", False):
                 try:
                     from ..api import ApiClient
                     model = getattr(self.cfg, "image_gen_model", "qwen-image-3.0") or "qwen-image-3.0"
                     prompt = (getattr(self.cfg, "main_image_generate_prompt", "") or "").strip()
                     prompt = prompt or (p.get("title_en") or p.get("title", "") or "商品主图")
+                    if "{title}" in prompt:
+                        prompt = prompt.replace("{title}", p.get("title_en") or p.get("title", ""))
+                    if "{subject}" in prompt:
+                        prompt = prompt.replace("{subject}", p.get("title_en") or p.get("title", ""))
                     n = int(getattr(self.cfg, "main_image_generate_count", "1") or 1)
-                    client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
+                    use_refs = bool(getattr(self.cfg, "main_image_generate_use_refs", True))
+                    ref_urls = [u for u in (p.get("images") or [])[:4] if str(u).startswith("http")]
                     gen = []
-                    for _ in range(min(n, 3)):
-                        try:
-                            u = client.images_generate(model, prompt)
-                            if u:
-                                gen.append(u)
-                        except Exception:
-                            break
+                    if use_refs and ref_urls:
+                        # 以产品现有主图为素材（多图输入），保持商品本体一致，而不是凭空文生图
+                        svc = self._img_service()
+                        import tempfile as _tf4
+                        from pathlib import Path as _P4
+                        _d = _P4(_tf4.mkdtemp())
+                        files = []
+                        for u in ref_urls:
+                            try:
+                                files.append(self._fetch(str(u), _d))
+                            except Exception:
+                                continue
+                        for _ in range(min(n, 3)):
+                            if not files:
+                                break
+                            try:
+                                u = svc.edit_many(files, prompt, tag="主图生成(参考素材)")
+                                if u:
+                                    gen.append(u)
+                            except Exception:
+                                break
+                        if gen:
+                            add_step(res, "AI主图生成", True, f"{len(gen)} 张（参考 {len(files)} 张素材）")
+                    if not gen:
+                        client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
+                        for _ in range(min(n, 3)):
+                            try:
+                                u = client.images_generate(model, prompt)
+                                if u:
+                                    gen.append(u)
+                            except Exception:
+                                break
+                        if gen:
+                            add_step(res, "AI主图生成", True, f"{len(gen)} 张（纯文生图）")
                     if gen:
                         p["images"] = gen + (p.get("images") or [])
-                        add_step(res, "AI主图生成", True, f"{len(gen)} 张")
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "AI主图生成", False, str(ex)[:80])
 
@@ -679,6 +893,13 @@ class Publisher:
                     p = self._ai_images(p, res)
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "图片AI处理", False, str(ex)[:100])
+
+            # 逐图编辑方案（每张图单独提示词 + 多图素材），放在常规处理之后、转存之前
+            if (getattr(self.cfg, "image_edit_plans", "") or "").strip() not in ("", "[]"):
+                try:
+                    p = self._apply_edit_plans(p, res, dry_run=dry_run)
+                except Exception as ex:  # noqa: BLE001
+                    add_step(res, "逐图编辑方案", False, str(ex)[:100])
 
             if getattr(self.cfg, "overlay_watermark_enable", False) and (self.cfg.watermark or "").strip():
                 try:
@@ -745,8 +966,10 @@ class Publisher:
                         p.setdefault("upload_errors", []).append(_msg[:120])
                 if space_full:
                     add_step(res, "图片上传", True,
-                             f"店小秘图片空间不足，已跳过上传（改用外链 URL，不影响刊登）")
-                    emit("图片上传", "图片空间不足", "已跳过，外链 URL 可正常使用", "WARN")
+                             "店小秘图片空间不足，已跳过上传（改用外链 URL，不影响刊登）")
+                    emit("图片上传", "图片空间不足",
+                         "已跳过，外链 URL 可正常使用；可到「图片工作台 → 清理旧图」腾空间", "WARN")
+                    p["space_full"] = True
                 else:
                     add_step(res, "图片上传", uploaded > 0 or failed == 0,
                              f"成功 {uploaded} / 失败 {failed}")
@@ -882,11 +1105,12 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "主图视频", False, str(ex)[:80])
 
-            if getattr(self.cfg, "schedule_publish", False) and (getattr(self.cfg, "schedule_time", "") or ""):
-                p["scheduled_at"] = self.cfg.schedule_time
-                add_step(res, "定时发布", True, f"已排定 {self.cfg.schedule_time}")
-                add_step(res, "保存到店小秘", True, "定时任务已登记")
-                return res
+            # 定时发布：仍然要「现在保存」，到点再发布（以前这里直接 return，商品根本没保存）
+            _sched_at = ""
+            if getattr(self.cfg, "schedule_publish", False) and (getattr(self.cfg, "schedule_time", "") or "").strip():
+                _sched_at = str(self.cfg.schedule_time).strip()
+                p["scheduled_at"] = _sched_at
+                add_step(res, "定时发布", True, f"先保存，到 {_sched_at} 自动发布")
 
             if dry_run:
                 add_step(res, "保存到店小秘", True, "dry-run：未写入")
@@ -915,33 +1139,48 @@ class Publisher:
                             _snap_obj["attributes"] = _attrs
                     except Exception:
                         _snap_obj = None
-                # 主图视频：先上传视频再保存
+                # 主图视频：不再单独开页面，交给合并流程在同一次加载里上传（ISSUES #6）
+                _video = ""
                 if p.get("main_video") and getattr(self.cfg, "upload_main_video", True):
-                    try:
-                        from ..integrations.editor_automation import attach_video
-                        rv = attach_video(self.ws_endpoint, str(p.get("id", "")), str(p["main_video"]))
-                        add_step(res, "视频上传", rv.ok, rv.message[:80])
-                    except Exception as ex:  # noqa: BLE001
-                        add_step(res, "视频上传", False, str(ex)[:80])
+                    _video = str(p["main_video"])
 
-                # 合并流程：一次开页面完成 写模板 + 改标题 + 保存（省一次导航）
-                _fv = {}
-                try:
-                    import json as _jf
-                    _fv = _jf.loads(getattr(self.cfg, "template_values", "") or "{}")
-                    _fv["__eu__"] = getattr(self.cfg, "eu_qualification", "否")
-                except Exception:
-                    _fv = {}
-                r = apply_and_save(self.ws_endpoint, str(p.get("id", "")), _snap_obj,
-                                   p.get("title_en") or None, form_values=_fv)
-                if not r.ok:
-                    raise RuntimeError(r.message)
-                add_step(res, "保存到店小秘", True, r.message)
-
+                # 合并流程：一次开页面完成 写模板 + 改标题 +（视频）+ 保存（+ 发布）
+                _fv = self._form_values()
                 # 发布动作：save_only=留在待发布 / publish=保存并发布
                 _action = (getattr(self.cfg, "publish_action", "") or
                            ("publish" if getattr(self.cfg, "publish_after_save", False) else "save_only"))
-                if _action == "publish":
+                # 定时发布时先只保存，到点由调度器发布
+                r = apply_and_save(self.ws_endpoint, str(p.get("id", "")), _snap_obj,
+                                   p.get("title_en") or None, form_values=_fv,
+                                   do_publish=(_action == "publish" and not _sched_at),
+                                   video_path=(_video or None))
+                if not r.ok:
+                    raise RuntimeError(r.message)
+                add_step(res, "保存到店小秘", True, r.message[:200])
+                if _sched_at:
+                    _ok_sched = False
+                    _err = ""
+                    try:
+                        import time as _t
+                        run_at = _parse_run_at(_sched_at)
+                        if run_at <= _t.time():
+                            _err = f"时间已过（{_sched_at}）"
+                        elif self.scheduler is None:
+                            _err = "未启用调度器（请在软件内运行，不要用命令行 Publisher）"
+                        else:
+                            self.scheduler.add(str(p.get("id", "")), run_at,
+                                               p.get("title_en") or p.get("title", ""))
+                            _ok_sched = True
+                    except Exception as _ex:  # noqa: BLE001
+                        _err = str(_ex)[:80]
+                    add_step(res, "定时任务", _ok_sched,
+                             f"已登记 {_sched_at} 自动发布" if _ok_sched else f"登记失败：{_err}")
+                    if not _ok_sched:
+                        res.ok = False
+                        res.error = (res.error + " " if res.error else "") + f"定时登记失败：{_err}"
+                elif r.published:
+                    add_step(res, "发布到速卖通", True, "同一页面完成（省一次列表页加载）")
+                elif _action == "publish":
                     try:
                         from ..integrations.editor_automation import publish_from_list
                         rp = publish_from_list(self.ws_endpoint, str(p.get("id", "")),
@@ -985,7 +1224,8 @@ def run_many(pub: "Publisher", products: list[dict], workers: int = 4,
 
     def work(prod):
         local_cfg = _copy.deepcopy(pub.cfg)
-        local_pub = Publisher(local_cfg, dxm=pub.dxm, ws_endpoint=pub.ws_endpoint)
+        local_pub = Publisher(local_cfg, dxm=pub.dxm, ws_endpoint=pub.ws_endpoint,
+                              scheduler=getattr(pub, "scheduler", None))
         try:
             r = local_pub.run(prod, dry_run=dry_run)
         except Exception as e:  # noqa: BLE001

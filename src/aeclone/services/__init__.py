@@ -131,6 +131,15 @@ class ImageService:
             t.detail = str(url)[-40:]
             return [url]
 
+    def edit_many(self, images: Iterable[Path], prompt: str, tag: str = "多图素材编辑") -> str:
+        """多图素材编辑：把 target + 参考图一起交给图像编辑模型（图生图）。"""
+        m = model_of(self.cfg, "image_edit")
+        imgs = list(images)
+        with track(tag, f"{len(imgs)} 张素材 · {(prompt or '')[:16]}", model=m) as t:
+            url = self.client.images_edit(m, prompt, imgs)
+            t.detail = str(url)[-40:]
+            return url
+
     def merge(self, images: Iterable[Path], prompt: str = "Merge these product photos into one clean product image on a white background.") -> str:
         m = model_of(self.cfg, "image_edit")
         imgs = list(images)

@@ -13,6 +13,7 @@ class SaveResult:
     ok: bool
     message: str
     title: str = ""
+    published: bool = False    # 是否已在同一页面完成「发布到速卖通」
 
 
 
@@ -57,6 +58,230 @@ CAPTURE_FN = r"""() => {
   });
   return out;
 }"""
+
+
+# 保存后「反向判定」：读页面校验错误 / toast 文案（ISSUES #3）
+SAVE_ERRORS_FN = r"""() => {
+  const out = {fields: [], toasts: []};
+  const seen = {};
+  document.querySelectorAll('.ant-form-item-has-error, .ant-form-item-explain-error').forEach(el => {
+    const fi = el.closest ? (el.closest('.ant-form-item') || el) : el;
+    const lab = fi.querySelector ? fi.querySelector('.ant-form-item-label label, label') : null;
+    let name = ((lab && lab.innerText) || (el.innerText || '')).trim().replace(/\s+/g, ' ').replace(/[?？*]/g, '');
+    name = name.slice(0, 24);
+    if (name && !seen[name]) { seen[name] = 1; out.fields.push(name); }
+  });
+  const toastSel = ['.ant-message-notice-content', '.ant-notification-notice-message',
+                    '.ant-notification-notice-description', '.ant-modal-confirm-content'];
+  document.querySelectorAll(toastSel.join(',')).forEach(n => {
+    const t = ((n.innerText || '') + '').trim().replace(/\s+/g, ' ');
+    if (t) out.toasts.push(t.slice(0, 80));
+  });
+  return out;
+}"""
+
+# 对保存失败项做一次自动应答（下拉选否/无，文本框填 N/A，单选选否）
+ANSWER_ERRORS_FN = r"""() => {
+  const done = [];
+  document.querySelectorAll('.ant-form-item-has-error').forEach(fi => {
+    const lab = ((fi.querySelector('.ant-form-item-label label, label') || {}).innerText || '').trim().slice(0, 20);
+    if (fi.querySelector('.ant-switch')) {
+      const sw = fi.querySelector('.ant-switch');
+      if (sw.getAttribute('aria-checked') !== 'false') { sw.click(); done.push(lab + '=否'); }
+      return;
+    }
+    const sel = fi.querySelector('.ant-select');
+    if (sel) { sel.click(); done.push(lab + ':待选'); return; }
+    const radios = fi.querySelectorAll('.ant-radio-wrapper');
+    if (radios.length) {
+      for (const r of radios) {
+        if (/否|无|不|No/i.test((r.innerText || '').trim())) { r.click(); done.push(lab + '=否'); return; }
+      }
+      return;
+    }
+    if (fi.querySelector('input[type=file]')) { done.push(lab + ':需上传'); return; }
+    const inp = fi.querySelector('input:not([type=file]), textarea');
+    if (inp && !String(inp.value || '').trim()) {
+      inp.value = 'N/A';
+      inp.dispatchEvent(new Event('input', {bubbles: true}));
+      done.push(lab + '=N/A');
+    }
+  });
+  return done;
+}"""
+
+
+def _save_error_state(page) -> dict:
+    """读取保存被拦截的原因（表单报错项 + 错误 toast）。"""
+    try:
+        data = page.evaluate(SAVE_ERRORS_FN) or {}
+    except Exception:
+        data = {}
+    fields = [str(x) for x in (data.get("fields") or []) if str(x).strip()]
+    # toast 只留「像报错」的，避免把「保存成功」当失败（成功提示也走同一个容器）
+    bad_words = ("必填", "请输入", "请选择", "不能为空", "错误", "失败", "请上传", "不符合",
+                 "超过", "无效", "非法", "error", "required")
+    toasts = []
+    for t in (data.get("toasts") or []):
+        t = str(t).strip()
+        if not t:
+            continue
+        low = t.lower()
+        if any(w in low for w in bad_words):
+            toasts.append(t)
+    return {"fields": fields, "toasts": toasts, "any": bool(fields or toasts)}
+
+
+def _answer_save_errors(page) -> list[str]:
+    """对报错项自动应答（只为把「必填未填」救回来，不覆盖已填值）。"""
+    try:
+        done = page.evaluate(ANSWER_ERRORS_FN) or []
+    except Exception:
+        done = []
+    if done:
+        page.wait_for_timeout(900)
+        for opt_text in ("否", "无", "不提交", "N/A", "不支持"):
+            try:
+                opt = page.locator('.ant-select-item-option-content', has_text=opt_text).first
+                if opt.count() > 0:
+                    opt.click(timeout=2000)
+                    page.wait_for_timeout(250)
+            except Exception:
+                continue
+    return [str(x) for x in done]
+
+
+def _fill_eu_responsible(page, values: dict) -> list[str]:
+    """欧盟资质选「是」后补齐欧盟责任人资料（名称/地址/邮箱/电话）。"""
+    if not values:
+        return []
+    plan = [
+        ("__eu_name__", ("欧盟责任人名称", "责任人名称", "欧盟责任人", "Name")),
+        ("__eu_address__", ("责任人地址", "欧盟责任人地址", "地址", "Address")),
+        ("__eu_email__", ("责任人邮箱", "电子邮箱", "邮箱", "Email")),
+        ("__eu_phone__", ("责任人电话", "联系电话", "电话", "Phone")),
+    ]
+    applied: list[str] = []
+    for key, labels in plan:
+        val = str(values.get(key) or "").strip()
+        if not val:
+            continue
+        for label in labels:
+            try:
+                fi = page.locator(".ant-form-item", has_text=label).first
+                if fi.count() == 0:
+                    continue
+                inp = fi.locator("input:not([type=file]), textarea").first
+                if inp.count() == 0:
+                    continue
+                if (inp.input_value() or "").strip():
+                    break
+                inp.fill(val)
+                inp.dispatch_event("input")
+                page.wait_for_timeout(200)
+                applied.append(f"欧盟责任人{label}")
+                break
+            except Exception:
+                continue
+    return applied
+
+
+def _attach_video_in_page(page, video_path: str) -> SaveResult:
+    """在当前页面完成「添加视频 → 选文件 → 等上传」，供合并流程复用（省一次页面加载）。"""
+    from pathlib import Path as _P
+    vp = _P(video_path)
+    if not vp.exists():
+        return SaveResult(False, f"视频不存在：{video_path}")
+    clicked = False
+    for sel in ('button:has-text("添加视频")', '.btn:has-text("添加视频")', 'text=添加视频'):
+        try:
+            loc = page.locator(sel).first
+            if loc.count() > 0:
+                loc.scroll_into_view_if_needed(timeout=3000)
+                loc.click(timeout=6000)
+                clicked = True
+                break
+        except Exception:
+            continue
+    if not clicked:
+        return SaveResult(False, "未找到「添加视频」入口")
+    page.wait_for_timeout(1500)
+    inputs = page.locator('input[type="file"]')
+    n = inputs.count()
+    if n == 0:
+        return SaveResult(False, "未找到视频文件输入框（可能改版）")
+    target = None
+    for i in range(n):
+        try:
+            acc = (inputs.nth(i).get_attribute("accept") or "").lower()
+            if "video" in acc or "mp4" in acc:
+                target = inputs.nth(i)
+                break
+        except Exception:
+            continue
+    target = target or inputs.nth(0)
+    try:
+        target.set_input_files(str(vp), timeout=30000)
+    except Exception as ex:  # noqa: BLE001
+        return SaveResult(False, f"视频选择失败：{str(ex)[:100]}")
+    deadline = __import__("time").time() + 90
+    while __import__("time").time() < deadline:
+        page.wait_for_timeout(2500)
+        try:
+            body = page.inner_text("body")
+        except Exception:
+            body = ""
+        if any(k in body for k in ("上传成功", "视频已添加", "处理完成")):
+            break
+    return SaveResult(True, f"视频已上传（{vp.name}）")
+
+
+def _publish_in_page(page, seen: dict, confirm: bool = True) -> SaveResult:
+    """在当前编辑器页面点「发布 / 保存并发布」并确认（ISSUES #6：省掉列表页加载）。"""
+    clicked = False
+    for sel in ('button:has-text("保存并发布")', 'button:has-text("发布产品")',
+                'button:has-text("发布")', '.btn:has-text("发布")'):
+        try:
+            loc = page.locator(sel).first
+            if loc.count() == 0:
+                continue
+            txt = (loc.inner_text(timeout=2000) or "").strip()
+            if txt in ("批量发布", "发布记录", "发布设置"):
+                continue
+            loc.scroll_into_view_if_needed(timeout=3000)
+            loc.click(timeout=8000)
+            clicked = True
+            break
+        except Exception:
+            continue
+    if not clicked:
+        return SaveResult(False, "编辑器内未找到「发布」按钮")
+    page.wait_for_timeout(2000)
+    if confirm:
+        for txt in ("确定", "确认", "立即发布", "继续发布", "发布", "继续"):
+            try:
+                btn = page.get_by_role("button", name=txt, exact=True).first
+                if btn.count() > 0:
+                    btn.click(timeout=4000)
+                    page.wait_for_timeout(2500)
+                    break
+            except Exception:
+                continue
+    deadline = __import__("time").time() + 45
+    while __import__("time").time() < deadline:
+        if seen.get("pub_status"):
+            break
+        page.wait_for_timeout(2000)
+    status = seen.get("pub_status")
+    if status:
+        return SaveResult(int(status) < 400, f"发布接口 {seen.get('pub_url', '-')} HTTP {status}", published=int(status) < 400)
+    body = ""
+    try:
+        body = page.inner_text("body")[-500:]
+    except Exception:
+        pass
+    ok = any(k in body for k in ("发布成功", "已提交", "刊登成功", "审核中"))
+    return SaveResult(ok, "已点击发布（未捕获接口，页面提示为准）" if ok else "已点击发布但未确认结果", published=ok)
 
 
 def read_form_values(ws_endpoint: str, product_id: str, timeout: int = 90000) -> dict:
@@ -791,8 +1016,9 @@ def publish_from_list(ws_endpoint: str, product_id: str, confirm: bool = False,
 
 def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = None,
                    new_title: str | None = None, timeout: int = 60000,
-                   do_publish: bool = False, form_values: dict | None = None) -> SaveResult:
-    """一次打开编辑器完成：写模板字段 → 改标题 → 保存（→ 可选发布）。
+                   do_publish: bool = False, form_values: dict | None = None,
+                   video_path: str | None = None) -> SaveResult:
+    """一次打开编辑器完成：写模板字段 → 改标题 →（上传视频）→ 保存 →（可选发布）。
 
     相比 apply_template_fields + update_and_save 两次开页面，省一次导航约 20~40s。
     """
@@ -807,6 +1033,9 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             if "/api/smtProduct/add.json" in u or "/api/smtProduct/update.json" in u:
                 seen["url"] = u.split("dianxiaomi.com")[-1]
                 seen["status"] = resp.status
+            elif any(k in u.lower() for k in ("batchpublish", "publish", "submit", "online")):
+                seen["pub_url"] = u.split("dianxiaomi.com")[-1]
+                seen["pub_status"] = resp.status
         except Exception:
             pass
 
@@ -817,7 +1046,7 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             page.wait_for_selector('button:has-text("更新"), button:has-text("保存")', timeout=45000)
         except Exception:
             pass
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(1200)
 
         fields = (snapshot or {}).get("fields") or {}
         attrs = list((snapshot or {}).get("attributes") or [])
@@ -999,18 +1228,30 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
         except Exception:
             pass
 
-        # 欧盟资质：必填开关 → 打开再关闭（确保有明确选择）
+        # 欧盟资质：选「是」时必须同时填欧盟责任人资料，否则保存被站点拦截（ISSUES #4）
         try:
             sw = page.locator('.ant-form-item', has_text="是否提交欧盟资质").locator('.ant-switch').first
             if sw.count() > 0:
                 _want = str((form_values or {}).get("__eu__", "否"))
+                _want_on = _want in ("是", "yes", "true")
                 checked = sw.get_attribute("aria-checked") == "true"
-                if checked != (_want in ("是", "yes", "true")):
+                if checked != _want_on:
                     sw.click(timeout=3000); page.wait_for_timeout(600)
                 else:
                     sw.click(timeout=3000); page.wait_for_timeout(500)
                     sw.click(timeout=3000); page.wait_for_timeout(500)
-                applied.append("欧盟资质已选择")
+                applied.append("欧盟资质=" + ("是" if _want_on else "否"))
+                if _want_on:
+                    page.wait_for_timeout(500)
+                    _eu_applied = _fill_eu_responsible(page, form_values or {})
+                    if _eu_applied:
+                        applied.extend(_eu_applied[:4])
+                    else:
+                        # 资料已在模板里（或站点未要求单独填写）时不提示
+                        _miss = [k for k in ("__eu_name__", "__eu_address__", "__eu_email__", "__eu_phone__")
+                                 if not str((form_values or {}).get(k) or "").strip()]
+                        if _miss:
+                            applied.append("⚠ 欧盟责任人资料不全")
         except Exception:
             pass
 
@@ -1087,26 +1328,32 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             applied.append(f"自动应答 {len(autofilled)} 项")
 
         # 必填项检查 + 属性冲突检查
+        # 注意：只对「明确的必填标记」跳过保存；自定义组件里的弱标记（class*=required / placeholder）
+        # 只作为提示，先尝试保存，再由保存后的错误 toast / ant-form-item-has-error 反向判定（ISSUES #3），
+        # 避免扫不到或误判导致「误跳过保存」。
         missing = []
         dup_attrs = []
         try:
             missing = page.evaluate("""() => {
                 const out=[];
                 document.querySelectorAll('.ant-form-item').forEach(fi=>{
-                  const req = fi.querySelector('.ant-form-item-required, .ant-form-item-label .required');
-                  if(!req) return;
-                  // 开关类（如欧盟资质）只要有明确状态即视为已填
-                  if (fi.querySelector('.ant-switch')) return;
-                  // 上传类：已存在文件/链接即视为已填
+                  if (fi.offsetParent === null) return;                  // 隐藏项不算必填
+                  const strong = !!fi.querySelector('.ant-form-item-required, .ant-form-item-label .required');
+                  const weak = !strong && !!(fi.matches('[class*=required]') || fi.querySelector('[class*=required]'));
+                  if (!strong && !weak) return;
+                  if (fi.querySelector('.ant-switch')) return;           // 开关有状态即视为已填
+                  if (fi.querySelector('input[type=file]')) return;     // 上传类单独处理
                   const up = fi.querySelector('.ant-upload-list-item, .ant-upload-list-item-name, a[href^="http"]');
                   if (up) return;
-                  const label=(fi.querySelector('label')||{}).innerText||'';
-                  const val=(fi.querySelector('input,textarea')||{}).value||'';
+                  const label=((fi.querySelector('label')||{}).innerText||'').trim().replace(/[?？*]/g,'').slice(0,24);
+                  const inp=fi.querySelector('input:not([type=file]),textarea');
+                  if (inp && String(inp.value||'').trim()) return;
                   const sel=fi.querySelector('.ant-select-selection-item');
-                  const hasSel = sel && sel.innerText.trim();
-                  if(!String(val).trim() && !hasSel) out.push(label.trim().slice(0,20));
+                  if (sel && sel.innerText.trim()) return;
+                  if (fi.querySelector('.ant-radio-wrapper-checked, .ant-checkbox-wrapper-checked')) return;
+                  out.push({label: label || '未命名项', strong: strong});
                 });
-                return out.slice(0,12);
+                return out.slice(0,16);
             }""")
         except Exception:
             missing = []
@@ -1119,13 +1366,24 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
             }""")
         except Exception:
             dup_attrs = []
-        if missing:
-            applied.append(f"⚠ 必填未填 {len(missing)} 项: {'、'.join(missing[:5])}")
+        hard_missing = [str(m.get("label", "")) for m in missing
+                        if isinstance(m, dict) and m.get("strong")]
+        soft_missing = [str(m.get("label", "")) for m in missing
+                        if isinstance(m, dict) and not m.get("strong")]
+        if hard_missing:
+            applied.append(f"⚠ 必填未填 {len(hard_missing)} 项: {'、'.join(hard_missing[:5])}")
             if SKIP_WHEN_REQUIRED_MISSING:
-                return SaveResult(False, "必填项缺失，已跳过保存：" + "、".join(missing[:5])
+                return SaveResult(False, "必填项缺失，已跳过保存：" + "、".join(hard_missing[:5])
                                   + (f" · 已写入：{'、'.join(applied[:4])}" if applied else ""))
+        elif soft_missing:
+            applied.append(f"疑似必填未填 {len(soft_missing)} 项（先尝试保存）：{'、'.join(soft_missing[:5])}")
         if dup_attrs:
             applied.append(f"⚠ 属性重复: {'、'.join(dup_attrs[:5])}")
+
+        # 主图视频：在同一页面完成上传，避免再开一次编辑器（ISSUES #6）
+        if video_path:
+            rv = _attach_video_in_page(page, str(video_path))
+            applied.append(("视频：" if rv.ok else "视频失败：") + rv.message[:40])
 
         # 保存
         def save_click():
@@ -1142,29 +1400,61 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
 
         if not save_click():
             return SaveResult(False, "未找到保存/更新按钮")
-        page.wait_for_timeout(1800)
+        page.wait_for_timeout(1500)
         for txt in ("确定", "确认", "继续发布", "继续"):
             try:
                 btn = page.get_by_role("button", name=txt, exact=True).first
                 if btn.count() > 0:
                     btn.click(timeout=2500)
-                    page.wait_for_timeout(1500)
+                    page.wait_for_timeout(1200)
                     break
             except Exception:
                 continue
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(2200)
+
+        # 保存后「反向判定」：读表单报错 / 错误 toast（自定义必填组件扫不到时靠它兜底）
+        err_state = _save_error_state(page)
+        repair_rounds = 0
+        while err_state["any"] and repair_rounds < 2 and SKIP_WHEN_REQUIRED_MISSING:
+            repair_rounds += 1
+            fixed = _answer_save_errors(page)
+            if not fixed:
+                break
+            applied.append(f"按保存报错自动应答 {len(fixed)} 项")
+            page.wait_for_timeout(800)
+            if not save_click():
+                break
+            page.wait_for_timeout(1800)
+            for txt in ("确定", "确认", "继续"):
+                try:
+                    btn = page.get_by_role("button", name=txt, exact=True).first
+                    if btn.count() > 0:
+                        btn.click(timeout=2000)
+                        page.wait_for_timeout(900)
+                        break
+                except Exception:
+                    continue
+            page.wait_for_timeout(1600)
+            err_state = _save_error_state(page)
+
+        if err_state["any"] and not (seen.get("status") and int(seen.get("status", 500)) < 400):
+            detail = "、".join((err_state["fields"] + err_state["toasts"])[:5])
+            msg = f"保存被站点拦截：{detail}"
+            if applied:
+                msg += " · 已写入：" + "、".join(applied[:4])
+            return SaveResult(False, msg)
 
         if not seen.get("status"):
             save_click()
-            page.wait_for_timeout(4000)
+            page.wait_for_timeout(3000)
         if not seen.get("status"):
             # 兜底：直接调用站点保存接口（编辑器内已有完整表单数据）
             try:
-                resp = page.evaluate("""async () => {
+                page.evaluate("""async () => {
                     const btn=[...document.querySelectorAll('button')].find(b=>/更新|保存/.test(b.innerText));
                     if(btn){btn.click(); return 'clicked';} return 'no-button';
                 }""")
-                page.wait_for_timeout(5000)
+                page.wait_for_timeout(4000)
             except Exception:
                 pass
 
@@ -1173,6 +1463,13 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
                else "未捕获保存接口（可能已保存但未响应）")
         if applied:
             msg += " · 写入：" + "、".join(applied[:6])
+
+        # 保存成功后，若要求发布：优先在同一页面点「发布」，省掉列表页加载（ISSUES #6）
+        if ok and do_publish:
+            rp = _publish_in_page(page, seen, confirm=True)
+            if rp.published:
+                return SaveResult(True, msg + " · " + rp.message, published=True)
+            msg += " · 页面发布未确认（改走列表发布）：" + rp.message[:60]
         return SaveResult(ok, msg)
     except Exception as e:  # noqa: BLE001
         return SaveResult(False, f"合并保存失败：{str(e)[:150]}")

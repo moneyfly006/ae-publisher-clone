@@ -59,15 +59,35 @@ API 保存是 `multipart/form-data`，Playwright 无法直接复放 body，因�
 SaveResult(ok=True, message='保存接口 HTTP 200', title='Durable Rotary Water Well Drilling Equipment ...')
 ```
 
-## 六、待校正接口
+## 六、图片空间清理接口（2026-11-17 从相册页 JS 逆向）
+
+来源：相册页 chunk `dxm-web/2026-11/assets/album-8OYLfqJZ.js`（`/web/service/album`）。
+
+| 功能 | 方法 | 路径 | 参数 / 返回 |
+|---|---|---|---|
+| 文件列表 | GET | `/api/album/list.json` | `name,startTime,endTime,fileType(0=图片,1=PDF),fullCid,pageNo,pageSize` → `{picListPage:{list,totalSize,lockedCount}}`；条目字段 `id/idStr,name,imgUrl,imgCompressSize,imgWidth,imgHeight,lockState(1=锁定)` |
+| 数量统计 | GET | `/api/album/getFileTypeCounts.json` | 同上（无分页）→ `{FILE_TYPE_IMAGE, FILE_TYPE_PDF}` |
+| 按 id 删除 | POST(form) | `/api/album/delPic.json` | `ids=id1,id2`（逗号拼接；锁定图片站点自动跳过） |
+| 按条件删除 | POST(form) | `/api/album/deleteBySearchCondition.json` | 同列表筛选参数 → 删除该时间段的文件 |
+| 清理未引用图片 | POST(json) | `/api/album/createAutoDeleteTask.json` | `{startTime,endTime}`（毫秒时间戳）→ 删除窗口内**未被商品引用**的图片（站点异步任务，最安全） |
+| 查询/取消任务 | GET / POST(json) | `/api/album/getLatestAutoDeleteTask.json`、`/api/album/cancelAutoDeleteTask.json` | `{taskId}` |
+
+封装：`DianxiaomiClient.album_counts / album_files / album_delete_ids / album_delete_before / album_auto_delete`
++ `services/album_cleanup.py`（`space / scan / delete_candidates / delete_older_than / auto_clean`）
++ UI「清理旧图」（店铺设置第 4 卡、图片工作台按钮）。
+
+> 空间不足时刊登流程仍会优雅跳过上传并改用外链 URL，同时在日志里引导去「清理旧图」。
+
+## 七、待校正接口
 
 | 功能 | 候选 | 状态 |
 |---|---|---|
 | 产品保存 | `/api/smtProduct/add.json` | ✅ 已实测 |
 | 上传签名参数 | `/api/cos/getSign.json` | 路径对，参数缺 |
 | 上传回调 | `/api/cos_dxm_call_back.json` | 未验证 |
+| 编辑器内发布 | 复用 `batchPublish.json`（`_publish_in_page` 监听同名响应） | 🟡 已接，待虚拟机复跑确认按钮文案 |
 
-## 七、站点模型与别名（保留策略）
+## 八、站点模型与别名（保留策略）
 
 真实模型（8 个）：
 `z-image-turbo`、`qwen-image-2.1-turbo`、`qwen-image-3.0`、`qwen-plus`、`qwen3-vl-plus`、`deepseek-chat`、`deepseek-reasoner`（`qwen-turbo` 因阿里侧 limit_requests 已从渠道移除）

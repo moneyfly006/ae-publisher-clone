@@ -107,6 +107,12 @@ DEFAULTS: dict = {
     "designated_edit_enable": False,
     "designated_edit_indices": "",
     "designated_edit_prompt": "Clean up this product photo for e-commerce: remove all watermarks, logos, QR codes, promotional badges and overlay text; keep the product shape, color, texture and proportions exactly unchanged; reconstruct the covered areas naturally without blur or artifacts; result looks like an original studio photo. No added text.",
+    # 逐图编辑方案（JSON 列表）：每条 = 目标组/序号 + 参考图 + 提示词 + 编辑/生成
+    "image_edit_plans": "[]",
+    # 文生图时是否把现有主图当参考素材（图生图，而不是纯文生图）
+    "main_image_generate_use_refs": True,
+    # 四合一：append=追加为主图最后一张 / first=放到主图第一张
+    "four_in_one_position": "append",
 
     # 库存 / SKU
     "modify_stock_999": False,
@@ -134,6 +140,11 @@ DEFAULTS: dict = {
     "video_fade_edges": True,
     "video_output_dir": "",
     "eu_qualification": "否",
+    # 选「是」时必填的欧盟责任人资料（店小秘选是后要求填写，否则保存被拦）
+    "eu_responsible_name": "",
+    "eu_responsible_address": "",
+    "eu_responsible_email": "",
+    "eu_responsible_phone": "",
     "browser_hide": True,          # 连接后隐藏/最小化浏览器窗口（后台运行）
     "browser_headless_login": False, # 首次登录保持可见
     "cdp_port": 9333,
@@ -264,6 +275,8 @@ DEFAULTS: dict = {
     "tuoguan_price_tiered_enabled": False,
     "tuoguan_price_tiers": "[]",
     "product_id": "",
+    # 启动时默认打开的页面（0=概览 … 12=预览）
+    "start_page": 0,
 
 }
 

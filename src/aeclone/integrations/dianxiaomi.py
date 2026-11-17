@@ -31,6 +31,14 @@ ENDPOINTS = {
     "category": "",
     "template_search": "/api/smtAdjustPrice/list.json",   # 实测：区域调价模板列表
     "attribute_template": "/api/smtAttributeTemplate/list.json",
+    # ---- 图片空间清理（从相册页 chunk 逆向得到，ISSUES #5）----
+    "album_list": "/api/album/list.json",                    # 图片/文件分页列表
+    "album_file_counts": "/api/album/getFileTypeCounts.json",  # 图片/PDF 数量与占用
+    "album_delete_ids": "/api/album/delPic.json",            # 按 ids（逗号分隔）删除
+    "album_delete_by_filter": "/api/album/deleteBySearchCondition.json",  # 按筛选条件批量删除
+    "album_auto_delete": "/api/album/createAutoDeleteTask.json",  # 定时清理未引用图片
+    "album_auto_delete_latest": "/api/album/getLatestAutoDeleteTask.json",
+    "album_auto_delete_cancel": "/api/album/cancelAutoDeleteTask.json",
 }
 
 
@@ -82,6 +90,16 @@ class DianxiaomiClient:
             data = self._parse(r)
         return data
 
+    def _post_json(self, key: str, payload: dict | None = None) -> Any:
+        r = self.session.post(self._url(key), json=payload or {}, timeout=self.timeout)
+        data = self._parse(r)
+        if isinstance(data, dict) and str(data.get("code")) == "2005":
+            import time as _t
+            _t.sleep(2.5)
+            r = self.session.post(self._url(key), json=payload or {}, timeout=self.timeout)
+            data = self._parse(r)
+        return data
+
     @staticmethod
     def _parse(r: requests.Response) -> Any:
         if r.status_code in (401, 403):
@@ -124,6 +142,86 @@ class DianxiaomiClient:
 
     def album_index(self) -> Any:
         return self._get("album")
+
+    # ---------- 图片空间清理（ISSUES #5，接口自相册页 JS 逆向）----------
+    def album_counts(self, name: str = "", start_time: str = "", end_time: str = "",
+                     full_cid: str = "") -> dict:
+        """图片/PDF 数量统计：{images, pdfs}（/api/album/getFileTypeCounts.json）。"""
+        data = self._get("album_file_counts", {"name": name, "startTime": start_time,
+                                               "endTime": end_time, "fullCid": full_cid})
+        inner = data.get("data") if isinstance(data, dict) else None
+        inner = inner if isinstance(inner, dict) else (data if isinstance(data, dict) else {})
+
+        def _n(key):
+            try:
+                return int(inner.get(key) or 0)
+            except Exception:
+                return 0
+
+        return {"images": _n("FILE_TYPE_IMAGE"), "pdfs": _n("FILE_TYPE_PDF")}
+
+    def album_files(self, page: int = 1, size: int = 50, name: str = "",
+                    start_time: str = "", end_time: str = "", full_cid: str = "",
+                    file_type: int = 0) -> tuple[list[dict], dict]:
+        """图片空间文件列表 → (items, meta)。字段：id/name/url/size/locked/created。"""
+        params = {"name": name, "startTime": start_time, "endTime": end_time,
+                  "fileType": file_type, "fullCid": full_cid,
+                  "pageNo": page, "pageSize": size}
+        data = self._get("album_list", params)
+        inner = data.get("picListPage") or (data.get("data") or {}).get("picListPage") or {}
+        items = []
+        for it in inner.get("list") or []:
+            if not isinstance(it, dict):
+                continue
+            items.append({
+                "id": str(it.get("idStr") or it.get("id") or ""),
+                "name": it.get("name") or "",
+                "url": it.get("imgUrl") or it.get("url") or "",
+                "size": it.get("imgCompressSize") or it.get("fileSize") or 0,
+                "width": it.get("imgWidth") or 0,
+                "height": it.get("imgHeight") or 0,
+                "locked": str(it.get("lockState")) == "1",
+                "created": it.get("createTime") or it.get("imgCreateTime") or "",
+            })
+        meta = {"total": int(inner.get("totalSize") or 0),
+                "page": inner.get("pageNo") or page,
+                "size": inner.get("pageSize") or size,
+                "locked": int(data.get("lockedCount") or inner.get("lockedCount") or 0)}
+        return items, meta
+
+    def album_delete_ids(self, ids: list[str] | str) -> Any:
+        """按图片 id 批量删除（ids 逗号拼接；已锁定图片站点会跳过）。"""
+        raw = ids if isinstance(ids, str) else ",".join(str(x) for x in ids if str(x).strip())
+        if not raw:
+            raise DianxiaomiError("没有要删除的图片")
+        return self._post("album_delete_ids", {"ids": raw})
+
+    def album_delete_before(self, days: int = 30, full_cid: str = "", name: str = "",
+                            file_type: int = 0) -> Any:
+        """批量删除「N 天前」上传的图片/文件（按时间筛选，已锁定不受影响）。"""
+        import datetime as _dt
+        days = max(0, int(days))
+        end = (_dt.datetime.now() - _dt.timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+        payload = {"name": name, "startTime": "2000-01-01 00:00:00", "endTime": end,
+                   "fileType": int(file_type), "fullCid": full_cid}
+        return self._post("album_delete_by_filter", payload)
+
+    def album_auto_delete(self, days: int = 30) -> Any:
+        """创建「删除未引用图片」任务：清理 N 天前上传且没有被商品引用的图片（最安全）。"""
+        import datetime as _dt
+        days = max(0, int(days))
+        end = _dt.datetime.now() - _dt.timedelta(days=days)
+        start = _dt.datetime(2000, 1, 1)
+        return self._post_json("album_auto_delete", {"startTime": int(start.timestamp() * 1000),
+                                                     "endTime": int(end.timestamp() * 1000)})
+
+    def album_auto_delete_latest(self) -> dict:
+        data = self._get("album_auto_delete_latest")
+        inner = data.get("data") if isinstance(data, dict) else None
+        return inner if isinstance(inner, dict) else {}
+
+    def album_auto_delete_cancel(self, task_id) -> Any:
+        return self._post_json("album_auto_delete_cancel", {"taskId": task_id})
 
     def user_info(self) -> dict:
         data = self._get("user_info")
@@ -228,31 +326,6 @@ class DianxiaomiClient:
 
     def pending_products(self, limit: int = 0, shop_id=None) -> list[dict]:
         return self.iter_products(shop_id, "editingRequired", limit)
-
-    def album_index(self) -> Any:
-        return self._get("album")
-
-    def user_info(self) -> dict:
-        data = self._get("user_info")
-        return data.get("data") or {}
-
-    def shops(self) -> list[dict]:
-        info = self.user_info()
-        sm = info.get("shopMap") or {}
-        out = []
-        for k, v in sm.items():
-            try:
-                sid = int(v.get("id") or k)
-            except Exception:
-                sid = k
-            if sid == 0:
-                continue
-            out.append({"id": str(sid), "name": v.get("name") or str(sid)})
-        return out
-
-    def vip_info(self) -> dict:
-        data = self._get("vip")
-        return data.get("data") or {}
 
     EDITABLE_STATUS = {"editingRequired", "offline", "publishFail", "draft", "waitPublish"}
     BLOCKED_STATUS = {"auditing", "onSelling", "published", "online"}
