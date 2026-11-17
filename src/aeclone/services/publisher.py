@@ -1115,7 +1115,9 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "图片转存", False, str(ex)[:100])
 
-            if not dry_run and self.dxm and p.get("images"):
+            # 主图写回走编辑器「网络图片」时，不再上传店小秘相册（省一次上传，避免空间不足）
+            _need_album = not getattr(self.cfg, "write_main_images_to_product", True)
+            if not dry_run and self.dxm and p.get("images") and _need_album:
                 uploaded, failed, space_full = 0, 0, False
 
                 def _up(u):
@@ -1326,7 +1328,13 @@ class Publisher:
                 r = apply_and_save(self.ws_endpoint, str(p.get("id", "")), _snap_obj,
                                    p.get("title_en") or None, form_values=_fv,
                                    do_publish=(_action == "publish" and not _sched_at),
-                                   video_path=(_video or None))
+                                   video_path=(_video or None),
+                                   images=((p.get("images") or None)
+                                           if (getattr(self.cfg, "write_main_images_to_product", True)
+                                               and (p.get("images") or []) != (product.get("images") or []))
+                                           else None),
+                                   detail_html=((p.get("detail_html") or None)
+                                                if getattr(self.cfg, "write_detail_html_to_product", True) else None))
                 if not r.ok:
                     raise RuntimeError(r.message)
                 add_step(res, "保存到店小秘", True, r.message[:200])

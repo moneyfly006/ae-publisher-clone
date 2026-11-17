@@ -204,6 +204,8 @@ def schema_image():
         ("总开关", [
             Field("ai_image_enable", "启用 AI 图片处理（总开关）", "bool"),
             Field("image_concurrency", "单产品图片并发数（1-8，越大越快）"),
+            Field("write_main_images_to_product", "AI 主图写回商品（替换主图）", "bool"),
+            Field("write_detail_html_to_product", "AI 详情写回商品", "bool"),
         ]),
         ("主图", [
             Field("main_image_generate_enable", "AI 生成主图（文生图）", "bool"),
@@ -2865,7 +2867,7 @@ class App:
             "translate_sku_pic", "translate_image_understanding",
         ]
         general_keys = [
-            "ai_image_enable", "image_concurrency",
+            "ai_image_enable", "image_concurrency", "write_main_images_to_product", "write_detail_html_to_product",
             "main_image_generate_enable", "main_image_generate_prompt", "main_image_generate_count",
             "main_image_generate_use_refs", "img_main_edit", "designated_edit_enable",
             "designated_edit_indices", "designated_edit_prompt",

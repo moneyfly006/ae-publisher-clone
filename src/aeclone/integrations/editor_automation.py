@@ -1019,10 +1019,106 @@ def publish_from_list(ws_endpoint: str, product_id: str, confirm: bool = False,
             pass
 
 
+def _set_detail_html(page, html: str) -> bool:
+    """把 AI 详情 HTML 写进描述富文本 iframe（优先可见的 contenteditable）。"""
+    if not html:
+        return False
+    for fr in page.frames:
+        try:
+            eds = fr.locator("[contenteditable=true]")
+            if eds.count() == 0:
+                continue
+            ed = eds.first
+            visible = ed.evaluate("el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)")
+            if not visible:
+                continue
+            ed.evaluate("""(el, h) => {
+                el.innerHTML = h;
+                el.dispatchEvent(new Event('input', {bubbles: true}));
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+            }""", html)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _replace_main_images(page, urls: list[str]) -> bool | None:
+    """通过「选择图片 -> 网络图片」替换主图；成功才允许保存。
+
+    返回 None=没有主图模块/无需处理，True=已替换，False=替换失败（调用方不要保存，
+    否则可能把原图删掉却只保存了半成品）。
+    """
+    urls = [str(u) for u in (urls or []) if str(u).startswith("http")][:6]
+    if not urls:
+        return None
+    mod = page.locator(".productMainImgModule").first
+    if mod.count() == 0:
+        return None
+    try:
+        before = mod.locator("img").count()
+        if before == 0:
+            pass
+        else:
+            # 勾选「全选」，删除图标才会出现
+            cbs = mod.locator("input[type=checkbox]")
+            if cbs.count() == 0:
+                return False
+            try:
+                cbs.first.click(force=True)
+            except Exception:
+                pass
+            page.wait_for_timeout(800)
+            for _ in range(12):
+                dels = mod.locator("a.icon_delete, i.icon_delete")
+                if dels.count() == 0:
+                    break
+                try:
+                    dels.first.click(force=True)
+                except Exception as _e:
+                    return False
+                page.wait_for_timeout(500)
+                for txt in ("确定", "删除", "确认"):
+                    try:
+                        b = page.get_by_role("button", name=txt, exact=True).first
+                        if b.count() and b.is_visible():
+                            b.click(); page.wait_for_timeout(300); break
+                    except Exception:
+                        continue
+            if mod.locator("img").count() != 0:
+                return False
+        # 打开网络图片
+        mod.locator('button:has-text("选择图片")').first.click(timeout=5000)
+        page.wait_for_timeout(1500)
+        tab = page.get_by_text("网络图片", exact=True).last
+        if tab.count() == 0:
+            return False
+        tab.click(timeout=5000)
+        page.wait_for_timeout(800)
+        ta = page.locator('textarea[placeholder*="图片URL"]').last
+        if ta.count() == 0:
+            return False
+        ta.fill("\n".join(urls))
+        page.wait_for_timeout(300)
+        adds = page.get_by_role("button", name="添加", exact=True)
+        clicked = False
+        for i in range(adds.count()):
+            if adds.nth(i).is_visible():
+                adds.nth(i).click(); clicked = True; break
+        if not clicked:
+            return False
+        page.wait_for_timeout(3000)
+        n = mod.locator("img").count()
+        return n > 0
+    except Exception:
+        return False
+
+
 def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = None,
                    new_title: str | None = None, timeout: int = 60000,
                    do_publish: bool = False, form_values: dict | None = None,
-                   video_path: str | None = None) -> SaveResult:
+                   video_path: str | None = None, images: list[str] | None = None,
+                   detail_html: str | None = None) -> SaveResult:
     """一次打开编辑器完成：写模板字段 → 改标题 →（上传视频）→ 保存 →（可选发布）。
 
     相比 apply_template_fields + update_and_save 两次开页面，省一次导航约 20~40s。
@@ -1401,6 +1497,21 @@ def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = No
         if video_path:
             rv = _attach_video_in_page(page, str(video_path))
             applied.append(("视频：" if rv.ok else "视频失败：") + rv.message[:40])
+
+        # AI 详情 HTML：写进描述富文本 iframe
+        if detail_html:
+            if _set_detail_html(page, detail_html):
+                applied.append("详情")
+            else:
+                applied.append("详情写入失败（跳过）")
+
+        # AI 处理后的主图：通过「网络图片」替换；失败则不保存，避免丢原图
+        if images:
+            _img_res = _replace_main_images(page, images)
+            if _img_res is False:
+                return SaveResult(False, "主图替换失败，已取消保存（原商品未改动）")
+            if _img_res:
+                applied.append(f"主图 {min(len(images), 6)} 张")
 
         # 保存
         def save_click():
