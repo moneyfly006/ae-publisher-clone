@@ -873,24 +873,22 @@ class Publisher:
             else:
                 if not self.ws_endpoint:
                     raise RuntimeError("未连接浏览器（缺少 CDP 端点）")
-                from ..integrations.editor_automation import update_and_save, apply_template_fields
+                from ..integrations.editor_automation import apply_and_save, update_and_save, apply_template_fields
                 snap_json = (getattr(self.cfg, "template_snapshot", "") or "").strip()
+                _snap_obj = None
                 if snap_json and getattr(self.cfg, "apply_template_on_save", True):
                     try:
                         import json as _jt
-                        _snap = _jt.loads(snap_json)
-                        # 合并自定义属性（来自属性模板 / 手工填写）
+                        _snap_obj = _jt.loads(snap_json)
                         _extra = getattr(self.cfg, "custom_attributes", None) or []
                         if _extra:
-                            _attrs = list(_snap.get("attributes") or [])
+                            _attrs = list(_snap_obj.get("attributes") or [])
                             for _x in _extra:
                                 if isinstance(_x, str) and "=" in _x and _x not in _attrs:
                                     _attrs.append(_x)
-                            _snap["attributes"] = _attrs
-                        r_tpl = apply_template_fields(self.ws_endpoint, str(p.get("id", "")), _snap)
-                        add_step(res, "模板写回", r_tpl.ok, r_tpl.message[:60])
-                    except Exception as ex:  # noqa: BLE001
-                        add_step(res, "模板写回", False, str(ex)[:80])
+                            _snap_obj["attributes"] = _attrs
+                    except Exception:
+                        _snap_obj = None
                 # 主图视频：先上传视频再保存
                 if p.get("main_video") and getattr(self.cfg, "upload_main_video", True):
                     try:
@@ -900,14 +898,17 @@ class Publisher:
                     except Exception as ex:  # noqa: BLE001
                         add_step(res, "视频上传", False, str(ex)[:80])
 
-                r = update_and_save(self.ws_endpoint, str(p.get("id", "")),
-                                    p.get("title_en") or None)
+                # 合并流程：一次开页面完成 写模板 + 改标题 + 保存（省一次导航）
+                r = apply_and_save(self.ws_endpoint, str(p.get("id", "")), _snap_obj,
+                                   p.get("title_en") or None)
                 if not r.ok:
                     raise RuntimeError(r.message)
                 add_step(res, "保存到店小秘", True, r.message)
 
-                # 保存成功后真实发布（列表页 批量操作 → 批量发布）
-                if getattr(self.cfg, "publish_after_save", False):
+                # 发布动作：save_only=留在待发布 / publish=保存并发布
+                _action = (getattr(self.cfg, "publish_action", "") or
+                           ("publish" if getattr(self.cfg, "publish_after_save", False) else "save_only"))
+                if _action == "publish":
                     try:
                         from ..integrations.editor_automation import publish_from_list
                         rp = publish_from_list(self.ws_endpoint, str(p.get("id", "")),
@@ -938,3 +939,33 @@ def demo_product() -> dict:
         "attributes": [{"name": "Model Number"}, {"name": "Power (W)"}],
         "target_attributes": [{"name": "型号"}, {"name": "功率"}],
     }
+
+
+def run_many(pub: "Publisher", products: list[dict], workers: int = 4,
+             dry_run: bool = True, on_done=None) -> list:
+    """多线程并行处理多个产品（每个产品独立 publisher 实例，避免共享状态）。"""
+    import concurrent.futures as _cf
+    import copy as _copy
+
+    results = []
+    lock = __import__("threading").Lock()
+
+    def work(prod):
+        local_cfg = _copy.deepcopy(pub.cfg)
+        local_pub = Publisher(local_cfg, dxm=pub.dxm, ws_endpoint=pub.ws_endpoint)
+        try:
+            r = local_pub.run(prod, dry_run=dry_run)
+        except Exception as e:  # noqa: BLE001
+            r = PublishResult(product_id=str(prod.get("id", "")), ok=False, error=str(e))
+        with lock:
+            results.append(r)
+        if on_done:
+            try:
+                on_done(r)
+            except Exception:
+                pass
+        return r
+
+    with _cf.ThreadPoolExecutor(max_workers=max(1, int(workers))) as ex:
+        list(ex.map(work, products))
+    return results

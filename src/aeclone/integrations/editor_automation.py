@@ -574,3 +574,184 @@ def publish_from_list(ws_endpoint: str, product_id: str, confirm: bool = False,
         except Exception:
             pass
         pw.stop()
+
+
+def apply_and_save(ws_endpoint: str, product_id: str, snapshot: dict | None = None,
+                   new_title: str | None = None, timeout: int = 60000,
+                   do_publish: bool = False) -> SaveResult:
+    """一次打开编辑器完成：写模板字段 → 改标题 → 保存（→ 可选发布）。
+
+    相比 apply_template_fields + update_and_save 两次开页面，省一次导航约 20~40s。
+    """
+    pw, browser, ctx = _connect(ws_endpoint)
+    page = ctx.new_page()
+    seen: dict = {}
+    applied: list[str] = []
+
+    def _on_resp(resp):
+        try:
+            u = resp.url
+            if "/api/smtProduct/add.json" in u or "/api/smtProduct/update.json" in u:
+                seen["url"] = u.split("dianxiaomi.com")[-1]
+                seen["status"] = resp.status
+        except Exception:
+            pass
+
+    page.on("response", _on_resp)
+    try:
+        page.goto(EDITOR_URL.format(pid=product_id), wait_until="domcontentloaded", timeout=timeout)
+        try:
+            page.wait_for_selector('button:has-text("更新"), button:has-text("保存")', timeout=45000)
+        except Exception:
+            pass
+        page.wait_for_timeout(1500)
+
+        fields = (snapshot or {}).get("fields") or {}
+        attrs = list((snapshot or {}).get("attributes") or [])
+
+        # 标题
+        try:
+            title_input = page.locator("input[type=text]").first
+            old = title_input.input_value(timeout=6000)
+            if new_title and new_title.strip() and new_title.strip() != old.strip():
+                title_input.fill(new_title.strip())
+                title_input.dispatch_event("input")
+                page.wait_for_timeout(400)
+                applied.append("标题")
+        except Exception:
+            pass
+
+        # 类目（仅当未选择时）
+        cat = (fields.get("category") or "").strip()
+        if cat:
+            try:
+                cur = page.evaluate("""() => {
+                    const fi=[...document.querySelectorAll('.ant-form-item')].find(x=>x.innerText.includes('产品分类'));
+                    return fi?fi.innerText.replace(/\n/g,' '):'';
+                }""")
+                if "选择分类" in (cur or ""):
+                    cat_name = cat.split("(")[0].strip()
+                    page.get_by_role("button", name="选择分类", exact=False).first.click(timeout=5000)
+                    page.wait_for_timeout(1500)
+                    sr = page.locator('input[placeholder="搜索分类名称"]').first
+                    if sr.count() > 0:
+                        sr.fill(cat_name)
+                        page.get_by_role("button", name="搜索", exact=True).first.click(timeout=4000)
+                        page.wait_for_timeout(2500)
+                    item = page.locator(".search-result-item").first
+                    if item.count() > 0:
+                        item.click(timeout=5000)
+                        page.wait_for_timeout(1000)
+                        applied.append(f"类目 {cat_name}")
+            except Exception:
+                pass
+
+        # 运费模板
+        freight = (fields.get("freight") or "").strip()
+        if freight:
+            try:
+                sel = page.locator(".ant-form-item", has_text="运费模板").locator(".ant-select").first
+                if sel.count() > 0:
+                    sel.click(timeout=4000)
+                    page.wait_for_timeout(1000)
+                    opt = page.locator(".ant-select-item-option-content", has_text=freight[:10]).first
+                    if opt.count() > 0:
+                        opt.click(timeout=4000)
+                        page.wait_for_timeout(800)
+                        applied.append(f"运费 {freight[:12]}")
+            except Exception:
+                pass
+
+        # 重量/尺寸/品牌/产地/单位
+        def fill_by_label(label, value):
+            try:
+                item = page.locator(".ant-form-item", has_text=label).first
+                if item.count() == 0:
+                    return False
+                inp = item.locator("input").first
+                if inp.count() > 0:
+                    if not (inp.input_value() or "").strip():
+                        inp.fill(value)
+                        inp.dispatch_event("input")
+                        page.wait_for_timeout(250)
+                        return True
+            except Exception:
+                pass
+            return False
+
+        for label, key in (("包装后重量", "weight"), ("包装后尺寸", "size"),
+                           ("品牌", "brand"), ("产地", "origin"), ("计件单位", "unit")):
+            v = (fields.get(key) or "").strip()
+            if v.upper() in ("NONE", "NULL", "-", "无"):
+                continue
+            if v and fill_by_label(label, v):
+                applied.append(f"{label}={v[:12]}")
+
+        # 自定义属性
+        for pair in attrs[:20]:
+            if "=" not in str(pair):
+                continue
+            k, v = str(pair).split("=", 1)
+            try:
+                name_input = page.locator(f'input[placeholder^="属性名"][value="{k.strip()}"]').first
+                if name_input.count() > 0:
+                    continue
+                add_btn = page.get_by_role("button", name="添加自定义属性", exact=False).first
+                if add_btn.count() > 0:
+                    add_btn.click(timeout=3000)
+                    page.wait_for_timeout(500)
+                    page.locator('input[placeholder^="属性名"]').last.fill(k.strip())
+                    page.locator('input[placeholder^="属性值"]').last.fill(v.strip())
+                    applied.append(f"属性 {k.strip()}")
+            except Exception:
+                continue
+
+        # 保存
+        def save_click():
+            for sel in ('button:has-text("更新")', 'button:has-text("保存")'):
+                try:
+                    loc = page.locator(sel).first
+                    if loc.count() > 0:
+                        loc.scroll_into_view_if_needed(timeout=2000)
+                        loc.click(timeout=6000)
+                        return True
+                except Exception:
+                    continue
+            return False
+
+        if not save_click():
+            return SaveResult(False, "未找到保存/更新按钮")
+        page.wait_for_timeout(1800)
+        for txt in ("确定", "确认", "继续发布", "继续"):
+            try:
+                btn = page.get_by_role("button", name=txt, exact=True).first
+                if btn.count() > 0:
+                    btn.click(timeout=2500)
+                    page.wait_for_timeout(1500)
+                    break
+            except Exception:
+                continue
+        page.wait_for_timeout(3000)
+
+        if not seen.get("status"):
+            save_click()
+            page.wait_for_timeout(3000)
+
+        ok = bool(seen.get("status")) and int(seen.get("status", 500)) < 400
+        msg = (f"保存接口 {seen.get('url','-')} HTTP {seen.get('status','-')}" if seen.get("status")
+               else "未捕获保存接口（可能已保存但未响应）")
+        if applied:
+            msg += " · 写入：" + "、".join(applied[:6])
+        return SaveResult(ok, msg)
+    except Exception as e:  # noqa: BLE001
+        return SaveResult(False, f"合并保存失败：{str(e)[:150]}")
+    finally:
+        try:
+            page.close()
+        except Exception:
+            pass
+        try:
+            browser.close()
+        except Exception:
+            pass
+        pw.stop()

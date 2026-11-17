@@ -18,7 +18,7 @@ DEFAULTS: dict = {
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "license_server": "https://license.moneyfly.club",
-    "concurrency": 3,
+    "concurrency": 4,
     "retry_max": 1,
     "retry_delay": 2.0,
     "timeout": 180,
@@ -89,6 +89,7 @@ DEFAULTS: dict = {
     "review_block_on_fail": False,
     "auto_save_products": False,
     "publish_after_save": False,
+    "publish_action": "save_only",   # save_only=保存到待发布 / publish=保存并发布
     "onboarded": False,
     "manual_cookies": {},
     "template_source": "draft",
@@ -131,6 +132,9 @@ DEFAULTS: dict = {
     "video_cover": True,
     "video_fade_edges": True,
     "video_output_dir": "",
+    "browser_hide": True,          # 连接后隐藏/最小化浏览器窗口（后台运行）
+    "browser_headless_login": False, # 首次登录保持可见
+    "cdp_port": 9333,
     "proxy_enabled": False,
     "proxy_url": "",
     "generate_main_video": False,

@@ -198,3 +198,37 @@ def edge_status(port: int) -> dict[str, Any]:
         return {"alive": r.status_code == 200, "info": r.json() if r.status_code == 200 else None}
     except Exception:
         return {"alive": False, "info": None}
+
+
+def hide_window(ws_endpoint: str) -> bool:
+    """把浏览器窗口最小化/移出可视区，实现后台运行（最小化不影响 DOM 操作）。"""
+    try:
+        import requests as _rq
+        info = _rq.get(ws_endpoint.replace("ws://", "http://").split("/devtools")[0] + "/json/list", timeout=5).json()
+        # 通过 CDP 最小化窗口
+        from playwright.sync_api import sync_playwright
+        pw = sync_playwright().start()
+        b = pw.chromium.connect_over_cdp(ws_endpoint, timeout=15000)
+        try:
+            cdp = b.new_browser_cdp_session()
+            targets = cdp.send("Target.getTargets").get("targetInfos", [])
+            win_ids = [t["targetId"] for t in targets if t.get("type") == "page"]
+            for tid in win_ids:
+                try:
+                    cdp.send("Browser.setWindowBounds", {"windowId": _window_id(cdp, tid),
+                                                         "bounds": {"windowState": "minimized"}})
+                except Exception:
+                    continue
+        finally:
+            b.close()
+            pw.stop()
+        return True
+    except Exception:
+        return False
+
+
+def _window_id(cdp, target_id: str) -> int:
+    try:
+        return cdp.send("Browser.getWindowForTarget", {"targetId": target_id})["windowId"]
+    except Exception:
+        return 1

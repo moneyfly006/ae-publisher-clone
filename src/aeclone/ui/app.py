@@ -133,7 +133,9 @@ def schema_advanced():
                       Field("detail_text_position", "插入位置（head/tail/both）"),
                       Field("move_detail_text", "详情文字并入头部", "bool")]),
         ("运行", [Field("auto_save_products", "自动保存到店小秘（关闭=只试跑）", "bool"),
-                  Field("publish_after_save", "保存后自动发布到速卖通（真实提交，谨慎开启）", "bool")]),
+                  Field("publish_action", "发布动作", "select", ["save_only", "publish"]),
+                  Field("browser_hide", "浏览器后台运行（连接后自动最小化）", "bool"),
+                  Field("cdp_port", "浏览器调试端口（多开时每个实例不同）")]),
     ]
 
 
@@ -328,7 +330,7 @@ class App:
             ("AI 设置", [("AI 智能填写", ft.Icons.AUTO_FIX_HIGH, 3), ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4)]),
             ("AI图片处理", [("AI图片处理", ft.Icons.IMAGE_OUTLINED, 5), ("图片工作台", ft.Icons.GRID_VIEW, 9)]),
             ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
-            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("提示词", ft.Icons.EDIT_NOTE, 11),
+            ("系统", [("预览", ft.Icons.VISIBILITY, 12), ("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("提示词", ft.Icons.EDIT_NOTE, 11),
                       ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
         ]
         col = ft.Column(spacing=3)
@@ -400,7 +402,7 @@ class App:
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
                  self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench,
-                 self._p_logs, self._p_prompts]
+                 self._p_logs, self._p_prompts, self._p_preview]
         idx = idx % len(pages)
         self.content.controls = pages[idx]()
         self.page.update()
@@ -2765,6 +2767,157 @@ class App:
             self.toast("已记录为优质样例，下次同类产品可参考")
         except Exception as ex:
             self.toast(str(ex), False)
+
+    def _p_preview(self):
+        self._current = 12
+        self.pv_dd = ft.Dropdown(label="选择产品（草稿）", width=520, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
+        self.pv_status = ft.Text("点「载入草稿」拉取产品", size=12, color=MUTED)
+        self.pv_title = ft.Text("", size=15, color=TEXT, weight=ft.FontWeight.BOLD)
+        self.pv_meta = ft.Column(spacing=2)
+        self.pv_images = ft.Row(spacing=8, wrap=True, scroll=ft.ScrollMode.AUTO)
+        self.pv_actions = ft.Column(spacing=2)
+        self.pv_cost = ft.Text("", size=12, color=ACCENT_2)
+        self.pv_risks = ft.Column(spacing=2)
+        self._pv_products: list[dict] = []
+
+        def load(e):
+            self.pv_status.value = "拉取中…"; self.page.update()
+            threading.Thread(target=_load, daemon=True).start()
+
+        def _load():
+            try:
+                ck = self._cookies()
+                dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+                items, meta = dxm.product_page(1, 50, self.cfg.store_id or None, "editingRequired")
+                self._pv_products = items[:30]
+                self.pv_dd.options = [ft.dropdown.Option(str(p["id"]), (p.get("title") or "")[:60]) for p in self._pv_products]
+                if self._pv_products:
+                    self.pv_dd.value = str(self._pv_products[0]["id"])
+                self.pv_status.value = f"共 {meta.get('total')} 个待发布，已载入 {len(self._pv_products)} 个"
+                _render_preview(None)
+            except Exception as ex:
+                self.pv_status.value = f"拉取失败：{str(ex)[:100]}"
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        def _render_preview(e):
+            pid = self.pv_dd.value
+            prod = next((p for p in self._pv_products if str(p.get("id")) == str(pid)), None)
+            if not prod:
+                return
+            title = prod.get("title") or ""
+            imgs = [u for u in (prod.get("images") or []) if isinstance(u, str)]
+            skus = prod.get("skus") or []
+
+            self.pv_title.value = title[:110]
+            # 元信息
+            cost = float(self.cfg.goods_cost or 0) or 10.0
+            price = calc_multiplier(cost, float(self.cfg.price_multiplier or 1.2), float(self.cfg.price_fixed_add or 0))
+            self.pv_meta.controls = [
+                ft.Text(f"产品 ID：{pid}    店铺：{self.cfg.store_name or '-'}", size=11, color=MUTED),
+                ft.Text(f"图片：{len(imgs)} 张    变体：{len(skus)} 个    类目模板：{self.cfg.template_product_title or '未选择'}", size=11, color=MUTED),
+                ft.Text(f"价格：成本 ¥{cost:.2f} × {self.cfg.price_multiplier} → 售价 ¥{price.final}", size=12, color=ACCENT_2),
+            ]
+            # 图片缩略图（最多 8）
+            self.pv_images.controls = [ft.Column([
+                ft.Image(src=u, width=96, height=96, fit=ft.ImageFit.COVER, border_radius=6),
+                ft.Text(f"{i+1}", size=9, color=MUTED)], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+                for i, u in enumerate(imgs[:8])]
+
+            # 将执行的动作
+            acts = []
+            if self.cfg.white_bg_enable:
+                acts.append(f"主图白底（第 {self.cfg.white_background_pic_1}-{self.cfg.white_background_pic_2} 张）")
+            if self.cfg.watermark_enable:
+                acts.append("主图去水印")
+            if self.cfg.enable_ai_title:
+                acts.append(f"AI 标题（{self.cfg.model_text}）")
+            if self.cfg.enable_ai_detail:
+                acts.append("AI 描述（HTML）")
+            if self.cfg.enable_ai_sku and skus:
+                acts.append("AI SKU 优化")
+            if (self.cfg.template_snapshot or "").strip() not in ("", "{}"):
+                acts.append("写入模板（类目/运费/属性）")
+            if self.cfg.generate_main_video:
+                acts.append("生成并上传主图视频")
+            _act = self.cfg.get("publish_action", "save_only")
+            acts.append("保存到店小秘" + ("，并发布到速卖通" if _act == "publish" else "（留在待发布）"))
+            self.pv_actions.controls = [ft.Text(f"{i}. {a}", size=11, color=TEXT) for i, a in enumerate(acts, 1)]
+
+            # 费用预估
+            edit_price = self._price_of(self.cfg.model_image_edit)
+            n_edit = 0
+            if self.cfg.white_bg_enable:
+                n_edit += 1
+            if self.cfg.watermark_enable:
+                n_edit += 1
+            est = n_edit * edit_price + 0.01
+            self.pv_cost.value = f"预计费用：约 ¥{est:.2f}（图片 {n_edit} 次 × ¥{edit_price:.2f} + 文本约 ¥0.01）"
+
+            # 风险
+            risks = []
+            if not imgs:
+                risks.append("没有图片，无法发布")
+            if len(title) < 20:
+                risks.append("标题过短，建议补充关键词")
+            if not (self.cfg.template_snapshot or "").strip() not in ("", "{}"):
+                risks.append("未选择模板：类目/运费不会被自动填写")
+            if not (self.cfg.api_key or "").strip():
+                risks.append("未配置 API Key")
+            if self.cfg.watermark and not Path(str(self.cfg.watermark)).exists():
+                risks.append(f"水印文件不存在：{self.cfg.watermark}")
+            self.pv_risks.controls = ([ft.Text(f"⚠ {r}", size=11, color="#FFB020") for r in risks]
+                                      or [ft.Text("✓ 未发现明显风险", size=11, color=ACCENT_2)])
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        self.pv_dd.on_change = _render_preview
+
+        def execute(e):
+            pid = self.pv_dd.value
+            prod = next((p for p in self._pv_products if str(p.get("id")) == str(pid)), None)
+            if not prod:
+                self.toast("请先载入并选择产品", False); return
+            self._switch(10)   # 跳日志页
+            self._log(f"预览执行：{pid}")
+            def _run():
+                try:
+                    ck = self._cookies()
+                    dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+                    ws = self.ws_endpoint or ""
+                    if not ws:
+                        from ..integrations.browser import ensure_browser
+                        ws = ensure_browser(self.cfg).get("ws", "")
+                        self.ws_endpoint = ws
+                    r = Publisher(self.cfg, dxm=dxm, ws_endpoint=ws).run(prod, dry_run=not self.cfg.auto_save_products)
+                    for line in r.log().splitlines():
+                        self._log("   " + line)
+                except Exception as ex:
+                    self._log(f"执行失败：{ex}", "ERROR")
+            threading.Thread(target=_run, daemon=True).start()
+
+        card1 = card(ft.Column([
+            h1("产品预览", 15),
+            muted("选定一个草稿产品，先看清楚「长什么样、要做什么、花多少钱、有什么风险」再执行"),
+            ft.Row([self.pv_dd,
+                    ft.ElevatedButton("载入草稿", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT, on_click=load),
+                    ft.ElevatedButton("执行这一个", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white", on_click=execute)],
+                   spacing=10, wrap=True),
+            self.pv_status], spacing=8))
+
+        card2 = card(ft.Column([self.pv_title, self.pv_meta,
+                                ft.Divider(height=1, color=CARD_2),
+                                ft.Text("主图", size=11, color=MUTED), self.pv_images,
+                                ft.Divider(height=1, color=CARD_2),
+                                ft.Text("将执行的动作", size=11, color=MUTED), self.pv_actions,
+                                self.pv_cost,
+                                ft.Text("风险检查", size=11, color=MUTED), self.pv_risks], spacing=8))
+
+        return [h1("预览"), card1, card2]
 
     def _p_logs(self):
         self._current = 10
