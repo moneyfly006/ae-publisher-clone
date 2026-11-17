@@ -1079,6 +1079,15 @@ def main():
     from aeclone.ui.app import _assets_dir as _ad
     check("安装：assets 路径可解析", (Path(_ad()) / "logo.svg").exists(), _ad())
 
+    section("已编辑记录 / 审核顺序")
+    from aeclone.services import edited as _edited
+    _edited.clear()
+    _edited.mark("p1", "产品1")
+    _keep, _skip = _edited.filter_new([{"id": "p1"}, {"id": "p2"}, {"id": "p3"}])
+    check("已编辑：过滤已编辑且保持顺序", _skip == 1 and [x["id"] for x in _keep] == ["p2", "p3"], str(_keep))
+    check("已编辑：查询记录", _edited.is_edited("p1") and not _edited.is_edited("p2"), "")
+    _edited.clear()
+
     section("性能：图片/价格/模型缓存")
     import aeclone.services.image_cache as _ic
     _ic.clear()

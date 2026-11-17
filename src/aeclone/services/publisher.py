@@ -816,6 +816,10 @@ class Publisher:
     # ---------- 主流程 ----------
     def run(self, product: dict, dry_run: bool = True, manage_progress: bool = True) -> PublishResult:
         res = PublishResult(product_id=str(product.get("id", "")), ok=True)
+        # 自动化测试/验收默认不真实保存，避免误改客户商品
+        import os as _os
+        if _os.environ.get("AURORA_TEST") or _os.environ.get("AURORA_NO_SAVE"):
+            dry_run = True
         # 审核中的产品禁止再次编辑（店小秘会返回 PRODUCT_IN_AUDIT_PENDING，且会白跑 AI）
         _st = str(product.get("status_type") or product.get("status") or "")
         _err = str((product.get("raw") or {}).get("errMsg") or "")
@@ -1390,6 +1394,12 @@ class Publisher:
                             res.error = (res.error + " " if res.error else "") + f"发布失败：{rp.message[:120]}"
                     except Exception as ex:  # noqa: BLE001
                         add_step(res, "发布到速卖通", False, str(ex)[:100])
+            if not dry_run and res.ok and any(s.name == "保存到店小秘" and s.ok for s in res.steps):
+                try:
+                    from .edited import mark as _mark
+                    _mark(str(p.get("id", "")), p.get("title_en") or p.get("title", ""), "saved")
+                except Exception:
+                    pass
             return res
         except Exception as e:  # noqa: BLE001
             res.ok = False

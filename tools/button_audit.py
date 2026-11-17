@@ -1,5 +1,6 @@
 """逐按钮遍历测试：实例化 App，遍历每个页面所有带回调的控件并触发，记录报错。"""
-import sys, traceback
+import os, sys, traceback
+os.environ.setdefault("AURORA_TEST", "1")
 sys.path.insert(0, "src")
 
 import flet as ft

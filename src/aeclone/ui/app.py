@@ -1230,9 +1230,24 @@ class App:
             blocked = [p for p in all_prods if (p.get("status_type") or "") in ("auditing", "onSelling")]
             self._log(f"共 {len(all_prods)} 个产品，跳过审核中/已发布 {len(blocked)} 个", "INFO")
             limit = int(self.cfg.edit_sum or 0) or 0
-            prods = dxm.pending_products(limit=limit, shop_id=self.cfg.store_id or None)
+            _fetch = (max(limit * 4, 40) if limit else 0)
+            prods = dxm.pending_products(limit=_fetch, shop_id=self.cfg.store_id or None)
             prods = [x for x in prods if (x.get("status_type") or "") not in
                      ("auditing", "onSelling", "published", "online")]
+            _tpl_ids = {str(getattr(self.cfg, "template_product_id", "") or ""),
+                        str(getattr(self.cfg, "product_template_id", "") or "")}
+            _tpl_ids.discard("")
+            if _tpl_ids:
+                prods = [x for x in prods if str(x.get("id")) not in _tpl_ids]
+            try:
+                from ..services import edited as _edited
+                prods, _skip_edited = _edited.filter_new(prods)
+                if _skip_edited:
+                    self._log(f"跳过已编辑过 {_skip_edited} 个产品", "INFO")
+            except Exception:
+                pass
+            if limit:
+                prods = prods[:limit]
             self.products = prods
             if not prods:
                 self._log("没有可编辑（待发布）的产品", "WARN")
@@ -3733,6 +3748,11 @@ class App:
             chosen = [p for p in chosen if str(p.get("status_type") or "") not in
                       ("auditing", "onSelling", "published", "online")
                       and "PRODUCT_IN_AUDIT_PENDING" not in str((p.get("raw") or {}).get("errMsg") or "")]
+            try:
+                from ..services import edited as _edited
+                chosen, _skip_ed = _edited.filter_new(chosen)
+            except Exception:
+                _skip_ed = 0
             skipped = before - len(chosen)
             self._queue_products = pool
             n = self.q.add_many(chosen)
@@ -3980,6 +4000,16 @@ class App:
                 self._log(f"已停止，跳过队列 {item.product_id}", "WARN")
                 return
             base = by_id.get(item.product_id, {})
+            try:
+                from ..services.edited import is_edited as _is_edited
+                if _is_edited(item.product_id):
+                    self._log(f"队列跳过已编辑过：{item.product_id}", "INFO")
+                    with lock:
+                        self.q.mark(item.product_id, "done", "已编辑过，跳过")
+                        self._refresh_queue()
+                    return
+            except Exception:
+                pass
             if str(base.get("status_type") or "") in ("auditing", "onSelling", "published", "online") or \
                     "PRODUCT_IN_AUDIT_PENDING" in str((base.get("raw") or {}).get("errMsg") or ""):
                 self._log(f"队列跳过审核中/已上架：{item.product_id}", "WARN")
@@ -4727,6 +4757,22 @@ class App:
         except Exception:
             pass
 
+    def _edited_count_text(self):
+        try:
+            from ..services import edited
+            return muted(f"已编辑记录：{edited.stats().get('count', 0)} 个（这些产品不会再自动编辑）")
+        except Exception:
+            return muted("已编辑记录：-")
+
+    def _clear_edited(self):
+        try:
+            from ..services import edited
+            n = edited.clear()
+            self.toast(f"已清空 {n} 条已编辑记录；这些产品下次会被重新处理")
+            self._switch(8)
+        except Exception as ex:
+            self.toast(f"清空失败：{ex}", False)
+
     def _p_settings(self):
         self._current = 8
 
@@ -4989,6 +5035,9 @@ class App:
                     sw("keep_custom_attributes", "保留自定义属性"),
                     sw("split_product_price", "启用产品信息/价格分离处理")], spacing=14, wrap=True),
             ft.Row([self.publish_pos], spacing=10, wrap=True),
+            ft.Row([self._edited_count_text(), ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
+                                                              on_click=lambda e: self._clear_edited())],
+                   spacing=10, wrap=True),
         ], spacing=10))
 
         return [lic_card, api_card, model_card, extra_card, inst_card, upd, diag_card, price_card]
