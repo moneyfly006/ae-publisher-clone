@@ -414,3 +414,43 @@
 - `tools/verify_issues.py`：**199/199 通过**（新增更新字段解析、assets 路径）
 - `button_audit`：0 新增错误
 - `CURRENT=1.2.0`；后台当前 latest 1.1.5.3，因此不会误提示升级
+
+---
+
+## 第 11 轮：日志跟随 / 运行错误定位（2026-11-17）
+
+### 1. 日志「总是跳到最新」
+
+- 任务与日志页新增勾选「**总是跳到最新日志**」，默认勾选
+- 勾选：每次新日志都滚到最底部，不需要滚鼠标
+- 取消勾选：记录当前滚动位置；新日志追加时保持你正在看的位置（鼠标停在哪条就停在哪条附近）
+- 表格顺序改为**旧→新（最新在最下面）**；超过 300 行只显示最近 300 行
+- 表格只显示**本次运行**的日志；上次运行的日志保留在 `logs/app.log`，点「打开日志文件」查看
+- 勾选状态保存到 `config.json` 的 `log_auto_follow`，重启保持
+
+### 2. 刚才运行报错的原因
+
+错误日志原文：
+
+```
+引导弹窗异常: 'App' object has no attribute 'tpl_preview_box'
+```
+
+原因：首次引导弹窗（`_maybe_wizard`）在启动时就要用 `tpl_preview_box`，但该控件原来只在「店铺设置」页里创建；启动时先弹引导，就抛 AttributeError，引导打不开/界面异常。
+
+修复：
+
+- `App.__init__` 在弹引导前先创建 `tpl_preview_box` / `tpl_snapshot_text`
+- `_p_store` 改为**复用**这两个控件，不再重新创建（否则引导里引用的是旧控件）
+- 已有店铺或 API Key 的老用户自动标记 `onboarded=True`，不再重复弹首次引导
+- 新增测试：首次引导弹窗不崩
+
+### 3. 日志持久化（以后报错不用猜）
+
+- 所有 `_log` 同时写 `%APPDATA%\AuroraList\logs\app.log`（macOS：`~/Library/Application Support/AuroraList/logs/app.log`）
+- 2MB 自动轮转（`app.1`）
+- 启动时读回最近 300 行，上次运行出错的内容还在
+- 日志页新增「打开日志文件」按钮，用户可直接把文件发给客服
+- 保留 `error.log` 记录未捕获异常
+
+![日志跟随](screenshots/new/round11-logs-follow.png)

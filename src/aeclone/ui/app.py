@@ -324,6 +324,7 @@ class App:
         self._ui_lock = threading.RLock()
         self._building_page = False
         self._update_err_ts = 0.0
+        self._log_file_lock = threading.Lock()
         self.cfg: AppConfig = get_config()
         self.picked: list[Path] = []
         self.wb_sel_paths: set[str] = set()
@@ -482,6 +483,10 @@ class App:
                 self._log(f"Cookie 检测异常：{ex}", "WARN")
         threading.Thread(target=_detect_cookie, daemon=True).start()
 
+        if getattr(self, "tpl_preview_box", None) is None:
+            self.tpl_preview_box = ft.Container(content=self._template_preview_row())
+        if getattr(self, "tpl_snapshot_text", None) is None:
+            self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
         try:
             self._maybe_wizard()
         except Exception as ex:
@@ -685,6 +690,11 @@ class App:
     # ---------- 页面 ----------
     def _maybe_wizard(self):
         if getattr(self.cfg, "onboarded", False):
+            return
+        # 已有店铺/API 配置的老用户不再弹首次引导
+        if getattr(self.cfg, "store_id", "") or getattr(self.cfg, "api_key", ""):
+            self.cfg.onboarded = True
+            save_config(self.cfg)
             return
         self._wizard_step = 1
         self.wz_browser = ft.Dropdown(label="浏览器", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
@@ -1355,8 +1365,12 @@ class App:
                                    options=[ft.dropdown.Option(key=self.cfg.store_id, text=self.cfg.store_name)] if self.cfg.store_id else [],
                                    value=self.cfg.store_id or None,
                                    on_change=lambda e: self._on_shop_change())
-        self.tpl_preview_box = ft.Container(content=self._template_preview_row())
-        self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
+        if getattr(self, "tpl_preview_box", None) is None:
+            self.tpl_preview_box = ft.Container(content=self._template_preview_row())
+        else:
+            self.tpl_preview_box.content = self._template_preview_row()
+        if getattr(self, "tpl_snapshot_text", None) is None:
+            self.tpl_snapshot_text = ft.Text("模板参数：未读取", size=12, color=MUTED)
         try:
             import json as _js
             _snap0 = _js.loads(getattr(self.cfg, "template_snapshot", "") or "{}")
@@ -4221,6 +4235,13 @@ class App:
                      ft.DataColumn(ft.Text("内容", size=11, color=MUTED))],
             rows=[], column_spacing=14, heading_row_height=28, data_row_min_height=24,
         )
+        if not getattr(self, "log_rows", None):
+            self.log_rows = []          # 表格只显示本次运行；历史见「打开日志文件」
+        self.log_follow = ft.Checkbox(label="总是跳到最新日志", value=bool(getattr(self.cfg, "log_auto_follow", True)),
+                                      on_change=self._on_log_follow_change)
+        self.log_scroll = ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO,
+                                    auto_scroll=bool(getattr(self.cfg, "log_auto_follow", True)),
+                                    height=360, on_scroll=self._on_log_scroll)
         self._refresh_log_table()
 
         def export(e):
@@ -4233,10 +4254,12 @@ class App:
             ft.ElevatedButton("停止任务", icon=ft.Icons.STOP_CIRCLE, bgcolor="#D9534F", color="white",
                               on_click=self._request_stop),
             ft.ElevatedButton("导出日志", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=export),
+            ft.OutlinedButton("打开日志文件", icon=ft.Icons.DESCRIPTION, on_click=lambda e: self._open_log_file()),
+            self.log_follow,
             self.log_level,
             ft.ElevatedButton("清空", icon=ft.Icons.DELETE_OUTLINE, bgcolor=CARD_2, color=TEXT,
                               on_click=lambda e: (self.log_rows.clear(), self.logs.clear(), self._refresh_log_table())),
-        ], spacing=10))
+        ], spacing=10, wrap=True))
         try:
             jobs = self.scheduler.pending_jobs() if hasattr(self, "scheduler") else []
         except Exception:
@@ -4281,7 +4304,7 @@ class App:
         prog_card_logs = card(ft.Column([ft.Row([h1("实时进度", 15), self.run_status], spacing=12),
                                          self.logs_progress_text, self.logs_progress], spacing=8))
         return [prog_card_logs, h1("任务与日志"), bar, sched_card,
-                card(ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO, height=360))]
+                card(self.log_scroll)]
 
     def _subscribe_progress(self):
         try:
@@ -4432,6 +4455,44 @@ class App:
         out.write_text("\n".join(f"{t} [{lv}] {m}" for t, lv, m in getattr(self, "log_rows", [])), encoding="utf-8")
         self.toast(f"已导出：{out}")
 
+    def _log_file(self):
+        p = config_dir() / "logs" / "app.log"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def _read_log_tail(self, limit: int = 300):
+        """启动时把上次日志读回来，运行出错后不用再猜。"""
+        try:
+            lines = self._log_file().read_text(encoding="utf-8", errors="ignore").splitlines()
+        except Exception:
+            return []
+        out = []
+        for line in lines[-limit:]:
+            try:
+                # 2026-11-17 23:00:00 [INFO] xxx
+                date, tm, rest = line.split(" ", 2)
+                if not rest.startswith("["):
+                    continue
+                lv, msg = rest[1:].split("] ", 1)
+                out.append((tm, lv, msg))
+            except Exception:
+                continue
+        return out
+
+    def _write_log_file(self, ts: str, level: str, msg: str):
+        try:
+            p = self._log_file()
+            with self._log_file_lock:
+                if p.exists() and p.stat().st_size > 2 * 1024 * 1024:
+                    try:
+                        p.replace(p.with_suffix(".1"))
+                    except Exception:
+                        pass
+                with p.open("a", encoding="utf-8") as f:
+                    f.write(f"{time.strftime('%Y-%m-%d')} {ts} [{level}] {msg}\n")
+        except Exception:
+            pass
+
     def _log(self, msg, level="INFO"):
         ts = time.strftime("%H:%M:%S")
         if not hasattr(self, "log_rows"):
@@ -4439,8 +4500,38 @@ class App:
         self.log_rows.append((ts, level, str(msg)))
         self.log_rows = self.log_rows[-1000:]
         self.logs = [f"{t} [{lv}] {m}" for t, lv, m in self.log_rows]
+        self._write_log_file(ts, level, str(msg))
         if getattr(self, "log_table", None) is not None:
             self._refresh_log_table()
+
+    def _open_log_file(self):
+        try:
+            p = self._log_file()
+            if not p.exists():
+                self.toast("还没有日志文件", False); return
+            if os.name == "nt":
+                os.startfile(str(p))  # type: ignore[attr-defined]
+            else:
+                import subprocess as _sp
+                _sp.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(p)])
+        except Exception as ex:
+            self.toast(f"打开失败：{ex}", False)
+
+    def _on_log_follow_change(self, e):
+        follow = bool(e.control.value)
+        self.cfg.set("log_auto_follow", follow)
+        save_config(self.cfg)
+        try:
+            self.log_scroll.auto_scroll = follow
+            if follow:
+                self.log_scroll.scroll_to(offset=10 ** 9, duration=150)
+        except Exception:
+            pass
+        self._safe_update()
+
+    def _on_log_scroll(self, e):
+        if not bool(getattr(self.log_follow, "value", True)):
+            self._log_scroll_pos = float(getattr(e, "pixels", 0) or 0)
 
     def _refresh_log_table(self):
         # 事件很多时不要每条都重建表格（会把 UI 拖死），0.5 秒合并一次
@@ -4463,10 +4554,20 @@ class App:
                 ft.DataCell(ft.Text(t, size=11, color=MUTED)),
                 ft.DataCell(ft.Text(x, size=11, color=ACCENT_2 if x == "INFO" else ("#FFB020" if x == "WARN" else "#FF6B6B"))),
                 ft.DataCell(ft.Text(m, size=11, color=TEXT)),
-            ]) for t, x, m in reversed(shown[-300:])
+            ]) for t, x, m in shown[-300:]
         ]
         try:
             self._safe_update()
+        except Exception:
+            pass
+        try:
+            if getattr(self, "log_scroll", None) is not None:
+                if bool(getattr(self.log_follow, "value", True)):
+                    self.log_scroll.scroll_to(offset=10 ** 9, duration=120)
+                else:
+                    pos = float(getattr(self, "_log_scroll_pos", 0) or 0)
+                    if pos > 0:
+                        self.log_scroll.scroll_to(offset=pos, duration=0)
         except Exception:
             pass
 

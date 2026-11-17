@@ -22,6 +22,7 @@ DEFAULTS: dict = {
     "license_cache_ts": 0,
     "license_public_key": "",                             # 可选：服务端换公钥时覆盖内置公钥
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
+    "log_auto_follow": True,                              # 日志总是跳到最新
     "image_cache_enable": True,                           # 相同图片+相同处理只调用一次（跨产品复用）
     "image_cache_days": 7,
     "concurrency": 4,

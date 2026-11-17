@@ -1254,8 +1254,24 @@ def main():
     uapp._switch(10)
     log_labels2 = " ".join(texts(uapp.content.controls))
     check("运行：日志页有停止任务/状态", "停止任务" in log_labels2 and "状态" in log_labels2, "")
+    check("日志：默认跟随最新", getattr(uapp.log_follow, "value", False) is True and
+          getattr(uapp.log_scroll, "auto_scroll", False) is True, "")
+    class _FE:
+        class control:
+            value = False
+    uapp._on_log_follow_change(_FE())
+    check("日志：取消跟随后保存", uapp.cfg.get("log_auto_follow") is False, "")
+    uapp._on_log_follow_change(type("E", (), {"control": type("C", (), {"value": True})()})())
     uapp._request_stop()
     check("运行：停止标记生效", getattr(uapp, "_stop_requested", False) is True, "")
+
+    # 首次引导：不能再因为没有 tpl_preview_box 报错
+    aw = App.__new__(App)
+    aw.page = FakePage()
+    aw.cfg = AppConfig({"onboarded": False})
+    aw.tpl_preview_box = ft.Container()
+    aw._maybe_wizard()
+    check("引导：首次弹窗不崩", aw.page.dialog is not None and getattr(aw.page.dialog, "open", False), "")
 
     # 未授权时不允许开始
     uapp.cfg.set("license_enforce", True)
