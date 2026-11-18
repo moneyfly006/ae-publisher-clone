@@ -89,8 +89,10 @@ def to_submit_props(product: dict, template: dict | None = None,
         value = str(a.get("attrValue") or "").strip()
         have_names.add(name)
 
-        # ① 有 id → 系统属性，只留 id 对
-        if name_id and value_id:
+        # ① 有 id → 系统属性，只留 id 对（过滤 "None"/"null"/"-1" 这类脏值）
+        _bad = ("", "none", "null", "-1", "0")
+        if name_id and value_id and str(value_id).strip().lower() not in _bad \
+                and str(name_id).strip().lower() not in ("", "none", "null"):
             if _lower(name) not in seen_system:
                 out.append({"attrNameId": name_id, "attrValueId": value_id})
                 seen_system.add(_lower(name))

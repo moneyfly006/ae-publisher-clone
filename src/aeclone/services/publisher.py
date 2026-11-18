@@ -1406,8 +1406,14 @@ class Publisher:
             except Exception:
                 return i, str(u)
         
-        results = self._pmap(_one, needs_upload)
-        for i, url in results:
+        results = self._pmap(_one, needs_upload) or []
+        for _r in results:
+            if not _r:
+                continue
+            try:
+                i, url = _r
+            except Exception:
+                continue
             images[i] = url
 
         # ---- 尺寸校验：速卖通要求 ≥800×800，不合格的不写回去 ----

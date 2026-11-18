@@ -364,6 +364,20 @@ def t19_cargo_price_from_declared_value():
     assert ov2.get("cargoPrice") == "88", ov2.get("cargoPrice")
     print("  ✓ 空→50 / 设置→88")
 
+def t20_dirty_attr_value_filtered():
+    print("\n[测试20] attrValueId 为 None/-1/null 的脏属性要过滤（否则报 null#attr_value_id）")
+    prod = {"id": "1", "categoryId": "1", "aeopAeProductPropertys": json.dumps([
+        {"attrName": "Warranty", "attrValue": "1 Year"},
+        {"attrName": "Brand Name", "attrNameId": "-1", "attrValueId": "None"},
+        {"attrName": "Origin", "attrNameId": "219", "attrValueId": "9441741844"},
+        {"attrName": "X", "attrNameId": "999", "attrValueId": "null"},
+    ])}
+    props = A.to_submit_props(prod, None)
+    ids = [p.get("attrValueId") for p in props if "attrValueId" in p]
+    assert "None" not in ids and "null" not in ids and "-1" not in ids, ids
+    assert "9441741844" in ids, ids
+    print("  ✓ 保留:", ids, "| 自定义:", [p.get("attrName") for p in props if "attrName" in p])
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -377,7 +391,8 @@ if __name__ == "__main__":
              t13_original_box_product_level, t14_empty_sku_gets_default,
              t15_override_keeps_sku_required_fields,
              t16_mobile_detail_generated, t17_publish_keeps_mobile_detail_when_ai_overrides,
-             t18_detail_image_over_5mb_shrunk, t19_cargo_price_from_declared_value]
+             t18_detail_image_over_5mb_shrunk, t19_cargo_price_from_declared_value,
+             t20_dirty_attr_value_filtered]
     ok = fail = 0
     for t in tests:
         try:
