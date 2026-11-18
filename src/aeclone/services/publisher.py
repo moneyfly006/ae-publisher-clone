@@ -773,7 +773,10 @@ class Publisher:
             snap = {}
         fields = snap.get("fields") or {}
         if not fields:
-            add_step(res, "模板参数", True, "未设置模板，跳过")
+            _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+            add_step(res, "模板参数", True,
+                     "模板由 API 直存自动合并（无需要单独套用）" if _tid
+                     else "未选模板：请到「商品设置 → 模板」选择模板商品")
             return p
         p["template_fields"] = fields
         # 模板只作为「类目/运费/重量/尺寸等字段」的参考；自定义属性不复制到新产品，

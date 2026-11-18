@@ -449,12 +449,13 @@ class App:
         for group, items in groups:
             if group:
                 col.controls.append(ft.Container(
-                    content=ft.Text(group, size=10, color="#5D6478", weight=ft.FontWeight.BOLD),
-                    padding=ft.padding.only(left=12, top=10, bottom=2)))
+                    content=ft.Text(group, size=9.5, color="#5D6478", weight=ft.FontWeight.BOLD),
+                    padding=ft.padding.only(left=8, top=8, bottom=1)))
             for label, icon, page_idx in items:
                 b = ft.Container(
-                    content=ft.Row([ft.Icon(icon, size=16, color=MUTED), ft.Text(label, color=MUTED, size=13)], spacing=10),
-                    padding=ft.padding.symmetric(horizontal=12, vertical=8), border_radius=10,
+                    content=ft.Row([ft.Icon(icon, size=15, color=MUTED), ft.Text(label, color=MUTED, size=12.5)],
+                                   spacing=8),
+                    padding=ft.padding.symmetric(horizontal=8, vertical=7), border_radius=8,
                     on_click=lambda e, idx=page_idx: self._switch(idx), ink=True)
                 self.nav_buttons.append((page_idx, b))
                 col.controls.append(b)
@@ -470,7 +471,7 @@ class App:
         self.license_text = ft.Text("检测中…", color=MUTED, size=12, weight=ft.FontWeight.BOLD)
         # 侧栏导航可滚动：1514×945 及更小的窗口也能点到「提示词 / 任务与日志」
         nav_scroll = ft.Column([col], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO)
-        sidebar = ft.Container(width=188, bgcolor=CARD, padding=14, expand=True, content=ft.Column([
+        sidebar = ft.Container(width=168, bgcolor=CARD, padding=10, content=ft.Column([
             ft.Row([ft.Container(width=32, height=32, border_radius=10, bgcolor=ACCENT,
                                  content=ft.Text("A", size=15, weight=ft.FontWeight.BOLD, color="#0B0D12")),
                     ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
@@ -483,7 +484,7 @@ class App:
             ft.Container(
                 content=ft.Row([ft.Icon(ft.Icons.TERMINAL, size=16, color=MUTED),
                                 ft.Text("日志监控", color=MUTED, size=13)], spacing=10),
-                padding=ft.padding.symmetric(horizontal=12, vertical=8), border_radius=10,
+                padding=ft.padding.symmetric(horizontal=8, vertical=7), border_radius=8,
                 on_click=lambda e: self._open_log_panel(), ink=True),
             ft.Row([ft.Icon(ft.Icons.VERIFIED_USER, size=14, color=ACCENT_2), self.license_text], spacing=6),
         ], spacing=0, expand=True), tooltip="菜单可滚动")
@@ -912,14 +913,45 @@ class App:
             _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
             self.ready_tpl.value = ("✓ " + str(getattr(self.cfg, "template_product_title", "") or "已选")[:24]) if _tid else "✗ 未选模板（API 保存必需）"
             self.ready_tpl.color = ACCENT_2 if _tid else "#FF6B6B"
-            # API
+            # API / 授权：先触发自动检测，再等结果（最多 12 秒），不要一上来就显示 ✗
+            self.ready_api.value = "检测中…"
+            self.ready_api.color = MUTED
+            self.ready_auth.value = "检测中…"
+            self.ready_auth.color = MUTED
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+            try:
+                self._probe_api_async(force=False)
+            except Exception:
+                pass
+            if not (getattr(self, "license_state", None) or {}):
+                try:
+                    threading.Thread(target=self._check_license, daemon=True).start()
+                except Exception:
+                    pass
+            _deadline = time.time() + 12
+            while time.time() < _deadline:
+                _st = getattr(self, "api_state", None) or {}
+                _ls = getattr(self, "license_state", None) or {}
+                if _st and _ls:
+                    break
+                time.sleep(0.5)
             _st = getattr(self, "api_state", None) or {}
-            self.ready_api.value = ("✓ " + str(_st.get("detail", "正常"))[:30]) if _st.get("ok") else "✗ API 未连通"
-            self.ready_api.color = ACCENT_2 if _st.get("ok") else "#FF6B6B"
-            # 授权
+            if _st.get("ok"):
+                self.ready_api.value = "✓ " + str(_st.get("detail", "正常"))[:30]
+                self.ready_api.color = ACCENT_2
+            else:
+                self.ready_api.value = ("✗ " + str(_st.get("detail", "API 未连通"))[:34]) if _st else "✗ API 未检测"
+                self.ready_api.color = "#FF6B6B"
             _ls = getattr(self, "license_state", None) or {}
-            self.ready_auth.value = ("✓ " + str(_ls.get("message", "已授权"))[:24]) if _ls.get("ok") else "✗ 未授权"
-            self.ready_auth.color = ACCENT_2 if _ls.get("ok") else "#FF6B6B"
+            if _ls.get("ok"):
+                self.ready_auth.value = "✓ " + str(_ls.get("message", "已授权"))[:24]
+                self.ready_auth.color = ACCENT_2
+            else:
+                self.ready_auth.value = ("✗ " + str(_ls.get("message", "未授权"))[:24]) if _ls else "✗ 未授权"
+                self.ready_auth.color = "#FF6B6B"
             try:
                 self._safe_update()
             except Exception:
@@ -3561,8 +3593,9 @@ class App:
                 self.img_results.controls.append(ft.Row([
                     ft.Icon(ft.Icons.GRID_VIEW, size=15, color=ACCENT_2),
                     ft.Text(f"四合一完成：{out}", size=11, color=MUTED, selectable=True)], spacing=8))
-            self.img_status.value = f"四合一完成：{len(imgs[:4])} 张 → {out.name}"
-            self.img_status.color = ACCENT_2
+            if getattr(self, "img_status", None) is not None:
+                self.img_status.value = f"四合一完成：{len(imgs[:4])} 张 → {out.name}"
+                self.img_status.color = ACCENT_2
             self._log(f"四合一：{len(imgs[:4])} 张 → {out}")
             try:
                 self._wb_render_wall()
@@ -3767,34 +3800,21 @@ class App:
 
 
     def _p_image(self):
+        """AI 图片：只保留两大块 —— 简单编辑 / 精细化编辑。"""
         self._current = 5
-        view = self._render("AI 图片", schema_image())
-
-        # 图片步骤：简单编辑 / 通用编辑（从 AI 文案页移过来）
+        view = self._render("AI 图片", [])
         self.field_refs = []
-        img_map = {f.key: f for _sec, fs in schema_image() for f in fs}
-        simple_keys = [
-            "white_bg_enable", "white_background_pic_1", "white_background_pic_2",
-            "watermark_enable", "remove_watermark_pic_1", "remove_watermark_pic_2",
-            "translate_main_pic_enable", "translate_main_pic_indices",
-            "white_background_detail_pic_indices", "img_detail_white_bg", "img_detail_remove_wm",
-            "translate_detail_pic_enable", "translate_detail_pic_indices",
-            "white_background_sku_pic_indices", "white_background_sku_pic",
-            "img_sku_white_bg", "img_sku_remove_wm", "img_sku_edit", "img_sku_edit_prompt",
-            "translate_sku_pic", "translate_image_understanding",
-        ]
-        general_keys = ["image_concurrency"]
-        simple, general = [], []
-        for name, fields in schema_image():
-            fs = [f for f in fields if f.key in simple_keys]
-            if fs:
-                simple.append((name, fs))
-        for name, fields in schema_image():
-            fs = [f for f in fields if f.key in general_keys]
-            if fs:
-                general.append((name, fs))
 
-        def add_section(title: str, schemas, expanded: bool = False, extra=None):
+        def sw(key, label, tip=""):
+            ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)),
+                            active_color=ACCENT, tooltip=tip or None)
+            def on(e, _k=key):
+                self.cfg.set(_k, bool(e.control.value))
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
+        def add_section(title, schemas, expanded=True):
             controls = []
             for name, fields in schemas:
                 c, refs = section(name, fields, self.cfg)
@@ -3802,46 +3822,58 @@ class App:
                 for f in refs:
                     self._bind_autosave(f)
                 controls.append(c)
-            if extra is not None:
-                controls.append(extra)
-            return ft.ExpansionTile(title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=TEXT),
-                                    controls=controls, initially_expanded=expanded,
-                                    icon_color=ACCENT, collapsed_icon_color=MUTED)
-        img_sections = [
-            add_section("图片简单编辑", simple, expanded=True),
-            add_section("图片通用编辑", general, expanded=False, extra=self._image_jobs_ui()),
+            return ft.ExpansionTile(
+                title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=TEXT),
+                controls=controls, initially_expanded=expanded,
+                icon_color=ACCENT, collapsed_icon_color=MUTED)
+
+        # ---- 写回（统一成一个卡片，措辞直白）----
+        write_card = card(ft.Column([
+            h1("处理结果写回商品", 15),
+            muted("AI 处理完的图片 / 详情 / SKU 是否写回商品；全关=只在本地生成、不写回"),
+            ft.Row([sw("write_main_images_to_product", "图片写回主图"),
+                    sw("write_detail_html_to_product", "详情写回商品"),
+                    sw("write_sku_codes_to_product", "SKU 名称写回")], spacing=16, wrap=True),
+        ], spacing=8))
+
+        # ---- 简单编辑：白底 / 去水印 / 翻译（带范围）----
+        simple_keys = [
+            "white_background_pic_1", "white_background_pic_2", "white_bg_enable",
+            "remove_watermark_pic_1", "remove_watermark_pic_2", "watermark_enable",
+            "translate_main_pic_enable", "translate_main_pic_indices",
+            "white_background_detail_pic_indices", "img_detail_white_bg", "img_detail_remove_wm",
+            "translate_detail_pic_enable", "translate_detail_pic_indices",
+            "white_background_sku_pic_indices", "white_background_sku_pic",
+            "img_sku_white_bg", "img_sku_remove_wm",
+            "translate_sku_pic",
         ]
-        self.img_status = ft.Text("未选择图片", color=MUTED, size=12)
-        self.img_results = ft.Column(spacing=6)
-        self.img_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
+        simple = []
+        for name, fields in schema_image():
+            fs = [f for f in fields if f.key in simple_keys]
+            if fs:
+                simple.append((name, fs))
+        simple_tab = ft.Column([
+            add_section("主图 / 详情图 / SKU 图：白底 · 去水印 · 翻译", simple, expanded=True),
+            card(ft.Column([
+                muted("勾选后按「范围」处理；范围写法 1-3,5 或留空=全部。", 11),
+                ft.Row([sw("translate_image_understanding", "AI 判断图片是否需要翻译"),
+                        sw("img_sku_edit", "SKU 图也做精细编辑")], spacing=16, wrap=True),
+            ], spacing=6)),
+        ], spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
 
-        def pick(e):
-            self.file_picker.pick_files(allow_multiple=True, allowed_extensions=["png", "jpg", "jpeg", "webp"])
+        # ---- 精细化编辑：主图 / 详情图 / SKU（逐条：位置+提示词+参考图）----
+        refined_tab = ft.Column([self._image_jobs_ui()], spacing=10,
+                                scroll=ft.ScrollMode.AUTO, expand=True)
 
-        def run(kind):
-            if not self.picked:
-                self.toast("请先选择图片", False); return
-            if not self.cfg.api_key:
-                self.toast("请先在设置里填写 API Key", False); return
-            self.img_busy.visible = True; self._safe_update()
-            threading.Thread(target=self._do_image, args=(kind,), daemon=True).start()
-
-        self.img_quick_prompt = ft.TextField(
-            label="通用编辑提示词（只对「通用编辑」按钮生效）", value=self.cfg.edit_prompt or "",
-            multiline=True, min_lines=2, max_lines=4, expand=True,
-            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            helper_text="逐张不同提示词，请用下面的「图片处理方案 → 精细处理」")
-        tool = card(ft.Column([
-            h1("图片工具", 15),
-            ft.Row([ft.OutlinedButton("选择图片", icon=ft.Icons.UPLOAD_FILE, on_click=pick),
-                    ft.ElevatedButton("白底图", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
-                    ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
-                    ft.ElevatedButton("通用编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
-                    ft.OutlinedButton("四合一拼图", icon=ft.Icons.GRID_VIEW, on_click=self._four_in_one_local),
-                    self.img_busy], spacing=10, wrap=True),
-            self.img_quick_prompt,
-            self.img_status, self.img_results], spacing=10))
-        return [view[0], *img_sections, tool] + view[1:]
+        tabs = ft.Tabs(
+            selected_index=0,
+            animation_duration=150,
+            tabs=[ft.Tab(text="简单编辑", content=simple_tab),
+                  ft.Tab(text="精细化编辑", content=refined_tab)],
+            expand=True,
+        )
+        return [view[0], muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
+                write_card, tabs, view[-1]]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):
@@ -5971,39 +6003,6 @@ class App:
                               "lat": round(time.time() - t0, 1), "ts": time.time()}
             self._apply_api_state()
             self.toast(str(e), False)
-        self._safe_update()
-
-    def _do_image(self, kind):
-        svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
-        self.img_results.controls = []
-        runner = BatchRunner(self.cfg.concurrency, retries=int(self.cfg.retry_max or 1), retry_delay=float(self.cfg.retry_delay or 2.0))
-
-        _prompt = ""
-        if kind == "edit":
-            _pf = getattr(self, "img_quick_prompt", None)
-            _prompt = str(getattr(_pf, "value", "") or "").strip() or (self.cfg.edit_prompt or "clean product photo")
-
-        def job(idx, path):
-            if kind == "white":
-                return svc.white_background(Path(path))
-            if kind == "watermark":
-                return svc.remove_watermark(Path(path))
-            return svc.edit(Path(path), _prompt)
-
-        def done(res):
-            icon = ft.Icons.CHECK_CIRCLE if res.ok else ft.Icons.ERROR_OUTLINE
-            color = ACCENT_2 if res.ok else "#FF6B6B"
-            self.img_results.controls.append(ft.Row([ft.Icon(icon, size=15, color=color),
-                                                     ft.Text(res.value if res.ok else res.error, size=11,
-                                                             color=MUTED, selectable=True)], spacing=8))
-            self._safe_update()
-
-        targets = self._wb_selected_paths() if hasattr(self, "_wb_selected_paths") else list(self.picked)
-        results = runner.run(list(targets), job, done)
-        ok = sum(1 for r in results if r.ok)
-        self.img_status.value = f"完成：成功 {ok} / {len(results)}"
-        self.img_status.color = ACCENT_2 if ok == len(results) else "#FFB020"
-        self.img_busy.visible = False
         self._safe_update()
 
     def _on_files(self, e):
