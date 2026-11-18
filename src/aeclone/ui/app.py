@@ -1309,15 +1309,34 @@ class App:
         (getattr(self, '_sync_run_button', None) or (lambda: None))()
 
     def _retry_publish_failed(self):
-        """只重试「发布失败」的商品：不跑 AI、不处理图片，只重新提交发布。"""
+        """只重试「发布失败」的商品：不跑 AI、不处理图片，只重新提交发布。
+
+        清单来源 = 本地记录 ∪ 店铺里 dxmOfflineState=publishFail 的商品（含 errMsg）。
+        """
         try:
             from ..services import publish_retry as pr
             rows = pr.items()
         except Exception:
             rows = []
+        # 再从店铺里扫一遍「发布失败」，这样历史失败也能重试
+        try:
+            from ..integrations.dianxiaomi import DianxiaomiClient
+            ck0 = self._cookies()
+            dxm0 = DianxiaomiClient(ck0, overrides=self.cfg.endpoint_overrides or {})
+            store_rows = dxm0.publish_failed_products(self.cfg.store_id or None)
+            have = {r["id"] for r in rows}
+            for r in store_rows:
+                if r["id"] not in have:
+                    rows.append(r)
+            if store_rows:
+                self._log(f"店铺里检测到 {len(store_rows)} 个发布失败商品", "INFO")
+        except Exception as ex:  # noqa: BLE001
+            self._log(f"扫描发布失败商品出错：{str(ex)[:80]}", "WARN")
         if not rows:
             self.toast("没有发布失败的商品", False)
             return
+        self._log(f"待重试发布 {len(rows)} 个（失败原因分布："
+                  + "；".join(f"{(r.get('error') or '')[:20]}" for r in rows[:3]) + " …）", "INFO")
         self._log(f"只重试发布：{len(rows)} 个商品（不跑 AI，不花钱）", "INFO")
         def go():
             from ..integrations.dianxiaomi import DianxiaomiClient

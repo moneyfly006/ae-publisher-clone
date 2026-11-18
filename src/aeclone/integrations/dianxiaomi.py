@@ -196,6 +196,39 @@ class DianxiaomiClient:
                 "err": str(p.get("errMsg") or ""),
                 "audit_reason": str(p.get("auditFailureReason") or "")}
 
+    def publish_failed_products(self, shop_id=None, limit: int = 0) -> list[dict]:
+        """返回「发布失败」的商品（含失败原因 errMsg）。
+
+        店小秘列表接口里这类商品 status_type 为空，但 raw.dxmOfflineState == 'publishFail'，
+        失败原因在 raw.errMsg。
+        """
+        rows = []
+        page = 1
+        while True:
+            items, meta = self.product_page(page, 100, shop_id, None)
+            if not items:
+                break
+            for pr in items:
+                raw = pr.get("raw") or {}
+                if str(raw.get("dxmOfflineState") or "") == "publishFail" or \
+                        str(raw.get("dxmState") or "") == "offline":
+                    if str(raw.get("dxmState") or "") in ("offline", ""):
+                        rows.append({
+                            "id": str(pr.get("id")),
+                            "title": str(pr.get("title") or ""),
+                            "error": str(raw.get("errMsg") or raw.get("auditFailureReason") or "发布失败"),
+                            "images": pr.get("images") or [],
+                        })
+            total = int((meta or {}).get("total") or 0)
+            if not items or (total and page * 100 >= total):
+                break
+            page += 1
+            if page > 10:
+                break
+        if limit:
+            rows = rows[:limit]
+        return rows
+
     def template_snapshot(self, product_id: str) -> dict:
         """从店小秘商品详情接口生成模板快照（不需要打开浏览器）。"""
         import json as _j

@@ -1593,6 +1593,38 @@ class Publisher:
         return True
 
     # ---------- 主流程 ----------
+    def _market_images_for(self, image_url: str, res=None) -> list[str]:
+        """用主图本地裁切出营销图 [1:1, 3:4] 并上传（免费，约 0.5 秒）。
+
+        营销图是发布必填项：缺了会报「请补充营销图(1:1白底图)、(3:4场景图)后重新发布」。
+        """
+        if not image_url:
+            return []
+        try:
+            import tempfile as _tf
+            import requests as _rq
+            from pathlib import Path as _P
+            from .image_ops import make_marketing
+            from .hosting import upload as _up
+        except Exception:
+            return []
+        try:
+            d = _P(_tf.mkdtemp())
+            src = d / "m0.png"
+            src.write_bytes(_rq.get(str(image_url), timeout=40).content)
+            out = []
+            for i, size in enumerate(((800, 800), (750, 1000))):
+                fp = d / f"mk{i}.jpg"
+                make_marketing(src, fp, size)
+                out.append(_up(fp))
+            if res is not None and out:
+                add_step(res, "营销图", True, f"{len(out)} 张已生成（本地裁切，店小秘同款，免费）")
+            return out
+        except Exception as ex:  # noqa: BLE001
+            if res is not None:
+                add_step(res, "营销图", False, str(ex)[:70])
+            return []
+
     def _shrink_detail_images(self, html: str, res, max_mb: float = 4.5) -> str:
         """描述图 > 5MB 会被站点拒绝，这里统一检测并压缩重传。
 
@@ -1677,6 +1709,20 @@ class Publisher:
                 tpl = _cached_template_edit(self.dxm, _tid)
             except Exception:
                 tpl = None
+        # 营销图是发布必填：缺了就本地裁切补上（免费）
+        _mk = []
+        try:
+            if not str(target.get("marketImg1") or "").strip():
+                _imgs = [x for x in str(target.get("imageURLs") or "").split(";") if x.strip()]
+                if _imgs:
+                    _mk = self._market_images_for(_imgs[0], res)
+                    if _mk:
+                        target = dict(target)
+                        target["marketImg1"] = _mk[0]
+                        if len(_mk) > 1:
+                            target["marketImg2"] = _mk[1]
+        except Exception:
+            pass
         try:
             payload = build_save_payload(
                 target, tpl, action="publish",
@@ -1795,6 +1841,23 @@ class Publisher:
             if _imgs and _cap > 0:
                 _imgs = list(_imgs)[:_cap]
             overrides = build_ai_overrides(target, p, self.cfg, images=_imgs, ship=ship)
+
+            # 营销图是发布必填项：没有就本地裁切补上（免费，不做会报「请补充营销图」）
+            try:
+                if not str(overrides.get("marketImg1") or "").strip():
+                    _base_img = ""
+                    if _imgs:
+                        _base_img = str(_imgs[0])
+                    else:
+                        _iu = [x for x in str(target.get("imageURLs") or "").split(";") if x.strip()]
+                        _base_img = _iu[0] if _iu else ""
+                    _mk2 = self._market_images_for(_base_img, res)
+                    if _mk2:
+                        overrides["marketImg1"] = _mk2[0]
+                        if len(_mk2) > 1:
+                            overrides["marketImg2"] = _mk2[1]
+            except Exception:
+                pass
 
             # ★ 描述图 >5MB 会被站点拒绝：压缩并替换 URL（覆盖可能来自 AI 详情或无）
             try:
