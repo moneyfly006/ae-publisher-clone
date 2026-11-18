@@ -1398,10 +1398,18 @@ class Publisher:
         if getattr(self.cfg, "img_min_size_enable", True) and images:
             ms = self._min_size()
             bad: list[tuple[int, str, str]] = []
-            for i, u in enumerate(images):
-                ok, info = self._size_ok(str(u))
-                if not ok:
-                    bad.append((i, str(u), str(info)))
+            # 并行校验尺寸（每张都要下载一次，串行会很慢）
+            _items = list(enumerate(images))
+
+            def _chk(pair):
+                _i, _u = pair
+                _ok, _info = self._size_ok(str(_u))
+                return (_i, str(_u), str(_info), _ok)
+
+            _res = self._pmap(_chk, _items) or []
+            for _r in _res:
+                if _r and not _r[3]:
+                    bad.append((_r[0], _r[1], _r[2]))
             if bad:
                 try:
                     self._size_rejects.extend((b[1], b[2]) for b in bad)
@@ -1655,6 +1663,9 @@ class Publisher:
                 target, tpl, action=action, overrides=overrides,
                 custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None))
             resp = self.dxm.save_product_via_api(payload)
+        except ValueError as ex:  # 数据安全类错误（如缺类目）：明确报错，不回退
+            add_step(res, "保存中止", False, str(ex)[:200])
+            return SaveResult(ok=False, message=str(ex)[:300])
         except Exception as ex:  # noqa: BLE001
             add_step(res, "API 直存", False, f"保存失败：{str(ex)[:120]}")
             return None
@@ -1834,15 +1845,49 @@ class Publisher:
 
             # 优先用注入的文本服务（便于离线测试/替换实现），没有再自建
             tp = self.text or TextPipeline(self.cfg)
-            if self.cfg.enable_ai_title and p["title"]:
-                # 优先用已有英文标题（在原标题上优化），没有再发中文翻译
-                title_to_optimize = p.get("title_en") or p["title"]
-                r = tp.make_title(title_to_optimize, p.get("brands"))
-                if r.ok:
-                    p["title_en"] = r.value
-                    add_step(res, "AI 标题", True, r.value[:70])
+
+            # ---- 标题 + SKU 并行（互不依赖，省一次往返）----
+            _need_title = bool(self.cfg.enable_ai_title and p["title"])
+            _need_sku = bool(self.cfg.enable_ai_sku and p.get("skus"))
+            _title_res = None
+            _sku_res = None
+            _sku_names = [str(x.get("sku") or x.get("name") or "") for x in (p.get("skus") or [])]
+            if _need_title or _need_sku:
+                try:
+                    from concurrent.futures import ThreadPoolExecutor as _TPE
+                    import copy as _copy
+                    _tp_sku = tp if self.text is not None else TextPipeline(self.cfg)
+
+                    def _do_title():
+                        return tp.make_title(p.get("title_en") or p["title"], p.get("brands"))
+
+                    def _do_sku():
+                        return _tp_sku.make_skus(_sku_names)
+
+                    with _TPE(max_workers=2) as _ex:
+                        _f_t = _ex.submit(_do_title) if _need_title else None
+                        _f_s = _ex.submit(_do_sku) if _need_sku else None
+                        if _f_t is not None:
+                            try:
+                                _title_res = _f_t.result()
+                            except Exception as _et:  # noqa: BLE001
+                                _title_res = None
+                        if _f_s is not None:
+                            try:
+                                _sku_res = _f_s.result()
+                            except Exception as _es:  # noqa: BLE001
+                                _sku_res = None
+                except Exception:
+                    _title_res = _sku_res = None
+
+            if _title_res is not None:
+                if _title_res.ok:
+                    p["title_en"] = _title_res.value
+                    add_step(res, "AI 标题", True, _title_res.value[:70])
                 else:
-                    add_step(res, "AI 标题", False, r.error)
+                    add_step(res, "AI 标题", False, _title_res.error)
+            elif _need_title:
+                add_step(res, "AI 标题", False, "调用异常，已跳过")
             else:
                 add_step(res, "AI 标题", True, "未启用，跳过")
 
@@ -1897,14 +1942,16 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "详情本地图", False, str(ex)[:80])
 
-            if self.cfg.enable_ai_sku and p.get("skus"):
-                names = [str(s.get("sku") or s.get("name") or "") for s in p["skus"]]
-                r = tp.make_skus(names)
-                if r.ok:
-                    new_names = r.value.splitlines()
+            if _need_sku:
+                if _sku_res is not None and _sku_res.ok:
+                    new_names = _sku_res.value.splitlines()
                     for sku, nm in zip(p["skus"], new_names):
                         sku["optimized_name"] = nm
-                add_step(res, "AI SKU", r.ok, (r.value[:50].replace("\n", " ") if r.ok else r.error))
+                    add_step(res, "AI SKU", True, _sku_res.value[:50].replace("\n", " "))
+                elif _sku_res is not None:
+                    add_step(res, "AI SKU", False, _sku_res.error)
+                else:
+                    add_step(res, "AI SKU", False, "调用异常，已跳过")
 
             # 注意：四合一和水印现在统一通过 _apply_image_jobs 处理
             # 如果用户使用旧配置 cfg.four_in_one 或 cfg.watermark，

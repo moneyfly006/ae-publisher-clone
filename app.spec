@@ -15,20 +15,28 @@ for pkg in ("flet", "flet_desktop"):
     except Exception:
         pass
 
+# certifi 根证书：打包后 requests 需要它做 TLS 校验；漏了会报
+# "Could not find a suitable TLS CA certificate bundle"
+cert_datas, cert_bins, cert_hidden = [], [], []
+try:
+    cert_datas, cert_bins, cert_hidden = collect_all("certifi")
+except Exception:
+    pass
+
 a = Analysis(
     ["main.py"],
     pathex=[str(Path("src").resolve())],
-    binaries=flet_bins,
-    datas=[("assets", "assets")] + flet_datas,
+    binaries=flet_bins + cert_bins,
+    datas=[("assets", "assets")] + flet_datas + cert_datas,
     # pycryptodome 的 C 扩展是按需加载的（Crypto.PublicKey._nist_ecc 等），
     # 手写列表一定会漏 —— 打包后表现是 VOUCHER_FAIL / 授权校验直接失败。
     # 所以整包收集，别靠手写。
-    hiddenimports=collect_submodules("aeclone") + flet_hidden
+    hiddenimports=collect_submodules("aeclone") + flet_hidden + cert_hidden
                    + collect_submodules("Crypto")
                    + collect_submodules("browser_cookie3") + [
         "Crypto", "Crypto.Cipher", "Crypto.Cipher.AES",
         "Crypto.Protocol", "Crypto.Protocol.KDF", "Crypto.PublicKey",
-        "browser_cookie3",
+        "browser_cookie3", "certifi",
     ],
     hookspath=[],
     hooksconfig={},

@@ -92,6 +92,22 @@ def run(stream=None) -> int:
         p(_line(False, "读取配置失败", str(ex)[:80]))
         fatal += 1
 
+    # ---- TLS 根证书（打包最容易漏的一项）----
+    p("\n[TLS 证书]")
+    try:
+        import certifi
+        _ca = certifi.where()
+        _exists = Path(_ca).exists()
+        p(_line(_exists, "证书文件", _ca if _exists else f"{_ca}（不存在，打包漏了 certifi）"))
+        try:
+            import requests as _rq
+            _r = _rq.get("https://www.dianxiaomi.com", timeout=8)
+            p(_line(_r.status_code < 500, "HTTPS 连通", f"HTTP {_r.status_code}"))
+        except Exception as _he:
+            p(_line(False, "HTTPS 连通", str(_he)[:90]))
+    except Exception as _ce:
+        p(_line(False, "certifi", str(_ce)[:90]))
+
     # ---- 图片/编辑器链路自检（纯静态）----
     p("\n[模块链路]")
     for mod in ("aeclone.services.publisher", "aeclone.services.image_jobs",

@@ -211,6 +211,25 @@ def t10_duplicate_generic_not_only_brand():
     assert "Model Number" not in names, f"重名 Model Number 应删除: {props}"
     print("  ✓ Model Number（模板系统属性）重名检测生效")
 
+def t11_missing_category_blocked():
+    print("\n[测试11] 缺类目 ID → 拒绝保存（防止清空商品类目/属性）")
+    msg = ""
+    try:
+        A.build_save_payload({"id": "1", "categoryId": None}, {"categoryId": None}, action="save_only")
+        raise AssertionError("应该拒绝保存")
+    except ValueError as e:
+        msg = str(e)
+        assert "类目" in msg, msg
+    print("  ✓ 已拦截：", msg[:40])
+
+
+def t12_category_from_template():
+    print("\n[测试12] 商品缺类目 → 从模板补上")
+    p = A.build_save_payload({"id": "1", "categoryId": None},
+                             {"categoryId": "100007204"}, action="save_only")
+    assert p["categoryId"] == "100007204", p["categoryId"]
+    print("  ✓ 从模板补类目 100007204")
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_61_keys_and_promise_zero,
@@ -219,7 +238,8 @@ if __name__ == "__main__":
              t7_ai_overrides_serialized_as_string_in_payload,
              t8_ship_and_price_synced,
              t9_duplicate_custom_attr_removed,
-             t10_duplicate_generic_not_only_brand]
+             t10_duplicate_generic_not_only_brand,
+             t11_missing_category_blocked, t12_category_from_template]
     ok = fail = 0
     for t in tests:
         try:

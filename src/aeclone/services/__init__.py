@@ -76,22 +76,49 @@ class JobResult:
     error: str = ""
 
 
+# 文本类 AI 调用的进程内缓存：同一段输入（标题/详情/SKU 列表）重复跑直接命中。
+_TEXT_CACHE: dict[str, tuple[float, str]] = {}
+_TEXT_CACHE_TTL = 3600 * 6      # 6 小时
+
+
+def _text_cached(kind: str, key: str, fn):
+    import hashlib as _hl
+    import time as _t
+    h = _hl.sha1(f"{kind}|{key}".encode("utf-8", "ignore")).hexdigest()
+    hit = _TEXT_CACHE.get(h)
+    if hit and (_t.time() - hit[0]) < _TEXT_CACHE_TTL:
+        return hit[1]
+    val = fn()
+    try:
+        _TEXT_CACHE[h] = (_t.time(), val)
+        if len(_TEXT_CACHE) > 4000:
+            for _k in list(_TEXT_CACHE)[:1000]:
+                _TEXT_CACHE.pop(_k, None)
+    except Exception:
+        pass
+    return val
+
+
 class TextService:
     def __init__(self, client: ApiClient, cfg: AppConfig):
         self.client = client
         self.cfg = cfg
 
     def translate_title(self, title: str) -> str:  # noqa: D401
-        return self.client.chat(model_of(getattr(self, "cfg", None), "text"), [
-            {"role": "system", "content": self.cfg.title_prompt},
-            {"role": "user", "content": title},
-        ])
+        _p = str(getattr(self.cfg, "title_prompt", "") or "")
+        return _text_cached("title", f"{_p}|{title}", lambda: self.client.chat(
+            model_of(getattr(self, "cfg", None), "text"), [
+                {"role": "system", "content": self.cfg.title_prompt},
+                {"role": "user", "content": title},
+            ]))
 
     def write_detail(self, title: str) -> str:
-        return self.client.chat(model_of(getattr(self, "cfg", None), "text"), [
-            {"role": "system", "content": self.cfg.detail_prompt},
-            {"role": "user", "content": title},
-        ], max_tokens=1200)
+        _p = str(getattr(self.cfg, "detail_prompt", "") or "")
+        return _text_cached("detail", f"{_p}|{title}", lambda: self.client.chat(
+            model_of(getattr(self, "cfg", None), "text"), [
+                {"role": "system", "content": self.cfg.detail_prompt},
+                {"role": "user", "content": title},
+            ], max_tokens=1200))
 
     def optimize_skus(self, names: list[str]) -> list[str]:
         text = "\n".join(names)

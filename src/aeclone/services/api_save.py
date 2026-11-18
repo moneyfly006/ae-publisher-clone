@@ -166,7 +166,8 @@ def build_save_payload(product: dict, template: dict | None = None,
         p[k] = product.get(k)
 
     # 缺失的必填字段从模板补
-    for k in ("grossWeight", "packageLength", "packageWidth", "packageHeight",
+    for k in ("categoryId", "productType", "taxType", "sizechartId",
+              "grossWeight", "packageLength", "packageWidth", "packageHeight",
               "productManual", "freightTemplateId", "promiseTemplateId",
               "productUnit", "reduceStrategy", "manufactureId", "msrEuId",
               "msrTrId", "shippingTempateName", "wsValidNum",
@@ -188,6 +189,12 @@ def build_save_payload(product: dict, template: dict | None = None,
     # （promiseList 接口返回 templateId="0"），None 会被后端判"服务模板不能为空"
     if p.get("promiseTemplateId") in (None, ""):
         p["promiseTemplateId"] = "0"
+
+    # ★ 数据安全：类目 ID 为空时保存会把商品类目清掉（历史事故），直接拒绝
+    if p.get("categoryId") in (None, "", 0, "0"):
+        raise ValueError(
+            "商品缺少类目 ID（categoryId 为空）。为避免清空类目/属性，本次保存已中止。"
+            "请先在店小秘给该商品选好类目，或在「商品设置」选一个同类目模板商品。")
 
     p["showQualificationModal"] = False
     p["op"] = OP_MAP.get(action, op)
