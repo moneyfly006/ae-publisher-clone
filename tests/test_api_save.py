@@ -307,6 +307,50 @@ def t17_publish_keeps_mobile_detail_when_ai_overrides():
                for t in d["moduleList"] if t["type"] == "text")
     print("  ✓ mobileDetail 与 detail 同步")
 
+def t18_detail_image_over_5mb_shrunk():
+    print("\n[测试18] 描述图 >5MB → 自动压缩并替换 URL")
+    import io as _io
+    from PIL import Image as _Img
+    import aeclone.services.publisher as P
+
+    # 造一张大图（纯色块，压缩后很小）
+    im = _Img.new("RGB", (3000, 3000), (120, 130, 140))
+    buf = _io.BytesIO()
+    im.save(buf, format="PNG")
+    # 人为把字节数灌到 >5MB
+    big = buf.getvalue()
+    big = big + b"\x00" * (6 * 1024 * 1024 - len(big))
+
+    class FakeResp:
+        content = big
+        status_code = 200
+        headers = {"Content-Length": str(len(big))}
+
+    class FakeReq:
+        @staticmethod
+        def get(u, timeout=40, **kw):
+            return FakeResp()
+
+    import sys as _sys
+    _sys.modules["requests"] = FakeReq
+
+    class FakeHost:
+        @staticmethod
+        def upload(p):
+            return "https://cdn/shrunk.jpg"
+
+    _sys.modules["aeclone.services.hosting"] = type(
+        "H", (), {"upload": staticmethod(lambda p: "https://cdn/shrunk.jpg")})
+
+    pub = object.__new__(P.Publisher)
+    pub.cfg = type("C", (), {"prefer_dianxiaomi_album": False})()
+    res = P.PublishResult(product_id="x", ok=True)
+    html = '<p><img src="https://x/big.png"/></p>'
+    out = pub._shrink_detail_images(html, res)
+    assert "https://cdn/shrunk.jpg" in out, out
+    assert any("压缩" in s.name for s in res.steps), res.steps
+    print("  ✓ URL 已替换：", out)
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_62_keys_and_promise_zero,
@@ -319,7 +363,8 @@ if __name__ == "__main__":
              t11_missing_category_blocked, t12_category_from_template,
              t13_original_box_product_level, t14_empty_sku_gets_default,
              t15_override_keeps_sku_required_fields,
-             t16_mobile_detail_generated, t17_publish_keeps_mobile_detail_when_ai_overrides]
+             t16_mobile_detail_generated, t17_publish_keeps_mobile_detail_when_ai_overrides,
+             t18_detail_image_over_5mb_shrunk]
     ok = fail = 0
     for t in tests:
         try:

@@ -272,8 +272,13 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
             continue
         if _re.match(r"<img", part, _re.I):
             m = _re.search(r'src=["\']([^"\']+)["\']', part, _re.I)
-            if m and m.group(1).startswith("http"):
-                _u = m.group(1)
+            if m:
+                _u = m.group(1).strip()
+                if _u.startswith("//"):
+                    _u = "https:" + _u        # 协议相对地址
+            else:
+                _u = ""
+            if _u.startswith("http"):
                 # 店小秘规则：无线端不支持 GIF；总数最多 50 张
                 if _u.lower().split("?")[0].endswith(".gif"):
                     continue

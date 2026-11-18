@@ -1593,6 +1593,67 @@ class Publisher:
         return True
 
     # ---------- 主流程 ----------
+    def _shrink_detail_images(self, html: str, res, max_mb: float = 4.5) -> str:
+        """描述图 > 5MB 会被站点拒绝，这里统一检测并压缩重传。
+
+        平台规则：「描述图大小不能超过5M」。压缩到 ≤4.5MB、最长边 ≤1600，
+        再上传图床替换 URL。失败就保留原图（不阻断保存）。
+        """
+        import re as _re
+        if not html:
+            return html
+        try:
+            import io as _io
+            import requests as _rq
+            from PIL import Image as _Img
+            from .hosting import upload as _up
+        except Exception:
+            return html
+
+        urls = _re.findall(r'<img[^>]+src=["\']([^"\']+)["\']', html, flags=_re.I)
+        if not urls:
+            return html
+        mapping: dict[str, str] = {}
+        for u in list(dict.fromkeys(urls)):
+            if not u.startswith("http"):
+                continue
+            try:
+                r = _rq.get(u, timeout=40)
+                raw = r.content
+                if len(raw) <= max_mb * 1024 * 1024:
+                    continue                      # 没超限，不动
+                im = _Img.open(_io.BytesIO(raw))
+                if im.mode not in ("RGB", "L"):
+                    im = im.convert("RGB")
+                if max(im.size) > 1600:
+                    im.thumbnail((1600, 1600), _Img.LANCZOS)
+                buf = _io.BytesIO()
+                q = 85
+                while True:
+                    buf.seek(0); buf.truncate()
+                    im.save(buf, format="JPEG", quality=q, optimize=True)
+                    if buf.tell() <= max_mb * 1024 * 1024 or q <= 45:
+                        break
+                    q -= 10
+                import tempfile as _tf
+                from pathlib import Path as _P
+                fp = _P(_tf.mkdtemp()) / "shrunk.jpg"
+                fp.write_bytes(buf.getvalue())
+                nu = _up(fp)
+                if nu:
+                    mapping[u] = str(nu)
+                    add_step(res, "描述图压缩", True,
+                             f"{len(raw) / 1048576:.1f}MB → {buf.tell() / 1048576:.1f}MB")
+            except Exception:
+                continue
+        if not mapping:
+            return html
+        out = html
+        for k, v in mapping.items():
+            out = out.replace(k, v)
+        add_step(res, "描述图压缩", True, f"{len(mapping)} 张超 5MB 已压缩并替换")
+        return out
+
     def _prepare_video(self, p: dict, res, product: dict, dry_run: bool):
         """主图视频：模板视频 / 生成轮播视频 → 上传店小秘 → p["csp_video_id"]。
 
@@ -1694,6 +1755,19 @@ class Publisher:
             if _imgs and _cap > 0:
                 _imgs = list(_imgs)[:_cap]
             overrides = build_ai_overrides(target, p, self.cfg, images=_imgs, ship=ship)
+
+            # ★ 描述图 >5MB 会被站点拒绝：压缩并替换 URL（覆盖可能来自 AI 详情或无）
+            try:
+                _eff_detail = str((overrides or {}).get("detail") or target.get("detail") or "")
+                _new_detail = self._shrink_detail_images(_eff_detail, res)
+                if _new_detail != _eff_detail:
+                    overrides = dict(overrides or {})
+                    overrides["detail"] = _new_detail
+                    from .api_save import build_mobile_detail as _bmd
+                    overrides["mobileDetail"] = _bmd(_new_detail)
+                    add_step(res, "详情", True, f"描述图已压缩，详情长度 {len(_new_detail)}")
+            except Exception as _ex:  # noqa: BLE001
+                add_step(res, "描述图压缩", False, str(_ex)[:80])
             payload = build_save_payload(
                 target, tpl, action=action, overrides=overrides,
                 custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None))
