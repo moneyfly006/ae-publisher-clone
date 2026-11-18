@@ -225,7 +225,7 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
         overrides["detail"] = p["detail_html"]
     elif p.get("detail_local_images_html"):
         # 没开 AI 详情时：把本地详情图追加到商品原有详情上
-        _base = str(product_edit.get("detail") or "")
+        _base = "" if getattr(cfg, "delete_detail_text", False) else str(product_edit.get("detail") or "")
         _pos = str(getattr(cfg, "detail_local_image_position", "tail") or "tail").lower()
         _mh = p["detail_local_images_html"]
         overrides["detail"] = (_mh + _base) if _pos == "head" else (_base + _mh)

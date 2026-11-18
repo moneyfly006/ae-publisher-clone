@@ -2706,6 +2706,8 @@ class App:
                     ("save_to_waiting", "移入待发布"),
                     ("publish", "直接发布"),
                 ], width=200, tooltip_text="产品保存后放在哪个位置"),
+                sw("check_banned_word", "违禁词检查",
+                   tooltip_text="发布前检查标题/详情是否有违禁词"),
                 sw("auto_save_products", "真实写入",
                    tooltip_text="关闭=只试跑预演，不调AI、不保存；开启=真实处理并保存到店小秘"),
             ], spacing=16, wrap=True),
@@ -2764,6 +2766,8 @@ class App:
                    tooltip_text="在详情HTML头部或尾部插入自定义文字或图片"),
                 sw("copy_sku_to_detail", "复制SKU到详情",
                    tooltip_text="把SKU名称列表追加到详情页"),
+                sw("delete_detail_text", "删除详情原有文本",
+                   tooltip_text="开启后，AI 详情/自定义文本会替换原有详情，而不是叠加"),
             ], spacing=12, wrap=True),
         ], spacing=10))
 
@@ -2868,13 +2872,37 @@ class App:
             self.cfg.set("publish_action", str(self.publish_pos.value or "save_only"))
             save_config(self.cfg)
         self.publish_pos.on_change = set_pub
+        # 视频来源：采集视频 / 模板视频 / 主图轮播生成 / 不要视频
+        self.video_src_dd = ft.Dropdown(
+            label="视频来源", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "video_source", "collected") or "collected"),
+            options=[ft.dropdown.Option("collected", "采集的产品视频（默认）"),
+                     ft.dropdown.Option("template", "模板产品视频（填路径）"),
+                     ft.dropdown.Option("generated", "用主图合成轮播视频"),
+                     ft.dropdown.Option("none", "不要视频")])
+
+        def _on_video_src(e):
+            self.cfg.set("video_source", str(self.video_src_dd.value or "collected"))
+            save_config(self.cfg)
+            self._log(f"视频来源：{self.video_src_dd.value}")
+
+        self.video_src_dd.on_change = _on_video_src
+        self.video_path_tf = ft.TextField(
+            label="模板视频路径（选「模板产品视频」时必填）", width=380,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "template_video_path", "") or ""),
+            hint_text="/Users/you/video.mp4")
+
+        def _on_video_path(e):
+            self.cfg.set("template_video_path", str(e.control.value or "").strip())
+            save_config(self.cfg)
+
+        self.video_path_tf.on_change = _on_video_path
+
         extra_card = card(ft.Column([
-            h1("额外选项", 15),
-            muted("这些开关都会实际影响保存/发布流程"),
-            ft.Row([sw("four_in_one", "四合一主图")], spacing=14, wrap=True),
-            ft.Row([sw("check_banned_word", "违禁词检查")], spacing=14, wrap=True),
-            ft.Row([sw("use_template_video", "使用模板产品视频"),
-                    sw("generate_main_video", "生成主图轮播视频")], spacing=14, wrap=True),
+            h1("发布设置", 15),
+            muted("视频来源、发布去向、相册清理、属性去重等与刊登相关的开关"),
+            ft.Row([self.video_src_dd, self.video_path_tf], spacing=12, wrap=True),
             ft.Row([sw("auto_clean_dup_attributes",
                        "保存时清理与系统属性重名的自定义属性（关掉=完全不动属性表）")],
                    spacing=14, wrap=True),
@@ -2961,7 +2989,7 @@ class App:
 
         return [h1("商品设置"), top_card, img_card, detail_card, base_card,
                 attr_default_card, attr_card, sku_map_card, eu_card,
-                detail_img_card, self._combo_card()]
+                detail_img_card, extra_card, self._combo_card()]
 
     # ---------- 水印文件（可选文件 + 预览 + 状态）----------
     def _watermark_card(self):

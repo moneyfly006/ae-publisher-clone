@@ -133,11 +133,38 @@ def t7_disabled_group_not_conflict():
     print("  ✓ 未勾选分组不产生冲突")
 
 
+def t8_video_source_modes():
+    print("\n[测试8] 视频来源 4 种模式都能识别")
+    import aeclone.services.publisher as P
+    from pathlib import Path as _P
+    import tempfile
+    # 采集视频：直接保留，不上传
+    cfg = Cfg(video_source="collected")
+    class _D:
+        def _get(self, *a, **k): return {}
+    pub = object.__new__(P.Publisher)
+    pub.cfg = cfg
+    pub.dxm = _D()
+    res = P.PublishResult(product_id="x", ok=True)
+    pub._prepare_video({"images": ["a"]}, res, {}, dry_run=False)
+    names = [s.name for s in res.steps]
+    assert "视频" in names, names
+    assert any("采集" in s.detail for s in res.steps), res.steps
+    # 不要视频：csp_video_id 置空
+    cfg2 = Cfg(video_source="none")
+    pub2 = object.__new__(P.Publisher); pub2.cfg = cfg2; pub2.dxm = _D()
+    pp = {"images": ["a"], "csp_video_id": "123"}
+    res2 = P.PublishResult(product_id="x", ok=True)
+    pub2._prepare_video(pp, res2, {}, dry_run=False)
+    assert pp.get("csp_video_id") == "", pp
+    print("  ✓ collected / none 行为正确")
+
+
 if __name__ == "__main__":
     tests = [t1_empty_generate_prompt_does_not_block, t2_conflict_generate_vs_edit,
              t3_conflict_watermark_contradiction, t4_clean_config_no_conflict,
              t5_empty_prompt_jobs_warned, t6_four_in_one_not_ai_job,
-             t7_disabled_group_not_conflict]
+             t7_disabled_group_not_conflict, t8_video_source_modes]
     passed = failed = 0
     for t in tests:
         try:

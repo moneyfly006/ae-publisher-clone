@@ -1585,14 +1585,33 @@ class Publisher:
         if dry_run or self.dxm is None:
             return
         from pathlib import Path
+        # 视频来源：兼容老开关（use_template_video / generate_main_video）
+        _sv = str(getattr(self.cfg, "video_source", "") or "").strip().lower()
+        if _sv not in ("collected", "template", "generated", "none"):
+            if getattr(self.cfg, "use_template_video", False):
+                _sv = "template"
+            elif getattr(self.cfg, "generate_main_video", False):
+                _sv = "generated"
+            else:
+                _sv = "collected"
+        if _sv == "none":
+            p["csp_video_id"] = ""          # 明确不要视频
+            add_step(res, "视频", True, "已选择「不要视频」，本次不写入视频")
+            return
+        if _sv == "collected":
+            add_step(res, "视频", True, "使用采集到的产品视频（自动保留）")
+            return
         src_video: str = ""
         # ① 模板视频（需填路径）
-        if getattr(self.cfg, "use_template_video", False):
+        if _sv == "template":
             _tp = str(getattr(self.cfg, "template_video_path", "") or "").strip()
             if _tp and Path(_tp).exists():
                 src_video = _tp
+            else:
+                add_step(res, "视频", False, "模板视频：路径为空或文件不存在，已跳过")
+                return
         # ② 生成轮播视频（本地 ffmpeg 合成，不调 AI）
-        if not src_video and getattr(self.cfg, "generate_main_video", False) and p.get("images"):
+        if not src_video and _sv == "generated" and p.get("images"):
             try:
                 import tempfile as _tf
                 import requests as _rq

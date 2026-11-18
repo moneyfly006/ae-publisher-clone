@@ -30,7 +30,8 @@ DEFAULTS: dict = {
     "write_price_to_product": True,                       # 价格写回商品
     "write_sku_codes_to_product": True,                   # SKU 编码写回商品
     "keep_main_images_local": False,                      # 保留主图/AI图到本地
-    "custom_detail_text_enable": True,                    # 添加自定义详情文本/图片
+    "custom_detail_text_enable": True,
+    "delete_detail_text": False,   # 加自定义详情时，删掉原有详情文字                    # 添加自定义详情文本/图片
     "original_box": False,                                # 是否原箱
     "prefer_collected_weight": True,                      # 优先采集重量尺寸
     "custom_sku_prefix_enable": True,                     # 启用自定义 SKU 前缀
@@ -217,6 +218,8 @@ DEFAULTS: dict = {
     "browser_headless_login": False, # 首次登录保持可见
     "proxy_enabled": False,
     "proxy_url": "",
+    # 视频来源：collected=用采集的产品视频（默认）｜template=模板视频｜generated=主图轮播生成｜none=不要视频
+    "video_source": "collected",
     "generate_main_video": False,
     "upload_main_video": True,
     "use_template_video": False,

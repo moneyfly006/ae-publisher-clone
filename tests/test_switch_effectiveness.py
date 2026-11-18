@@ -103,17 +103,17 @@ def t3_没有残留的暂未实现开关():
     print("\n[测试3] 界面上没有残留的「暂未实现」开关")
     ui = (SRC / "ui" / "app.py").read_text(encoding="utf-8")
     assert "以下旧功能暂未实现" not in ui, "还残留「暂未实现」提示块"
-    for k in ("split_product_price", "delete_detail_text",
-              "variant_mappings", "keep_custom_attributes"):
+    # delete_detail_text 已真正实现（api_save.build_ai_overrides 会读），不再算死开关
+    for k in ("split_product_price", "variant_mappings", "keep_custom_attributes"):
         assert f'"{k}"' not in ui, f"{k} 仍在界面出现"
-    print("  ✓ 4 个死开关已从界面移除")
+    print("  ✓ 死开关已从界面移除")
 
 
 def t4_implemented_switches_really_read():
     print("\n[测试4] 声称生效的开关，运行时确实读了")
     must_read = ["prefer_collected_weight", "keep_main_images_local", "four_in_one",
                  "main_as_detail", "modify_stock_999", "custom_detail_text_enable",
-                 "auto_clean_dup_attributes"]
+                 "auto_clean_dup_attributes", "delete_detail_text"]
     bad = []
     for k in must_read:
         r = _refs(k)
