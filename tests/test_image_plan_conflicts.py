@@ -160,11 +160,35 @@ def t8_video_source_modes():
     print("  ✓ collected / none 行为正确")
 
 
+def t9_image_edit_fallback_on_524():
+    print("\n[测试9] 图像编辑 524/超时 → 自动降级到 turbo 模型")
+    from aeclone.services import ImageService, FALLBACK_IMAGE_MODEL
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+        def images_edit(self, model, prompt, files):
+            self.calls.append(model)
+            if model != FALLBACK_IMAGE_MODEL:
+                raise RuntimeError("HTTP 524")
+            return "https://ok/fb.png"
+
+    svc = object.__new__(ImageService)
+    svc.cfg = type("C", (), {"prefer_dianxiaomi_album": False})()
+    svc.client = FakeClient()
+    svc._STABLE_HOSTS = ("moneyfly",)
+    out = svc._img_edit("p", [], "qwen-image-3.0")
+    assert svc.client.calls == ["qwen-image-3.0", FALLBACK_IMAGE_MODEL], svc.client.calls
+    assert out == "https://ok/fb.png"
+    print("  ✓ 调用序列:", svc.client.calls)
+
+
 if __name__ == "__main__":
     tests = [t1_empty_generate_prompt_does_not_block, t2_conflict_generate_vs_edit,
              t3_conflict_watermark_contradiction, t4_clean_config_no_conflict,
              t5_empty_prompt_jobs_warned, t6_four_in_one_not_ai_job,
-             t7_disabled_group_not_conflict, t8_video_source_modes]
+             t7_disabled_group_not_conflict, t8_video_source_modes,
+             t9_image_edit_fallback_on_524]
     passed = failed = 0
     for t in tests:
         try:

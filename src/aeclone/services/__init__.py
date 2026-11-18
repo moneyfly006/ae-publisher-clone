@@ -13,12 +13,17 @@ from .progress import BUS, track
 from ..config import AppConfig
 
 TEXT_MODEL = "qwen-plus"
-IMAGE_MODEL = "qwen-image-3.0"
+# 图像编辑默认用 turbo：qwen-image-3.0 虽然质量稍好，但要 50~130 秒，
+# 还经常被网关判 520/524（实测 48s 失败、132s 才成功各一次）。
+# turbo 版约 14 秒且稳定，图上细节足够电商使用。
+IMAGE_MODEL = "qwen-image-2.1-turbo"
 VISION_MODEL = "qwen3-vl-plus"
 IMAGE_GEN_MODEL = "z-image-turbo"
 # 营销图是可选增强，优先速度：qwen-image-3.0 常要 60~130s，
 # turbo 版实测 ~15s 就能出图，质量足够做营销位。
 MARKETING_MODEL = "qwen-image-2.1-turbo"
+# 主模型超时/524 时的降级模型（快且稳定）
+FALLBACK_IMAGE_MODEL = "qwen-image-2.1-turbo"
 
 # 模型已固定（真机实测）：文本 qwen-plus、视觉 qwen3-vl-plus、图片生成 z-image-turbo。
 #
@@ -142,6 +147,29 @@ class ImageService:
     # 已经在稳定图床上的域名，不用再转存
     _STABLE_HOSTS = ("132.226.1.44:8099", "moneyfly.club", "alicdn.com")
 
+    def _img_edit(self, prompt: str, files, model: str | None = None):
+        """统一的图像编辑调用：主模型超时/524 时自动降级到 turbo 模型。
+
+        背景：qwen-image-3.0 出图质量好但要 50~130 秒，经常被 Cloudflare
+        判 524（网关超时），整条任务就白跑了。turbo 版约 14 秒且稳定。
+        """
+        m = model or model_of(self.cfg, "image_edit")
+        try:
+            return self.client.images_edit(m, prompt, files)
+        except Exception as e:
+            _msg = str(e)
+            _slow = any(k in _msg for k in (
+                "524", "520", "521", "522", "502", "503", "500",
+                "timeout", "Timeout", "timed out", "Read timed out",
+                "Connection aborted", "Connection reset"))
+            if m != FALLBACK_IMAGE_MODEL and _slow:
+                try:
+                    BUS.emit("图片降级", f"{m} 超时", f"改用 {FALLBACK_IMAGE_MODEL} 重试", "WARN")
+                except Exception:
+                    pass
+                return self.client.images_edit(FALLBACK_IMAGE_MODEL, prompt, files)
+            raise
+
     def _stabilize(self, url: str) -> str:
         """把模型返回的临时 URL 转存到我们自己的图床。
 
@@ -177,7 +205,7 @@ class ImageService:
     def white_background(self, image: Path) -> str:
         m = model_of(self.cfg, "image_edit")
         with track("白底", "调用图像编辑", model=m, product=Path(image).name) as t:
-            url = self.client.images_edit(m, PROMPT_WHITE_BG, [image])
+            url = self._img_edit(PROMPT_WHITE_BG, [image], m)
             url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
@@ -185,7 +213,7 @@ class ImageService:
     def remove_watermark(self, image: Path) -> str:
         m = model_of(self.cfg, "image_edit")
         with track("去水印", "调用图像编辑", model=m, product=Path(image).name) as t:
-            url = self.client.images_edit(m, PROMPT_WATERMARK, [image])
+            url = self._img_edit(PROMPT_WATERMARK, [image], m)
             url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
@@ -194,7 +222,7 @@ class ImageService:
         """白底 + 去水印 合并成一次 AI 调用（省一半成本）。"""
         m = model_of(self.cfg, "image_edit")
         with track("白底+去水印", "合并调用", model=m, product=Path(image).name) as t:
-            url = self.client.images_edit(m, PROMPT_COMBINED, [image])
+            url = self._img_edit(PROMPT_COMBINED, [image], m)
             url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
@@ -202,7 +230,7 @@ class ImageService:
     def edit(self, image: Path, prompt: str) -> str:
         m = model_of(self.cfg, "image_edit")
         with track("精细编辑", (prompt or "")[:24], model=m, product=Path(image).name) as t:
-            url = self.client.images_edit(m, prompt, [image])
+            url = self._img_edit(prompt, [image], m)
             url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
@@ -222,7 +250,7 @@ class ImageService:
         """基于主图生成营销场景图（用 turbo 模型，优先速度）。"""
         m = MARKETING_MODEL
         with track("营销图", (prompt or "")[:24], model=m, cost=BUS.price_of(m) * max(1, n)) as t:
-            url = self.client.images_edit(m, prompt, [image])
+            url = self._img_edit(prompt, [image], m)
             url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return [url]
@@ -237,7 +265,7 @@ class ImageService:
         m = model_of(self.cfg, "image_edit")
         imgs = list(images)[: self.MAX_INPUT_IMAGES]
         with track(tag, f"{len(imgs)} 张素材 · {(prompt or '')[:16]}", model=m) as t:
-            url = self.client.images_edit(m, prompt, imgs)
+            url = self._img_edit(prompt, imgs, m)
             url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
@@ -246,7 +274,7 @@ class ImageService:
         m = model_of(self.cfg, "image_edit")
         imgs = list(images)
         with track("多图融合", f"{len(imgs)} 张", model=m) as t:
-            url = self.client.images_edit(m, prompt, imgs)
+            url = self._img_edit(prompt, imgs, m)
             url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url

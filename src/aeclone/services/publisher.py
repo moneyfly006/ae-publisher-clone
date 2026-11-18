@@ -234,8 +234,10 @@ class Publisher:
         if self._img_svc is None:
             from ..api import ApiClient
             from . import ImageService
+            # 图片接口超时最多 100 秒：超过基本就是 524，早点失败好降级到 turbo
+            _to = min(float(self.cfg.timeout or 100), 100.0)
             self._img_svc = ImageService(
-                ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
+                ApiClient(self.cfg.api_base, self.cfg.api_key, _to), self.cfg)
         return self._img_svc
 
     def _pmap(self, fn, items, workers: int | None = None):
@@ -354,6 +356,15 @@ class Publisher:
             return True, "尺寸校验已关闭"
         try:
             from .image_validation import check
+            # 复用「图片转存」阶段已经下载过的文件，避免再下一遍（慢一倍）
+            _lf = (getattr(self, "_local_files", None) or {}).get(str(url))
+            if _lf is not None:
+                try:
+                    from pathlib import Path as _Pf
+                    if _Pf(_lf).exists():
+                        return check(_Pf(_lf), self._min_size())
+                except Exception:
+                    pass
             d = getattr(self, "_size_tmp", None)
             if d is None or not getattr(d, "exists", lambda: False)():
                 import tempfile
@@ -1386,6 +1397,10 @@ class Publisher:
                 r = __import__("requests").get(str(u), timeout=60, cookies=cookies)
                 r.raise_for_status()
                 fp = d / f"pub_{i}.png"; fp.write_bytes(r.content)
+                try:
+                    self._local_files[str(images[i])] = fp   # 供尺寸校验复用，避免二次下载
+                except Exception:
+                    pass
                 return i, host_upload(fp)
             except Exception:
                 return i, str(u)
