@@ -254,11 +254,12 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
     if not html.strip():
         modules.append({"type": "text", "texts": [{"class": "body",
                                                    "content": "", "style": dict(_TEXT_STYLE)}]})
-        return json.dumps({"moduleList": modules, "version": "2"}, ensure_ascii=False)
+        return json.dumps({"moduleList": modules, "version": "2.0.0"}, ensure_ascii=False)
 
     # 按 <img ...> 切分
     parts = _re.split(r"(<img[^>]*>)", html, flags=_re.I)
     pending_imgs: list[dict] = []
+    img_total = 0
 
     def _flush_imgs():
         nonlocal pending_imgs
@@ -272,8 +273,14 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
         if _re.match(r"<img", part, _re.I):
             m = _re.search(r'src=["\']([^"\']+)["\']', part, _re.I)
             if m and m.group(1).startswith("http"):
-                pending_imgs.append({"url": m.group(1),
-                                     "style": {"height": "500", "width": "800", "hasMargin": True}})
+                _u = m.group(1)
+                # 店小秘规则：无线端不支持 GIF；总数最多 50 张
+                if _u.lower().split("?")[0].endswith(".gif"):
+                    continue
+                if img_total < 50:
+                    pending_imgs.append({"url": _u,
+                                         "style": {"height": "500", "width": "800", "hasMargin": True}})
+                    img_total += 1
             continue
         # 文字：去标签 → 压缩空白
         txt = _re.sub(r"<br\s*/?>", "\n", part, flags=_re.I)
@@ -291,7 +298,7 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
     if not modules:
         modules.append({"type": "text", "texts": [{"class": "body", "content": "",
                                                    "style": dict(_TEXT_STYLE)}]})
-    return json.dumps({"moduleList": modules, "version": "2"}, ensure_ascii=False)
+    return json.dumps({"moduleList": modules, "version": "2.0.0"}, ensure_ascii=False)
 
 
 def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | None = None,
