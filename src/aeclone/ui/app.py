@@ -3609,26 +3609,6 @@ class App:
         except Exception:
             pass
 
-    def _fast_image_mode(self, e=None):
-        """老软件式快速模式：只保留白底/去水印/SKU白底 + 标题/详情。"""
-        for _k in ("main_image_generate_enable", "img_main_edit", "designated_edit_enable",
-                   "translate_main_pic_enable", "translate_detail_pic_enable", "translate_sku_pic",
-                   "img_detail_white_bg", "img_detail_remove_wm", "img_detail_edit",
-                   "img_sku_remove_wm", "img_sku_edit", "marketing_auto_generate",
-                   "generate_main_video", "enable_ai_weight",
-                   "review_main_img_enable", "review_detail_img_enable", "review_text_enable",
-                   "four_in_one", "overlay_watermark_enable"):
-            self.cfg.set(_k, False)
-        self.cfg.set("ai_image_enable", True)
-        self.cfg.set("image_concurrency", 4)
-        try:
-            self.cfg.set("concurrency", max(4, int(getattr(self.cfg, "concurrency", 4) or 4)))
-        except Exception:
-            self.cfg.set("concurrency", 4)
-        save_config(self.cfg)
-        self.toast("已切换快速模式：只保留白底/去水印/SKU白底 + 标题/详情，图片并发 4")
-        self._switch(3)
-
     def _p_ai(self):
         """AI图片设置：按老软件合并成 智能填写/内容审查/简单编辑/通用编辑/批处理。"""
         self._current = 3
@@ -3649,53 +3629,12 @@ class App:
                                     controls=controls, initially_expanded=expanded,
                                     icon_color=ACCENT, collapsed_icon_color=MUTED)
 
-        # 图片步骤字段：按老软件拆成「简单编辑 / 通用编辑」
-        img_map = {f.key: f for _sec, fs in schema_image() for f in fs}
-        simple_keys = [
-            "white_bg_enable", "white_background_pic_1", "white_background_pic_2",
-            "watermark_enable", "remove_watermark_pic_1", "remove_watermark_pic_2",
-            "translate_main_pic_enable", "translate_main_pic_indices",
-            "white_background_detail_pic_indices", "img_detail_white_bg", "img_detail_remove_wm",
-            "translate_detail_pic_enable", "translate_detail_pic_indices",
-            "white_background_sku_pic", "img_sku_white_bg", "img_sku_remove_wm",
-            "translate_sku_pic", "translate_image_understanding",
-        ]
-        # 图片通用编辑页只保留「并发数」这类全局参数；
-        # 写回商品/主图生成/指定编辑等旧开关一律隐藏（由「启用」总开关自动执行，避免用户困惑）
-        general_keys = ["image_concurrency"]
-        simple = []
-        for name, fields in schema_image():
-            fs = [f for f in fields if f.key in simple_keys]
-            if fs:
-                simple.append((name, fs))
-        general = []
-        for name, fields in schema_image():
-            fs = [f for f in fields if f.key in general_keys]
-            if fs:
-                general.append((name, fs))
-
         cards = [
             add_section("AI 文案（标题 / 详情 / SKU / 估重）", schema_ai(), expanded=True),
         ]
-        fast_card = card(ft.Column([
-            h1("速度 / 功能开关", 15),
-            muted("每个 AI 步骤都有独立开关；关掉即跳过。快速模式关闭审查/估重/营销/翻译/视频等耗时项。"),
-            ft.Row([ft.ElevatedButton("一键快速模式（推荐）", icon=ft.Icons.BOLT, bgcolor=ACCENT_2,
-                                      color="#04231C", on_click=self._fast_image_mode)], spacing=8, wrap=True),
-        ], spacing=8))
-        batch = card(ft.Column([
-            h1("AI 图片批处理", 15),
-            muted("对选中的产品/图片单独跑 AI；进入图片工作台可加载产品、取图、批量白底/去水印/翻译/编辑。"),
-            ft.Row([ft.ElevatedButton("打开图片工作台", icon=ft.Icons.GRID_VIEW, bgcolor=ACCENT,
-                                      color="white", on_click=lambda e: self._switch(9)),
-                    ft.OutlinedButton("选择本地图片", icon=ft.Icons.UPLOAD_FILE,
-                                      on_click=lambda e: self.file_picker.pick_files(
-                                          allow_multiple=True, allowed_extensions=["png", "jpg", "jpeg", "webp"]))],
-                   spacing=10, wrap=True),
-        ], spacing=8))
         return [h1("AI 文案"),
                 muted("标题 / 详情 / SKU / 估重的提示词与开关；图片处理见「AI 图片」，审查见「内容审查」"),
-                *cards, fast_card, batch,
+                *cards,
                 ft.Row([self._autosave_status,
                         ft.OutlinedButton("恢复默认", icon=ft.Icons.RESTART_ALT, on_click=lambda e: self._reset())],
                        spacing=12)]
