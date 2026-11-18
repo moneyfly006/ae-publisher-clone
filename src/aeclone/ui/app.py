@@ -1308,6 +1308,22 @@ class App:
             self._start()
         (getattr(self, '_sync_run_button', None) or (lambda: None))()
 
+    def _rerun_failed(self):
+        """只重跑上一次批量里失败/未完成的商品（忽略已编辑记录）。"""
+        try:
+            from ..services import batch_state as bs
+            info = bs.load()
+        except Exception:
+            info = {}
+        ids = list(info.get("failed") or []) + list(info.get("remaining") or [])
+        ids = [str(x) for x in dict.fromkeys(ids) if str(x).strip()]
+        if not ids:
+            self.toast("没有上次失败/未完成的商品", False)
+            return
+        self._log(f"重跑上次失败/未完成：{len(ids)} 个商品", "INFO")
+        self.toast(f"开始重跑 {len(ids)} 个商品")
+        self._start(ignore_conflicts=True, only_ids=ids)
+
     def _warn_conflicts_before_run(self) -> bool:
         """启动前检查开关冲突。返回 True 表示已拦截（用户选择去修改）。"""
         # 先做一次自动修复：开了「AI 生成主图」但提示词为空 = 误开，自动关掉
@@ -1363,7 +1379,7 @@ class App:
         self._safe_update()
         return True
 
-    def _start(self, ignore_conflicts: bool = False):
+    def _start(self, ignore_conflicts: bool = False, only_ids: list | None = None):
         # 启动前先把当前配置全部落盘（含未失焦的输入）
         self._save_api_fields()
         # 启动前检查图片开关冲突：有冲突先提醒，用户可强制继续
@@ -1616,9 +1632,14 @@ class App:
             _tpl_ids.discard("")
             if _tpl_ids:
                 prods = [x for x in prods if str(x.get("id")) not in _tpl_ids]
+            if only_ids:
+                _want = {str(x) for x in only_ids}
+                prods = [x for x in prods if str(x.get("id")) in _want]
+                self._log(f"只重跑指定商品：{len(prods)}/{len(_want)} 个（已忽略「已编辑记录」）", "INFO")
             try:
                 from ..services import edited as _edited
-                prods, _skip_edited = _edited.filter_new(prods)
+                if not only_ids:
+                    prods, _skip_edited = _edited.filter_new(prods)
                 if _skip_edited:
                     self._log(f"跳过已编辑过 {_skip_edited} 个产品", "INFO")
             except Exception:
@@ -2924,7 +2945,10 @@ class App:
             muted("「自动清理」只删「N 天前上传且没有被任何商品引用」的图片，已被引用的不会动。"),
             ft.Row([self.publish_pos], spacing=10, wrap=True),
             ft.Row([self._edited_count_text(), ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
-                                                              on_click=lambda e: self._clear_edited())],
+                                                              on_click=lambda e: self._clear_edited()),
+                    ft.ElevatedButton("重跑上次失败的商品", icon=ft.Icons.REPLAY,
+                                      bgcolor=ACCENT_2, color="#04231C",
+                                      on_click=lambda e: self._rerun_failed())],
                    spacing=10, wrap=True),
         ], spacing=10))
 
