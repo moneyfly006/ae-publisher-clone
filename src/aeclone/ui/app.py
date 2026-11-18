@@ -1,6 +1,8 @@
 """AuroraList · 现代化界面（schema 驱动，覆盖老软件全部设置项）。"""
 from __future__ import annotations
 
+from .. import __version__ as VERSION
+
 import datetime
 import sys
 import tempfile
@@ -11,15 +13,12 @@ from pathlib import Path
 
 import flet as ft
 
-from ..api import ApiClient
+from ..api import ApiClient, ApiError
 from ..config import AppConfig, config_dir, get_config, save_config
 from ..license import verify as verify_license
 from ..services import BatchRunner, ImageService, TextService, model_of
 from ..services.pricing import calc_multiplier, calc_free_shipping
 from ..services.variants import auto_map, parse_mapping_json
-from ..integrations.cdp import launch_edge, launch_browser, open_url_via_cdp, BrowserError
-from ..integrations.bitbrowser import BitBrowser
-from ..integrations.zhanfu import ZhanfuBrowser
 from ..services.publisher import Publisher, demo_product
 from ..integrations.dianxiaomi import DianxiaomiClient, ENDPOINTS
 from ..services.video import build_slideshow, generate_carousel_video, probe as video_probe
@@ -29,15 +28,96 @@ from ..services import history
 from ..services.queue import TaskQueue
 from ..services.scheduler import Scheduler
 from ..services.text_pipeline import TextPipeline
-from ..services.prompt_presets import TITLE_PRESETS, score_title
 from ..services.image_pipeline import ImagePipeline
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
 TEXT, MUTED = "#E8EAF2", "#8B92A8"
 
-BROWSERS = ["本机Chrome", "本机Edge", "比特浏览器", "站斧浏览器"]
 CURRENCIES = ["USD", "EUR", "GBP", "CNY", "RUB", "BRL"]
+# 区域调价常用国家/地区（代码 → 名称）
+REGIONS = [("US", "美国"), ("RU", "俄罗斯"), ("BR", "巴西"), ("ES", "西班牙"),
+           ("FR", "法国"), ("DE", "德国"), ("GB", "英国"), ("IT", "意大利"),
+           ("PL", "波兰"), ("TR", "土耳其"), ("SA", "沙特"), ("AE", "阿联酋"),
+           ("IL", "以色列"), ("KR", "韩国"), ("JP", "日本"), ("MX", "墨西哥"),
+           ("CA", "加拿大"), ("AU", "澳大利亚"), ("NL", "荷兰"), ("PT", "葡萄牙")]
+
+# AI图片编辑提示词预设
+IMAGE_PROMPT_PRESETS = {
+    "main": {
+        "专业电商主图": """基于上传的图片融合生成专业电商主图。
+生成要求：
+1. 主体清晰突出，构图饱满平衡
+2. 纯白或浅灰背景，突出商品
+3. 柔和自然光，无突兀阴影
+4. 不添加任何文字，去除logo、水印
+5. 一个欧洲面孔的美女正在操作机器，""",
+        "白底棚拍": """将产品图片转换为专业白底棚拍效果：
+1. 纯白背景（#FFFFFF），无渐变无阴影
+2. 产品居中，占画面60-70%
+3. 保持产品原有颜色和细节
+4. 清除水印、logo、背景杂物
+5. 专业摄影棚光照效果""",
+        "使用场景图": """生成产品的真实使用场景图：
+1. 将产品置于符合其用途的真实环境中
+2. 环境自然真实，光线柔和
+3. 突出产品在使用中的状态
+4. 可添加人物互动（欧美面孔）
+5. 场景干净整洁，无杂乱元素""",
+        "多角度展示": """基于参考图生成产品多角度展示图：
+1. 正面、侧面、背面、细节等多个角度
+2. 统一的白底或场景背景
+3. 每个角度突出不同特点
+4. 保持产品一致性
+5. 专业拍摄质感""",
+    },
+    "detail": {
+        "细节特写": """生成产品细节特写图：
+1. 聚焦产品关键部位（接口、按钮、材质、工艺等）
+2. 清晰展示细节特征
+3. 适当景深，突出焦点
+4. 柔和补光，无过曝
+5. 可添加标注线和说明文字""",
+        "尺寸规格图": """生成产品尺寸规格展示图：
+1. 清晰的尺寸标注（长×宽×高）
+2. 标注线规范，字体清晰
+3. 可添加比例参照物
+4. 白底或浅灰底，便于阅读
+5. 多角度尺寸标注""",
+        "功能展示": """生成产品功能特性展示图：
+1. 展示产品的核心功能和特点
+2. 分步骤或分区域说明
+3. 配合图标和文字说明
+4. 对比效果展示（使用前后）
+5. 清晰直观，易于理解""",
+        "包装配件": """生成产品包装和配件展示图：
+1. 完整展示产品包装外观
+2. 列出所有配件和附件
+3. 整齐排列，布局美观
+4. 白底或场景拍摄
+5. 可添加清单文字""",
+    },
+    "sku": {
+        "SKU白底图": """生成SKU规格白底图：
+1. 纯白背景（#FFFFFF）
+2. 产品居中，占比适中
+3. 清晰展示该SKU的特征（颜色/尺寸/款式）
+4. 无水印、无logo、无文字
+5. 保持系列一致性""",
+        "颜色对比": """生成不同颜色SKU的对比图：
+1. 多个颜色并排展示
+2. 统一角度和光照
+3. 准确还原颜色差异
+4. 白底或浅灰底
+5. 便于买家选择""",
+        "规格差异": """生成不同规格SKU的对比图：
+1. 展示尺寸、容量、型号等差异
+2. 添加清晰的规格标注
+3. 并排或层叠对比
+4. 参照物体现大小差异
+5. 帮助买家理解规格""",
+    }
+}
 
 
 def _tpl_lib_load(raw) -> dict:
@@ -121,9 +201,11 @@ def section(title, fields, cfg, cols=2):
 # ---------------- 页面 schema ----------------
 def schema_store():
     return [
-        ("店铺", [Field("browser_type", "浏览器窗口", "select", BROWSERS),
-                  Field("store_name", "店铺名称"), Field("store_id", "店铺 ID")]),
-        ("模板", [Field("product_template_name", "模板名称"), Field("product_template_id", "模板 ID")]),
+        ("店铺", [Field("store_name", "店铺名称"), Field("store_id", "店铺 ID")]),
+        ("模板（API 直存必需）", [
+            Field("product_template_name", "模板名称", hint="从店小秘选择或粘贴模板商品，属性/品牌/说明书等将从模板补齐"),
+            Field("product_template_id", "模板商品 ID", hint="必填：API 直存会从该模板 edit.json 合并缺失字段"),
+        ]),
     ]
 
 
@@ -154,12 +236,16 @@ def schema_advanced():
                       Field("detail_text_info_tail", "详情文字（尾部）", "multiline"),
                       Field("detail_text_position", "插入位置（head/tail/both）"),
                       Field("move_detail_text", "详情文字并入头部", "bool")]),
+        ("类目属性默认值（模板读不到时用）", [
+            Field("high_concerned_chemical", "高关注化学品", "select", ["否", "是"]),
+            Field("charge_status", "是否带电", "select", ["否", "是"])]),
         ("运行", [Field("auto_save_products", "自动保存到店小秘（关闭=只试跑）", "bool"),
-                  Field("publish_action", "发布动作", "select", ["save_only", "publish"]),
-                  Field("browser_hide", "浏览器后台运行（连接后自动最小化）", "bool"),
+                  Field("publish_action", "保存后去向", "select",
+                        ["save_only", "save_to_waiting", "publish"],
+                        hint="save_only=留在采集箱 / save_to_waiting=移入待发布 / publish=直接发布"),
                   Field("eu_qualification", "是否提交欧盟资质", "select", ["否", "是"],
                         hint="选「是」必须先填下面的欧盟责任人资料，否则保存会被站点拦截"),
-                  Field("cdp_port", "浏览器调试端口（多开时每个实例不同）")]),
+]),
         # 选「是」时站点要求填写欧盟责任人，否则只能选否（ISSUES #4）
         ("欧盟资质 · 责任人资料（选「是」时必填）", [
             Field("eu_responsible_name", "欧盟责任人名称"),
@@ -244,8 +330,7 @@ def schema_image():
             Field("translate_sku_pic", "SKU 图文字翻译", "bool"),
         ]),
         ("营销与批发", [
-            Field("marketing_image_enable", "生成营销场景图", "bool"),
-            Field("marketing_image_count", "营销图数量"),
+            Field("marketing_auto_generate", "生成营销图（写进营销图片 1:1 / 3:4）", "bool"),
             Field("marketing_image_prompt", "营销图提示词", "multiline"),
             Field("wholesale_enable", "启用批发价", "bool"),
         ]),
@@ -258,7 +343,8 @@ def schema_image():
         ]),
         ("主图视频", [
             Field("generate_main_video", "发布时生成主图视频", "bool"),
-            Field("upload_main_video", "保存时上传主图视频", "bool"),
+            Field("upload_main_video", "保存时上传主图视频", "bool",
+                  hint="暂未接入 API 直存（视频上传）"),
             Field("use_template_video", "使用模板视频（需填路径）", "bool"),
             Field("template_video_path", "模板视频路径"),
             Field("overwrite_existing_video", "覆盖产品已有视频", "bool"),
@@ -296,38 +382,6 @@ def schema_variant():
     return []
 
 
-def schema_prompts():
-    return [
-        ("文字类", [
-            Field("title_prompt", "标题提示词", "multiline",
-                  hint="要求 ≤125 字符；可写「品牌词加 for」等规则；模型会按此改写标题"),
-            Field("detail_prompt", "描述提示词", "multiline",
-                  hint="要求输出 HTML 结构；建议规定小标题、参数表、包装清单"),
-            Field("sku_prompt", "SKU 提示词", "multiline",
-                  hint="要求 ≤20 字符、纯英文、统一格式（如 3T-20M）"),
-            Field("weight_prompt", "估重提示词", "multiline",
-                  hint="建议要求输出 JSON：weight_kg / length_cm / width_cm / height_cm"),
-        ]),
-        ("图片类", [
-            Field("main_image_generate_prompt", "主图生成提示词", "multiline",
-                  hint="支持变量 {title}；建议写明白底、居中占比、光影、禁止文字水印"),
-            Field("designated_edit_prompt", "指定编辑提示词", "multiline",
-                  hint="用于精修/去水印/去促销文字，强调商品本体不变"),
-            Field("translate_prompt", "图片翻译提示词", "multiline",
-                  hint="强调保留排版、不新增文字、无文字则原样返回"),
-            Field("background_gen_sku_prompt", "换背景提示词", "multiline",
-                  hint="写明背景类型（纯白/浅灰/场景）与接触阴影要求"),
-            Field("edit_prompt", "通用编辑提示词", "multiline"),
-        ]),
-        ("审查类", [
-            Field("review_text_prompt", "文本审查提示词", "multiline",
-                  hint="建议要求只输出 PASS 或 FAIL|原因，便于自动拦截"),
-            Field("review_main_img_prompt", "主图审查提示词", "multiline"),
-            Field("review_detail_img_prompt", "详情图审查提示词", "multiline"),
-        ]),
-    ]
-
-
 class App:
     def __init__(self, page: ft.Page):
         self.page = page
@@ -352,7 +406,7 @@ class App:
         self.cookie_src = None
         self._cookie_ts = 0.0
 
-        page.title = "AuroraList · 极光上架"
+        page.title = f"AuroraList · 极光上架 v{VERSION}"
         page.bgcolor = BG
         page.padding = 0
         page.theme_mode = ft.ThemeMode.DARK
@@ -427,11 +481,11 @@ class App:
         self.nav_buttons = []
         groups = [
             ("", [("概览", ft.Icons.DASHBOARD_OUTLINED, 0)]),
-            ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("属性设置", ft.Icons.TUNE, 2)]),
+            ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("基础设置", ft.Icons.TUNE, 2)]),
             ("AI 设置", [("AI图片设置", ft.Icons.AUTO_AWESOME, 3)]),
             ("图片", [("图片工作台", ft.Icons.GRID_VIEW, 9)]),
             ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
-            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8), ("提示词", ft.Icons.EDIT_NOTE, 11),
+            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8),
                       ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
         ]
         col = ft.Column(spacing=3)
@@ -450,17 +504,17 @@ class App:
         self.license_text = ft.Text("检测中…", color=MUTED, size=12, weight=ft.FontWeight.BOLD)
         # 侧栏导航可滚动：1514×945 及更小的窗口也能点到「提示词 / 任务与日志」
         nav_scroll = ft.Column([col], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO)
-        sidebar = ft.Container(width=216, bgcolor=CARD, padding=16, expand=True, content=ft.Column([
+        sidebar = ft.Container(width=188, bgcolor=CARD, padding=14, expand=True, content=ft.Column([
             ft.Row([ft.Container(width=32, height=32, border_radius=10, bgcolor=ACCENT,
                                  content=ft.Text("A", size=15, weight=ft.FontWeight.BOLD, color="#0B0D12")),
                     ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
-                               muted("极光上架")], spacing=0)], spacing=10),
+                               muted(f"极光上架 v{VERSION}")], spacing=0)], spacing=10),
             ft.Container(height=12),
             ft.Container(
-                content=ft.Row([ft.Icon(ft.Icons.ROCKET_LAUNCH, size=18, color="#0B0D12"),
-                                ft.Text("启动上架", size=14, weight=ft.FontWeight.BOLD, color="#0B0D12")],
-                               spacing=8, alignment=ft.MainAxisAlignment.CENTER),
-                bgcolor=ACCENT, border_radius=12, padding=ft.padding.symmetric(vertical=12, horizontal=10),
+                content=ft.Row([ft.Icon(ft.Icons.ROCKET_LAUNCH, size=16, color="#0B0D12"),
+                                ft.Text("启动", size=13, weight=ft.FontWeight.BOLD, color="#0B0D12")],
+                               spacing=6, alignment=ft.MainAxisAlignment.CENTER),
+                bgcolor=ACCENT, border_radius=10, padding=ft.padding.symmetric(vertical=9, horizontal=10),
                 on_click=lambda e: self._start(), ink=True),
             ft.Container(height=10),
             nav_scroll,
@@ -512,7 +566,7 @@ class App:
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
                  self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench,
-                 self._p_logs, self._p_prompts]
+                 self._p_logs]
         idx = idx % len(pages)
         self._page_idx = idx
         self._building_page = True
@@ -686,17 +740,39 @@ class App:
 
     def _reset(self):
         # 恢复默认前先备份，避免误点丢配置（API Key / 店铺 / 模板）
-        try:
-            import shutil as _sh, time as _t
-            src = AppConfig.path()
-            if src.exists():
-                _sh.copy2(src, src.with_name(f"config.backup-{_t.strftime('%Y%m%d-%H%M%S')}.json"))
-        except Exception:
-            pass
-        self.cfg = AppConfig()
-        save_config(self.cfg)
-        self._switch(self._current)
-        self.toast("已恢复默认")
+        def do_reset(e):
+            try:
+                import shutil as _sh, time as _t
+                src = AppConfig.path()
+                if src.exists():
+                    _sh.copy2(src, src.with_name(f"config.backup-{_t.strftime('%Y%m%d-%H%M%S')}.json"))
+            except Exception:
+                pass
+            self.cfg = AppConfig()
+            save_config(self.cfg)
+            self._switch(self._current)
+            self.toast("已恢复默认")
+            self.dlg.open = False
+            self.update()
+        
+        self.dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("确认恢复默认设置"),
+            content=ft.Text("所有配置将恢复为默认值（API密钥、店铺、模板等将丢失）。\n\n当前配置会自动备份为 config.backup-*.json"),
+            actions=[
+                ft.TextButton("取消", on_click=lambda e: self._close_dialog()),
+                ft.FilledButton("确认恢复", on_click=do_reset),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.overlay.append(self.dlg)
+        self.dlg.open = True
+        self.update()
+
+    def _close_dialog(self):
+        if hasattr(self, 'dlg'):
+            self.dlg.open = False
+            self.update()
 
     # ---------- 页面 ----------
     def _maybe_wizard(self):
@@ -708,30 +784,26 @@ class App:
             save_config(self.cfg)
             return
         self._wizard_step = 1
-        self.wz_browser = ft.Dropdown(label="浏览器", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                      value=self.cfg.browser_type or "本机Edge",
-                                      options=[ft.dropdown.Option(x) for x in BROWSERS])
         self.wz_store = ft.Dropdown(label="店铺", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
         self.wz_source = ft.Dropdown(label="模板来源", width=140, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                      value=self.cfg.template_source or "draft",
                                      options=[ft.dropdown.Option("draft", "草稿"), ft.dropdown.Option("online", "在线")],
                                      on_change=lambda e: self._wz_source_changed())
         self.wz_tpl = ft.Dropdown(label="模板产品", width=380, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
-        self.wz_status = ft.Text("① 选择浏览器后点击「打开浏览器」", size=12, color=MUTED)
-        self.wz_btn = ft.ElevatedButton("① 读取已登录 Chrome（推荐）", icon=ft.Icons.SYNC, bgcolor=ACCENT, color="white", on_click=self._wz_sync)
-        self.wz_btn2 = ft.ElevatedButton("或打开浏览器重新登录", icon=ft.Icons.OPEN_IN_BROWSER, bgcolor=CARD_2, color=TEXT, on_click=self._wz_open)
+        self.wz_status = ft.Text("① 点「读取已登录 Chrome」自动读取登录态", size=12, color=MUTED)
+        self.wz_btn = ft.ElevatedButton("① 读取已登录 Chrome", icon=ft.Icons.SYNC, bgcolor=ACCENT, color="white", on_click=self._wz_sync)
 
         self.wz_dlg = ft.AlertDialog(
             title=ft.Text("欢迎使用 AuroraList · 首次设置"),
             content=ft.Column([
-                ft.Text("第 1 步：直接读取你 Chrome 里已登录的店小秘（推荐），或打开浏览器重新登录", size=12, color=TEXT),
-                ft.Row([self.wz_browser, self.wz_btn, self.wz_btn2], spacing=10),
+                ft.Text("第 1 步：直接读取你 Chrome 里已登录的店小秘（需要先在 Chrome 登录过）", size=12, color=TEXT),
+                ft.Row([self.wz_btn], spacing=10),
                 ft.ElevatedButton("读取店铺信息（我已登录）", icon=ft.Icons.SYNC, on_click=self._wz_sync),
                 ft.Divider(color=CARD_2),
                 ft.Row([self.wz_store, self.wz_source], spacing=10),
                 ft.Row([ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT,
                                           on_click=lambda e: self._open_template_picker(self.wz_source.value,
-                                                                                        on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))),
+                                                                                        on_pick=self._wz_template_picked)),
                         self.tpl_preview_box], spacing=10),
                 self.wz_status,
             ], spacing=12, width=520),
@@ -741,56 +813,6 @@ class App:
         self.page.dialog = self.wz_dlg
         self.wz_dlg.open = True
         self._safe_update()
-
-    def _wz_open(self, e):
-        self.wz_status.value = "正在启动 Chrome…"
-        self.cfg.browser_type = self.wz_browser.value
-        save_config(self.cfg)
-        self._safe_update()
-
-        def go():
-            try:
-                self._connect_browser()
-                if not self.ws_endpoint:
-                    self.wz_status.value = "浏览器已启动，但未拿到调试端点"
-                    self._safe_update(); return
-                try:
-                    open_url_via_cdp(self.ws_endpoint, "https://www.dianxiaomi.com/web/smt/smtProductList/offline")
-                except Exception:
-                    pass
-                self.wz_status.value = "请在弹出的 Chrome 窗口登录店小秘（一次即可，之后记住登录），登录后自动同步…"
-                self._safe_update()
-                # 自动等待登录（最多 5 分钟）
-                for _ in range(100):
-                    time.sleep(3)
-                    try:
-                        ck = self._cookies()
-                    except Exception:
-                        continue
-                    if not ck:
-                        continue
-                    try:
-                        c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-                        shops = c.shops()
-                        if not shops:
-                            continue
-                        prods = c.drafts(limit=50) if self.wz_source.value == "draft" else c.online(limit=50)
-                        self.wz_store.options = [ft.dropdown.Option(str(x["id"]), x["name"]) for x in shops]
-                        self.wz_store.value = str(shops[0]["id"])
-                        self.cfg.store_id, self.cfg.store_name = str(shops[0]["id"]), shops[0]["name"]
-                        self.wz_tpl.options = [ft.dropdown.Option(str(x["id"]), (x.get("title") or x["id"])[:44]) for x in prods]
-                        if prods:
-                            self.wz_tpl.value = str(prods[0]["id"])
-                        self.wz_status.value = f"已检测到登录：{len(shops)} 个店铺 / {len(prods)} 个模板候选，点「完成」即可"
-                        self._safe_update()
-                        return
-                    except Exception:
-                        continue
-                self.wz_status.value = "等待登录超时，请点「读取店铺信息」重试"
-            except Exception as ex:
-                self.wz_status.value = f"启动失败：{ex}"
-            self._safe_update()
-        threading.Thread(target=go, daemon=True).start()
 
     def _wz_source_changed(self):
         self.cfg.template_source = self.wz_source.value
@@ -825,17 +847,23 @@ class App:
             self._safe_update()
         threading.Thread(target=go, daemon=True).start()
 
+    def _wz_template_picked(self, pid, title, images):
+        # picker 已保存真实选择（含来源）；同步向导，不能让隐藏下拉框的首项覆盖它。
+        self.wz_tpl.value = str(pid)
+        self.wz_tpl.options = [ft.dropdown.Option(str(pid), title)]
+        self.wz_source.value = self.cfg.template_source
+        self._set_tpl_preview(images)
+
     def _wz_finish(self, e):
         if self.wz_store.value:
             self.cfg.store_id = str(self.wz_store.value)
             name = next((o.text for o in self.wz_store.options if o.key == self.wz_store.value), "")
             self.cfg.store_name = name or self.cfg.store_name
-        if self.wz_tpl.value:
+        if self.wz_tpl.value and not self.cfg.template_product_id:
             self.cfg.template_product_id = str(self.wz_tpl.value)
             title = next((o.text for o in self.wz_tpl.options if o.key == self.wz_tpl.value), "")
             self.cfg.template_product_title = title or ""
         self.cfg.template_source = self.wz_source.value
-        self.cfg.browser_type = self.wz_browser.value
         self.cfg.onboarded = True
         save_config(self.cfg)
         self.wz_dlg.open = False
@@ -886,22 +914,203 @@ class App:
                                        ft.TextButton("重新检测", on_click=recheck_auth)], spacing=4))
         self._apply_license_state()
         self._apply_api_state()
+
+        # 准备状态：4 项关键就绪度，自动检测
+        self.ready_cookie = ft.Text("检测中…", size=12, color=MUTED)
+        self.ready_tpl = ft.Text("检测中…", size=12, color=MUTED)
+        self.ready_api = ft.Text("检测中…", size=12, color=MUTED)
+        self.ready_auth = ft.Text("检测中…", size=12, color=MUTED)
+
+        def _ready_row(icon, label, ctrl):
+            return ft.Row([ft.Icon(icon, size=16, color=MUTED),
+                           ft.Text(label, size=13, color=TEXT),
+                           ctrl], spacing=8, expand=True)
+
+        ready_card = card(ft.Column([
+            h1("准备状态", 15),
+            muted("都变绿就能一键启动；红色项点击可直接去对应页修复"),
+            _ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie),
+            _ready_row(ft.Icons.COPY_OUTLINED, "模板商品", self.ready_tpl),
+            _ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
+            _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth),
+        ], spacing=8))
+
+        def _refresh_ready():
+            # Cookie
+            try:
+                from ..integrations.browser_cookies import describe, resolve
+                src = resolve("dianxiaomi.com", manual=getattr(self.cfg, "manual_cookies", None))
+                self.cookie_src = src
+                self._cookie_ts = time.time()
+                self.ready_cookie.value = "✓ " + describe(src) if (src.ok and src.cookies) else "✗ 未读到（点这里去粘贴）"
+                self.ready_cookie.color = ACCENT_2 if (src.ok and src.cookies) else "#FF6B6B"
+            except Exception as _e:
+                self.ready_cookie.value = f"✗ {str(_e)[:40]}"
+                self.ready_cookie.color = "#FF6B6B"
+            # 模板
+            _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+            self.ready_tpl.value = ("✓ " + str(getattr(self.cfg, "template_product_title", "") or "已选")[:24]) if _tid else "✗ 未选模板（API 保存必需）"
+            self.ready_tpl.color = ACCENT_2 if _tid else "#FF6B6B"
+            # API
+            _st = getattr(self, "api_state", None) or {}
+            self.ready_api.value = ("✓ " + str(_st.get("detail", "正常"))[:30]) if _st.get("ok") else "✗ API 未连通"
+            self.ready_api.color = ACCENT_2 if _st.get("ok") else "#FF6B6B"
+            # 授权
+            _ls = getattr(self, "license_state", None) or {}
+            self.ready_auth.value = ("✓ " + str(_ls.get("message", "已授权"))[:24]) if _ls.get("ok") else "✗ 未授权"
+            self.ready_auth.color = ACCENT_2 if _ls.get("ok") else "#FF6B6B"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        threading.Thread(target=_refresh_ready, daemon=True).start()
+
         return [prog_card, h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
+                ready_card,
                 card(ft.Row([ft.Text(f"今日任务 {st['runs']}", color=TEXT, size=13),
                              ft.Text(f"成功 {st['ok']}", color=ACCENT_2, size=13),
                              ft.Text(f"失败 {st['failed']}", color="#FF8A8A", size=13)], spacing=24)),
+                self._cost_card(),
+                self._resume_card(),
+                self._diff_card(),
                 ft.Row([stat("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT),
                         auth_card,
                         stat("图片服务", ft.Text("~15 秒/张", color=ACCENT_2, size=12), ft.Icons.BOLT_OUTLINED, "#FFB020")],
                        spacing=12),
                 card(ft.Column([h1("快速开始", 15),
                                 muted("三步完成上架：读 Cookie → 选店铺与模板 → 启动"),
+                                self._run_mode_row(),
                                 ft.Row([ft.ElevatedButton("启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color="white",
                                                           on_click=lambda e: self._start()),
                                         ft.OutlinedButton("去设置", icon=ft.Icons.SETTINGS,
                                                           on_click=lambda e: self._switch(8))], spacing=10)], spacing=10))]
 
     # ---------- 概览的状态刷新（ISSUES #8 / #9）----------
+    def _diff_card(self):
+        """改前后对比预览（标题 / 主图 / 详情长度）。"""
+        try:
+            from ..services import preview as pv
+            rows = pv.latest(5)
+        except Exception:
+            rows = []
+        if not rows:
+            return card(ft.Column([h1("改前后对比", 15),
+                                   muted("还没有处理记录；跑一次后这里会显示改前/改后差异", 11)], spacing=6))
+
+        def _item(r):
+            b = r.get("before") or {}
+            a2 = r.get("after") or {}
+            bt, at = str(b.get("title") or "-"), str(a2.get("title") or "-")
+            bi = (b.get("images") or [""])[0]
+            ai = (a2.get("images") or [""])[0]
+            bd, ad = len(str(b.get("detail") or "")), len(str(a2.get("detail") or ""))
+            thumbs = ft.Row([ft.Image(src=bi, width=70, height=70, fit=ft.ImageFit.COVER,
+                                      error_content=ft.Text("改前", size=9, color=MUTED)),
+                             ft.Icon(ft.Icons.ARROW_FORWARD, size=14, color=MUTED),
+                             ft.Image(src=ai, width=70, height=70, fit=ft.ImageFit.COVER,
+                                      error_content=ft.Text("改后", size=9, color=MUTED))], spacing=6)
+            return ft.Column([
+                ft.Text(f"{r.get('id')} · {r.get('title','')[:30]}", size=12, color=TEXT),
+                ft.Row([ft.Text("改前", size=10, color=MUTED, width=30),
+                        ft.Text(bt[:80], size=11, color=MUTED, expand=True)], spacing=6),
+                ft.Row([ft.Text("改后", size=10, color=ACCENT_2, width=30),
+                        ft.Text(at[:80], size=11, color=TEXT, expand=True)], spacing=6),
+                ft.Row([ft.Text(f"详情 {bd}→{ad} 字符", size=10, color=MUTED), thumbs], spacing=12),
+            ], spacing=3)
+
+        return card(ft.Column([h1("改前后对比", 15),
+                               muted("最近处理的商品：标题 / 详情 / 主图变化", 11)]
+                              + [_item(r) for r in rows], spacing=10))
+
+    def _resume_card(self):
+        """断点续传：显示上次批量剩余/失败，提供「继续」。"""
+        try:
+            from ..services import batch_state as bs
+            info = bs.load()
+        except Exception:
+            info = {}
+        rem = len(info.get("remaining") or [])
+        fail = len(info.get("failed") or [])
+        if not rem and not fail:
+            return card(ft.Column([h1("断点续传", 15),
+                                   muted("没有未完成的批量；启动一次批量后会自动记录进度", 11)], spacing=6))
+        txt = (f"上次批量：完成 {info.get('done', 0)}/{info.get('total', 0)}"
+               f"，剩余 {rem} 个" + (f"，失败 {fail} 个" if fail else ""))
+        return card(ft.Column([
+            h1("断点续传", 15),
+            ft.Text(txt, size=12, color=TEXT),
+            ft.Row([ft.ElevatedButton("继续处理剩余", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT,
+                                      color="white", on_click=lambda e: self._start()),
+                    ft.OutlinedButton("清空断点", icon=ft.Icons.CLEAR,
+                                      on_click=lambda e: (bs.clear(), self._switch(0)))],
+                   spacing=10, wrap=True),
+            muted("「继续」会重新扫描待处理商品，已成功的自动跳过，只处理剩余的", 11),
+        ], spacing=8))
+
+    def _cost_card(self):
+        """成本/用量统计卡片（今日 + 近 7 天 + 按功能拆分）。"""
+        try:
+            d1 = history.cost_stats(days=1)
+            d7 = history.cost_stats(days=7)
+        except Exception:
+            d1, d7 = {"calls": 0, "total": 0.0, "by_stage": {}}, {"calls": 0, "total": 0.0, "by_stage": {}}
+        by_stage = d1.get("by_stage") or {}
+        rows = []
+        for k, v in list(by_stage.items())[:5]:
+            rows.append(ft.Row([ft.Text(f"{k}", size=12, color=TEXT, width=110),
+                                ft.Text(f"{v['n']} 次", size=12, color=MUTED, width=70),
+                                ft.Text(f"¥{v['cost']:.3f}", size=12, color=ACCENT_2)], spacing=8))
+        if not rows:
+            rows = [muted("今天还没有 AI 调用记录", 11)]
+        return card(ft.Column([
+            h1("成本 / 用量", 15),
+            ft.Row([ft.Text(f"今日 ¥{d1['total']:.3f}", size=13, color=ACCENT_2),
+                    ft.Text(f"（{d1['calls']} 次调用）", size=11, color=MUTED),
+                    ft.Text(f"近 7 天 ¥{d7['total']:.3f}", size=13, color=TEXT),
+                    ft.Text(f"（{d7['calls']} 次）", size=11, color=MUTED)], spacing=18),
+            ft.Column(rows, spacing=3),
+        ], spacing=8))
+
+    def _run_mode_row(self):
+        """把「试跑 / 真实写入」做成显眼的一行，避免点了半天发现什么都没写。"""
+        import flet as ft
+
+        real = bool(getattr(self.cfg, "auto_save_products", False))
+        badge = ft.Container(
+            content=ft.Text("真实写入" if real else "试跑（不写入店小秘）",
+                            size=12, weight=ft.FontWeight.BOLD,
+                            color="white" if real else "#3A2A00"),
+            bgcolor=ACCENT_2 if real else "#F0A020",
+            border_radius=6, padding=ft.padding.symmetric(horizontal=8, vertical=3))
+        hint = ft.Text(
+            "当前会真的处理图片/文本并保存到店小秘" if real
+            else "当前只做预演：不调 AI、不保存。点右边开关切成真实写入",
+            size=11, color=MUTED)
+
+        sw = ft.Switch(value=real, active_color=ACCENT_2)
+
+        def on_toggle(e):
+            val = bool(sw.value)
+            self.cfg.set("auto_save_products", val)
+            save_config(self.cfg)
+            badge.content.value = "真实写入" if val else "试跑（不写入店小秘）"
+            badge.content.color = "white" if val else "#3A2A00"
+            badge.bgcolor = ACCENT_2 if val else "#F0A020"
+            hint.value = ("当前会真的处理图片/文本并保存到店小秘" if val
+                          else "当前只做预演：不调 AI、不保存。点右边开关切成真实写入")
+            self._log(f"运行模式：{'真实写入' if val else '试跑（不写入）'}", "INFO")
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        sw.on_change = on_toggle
+        return ft.Container(
+            content=ft.Row([badge, sw, hint], spacing=10, wrap=True),
+            bgcolor="#FFF7E6" if not real else "#EAFBF3",
+            border_radius=8, padding=10)
+
     def _apply_api_state(self):
         st = getattr(self, "api_state", None) or {}
         ctrl = getattr(self, "stat_api", None)
@@ -944,6 +1153,48 @@ class App:
 
         threading.Thread(target=run, daemon=True).start()
 
+    # 需要 AI 的开关（任意一个开就要预检）
+    _AI_GATES = ("ai_title_enable", "ai_desc_enable", "enable_ai_sku", "review_enable",
+                 "estimate_weight_enable", "ai_image_enable", "translate_main_pic_enable",
+                 "translate_detail_pic_enable", "translate_sku_pic")
+
+    def _preflight_api(self) -> str:
+        """启动前检查 API Key。返回非空字符串 = 需要中止并展示的原因。
+
+        只拦「Key 无效 / 额度不足」这类一定跑不通的情况；
+        网络抖动只记 WARN，不阻断（可能只是瞬时）。
+        """
+        gates = ("ai_title_enable", "ai_desc_enable", "enable_ai_sku", "review_enable",
+                 "estimate_weight_enable", "ai_image_enable", "translate_main_pic_enable",
+                 "translate_detail_pic_enable", "translate_sku_pic")
+        try:
+            if not any(bool(getattr(self.cfg, k, False)) for k in gates):
+                return ""
+        except Exception:
+            pass
+        key = (getattr(self.cfg, "api_key", "") or "").strip()
+        if not key:
+            return "未填写 API Key（设置 → API 配置）"
+        try:
+            client = ApiClient(self.cfg.api_base, key, min(float(self.cfg.timeout or 60), 15))
+            models = client.models()
+            self._log(f"API 预检通过：{len(models)} 个模型可用", "INFO")
+            return ""
+        except ApiError as ex:
+            from ..api import classify_api_error
+            kind = classify_api_error(ex)
+            status = int(getattr(ex, "status", 0) or 0)
+            msg = str(ex)
+            if kind == "auth":
+                return f"API Key 无效或已过期（HTTP {status or 401}：{msg[:70]}）——请到设置页重新填写"
+            if kind == "quota":
+                return f"API 额度不足或请求受限（HTTP {status}：{msg[:70]}）——请充值后重试"
+            self._log(f"API 预检异常（不阻断）：{msg[:80]}", "WARN")
+            return ""
+        except Exception as ex:  # noqa: BLE001
+            self._log(f"API 预检网络异常（不阻断）：{str(ex)[:80]}", "WARN")
+            return ""
+
     def _apply_license_state(self):
         st = getattr(self, "license_state", None) or {}
         ctrl = getattr(self, "stat_auth", None)
@@ -969,6 +1220,14 @@ class App:
     def _validate(self) -> list[str]:
         cfg = self.cfg
         errs = []
+        # 会「静默失效」的配置（选了通用编辑却没提示词、三组都没启用……）
+        try:
+            from ..services.preflight import blocking
+            for _b in blocking(cfg):
+                if _b not in errs:
+                    errs.append(_b)
+        except Exception:
+            pass
         if not (cfg.api_key or "").strip():
             errs.append("未填写 API Key")
         if not (cfg.store_id or cfg.store_name):
@@ -1090,22 +1349,30 @@ class App:
         threading.Thread(target=self._run_pipeline, daemon=True).start()
 
     def _run_scheduled(self, job):
-        """到点执行「定时发布」：商品在保存阶段已经写入店小秘，这里只做发布。"""
+        """到点执行「定时发布」：商品已保存，这里用 API op=2 直接发布（无浏览器）。"""
         self._log(f"定时发布触发：{job.product_id}（{job.title[:30]}）", "INFO")
         try:
-            from ..integrations.editor_automation import publish_from_list
-            ws = self.ws_endpoint
-            if not ws:
-                ws = self._ensure_browser_session()
-            if not ws:
-                raise RuntimeError("没有可用的浏览器调试端点")
-            r = publish_from_list(ws, str(job.product_id), confirm=True, dry_run=False,
-                                  title_hint=job.title or "")
-            self._log(f"定时发布结果：{r.message}", "INFO" if r.ok else "ERROR")
-            if not r.ok:
-                raise RuntimeError(r.message)
+            from ..integrations.dianxiaomi import DianxiaomiClient
+            from ..services.api_save import build_save_payload
+            ck = self._cookies()
+            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            pid = str(job.product_id)
+            _tpl = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+            target = dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
+            tpl = None
+            if _tpl:
+                tpl = dxm._get("product_detail", {"id": _tpl}).get("data", {}).get("product", {})
+            if not target:
+                raise RuntimeError("未取到商品详情")
+            payload = build_save_payload(target, tpl, action="publish",
+                                         custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None))
+            resp = dxm.save_product_via_api(payload)
+            _code = resp.get("code") if isinstance(resp, dict) else None
+            if _code != 0:
+                raise RuntimeError(str(resp.get("msg") or "发布失败")[:120])
+            self._log(f"定时发布成功：{pid}", "INFO")
             try:
-                history.record("scheduled_publish", 1, 0, str(job.product_id))
+                history.record("scheduled_publish", 1, 0, pid)
             except Exception:
                 pass
         except Exception as ex:
@@ -1162,6 +1429,13 @@ class App:
 
     def _request_stop(self, e=None):
         self._stop_requested = True
+        self._abort_now = True
+        try:                       # 心跳线程也一起停，否则窗口关了它还在跑
+            _hb = getattr(self, "_hb_stop", None)
+            if _hb is not None:
+                _hb.set()
+        except Exception:
+            pass
         try:
             if getattr(self, "run_status", None) is not None:
                 self.run_status.value = "状态：已请求停止（当前任务结束后停）"
@@ -1203,6 +1477,8 @@ class App:
         self._running = True
         self._stop_requested = False
         hb_stop = threading.Event()
+        self._hb_stop = hb_stop
+        self._abort_now = False
         state = {"done": 0, "current": "", "total": 0}
 
         def finish(msg: str = ""):
@@ -1223,9 +1499,20 @@ class App:
                 pass
 
         try:
+            # 先把「这次会做什么」写进日志，出错时能对照
+            try:
+                from ..services.preflight import summary as _pf_summary
+                for _ln in _pf_summary(self.cfg).splitlines():
+                    self._log(_ln, "INFO")
+            except Exception:
+                pass
+            # 启动前 API 预检：Key 无效/额度不足时直接停，不要整批任务全崩在 "Invalid token"
+            why = self._preflight_api()
+            if why:
+                self._log(f"API 预检未通过：{why}", "ERROR")
+                finish("API 预检未通过，已停止")
+                return
             ck = self._cookies()
-            if not getattr(self, "ws_endpoint", ""):
-                self._ensure_browser_session(ck)
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
             all_prods, _meta = dxm.product_page(1, 100, self.cfg.store_id or None, None)
             blocked = [p for p in all_prods if (p.get("status_type") or "") in ("auditing", "onSelling")]
@@ -1271,12 +1558,15 @@ class App:
 
             threading.Thread(target=heartbeat, daemon=True).start()
 
-            ok_n = fail_n = 0
+            ok_n = fail_n = skipped_n = 0
+            audit_streak = 0
             lock = threading.Lock()
+            failed_ids: list[str] = []
+            processed_ids: list[str] = []
 
             def work(item):
                 i, prod = item
-                nonlocal ok_n, fail_n
+                nonlocal ok_n, fail_n, skipped_n, audit_streak
                 if self._stop_requested:
                     self._log(f"[{i}/{len(prods)}] 已停止，跳过 {prod.get('id')}", "WARN")
                     return
@@ -1287,31 +1577,81 @@ class App:
                     local_dxm = DianxiaomiClient(local_ck, overrides=self.cfg.endpoint_overrides or {})
                     pub = Publisher(self.cfg, dxm=local_dxm, ws_endpoint=self.ws_endpoint,
                                     scheduler=getattr(self, "scheduler", None))
+                    # 让「停止」能中断正在处理的图片，而不是等整批跑完
+                    pub.should_stop = lambda: bool(getattr(self, "_abort_now", False))
+                    if getattr(self, "_abort_now", False):
+                        self._log(f"[{i}/{len(prods)}] 已停止，跳过 {prod.get('id')}", "WARN")
+                        return
                     res = pub.run(prod, dry_run=not self.cfg.auto_save_products, manage_progress=False)
                     for line in res.log().splitlines():
                         self._log("   " + line, "INFO" if "✓" in line else "WARN")
-                    with lock:
-                        ok_n += 1 if res.ok else 0
-                        fail_n += 0 if res.ok else 1
-                    if self.cfg.auto_save_products and res.ok:
-                        history.record("publish", 1, 0, prod["id"])
+                    if getattr(res, "skipped_auditing", False):
+                        # 审核中的商品不是失败，也不算成功；单独计数，下次再处理
+                        with lock:
+                            skipped_n += 1
+                            audit_streak += 1
+                        self._log("   → 商品审核中，已跳过（不计入失败）", "WARN")
+                        # 连续 3 个都因「审核中」被拒，说明这家店整体处于审核锁，
+                        # 继续跑只会白花时间（AI 已经调用过了），直接停。
+                        if audit_streak >= 3 and not self._stop_requested:
+                            self._log("   连续 3 个商品都因「站点审核中」被拒 —— "
+                                      "这家店当前整体不能保存，已停止本批（避免继续消耗 AI）",
+                                      "ERROR")
+                            self._stop_requested = True
+                    else:
+                        with lock:
+                            audit_streak = 0
+                            ok_n += 1 if res.ok else 0
+                            fail_n += 0 if res.ok else 1
+                        if self.cfg.auto_save_products and res.ok:
+                            history.record("publish", 1, 0, prod["id"])
                 except Exception as ex:  # noqa: BLE001
                     with lock:
                         fail_n += 1
+                        failed_ids.append(str(prod.get("id", "")))
                     self._log(f"   失败：{ex}", "ERROR")
                 finally:
                     with lock:
                         state["done"] += 1
+                        processed_ids.append(str(prod.get("id", "")))
 
             import concurrent.futures as _cf
             with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
                 list(ex.map(work, list(enumerate(prods, 1))))
-            self._log(f"完成：成功 {ok_n} / 失败 {fail_n}" + ("（已按请求停止）" if self._stop_requested else ""), "INFO")
+            # 断点：记录剩余/失败，供「继续上次」使用
+            try:
+                from ..services import batch_state as _bs
+                _all_ids = [str(x.get("id", "")) for x in prods]
+                _left = [x for x in _all_ids if x not in set(processed_ids)]
+                if _left or failed_ids:
+                    _bs.save(total=len(prods), done=len(processed_ids),
+                             remaining=_left, failed=failed_ids,
+                             stopped=bool(self._stop_requested))
+                    self._log(f"断点已记录：剩余 {len(_left)} 个，失败 {len(failed_ids)} 个", "WARN")
+                else:
+                    _bs.clear()
+            except Exception:
+                pass
+            # 刊登完成后，按开关创建「删除未引用图片」任务（店小秘侧异步执行，
+            # 已被商品引用的图片不会删，所以是安全的清理方式）
+            if not self._stop_requested:
+                try:
+                    from ..services.album_cleanup import maybe_auto_clean
+                    _ck2 = self._cookies()
+                    _cli = DianxiaomiClient(_ck2, overrides=self.cfg.endpoint_overrides or {})
+                    _r = maybe_auto_clean(self.cfg, _cli)
+                    self._log(f"相册清理：{_r.get('message', '')}", "INFO" if _r.get("ok") else "WARN")
+                except Exception as _ex:  # noqa: BLE001
+                    self._log(f"相册清理失败：{str(_ex)[:80]}", "WARN")
+
+            _tail = f" / 审核中跳过 {skipped_n}" if skipped_n else ""
+            _stop = "（已按请求停止）" if self._stop_requested else ""
+            self._log(f"完成：成功 {ok_n} / 失败 {fail_n}{_tail}{_stop}", "INFO")
             try:
                 history.record("pipeline", ok_n, fail_n)
             except Exception:
                 pass
-            finish(f"完成：成功 {ok_n} / 失败 {fail_n}")
+            finish(f"完成：成功 {ok_n} / 失败 {fail_n}{_tail}")
         except Exception as ex:
             self._log(f"运行异常：{ex}", "ERROR")
             finish("运行异常")
@@ -1433,13 +1773,11 @@ class App:
 
         connect_card = card(ft.Column([
             h1("1 · 连接店小秘", 15),
-            muted("优先级：配置里注入过的 Cookie → 已打开的浏览器 → 本机 Chrome/Edge 浏览器库"),
+            muted("自动读取本机 Chrome/Edge 已登录的店小秘；读不到就粘贴一次 Cookie"),
             self.cookie_status,
             ft.Row([ft.ElevatedButton("读取并同步", icon=ft.Icons.SYNC, bgcolor=ACCENT, color="white", on_click=sync),
                     ft.OutlinedButton("重新检测 Cookie", icon=ft.Icons.REFRESH, on_click=refresh_cookie),
-                    ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self._paste_cookie()),
-                    ft.OutlinedButton("启动浏览器（兜底）", icon=ft.Icons.OPEN_IN_BROWSER,
-                                      on_click=lambda e: threading.Thread(target=self._connect_browser, daemon=True).start())],
+                    ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self._paste_cookie())],
                    spacing=10, wrap=True),
             self.store_status,
         ], spacing=10))
@@ -1476,10 +1814,15 @@ class App:
         return [h1("店铺设置"), muted("三步：读 Cookie → 选店铺 → 选模板"), connect_card, shop_card, tpl_card]
 
     def _on_shop_change(self):
-        # 同步/重渲染时不要清掉已选模板：只有真的换了店铺才清
         sid_now = str(getattr(self, "shop_dd", None).value if getattr(self, "shop_dd", None) else "")
-        if sid_now and sid_now == str(getattr(self.cfg, "store_id", "") or ""):
-            return
+        sid_saved = str(getattr(self.cfg, "store_id", "") or "")
+        # 只有「有旧店铺」AND「换了不同店铺」才清模板，避免初始化时误清
+        if not sid_now or not sid_saved or sid_now == sid_saved:
+            # 店铺未变，仍需同步 store_id/name（避免漏存）
+            if sid_now and sid_now != sid_saved:
+                pass  # 走下面的清模板流程
+            else:
+                return
         self.cfg.template_product_id = ""
         self.cfg.template_product_title = ""
         self.cfg.template_snapshot = ""
@@ -1554,11 +1897,10 @@ class App:
 
             def fetch_values():
                 try:
-                    from ..integrations.editor_automation import read_form_values
-                    from ..integrations.browser import ensure_browser
-                    ws = self.ws_endpoint or ensure_browser(self.cfg).get("ws", "")
-                    self.ws_endpoint = ws
-                    vals = read_form_values(ws, str(item.get("product_id") or self.cfg.template_product_id))
+                    dxm = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                    snap = dxm.template_snapshot(
+                        str(item.get("product_id") or self.cfg.template_product_id))
+                    vals = (snap or {}).get("values") or {}
                     if vals:
                         self.cfg.template_values = _j.dumps(vals, ensure_ascii=False)
                         save_config(self.cfg)
@@ -1734,31 +2076,9 @@ class App:
                 self._safe_update()
                 return
         except Exception as ex:  # noqa: BLE001
-            self._log(f"模板 API 读取失败：{str(ex)[:80]}，尝试浏览器", "WARN")
-        # 2) 已连接的浏览器（不主动打开浏览器）
-        if self.ws_endpoint:
-            try:
-                from ..integrations.template_reader import read_snapshot
-                snap = read_snapshot(self.ws_endpoint, str(pid))
-                if snap and snap.fields:
-                    self.cfg.template_product_id = str(pid)
-                    self.cfg.template_product_title = snap.title
-                    self.cfg.template_snapshot = snap.to_json()
-                    save_config(self.cfg)
-                    f = snap.fields
-                    self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
-                                                    f" · 属性 {len(snap.attributes)} 项 · 重量 {f.get('weight','-')}")
-                    self.tpl_snapshot_text.color = ACCENT_2
-                    self._set_tpl_preview()
-                    self._log(f"模板参数已读取（浏览器）：{pid}")
-                    self._safe_update()
-                    return
-            except Exception as ex:  # noqa: BLE001
-                self._log(f"模板浏览器读取失败：{str(ex)[:80]}", "WARN")
-        self.tpl_snapshot_text.value = ("模板已选中；参数暂未读取（无需打开店小秘，刊登时会自动带模板）")
-        self.tpl_snapshot_text.color = "#FFB020"
-        self._set_tpl_preview()
-        self._safe_update()
+            self.tpl_snapshot_text.value = f"模板参数读取失败：{str(ex)[:80]}"
+            self.tpl_snapshot_text.color = "#FF6B6B"
+            self._log(f"模板参数读取失败（API）：{str(ex)[:80]}", "WARN")
 
     def _sync_shops(self):
         try:
@@ -1780,64 +2100,6 @@ class App:
         except Exception as ex:
             self.store_status.value = f"同步失败：{ex}"
             self.store_status.color = "#FF6B6B"
-        self._safe_update()
-
-    def _ensure_browser_session(self, ck: dict | None = None) -> str:
-        """没有 CDP 端点时自动启动浏览器，并注入本机 Cookie（保存到待发布必需）。"""
-        with self._browser_lock:
-            if getattr(self, "ws_endpoint", ""):
-                return self.ws_endpoint
-            from ..integrations.browser import ensure_browser
-            from ..integrations.cdp import inject_cookies
-            if ck is None:
-                ck = self._cookies()
-            self._log("未连接浏览器，自动启动店小秘调试浏览器…")
-            info = ensure_browser(self.cfg)
-            ws = str(info.get("ws") or "")
-            if not ws:
-                raise RuntimeError("浏览器已启动但未拿到 CDP 端点")
-            self.ws_endpoint = ws
-            try:
-                n = inject_cookies(ws, dict(ck or {}))
-                self._log(f"浏览器已连接，已注入 Cookie {n // 2} 个" if n else "浏览器已连接（未注入 Cookie）")
-            except Exception as ex:  # noqa: BLE001
-                self._log(f"Cookie 注入失败：{str(ex)[:80]}（如未登录请点「启动浏览器」登录一次）", "WARN")
-                return ws
-            return ws
-
-    def _connect_browser(self):
-        self._cookie_cache = None          # 新浏览器会话，重新取 Cookie
-        try:
-            kind = self.cfg.browser_type
-            if kind == "比特浏览器":
-                bb = BitBrowser()
-                if not bb.health():
-                    raise BrowserError("比特浏览器本地服务未启动（127.0.0.1:54345）")
-                bid = self.cfg.bit_browser_id or ""
-                if not bid and self.cfg.bit_browser_name:
-                    found = bb.find_by_name(self.cfg.bit_browser_name)
-                    bid = (found or {}).get("id", "")
-                if not bid:
-                    raise BrowserError("未配置比特浏览器 ID / 名称")
-                self.ws_endpoint = bb.ws_endpoint(bid)
-                self.store_status.value = f"比特浏览器已连接 · {bid}"
-            elif kind == "站斧浏览器":
-                zf = ZhanfuBrowser()
-                port = int(self.cfg.zhanfu_port or 9222)
-                self.ws_endpoint = zf.ws_endpoint(port)
-                self.store_status.value = f"站斧浏览器已连接 · 端口 {port}"
-            elif kind == "本机Edge":
-                info = launch_edge()
-                self.ws_endpoint = info["ws"]
-            else:
-                info = launch_browser("chrome", url="https://www.dianxiaomi.com/web/smt/smtProductList/offline")
-                self.ws_endpoint = info["ws"]
-                self.store_status.value = f"Edge 已启动 · 端口 {info['port']} · {info['browser']}"
-            self.store_status.color = ACCENT_2
-        except BrowserError as e:
-            self.store_status.value = f"启动失败：{e}"; self.store_status.color = "#FF6B6B"
-        except Exception as e:
-            self.store_status.value = f"启动异常：{e}"; self.store_status.color = "#FF6B6B"
         self._safe_update()
 
     def _cookies(self, refresh: bool = False):
@@ -2148,13 +2410,6 @@ class App:
 
     def _open_album_page(self):
         url = "https://www.dianxiaomi.com/web/service/album"
-        if self.ws_endpoint:
-            try:
-                open_url_via_cdp(self.ws_endpoint, url)
-                self.toast("已在浏览器打开相册")
-                return
-            except Exception as ex:  # noqa: BLE001
-                self._log(f"打开相册失败：{ex}", "WARN")
         try:
             self.page.launch_url(url)
         except Exception:
@@ -2325,19 +2580,149 @@ class App:
 
     def _p_advanced(self):
         self._current = 2
-        # 去重：其他页面已有的字段不在高级设置重复出现
-        others = set()
-        for fn in (schema_store, schema_ai, schema_review, schema_image, schema_price, schema_variant):
-            for _sec, fields in fn():
-                others.update(f.key for f in fields)
-        deduped = []
-        for sec_name, fields in schema_advanced():
-            kept = [f for f in fields if f.key not in others]
-            if kept:
-                deduped.append((sec_name, kept))
-        view = self._render("高级设置", deduped)
-        self._bind_eu_guard()
 
+        def sw(key, label, tooltip_text=""):
+            ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)),
+                            active_color=ACCENT, tooltip=tooltip_text or None)
+            def on(e, _k=key):
+                self.cfg.set(_k, bool(e.control.value))
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
+        def tf(key, label, width=200, tooltip_text=""):
+            ctl = ft.TextField(label=label, value=str(getattr(self.cfg, key, "") or ""),
+                               width=width, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                               tooltip=tooltip_text or None)
+            def on(e, _k=key):
+                self.cfg.set(_k, str(e.control.value or ""))
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
+        def dd(key, label, options, width=220, tooltip_text=""):
+            ctl = ft.Dropdown(label=label, value=str(getattr(self.cfg, key, options[0][0]) or options[0][0]),
+                              options=[ft.dropdown.Option(k, v) for k, v in options],
+                              width=width, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                              tooltip=tooltip_text or None)
+            def on(e, _k=key):
+                self.cfg.set(_k, str(e.control.value or ""))
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
+        # ---------- 顶部：最常用的两个设置 ----------
+        top_card = card(ft.Column([
+            h1("运行设置", 15),
+            ft.Row([
+                tf("edit_sum", "处理产品数量", width=140,
+                   tooltip_text="每次运行处理多少个产品（1=只跑1个，0或空=全部）"),
+                dd("publish_action", "编辑完成后去向", [
+                    ("save_only", "留在采集箱"),
+                    ("save_to_waiting", "移入待发布"),
+                    ("publish", "直接发布"),
+                ], width=200, tooltip_text="产品保存后放在哪个位置"),
+                sw("auto_save_products", "真实写入",
+                   tooltip_text="关闭=只试跑预演，不调AI、不保存；开启=真实处理并保存到店小秘"),
+            ], spacing=16, wrap=True),
+        ], spacing=10))
+
+        # ---------- 图片设置 ----------
+        four_in_one_on = bool(getattr(self.cfg, "four_in_one", False))
+        four_warn = ft.Container(
+            content=ft.Text(
+                "⚠ 四合一开启后会将主图1-4合成插入第一位，与「AI精细化编辑·主图1」冲突。\n"
+                "建议：关闭「AI精细化编辑·主图1」，或把四合一插入位置改为「末尾」。",
+                size=10, color="#FFB020"),
+            bgcolor="#FFF7E6", border_radius=8, padding=8,
+            visible=four_in_one_on)
+
+        four_sw = ft.Switch(label="四合一主图（将主图1-4合成一张）",
+                            value=four_in_one_on, active_color=ACCENT)
+
+        def on_four(e):
+            self.cfg.set("four_in_one", bool(four_sw.value))
+            save_config(self.cfg)
+            four_warn.visible = bool(four_sw.value)
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        four_sw.on_change = on_four
+
+        img_card = card(ft.Column([
+            h1("图片设置", 15),
+            ft.Row([four_sw,
+                    dd("four_in_one_position", "四合一位置",
+                       [("first", "插入第一位"), ("append", "追加末尾")], width=180,
+                       tooltip_text="四合一图片插入的位置（建议「末尾」，避免与AI精细编辑冲突）")],
+                   spacing=12, wrap=True),
+            four_warn,
+            ft.Row([
+                sw("main_as_detail", "主图同时作为详情图",
+                   tooltip_text="把所有主图也追加到详情图里"),
+                sw("pad_main_images_from_extra", "主图不足时从详情图补齐",
+                   tooltip_text="主图张数不足时，从详情图中取图补充到指定数量"),
+                sw("keep_main_images_local", "保留主图到本地",
+                   tooltip_text="将处理后的主图额外保存到本地文件夹"),
+            ], spacing=12, wrap=True),
+            ft.Divider(height=1, color=CARD_2),
+            h1("水印设置", 13),
+            self._watermark_card(),
+        ], spacing=10))
+
+        # ---------- 详情设置 ----------
+        detail_card = card(ft.Column([
+            h1("详情设置", 15),
+            ft.Row([
+                sw("custom_detail_text_enable", "添加自定义详情文本/图片",
+                   tooltip_text="在详情HTML头部或尾部插入自定义文字或图片"),
+                sw("copy_sku_to_detail", "复制SKU到详情",
+                   tooltip_text="把SKU名称列表追加到详情页"),
+            ], spacing=12, wrap=True),
+        ], spacing=10))
+
+        # ---------- 基础设置 ----------
+        base_card = card(ft.Column([
+            h1("规格与库存", 15),
+            ft.Row([
+                sw("custom_sku_prefix_enable", "启用自定义SKU前缀",
+                   tooltip_text="为SKU编码添加自定义前缀"),
+                sw("modify_stock_999", "库存改为999",
+                   tooltip_text="将所有SKU的库存统一设为999"),
+                sw("auto_generate_sku_code", "自动生成SKU编码",
+                   tooltip_text="自动为SKU生成唯一编码"),
+                sw("original_box", "是否原箱",
+                   tooltip_text="商品是否以原箱发货"),
+            ], spacing=12, wrap=True),
+            ft.Row([
+                tf("spec_weight", "重量(kg)", width=120, tooltip_text="默认包装重量（优先使用采集到的重量，未采集时用此值）"),
+                tf("spec_length", "长(cm)", width=100),
+                tf("spec_width", "宽(cm)", width=100),
+                tf("spec_height", "高(cm)", width=100),
+            ], spacing=8, wrap=True),
+            ft.Row([
+                tf("declared_value", "货值默认值", width=160,
+                   tooltip_text="申报货值（速卖通草稿必填，建议填实际货值），未填则默认 100"),
+                sw("prefer_collected_weight", "优先使用采集重量尺寸",
+                   tooltip_text="勾选：用采集到的重量/尺寸（克自动换算为kg）；不勾：用上方填写的值"),
+            ], spacing=12, wrap=True),
+        ], spacing=10))
+
+        # ---------- 类目属性默认值 ----------
+        attr_default_card = card(ft.Column([
+            h1("类目属性默认值", 15),
+            muted("模板读不到时使用的兜底值"),
+            ft.Row([
+                dd("high_concerned_chemical", "高关注化学品",
+                   [("否", "否"), ("是", "是")], width=160),
+                dd("charge_status", "是否带电",
+                   [("否", "否"), ("是", "是")], width=160),
+            ], spacing=12, wrap=True),
+        ], spacing=10))
+
+        # ---------- 属性模板 / SKU替换 ----------
         self.attr_kw = ft.TextField(label="属性模板关键词", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.attr_status = ft.Text("", size=12, color=MUTED)
         self.attr_list = ft.Column(spacing=4)
@@ -2357,11 +2742,147 @@ class App:
 
         sku_map_card = card(ft.Column([
             h1("SKU 图替换", 15),
-            muted("把某个 SKU 的图片换成指定 URL；用表格填写，不用写 JSON"),
+            muted("把某个 SKU 的图片换成指定 URL"),
             ft.Row([ft.ElevatedButton("打开替换表", icon=ft.Icons.SWAP_HORIZ, bgcolor=CARD_2, color=TEXT,
                                       on_click=lambda e: self._sku_replace_dialog())], spacing=10, wrap=True),
         ], spacing=8))
-        return [view[0], self._watermark_card(), self._combo_card(), sku_map_card, attr_card] + view[1:]
+
+        # ---------- 欧盟资质 ----------
+        eu_card = card(ft.Column([
+            h1("欧盟资质（需要时才填）", 15),
+            muted("选「是」时速卖通要求填写，否则保存会被拦截"),
+            ft.Row([
+                dd("eu_qualification", "是否提交欧盟资质",
+                   [("否", "否"), ("是", "是")], width=180),
+            ], spacing=12),
+            ft.Row([
+                tf("eu_responsible_name", "欧盟责任人名称", width=240),
+                tf("eu_responsible_address", "责任人地址", width=240),
+            ], spacing=12, wrap=True),
+            ft.Row([
+                tf("eu_responsible_email", "电子邮箱", width=240),
+                tf("eu_responsible_phone", "联系电话", width=180),
+            ], spacing=12, wrap=True),
+        ], spacing=10))
+
+        self._bind_eu_guard()
+
+        # ---------------- 额外选项（老软件「设置」页） ----------------
+        def sw(key, label):
+            ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)), active_color=ACCENT)
+            def on(e, _k=key):
+                self.cfg.set(_k, bool(e.control.value))
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
+        self.publish_pos = ft.Dropdown(
+            label="发布到什么地方", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "publish_action", "save_only") or "save_only"),
+            options=[ft.dropdown.Option("save_only", "待发布"), ft.dropdown.Option("publish", "直接发布")])
+        def set_pub(e):
+            self.cfg.set("publish_action", str(self.publish_pos.value or "save_only"))
+            save_config(self.cfg)
+        self.publish_pos.on_change = set_pub
+        extra_card = card(ft.Column([
+            h1("额外选项", 15),
+            muted("这些开关都会实际影响保存/发布流程"),
+            ft.Row([sw("four_in_one", "四合一主图"),
+                    sw("main_as_detail", "启用主图作为详情图"),
+                    sw("pad_main_images_from_extra", "主图不足6张时用额外图片补齐"),
+                    sw("keep_main_images_local", "保留主图及AI生成图片至本地")], spacing=14, wrap=True),
+            ft.Row([sw("custom_detail_text_enable", "添加自定义详情文本或图片"),
+                    sw("copy_sku_to_detail", "复制SKU至详情")], spacing=14, wrap=True),
+            ft.Row([sw("check_banned_word", "违禁词检查")], spacing=14, wrap=True),
+            ft.Row([sw("use_template_video", "使用模板产品视频"),
+                    sw("generate_main_video", "生成主图轮播视频")], spacing=14, wrap=True),
+            ft.Row([sw("auto_clean_dup_attributes",
+                       "保存时清理与系统属性重名的自定义属性（关掉=完全不动属性表）")],
+                   spacing=14, wrap=True),
+            ft.Row([sw("prefer_dianxiaomi_album", "AI 出图直接传店小秘图片空间（不用图床）"),
+                    sw("album_auto_clean_enable", "刊登完成后自动清理相册未引用图片"),
+                    ft.TextField(label="清理 N 天前的", width=140,
+                                 value=str(getattr(self.cfg, "album_auto_clean_days", 7)),
+                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                 on_change=lambda e: (self.cfg.set("album_auto_clean_days",
+                                                                  str(e.control.value or "7")),
+                                                      save_config(self.cfg)))],
+                   spacing=14, wrap=True),
+            muted("「自动清理」只删「N 天前上传且没有被任何商品引用」的图片，已被引用的不会动。"),
+            ft.Row([self.publish_pos], spacing=10, wrap=True),
+            ft.Row([self._edited_count_text(), ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
+                                                              on_click=lambda e: self._clear_edited())],
+                   spacing=10, wrap=True),
+        ], spacing=10))
+
+        # ---------- 详情本地图 ----------
+        def _dl_load():
+            import json as _jd
+            raw = getattr(self.cfg, "detail_local_images", "[]")
+            try:
+                return [str(x) for x in (json.loads(raw) if isinstance(raw, str) else raw) if str(x)]
+            except Exception:
+                return []
+
+        self.dl_paths = _dl_load()
+        self.dl_list = ft.Column(spacing=3)
+        self.dl_status = ft.Text("", size=11, color=MUTED)
+
+        def _dl_refresh():
+            import json as _jd
+            self.cfg.set("detail_local_images", _jd.dumps(self.dl_paths, ensure_ascii=False))
+            save_config(self.cfg)
+            self.dl_list.controls = [
+                ft.Row([ft.Icon(ft.Icons.IMAGE_OUTLINED, size=14, color=MUTED),
+                        ft.Text(str(x)[-60:], size=11, color=TEXT, expand=True),
+                        ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=14, icon_color="#FF8A8A",
+                                      tooltip="移除",
+                                      on_click=lambda e, _x=x: (self.dl_paths.remove(_x), _dl_refresh()))],
+                       spacing=6)
+                for x in self.dl_paths
+            ] or [ft.Text("未选择本地详情图", size=11, color=MUTED)]
+            self.dl_status.value = f"已选 {len(self.dl_paths)} 张，刊登时上传图床后插入详情"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def _dl_pick(e):
+            self._dl_picker.pick_files(allow_multiple=True, allowed_extensions=["png", "jpg", "jpeg", "webp"])
+
+        def _dl_on_result(e):
+            if e.files:
+                for f in e.files:
+                    if f.path and f.path not in self.dl_paths:
+                        self.dl_paths.append(f.path)
+                _dl_refresh()
+
+        self._dl_picker = ft.FilePicker(on_result=_dl_on_result)
+        try:
+            self.page.overlay.append(self._dl_picker)
+        except Exception:
+            pass
+        _dl_refresh()
+        detail_img_card = card(ft.Column([
+            h1("详情本地图", 15),
+            muted("从电脑选图片，刊登时上传图床并插入商品详情（头/尾可选）"),
+            ft.Row([ft.ElevatedButton("选择图片", icon=ft.Icons.ADD_PHOTO_ALTERNATE, bgcolor=ACCENT,
+                                      color="white", on_click=_dl_pick),
+                    ft.OutlinedButton("清空", icon=ft.Icons.DELETE_SWEEP,
+                                      on_click=lambda e: (self.dl_paths.clear(), _dl_refresh())),
+                    ft.Dropdown(width=150, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                value=str(getattr(self.cfg, "detail_local_image_position", "tail") or "tail"),
+                                options=[ft.dropdown.Option("head", "插到开头"),
+                                         ft.dropdown.Option("tail", "插到结尾"),
+                                         ft.dropdown.Option("both", "头尾都插")],
+                                on_change=lambda e: (self.cfg.set("detail_local_image_position", e.control.value),
+                                                     save_config(self.cfg)))], spacing=10, wrap=True),
+            self.dl_list, self.dl_status,
+        ], spacing=8))
+
+        return [h1("基础设置"), top_card, img_card, detail_card, base_card,
+                attr_default_card, attr_card, sku_map_card, eu_card,
+                detail_img_card, self._combo_card()]
 
     # ---------- 水印文件（可选文件 + 预览 + 状态）----------
     def _watermark_card(self):
@@ -2537,11 +3058,20 @@ class App:
 
     # ---------- 图片处理：简单规则 + 精细任务（无 JSON）----------
     def _image_jobs_ui(self):
-        from ..services.image_jobs import (parse_rules, rows_to_rules, parse_jobs, rows_to_jobs,
-                                          migrate, GROUP_LABELS, OP_LABELS)
-        from ..services.image_presets import presets_for, get_preset
+        """图片通用编辑（完全对齐老软件）。
 
-        # 旧配置（指定编辑/逐图方案/全局开关）一次性迁移
+        老软件结构：
+            图片通用编辑
+              ☑ 启用                      ← 一个总开关，开了就自动执行
+              [通用编辑][精细化编辑]       ← 二选一
+              通用编辑   ：一条提示词 + 主图范围（编辑到第几张）
+              精细化编辑 ：主图编辑 / 详情图编辑 / SKU 图片编辑
+                          每组各自「启用」+ 逐条（位置 + 提示词 + 参考图）+ 「添加」按钮
+        """
+        from ..services.image_jobs import (parse_rules, rows_to_rules, parse_jobs, rows_to_jobs,
+                                           migrate, GROUP_LABELS)
+
+        # 旧配置一次性迁移（四合一/水印/逐图方案 → 新结构）
         try:
             rj, jj = migrate(self.cfg, with_global=True)
             if rj != (self.cfg.image_simple_rules or "[]") or jj != (self.cfg.image_ai_jobs or "[]"):
@@ -2551,255 +3081,484 @@ class App:
         except Exception:
             pass
 
-        state = {"group": "main",
+        state = {"jobs": parse_jobs(self.cfg.image_ai_jobs),
                  "rules": parse_rules(self.cfg.image_simple_rules),
-                 "jobs": parse_jobs(self.cfg.image_ai_jobs),
                  "timer": None}
-        body = ft.Column(spacing=8)
-        status = ft.Text("", size=11, color=MUTED)
-        tab_row = ft.Row(spacing=8)
+
+        def _get(key, default=None):
+            return getattr(self.cfg, key, default)
+
+        summary = ft.Text("", size=11, color=MUTED)
 
         def persist():
-            self.cfg.set("image_simple_rules", rows_to_rules(state["rules"]))
             self.cfg.set("image_ai_jobs", rows_to_jobs(state["jobs"]))
+            self.cfg.set("image_simple_rules", rows_to_rules(state["rules"]))
             save_config(self.cfg)
-            g = state["group"]
-            n_rules = len([r for r in state["rules"] if r["group"] == g])
-            n_jobs = len([j for j in state["jobs"] if j["group"] == g])
-            status.value = f"{GROUP_LABELS[g]}：{n_rules} 条简单规则 · {n_jobs} 条精细任务"
-            status.color = ACCENT_2 if (n_rules or n_jobs) else MUTED
+            refresh_summary()
             try:
                 self._safe_update()
             except Exception:
                 pass
 
-        def schedule_persist():
+        def schedule():
             t = state.get("timer")
             if t:
                 try:
                     t.cancel()
                 except Exception:
                     pass
-            timer = threading.Timer(0.5, persist)
+            timer = threading.Timer(0.6, persist)
             timer.daemon = True
             state["timer"] = timer
             timer.start()
 
-        # ---------- 简单规则行 ----------
-        def rule_row(rule: dict, g: str):
-            rng = ft.TextField(label="图片范围（1-5 / 1,3,4）", value=str(rule.get("range") or "1-5"),
-                               width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            cbs = {}
-            for op in ("white", "watermark", "translate"):
-                cbs[op] = ft.Checkbox(label=OP_LABELS[op], value=op in (rule.get("ops") or []))
+        def refresh_summary():
+            n = {g: len([j for j in state["jobs"] if j["group"] == g]) for g in ("main", "detail", "sku")}
+            parts = []
+            if _get("img_fine_main_enable", True) and n["main"]:
+                parts.append(f"AI主图 {n['main']} 条")
+            if _get("img_fine_detail_enable", False) and n["detail"]:
+                parts.append(f"AI详情图 {n['detail']} 条")
+            if _get("img_fine_sku_enable", False) and n["sku"]:
+                parts.append(f"AI SKU {n['sku']} 条")
+            summary.value = " · ".join(parts) if parts else "未启用任何AI图片编辑"
+            summary.color = ACCENT_2 if parts else MUTED
 
-            def sync(e=None):
-                rule["range"] = str(rng.value or "1-5")
-                rule["ops"] = [op for op, cb in cbs.items() if cb.value]
-                if not rule["ops"]:
-                    try:
-                        state["rules"].remove(rule)
-                    except ValueError:
-                        pass
-                    render()
+        body = ft.Column(spacing=12)
+
+        # ---------- 参考图选择器（复用同一个，避免堆积 overlay）----------
+        if not getattr(self, "_ref_picker", None):
+            self._ref_picker = ft.FilePicker(on_result=lambda e: None)
+            try:
+                self.page.overlay.append(self._ref_picker)
+            except Exception:
+                pass
+
+        def pick_refs(job, rerender):
+            def on_res(e):
+                if not e.files:
+                    return
+                cur = list(job.get("ref_paths") or [])
+                for f in e.files:
+                    if len(cur) >= 5:
+                        break
+                    p = str(getattr(f, "path", "") or "")
+                    if p and p not in cur:
+                        cur.append(p)
+                job["ref_paths"] = cur[:5]
+                rerender()
+                persist()
+            self._ref_picker.on_result = on_res
+            try:
+                self._ref_picker.pick_files(allow_multiple=True,
+                                            allowed_extensions=["png", "jpg", "jpeg", "webp"])
+            except Exception as ex:
+                self.toast(f"选择参考图失败：{ex}", False)
+
+        # ---------- 精细化编辑：单条任务 ----------
+        MAX_POS = {"main": 10, "detail": 12, "sku": 10}
+
+        def job_row(job, g, rerender):
+            pos = ft.Dropdown(
+                label="图片位置", width=132, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                value=str(min(MAX_POS[g], max(1, int(job.get("index") or 1)))),
+                options=[ft.dropdown.Option(str(i), f"{GROUP_LABELS.get(g, g)} {i}")
+                         for i in range(1, MAX_POS[g] + 1)])
+
+            # AI提示词预设下拉框
+            preset_options = ["自定义"] + list(IMAGE_PROMPT_PRESETS.get(g, {}).keys())
+            current_preset = job.get("preset") or "自定义"
+            if current_preset not in preset_options:
+                current_preset = "自定义"
+
+            preset_dropdown = ft.Dropdown(
+                label="AI提示词预设",
+                width=180,
+                value=current_preset,
+                options=[ft.dropdown.Option(p) for p in preset_options],
+                bgcolor=CARD_2,
+                border_color=CARD_2,
+                color=TEXT
+            )
+
+            prompt = ft.TextField(label="AI 提示词", value=str(job.get("prompt") or ""),
+                                  multiline=True, min_lines=3, max_lines=12, expand=True,
+                                  bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+            refs = list(job.get("ref_paths") or [])
+            refs_btn = ft.TextButton(
+                f"参考图（{len(refs)}/5）", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
+                tooltip="上传本地参考图（最多5张）。图片顺序：先本地参考图，后产品原图。提示词里用「图1」「图2」引用。",
+                on_click=lambda e: pick_refs(job, rerender))
+            refs_label = ft.Text(
+                "、".join(Path(p).name for p in refs) if refs else "",
+                size=10, color=MUTED)
+
+            def clear_refs(e=None):
+                job["ref_paths"] = []
+                rerender()
                 persist()
 
-            rng.on_change = lambda e: schedule_persist()
-            for cb in cbs.values():
-                cb.on_change = sync
-
-            def remove(e):
-                try:
-                    state["rules"].remove(rule)
-                except ValueError:
-                    pass
-                render(); persist()
-
-            return ft.Container(
-                content=ft.Row([rng, cbs["white"], cbs["watermark"], cbs["translate"],
-                                ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
-                               spacing=8, wrap=True),
-                bgcolor=CARD_2, border_radius=10, padding=10)
-
-        # ---------- 精细任务行 ----------
-        def job_row(job: dict, g: str):
-            idx = ft.Dropdown(label="第几张图", width=110, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                              value=str(min(8, max(1, int(job.get("index") or 1)))),
-                              options=[ft.dropdown.Option(str(i)) for i in range(1, 9)])
-            preset_dd = ft.Dropdown(label="中文预设", width=230, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                    value=str(job.get("preset") or "custom"),
-                                    options=[ft.dropdown.Option("custom", "自定义（直接写）")] +
-                                            [ft.dropdown.Option(p["key"], p["zh"]) for p in presets_for(g)])
-            prompt = ft.TextField(label="这一张图的提示词（可改）", value=str(job.get("prompt") or ""),
-                                  multiline=True, min_lines=2, max_lines=4, expand=True,
-                                  bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            desc = ft.Text("", size=10, color=MUTED)
-            mode = ft.Dropdown(label="方式", width=150, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                               value=str(job.get("mode") or "edit"),
-                               options=[ft.dropdown.Option("edit", "编辑（用这张图）"),
-                                        ft.dropdown.Option("generate", "生成（用素材图）")])
-            refs_box = ft.Row(spacing=2)
-            insert = ft.Dropdown(label="放哪里", width=130, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                 value=str(job.get("insert") or "first"),
-                                 options=[ft.dropdown.Option("first", "插到第 1 张"),
-                                          ft.dropdown.Option("last", "放到最后"),
-                                          ft.dropdown.Option("replace", "替换这张")])
-            count = ft.Dropdown(label="生成数量", width=110, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                value=str(job.get("count") or 1),
-                                options=[ft.dropdown.Option(str(i)) for i in (1, 2, 3)])
-            refs_state = set(str(job.get("refs") or "").replace("，", ",").replace(" ", "").split(","))
-            refs_state.discard("")
-
-            def sync_refs(e=None):
-                job["refs"] = ",".join(sorted([x for x in refs_state if x.isdigit()], key=int))
-                schedule_persist()
-
-            for i in range(1, 7):
-                cb = ft.Checkbox(label=str(i), value=str(i) in refs_state, width=44)
-
-                def on_cb(e, _i=i, _cb=cb):
-                    if _cb.value:
-                        refs_state.add(str(_i))
-                    else:
-                        refs_state.discard(str(_i))
-                    sync_refs()
-
-                cb.on_change = on_cb
-                refs_box.controls.append(cb)
-
-            def sync(e=None):
-                try:
-                    job["index"] = int(idx.value or 1)
-                except Exception:
-                    job["index"] = 1
-                job["prompt"] = str(prompt.value or "").strip()
-                job["mode"] = mode.value or "edit"
-                job["insert"] = insert.value or "first"
-                try:
-                    job["count"] = int(count.value or 1)
-                except Exception:
-                    job["count"] = 1
-                schedule_persist()
+            refs_clear = ft.IconButton(ft.Icons.CLOSE, icon_size=14, icon_color="#FF8A8A",
+                                       tooltip="清空参考图", visible=bool(refs), on_click=clear_refs)
 
             def on_preset(e):
-                p = get_preset(g, preset_dd.value)
-                if p:
-                    prompt.value = p["en"]
-                    desc.value = p["desc"]
-                    job["prompt"] = p["en"]
-                    job["preset"] = p["key"]
-                    schedule_persist()
-                else:
-                    job["preset"] = "custom"
-                    schedule_persist()
+                selected = preset_dropdown.value
+                job["preset"] = selected
+                if selected != "自定义":
+                    # 填充预设提示词
+                    preset_text = IMAGE_PROMPT_PRESETS.get(g, {}).get(selected, "")
+                    if preset_text:
+                        prompt.value = preset_text.strip()
+                        job["prompt"] = preset_text.strip()
+                schedule()
                 try:
                     self._safe_update()
                 except Exception:
                     pass
 
-            preset_dd.on_change = on_preset
-            idx.on_change = sync
-            mode.on_change = sync
-            insert.on_change = sync
-            count.on_change = sync
-            def on_prompt_edit(e):
-                # 手改提示词后视为自定义
-                job["preset"] = "custom"
-                preset_dd.value = "custom"
-                sync()
-            prompt.on_change = on_prompt_edit
+            def on_pos(e):
+                try:
+                    job["index"] = max(1, int(pos.value or 1))
+                except Exception:
+                    job["index"] = 1
+                schedule()
+
+            def on_prompt(e):
+                job["prompt"] = str(prompt.value or "").strip()
+                # 如果用户手动修改了提示词，切换到"自定义"
+                if job["prompt"] and preset_dropdown.value != "自定义":
+                    # 检查是否还匹配预设
+                    preset_text = IMAGE_PROMPT_PRESETS.get(g, {}).get(preset_dropdown.value, "")
+                    if job["prompt"].strip() != preset_text.strip():
+                        preset_dropdown.value = "自定义"
+                        job["preset"] = "自定义"
+                schedule()
+
+            pos.on_change = on_pos
+            preset_dropdown.on_change = on_preset
+            prompt.on_change = on_prompt
 
             def remove(e):
                 try:
                     state["jobs"].remove(job)
                 except ValueError:
                     pass
-                render(); persist()
+                rerender()
+                persist()
 
             return ft.Container(
                 content=ft.Column([
-                    ft.Row([idx, preset_dd, mode, insert, count,
-                            ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
-                           spacing=8, wrap=True),
+                    ft.Row([pos, preset_dropdown,
+                            ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A",
+                                          tooltip="删除这一条", on_click=remove)],
+                           spacing=8, vertical_alignment=ft.CrossAxisAlignment.START),
                     prompt,
-                    ft.Row([ft.Text("素材图（多选，和第几张一起交给 AI）:", size=10, color=MUTED), refs_box],
-                           spacing=6, wrap=True),
-                    desc,
-                ], spacing=6),
+                    ft.Row([refs_btn, refs_clear, refs_label], spacing=4, wrap=True),
+                ], spacing=4),
                 bgcolor=CARD_2, border_radius=10, padding=10)
 
-        # ---------- 渲染 ----------
-        def render():
-            g = state["group"]
-            rules = [r for r in state["rules"] if r["group"] == g]
-            jobs = [j for j in state["jobs"] if j["group"] == g]
+        # ---------- 精细化编辑：一个分组 ----------
+        def group_section(g: str, title: str, enable_key: str, rerender,
+                          extra_controls: list | None = None):
+            enabled = ft.Checkbox(
+                label=title,
+                value=bool(_get(enable_key, g == "main")),
+                label_style=ft.TextStyle(size=12, weight=ft.FontWeight.BOLD),
+                tooltip=f"勾选后上架时对{title}启用 AI 处理")
 
-            def add_rule(e=None):
-                state["rules"].append({"group": g, "range": "1-3", "ops": ["white"] if g == "main" else ["watermark"]})
-                render(); persist()
+            jobs = [j for j in state["jobs"] if j["group"] == g]
+            rows_box = ft.Column([job_row(j, g, rerender) for j in jobs], spacing=8)
+
+            def on_enable(e):
+                self.cfg.set(enable_key, bool(enabled.value))
+                # 只要有任何分组开启，就确保总开关也是开的
+                if enabled.value:
+                    self.cfg.set("ai_image_enable", True)
+                save_config(self.cfg)
+                refresh_summary()
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            enabled.on_change = on_enable
 
             def add_job(e=None):
                 state["jobs"].append({"group": g, "index": 1, "refs": "", "prompt": "",
-                                      "mode": "edit", "count": 1, "insert": "first"})
-                render(); persist()
+                                      "mode": "edit", "count": 1, "insert": "replace",
+                                      "preset": "", "ref_paths": []})
+                rerender()
+                persist()
 
-            def quick_all(ops):
-                def _run(e):
-                    state["rules"].append({"group": g, "range": "1-20", "ops": list(ops)})
-                    render(); persist()
-                return _run
+            def batch_add(e=None):
+                existing_positions = {j.get("index") for j in jobs}
+                default_preset_key = list(IMAGE_PROMPT_PRESETS.get(g, {}).keys())[0] if IMAGE_PROMPT_PRESETS.get(g) else None
+                default_prompt = IMAGE_PROMPT_PRESETS.get(g, {}).get(default_preset_key, "") if default_preset_key else ""
+                max_pos = MAX_POS.get(g, 10)
+                added = 0
+                for i in range(1, min(max_pos + 1, 9)):
+                    if i not in existing_positions:
+                        state["jobs"].append({
+                            "group": g, "index": i, "refs": "",
+                            "prompt": default_prompt, "mode": "edit", "count": 1,
+                            "insert": "replace", "preset": default_preset_key or "自定义", "ref_paths": []
+                        })
+                        added += 1
+                if added > 0:
+                    rerender()
+                    persist()
+                    self.toast(f"已批量添加 {added} 条任务", True)
+                else:
+                    self.toast("所有位置都已有任务", False)
 
-            rules_card = card(ft.Column([
-                h1("简单处理（勾选即可，不用写提示词）", 15),
-                muted("白底 / 去水印 / 翻译，按范围批量做；费用低、速度快"),
-                ft.Row([ft.ElevatedButton("添加一条", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=add_rule),
-                        ft.OutlinedButton("全部白底", on_click=quick_all(["white"])),
-                        ft.OutlinedButton("全部去水印", on_click=quick_all(["watermark"])),
-                        ft.OutlinedButton("全部翻译", on_click=quick_all(["translate"]))], spacing=8, wrap=True),
-                ft.Column([rule_row(r, g) for r in rules] or
-                          [ft.Text("还没有简单规则。点「添加一条」，选范围并勾选要做的处理。", size=11, color=MUTED)],
-                          spacing=6),
-            ], spacing=8))
+            job_count = ft.Text(
+                f"{len(jobs)} 条任务" if jobs else "未添加任务",
+                size=11, color=ACCENT_2 if jobs else MUTED)
 
-            jobs_card = card(ft.Column([
-                h1("精细处理（给某几张图写提示词）", 15),
-                muted("每条 = 第几张图 + 你要的效果（中文预设点一下就有）；素材多选表示「结合这几张图一起交给 AI」"),
-                muted("例：第 1 张选「多图合成主图」、素材勾 2,3,4 → 生成的新主图插到第 1 张，原图顺延"),
-                ft.Row([ft.ElevatedButton("添加一条", icon=ft.Icons.ADD, bgcolor=ACCENT_2, color="#04231C",
-                                          on_click=add_job)], spacing=8, wrap=True),
-                ft.Column([job_row(j, g) for j in jobs] or
-                          [ft.Text("还没有精细任务。点「添加一条」，选第几张图和中文预设即可。", size=11, color=MUTED)],
-                          spacing=6),
-            ], spacing=8))
+            add_btn = ft.OutlinedButton(
+                f"+ 添加", icon=ft.Icons.ADD, on_click=add_job,
+                tooltip=f"逐个添加{title}任务，自定义每张图的 AI 提示词")
+            batch_btn = ft.OutlinedButton(
+                "批量 1-8 张", icon=ft.Icons.PLAYLIST_ADD, on_click=batch_add,
+                tooltip=f"一键为所有{title}（1-8张）添加任务，使用默认预设")
 
-            body.controls = [jobs_card, rules_card]
-            for b in tab_row.controls:
-                on = getattr(b, "data", "") == g
-                b.bgcolor = ACCENT if on else CARD_2
-                b.color = "white" if on else TEXT
+            controls = [
+                ft.Row([enabled, job_count, ft.Row([add_btn, batch_btn], spacing=6)],
+                       spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                *((extra_controls or [])),
+                rows_box if jobs else None,
+            ]
+            controls = [c for c in controls if c is not None]
+
+            return ft.Container(
+                content=ft.Column(controls, spacing=8),
+                border=ft.border.all(1, CARD_2), border_radius=12, padding=12)
+
+        # ---------- 精细化编辑面板 ----------
+        def fine_panel(rerender):
+            det_replace = ft.Checkbox(
+                label="删除原有详情图，仅保留 AI 编辑结果",
+                value=bool(_get("img_fine_detail_replace", False)),
+                tooltip="开启后，原详情图全部清除，只保留本次 AI 编辑生成的图片")
+
+            def on_det_replace(e):
+                self.cfg.set("img_fine_detail_replace", bool(det_replace.value))
+                save_config(self.cfg)
+
+            det_replace.on_change = on_det_replace
+
+            return ft.Column([
+                group_section("main", "AI 主图编辑", "img_fine_main_enable", rerender),
+                group_section("detail", "AI 详情图编辑", "img_fine_detail_enable", rerender,
+                              extra_controls=[det_replace]),
+                group_section("sku", "AI SKU 图编辑", "img_fine_sku_enable", rerender),
+            ], spacing=12)
+
+        # ---------- 渲染 ----------
+        def render():
+            body.controls = [fine_panel(render)]
+            refresh_summary()
             try:
                 self._safe_update()
             except Exception:
                 pass
 
-        def switch(g):
-            state["group"] = g
-            render()
-            persist()
-
-        for key in ("main", "detail", "sku"):
-            b = ft.ElevatedButton(GROUP_LABELS[key], bgcolor=CARD_2, color=TEXT,
-                                  on_click=lambda e, _g=key: switch(_g))
-            b.data = key
-            tab_row.controls.append(b)
-
         render()
+
+        # ---------- 图片尺寸校验（速卖通 ≥800×800）----------
+        size_on = ft.Checkbox(label="图片尺寸校验", value=bool(_get("img_min_size_enable", True)))
+        size_val = ft.TextField(label="最小边长(px)", width=140,
+                                value=str(_get("img_min_size", 800)),
+                                bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        size_drop = ft.Checkbox(
+            label="连原图里也不合规的一起去掉（默认关，避免误删主图）",
+            value=bool(_get("img_min_size_drop_invalid", False)))
+
+        def on_size_on(e):
+            self.cfg.set("img_min_size_enable", bool(size_on.value))
+            save_config(self.cfg)
+
+        def on_size_val(e):
+            try:
+                v = max(1, int(str(size_val.value or "800").strip()))
+            except Exception:
+                v = 800
+            self.cfg.set("img_min_size", v)
+            schedule()
+
+        def on_size_drop(e):
+            self.cfg.set("img_min_size_drop_invalid", bool(size_drop.value))
+            save_config(self.cfg)
+
+        size_on.on_change = on_size_on
+        size_val.on_change = on_size_val
+        size_drop.on_change = on_size_drop
+
+        audit_status = ft.Text("", size=11, color=MUTED)
+
+        def run_audit(e=None):
+            prods = list(getattr(self, "products", None) or [])
+            if not prods:
+                self.toast("还没有加载商品，请先在「上架」页拉取产品", False)
+                return
+            ms = int(_get("img_min_size", 800) or 800)
+
+            def work():
+                from ..services.image_validation import audit_products
+                audit_status.value = f"检查中… 0/{len(prods)}"
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+                def prog(n, total, title):
+                    audit_status.value = f"检查中… {n}/{total} {title}"
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+
+                try:
+                    res = audit_products(prods, ms, progress=prog)
+                except Exception as ex:  # noqa: BLE001
+                    audit_status.value = f"检查失败：{ex}"
+                    audit_status.color = "#FF8A8A"
+                    self._log(f"图片体检失败：{ex}", "WARN")
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+                    return
+                bad_lines = []
+                for pr in res["products"]:
+                    for idx, url, info in pr["bad"]:
+                        bad_lines.append(f"[{pr['id']}] 第{idx}张 {info}")
+                ok = res["failed"] == 0
+                audit_status.value = (f"{'✓' if ok else '✗'} 共 {res['total']} 张："
+                                      f"合格 {res['passed']} / 不合格 {res['failed']}（阈值 {ms}px）")
+                audit_status.color = ACCENT_2 if ok else "#FF8A8A"
+                self._log(audit_status.value, "INFO" if ok else "WARN")
+                for line in bad_lines[:20]:
+                    self._log("  · " + line, "WARN")
+                try:
+                    self._show_audit_dialog(res, ms)
+                except Exception:
+                    pass
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            threading.Thread(target=work, daemon=True).start()
+
+        audit_btn = ft.OutlinedButton("检查图片尺寸", icon=ft.Icons.SEARCH,
+                                      on_click=lambda e: run_audit())
+
+        # ---------- 使用说明 ----------
+        usage_guide = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color="#4B3B8F"),
+                    ft.Text("使用说明", size=12, weight=ft.FontWeight.BOLD, color="#4B3B8F")
+                ], spacing=6),
+                ft.Text(
+                    "• 分组开关：控制主图/详情图/SKU图是否处理\n"
+                    "• 添加任务：为每张图片设置独立的AI提示词\n"
+                    "• 批量添加：一键为所有图片添加任务（使用默认预设）",
+                    size=10, color="#4B3B8F"),
+                ft.Text(
+                    "💡 常见场景：\n"
+                    "  - 只处理主图：勾选「AI 主图编辑」，添加主图任务\n"
+                    "  - 批量编辑主图：点击「批量 1-8 张」，一键添加所有主图任务",
+                    size=10, color="#6B5B9F"),
+            ], spacing=6),
+            bgcolor="#EFEBFB", border_radius=10, padding=12)
+
         return card(ft.Column([
-            h1("图片处理方案", 15),
-            muted("先选分组（主图 / 描述图 / SKU 图），再决定「简单处理」还是「精细处理」；两侧可同时用"),
-            tab_row,
-            body, status,
+            h1("图片通用编辑", 15),
+            ft.Row([summary], spacing=12),
+            body,
+            ft.Divider(height=1, color=CARD_2),
+            ft.Row([size_on, size_val, audit_btn], spacing=10, wrap=True),
+            muted("AI 产出的图小于最小边长时不采用（保留原图）；速卖通要求主图/SKU图/详情图 ≥800×800"),
+            size_drop,
+            audit_status,
         ], spacing=10))
+
+    def _plan_preview(self):
+        """「这次会做什么」——把配置翻译成人话，并指出静默失效的项。"""
+        box = ft.Column(spacing=2)
+        status = ft.Text("", size=10, color=MUTED)
+
+        def refresh(e=None):
+            try:
+                from ..services.preflight import image_plan_lines, check
+                lines = image_plan_lines(self.cfg)
+                issues = [i for i in check(self.cfg) if i.level in ("error", "warn")]
+                ctrls = [ft.Row([ft.Icon(ft.Icons.PLAY_ARROW, size=14, color=ACCENT_2),
+                                 ft.Text(t, size=11, color=TEXT, selectable=True)], spacing=6)
+                         for t in lines]
+                for i in issues[:6]:
+                    color = "#FF8A8A" if i.level == "error" else "#FFB020"
+                    ctrls.append(ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=14, color=color),
+                                         ft.Text(i.text, size=11, color=color, selectable=True)], spacing=6))
+                box.controls = ctrls or [ft.Text("（暂无图片处理配置）", size=11, color=MUTED)]
+                status.value = "已按当前配置生成，改完上面的设置点刷新"
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+            except Exception as ex:  # noqa: BLE001
+                box.controls = [ft.Text(f"生成预览失败：{ex}", size=11, color="#FF8A8A")]
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+        refresh()
+        return ft.Container(
+            content=ft.Column([
+                ft.Row([ft.Text("这次会做什么", size=13, weight=ft.FontWeight.BOLD, color=TEXT),
+                        ft.TextButton("刷新", icon=ft.Icons.REFRESH, on_click=refresh)], spacing=8),
+                box, status,
+            ], spacing=6),
+            bgcolor="#F4F7FF", border_radius=10, padding=10)
+
+    def _show_audit_dialog(self, res: dict, min_size: int):
+        """展示图片尺寸体检结果（只读，不改任何商品数据）。"""
+        rows = []
+        for pr in res.get("products", []):
+            bad = pr.get("bad") or []
+            rows.append(ft.DataRow(cells=[
+                ft.DataCell(ft.Text(pr.get("title") or pr.get("id") or "", size=11, color=TEXT)),
+                ft.DataCell(ft.Text(f"{pr.get('ok', 0)}/{pr.get('checked', 0)}", size=11, color=TEXT)),
+                ft.DataCell(ft.Text("—" if not bad else f"{len(bad)} 张",
+                                    size=11, color=ACCENT_2 if not bad else "#FF8A8A")),
+                ft.DataCell(ft.Text("；".join(f"第{i}张 {info}" for i, _u, info in bad[:3]) or "",
+                                    size=10, color=MUTED, selectable=True)),
+            ]))
+        table = ft.DataTable(
+            columns=[ft.DataColumn(ft.Text("产品", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("合格", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("不合格", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("明细", size=11, color=MUTED))],
+            rows=rows, column_spacing=14, heading_row_height=28, data_row_min_height=26)
+        head = ft.Text(
+            f"阈值 {min_size}×{min_size}：共 {res.get('total', 0)} 张，"
+            f"合格 {res.get('passed', 0)}，不合格 {res.get('failed', 0)}",
+            size=12, color=TEXT, weight=ft.FontWeight.BOLD)
+        self.dlg = ft.AlertDialog(
+            title=ft.Text("图片尺寸体检"),
+            content=ft.Container(width=760, height=420,
+                                 content=ft.Column([head,
+                                                    ft.Row([table], scroll=ft.ScrollMode.AUTO)],
+                                                   spacing=8, scroll=ft.ScrollMode.AUTO)),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())],
+            actions_alignment=ft.MainAxisAlignment.END)
+        self.page.overlay.append(self.dlg)
+        self.dlg.open = True
+        self._safe_update()
 
     def _four_in_one_local(self, e=None):
         """把当前选中的图（前 4 张）拼成一张，追加到图片墙与结果里。"""
@@ -2837,7 +3596,7 @@ class App:
         for _k in ("main_image_generate_enable", "img_main_edit", "designated_edit_enable",
                    "translate_main_pic_enable", "translate_detail_pic_enable", "translate_sku_pic",
                    "img_detail_white_bg", "img_detail_remove_wm", "img_detail_edit",
-                   "img_sku_remove_wm", "img_sku_edit", "marketing_image_enable",
+                   "img_sku_remove_wm", "img_sku_edit", "marketing_auto_generate",
                    "generate_main_video", "enable_ai_weight",
                    "review_main_img_enable", "review_detail_img_enable", "review_text_enable",
                    "four_in_one", "overlay_watermark_enable"):
@@ -2883,14 +3642,9 @@ class App:
             "white_background_sku_pic", "img_sku_white_bg", "img_sku_remove_wm",
             "translate_sku_pic", "translate_image_understanding",
         ]
-        general_keys = [
-            "ai_image_enable", "image_concurrency", "write_main_images_to_product", "write_detail_html_to_product",
-            "main_image_generate_enable", "main_image_generate_prompt", "main_image_generate_count",
-            "main_image_generate_use_refs", "img_main_edit", "designated_edit_enable",
-            "designated_edit_indices", "designated_edit_prompt",
-            "marketing_image_enable", "marketing_image_count", "marketing_image_prompt",
-            "background_gen_sku_prompt", "edit_enable", "edit_prompt",
-        ]
+        # 图片通用编辑页只保留「并发数」这类全局参数；
+        # 写回商品/主图生成/指定编辑等旧开关一律隐藏（由「启用」总开关自动执行，避免用户困惑）
+        general_keys = ["image_concurrency"]
         simple = []
         for name, fields in schema_image():
             fs = [f for f in fields if f.key in simple_keys]
@@ -3067,9 +3821,7 @@ class App:
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):
-        from ..services.pricing import (compute_price, tiers_to_rows, rows_to_tiers,
-                                        regional_to_rows, rows_to_regional,
-                                        wholesale_to_rows, rows_to_wholesale)
+        from ..services.pricing import compute_price, tiers_to_rows, rows_to_tiers
         self._current = 6
         view = self._render("价格设置", schema_price())
 
@@ -3191,87 +3943,96 @@ class App:
 
         tier_render()
         tier_card = card(ft.Column([
-            h1("阶梯价格", 15),
-            muted("按成本落在哪一档，就用该档倍率（成本 × 倍率 + 固定加价）"),
+            h1("阶梯倍率（内部计价）", 15),
+            muted("按成本落在哪一档，就用该档倍率（成本 × 倍率 + 固定加价）；这是本地计价，不是平台阶梯价"),
             ft.Row([ft.ElevatedButton("添加一档", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=tier_add),
                     ft.OutlinedButton("套用示例（3 档）", icon=ft.Icons.AUTO_AWESOME, on_click=tier_template)],
                    spacing=10, wrap=True),
             tier_col, tier_status,
         ], spacing=8))
 
-        # ---- 区域倍率表格 ----
-        reg_state = {"rows": regional_to_rows(getattr(self.cfg, "adjust_price_template_detail", "{}"))}
-        reg_col = ft.Column(spacing=6)
-        reg_status = ft.Text("", size=11, color=MUTED)
+        # ---- 区域调价（店小秘风格：按国家设绝对价）----
+        def _rq_load():
+            raw = getattr(self.cfg, "regional_quotes", "[]")
+            if isinstance(raw, str):
+                try:
+                    import json as _jq
+                    raw = _jq.loads(raw)
+                except Exception:
+                    raw = []
+            return [dict(r) for r in (raw or []) if isinstance(r, dict)]
 
-        def reg_persist():
-            self.cfg.set("adjust_price_template_detail", rows_to_regional(reg_state["rows"]))
+        rq_state = {"rows": _rq_load()}
+        rq_col = ft.Column(spacing=6)
+        rq_status = ft.Text("", size=11, color=MUTED)
+
+        def rq_persist():
+            import json as _jq
+            self.cfg.set("regional_quotes", _jq.dumps(rq_state["rows"], ensure_ascii=False))
             save_config(self.cfg)
-            reg_status.value = (f"已设置 {len(reg_state['rows'])} 个币种倍率"
-                                if reg_state["rows"] else "未设置区域倍率：开启「区域倍率」后生效")
-            reg_status.color = ACCENT_2 if reg_state["rows"] else MUTED
+            rq_status.value = (f"已设置 {len(rq_state['rows'])} 个国家/地区"
+                               if rq_state["rows"] else "未设置区域价：开启「启用区域调价」后生效")
+            rq_status.color = ACCENT_2 if rq_state["rows"] else MUTED
             try:
                 self._safe_update()
             except Exception:
                 pass
             calc()
 
-        def reg_row(row: dict):
-            cur = ft.Dropdown(label="币种", width=110, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                              value=str(row.get("currency") or "USD"),
-                              options=[ft.dropdown.Option(c) for c in CURRENCIES])
-            rate = ft.TextField(label="倍率", value=f"{row.get('rate', 1):g}", width=100,
-                                bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        def rq_row(row: dict):
+            cur = ft.Dropdown(label="国家/地区", width=170, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                              value=str(row.get("country") or "US"),
+                              options=[ft.dropdown.Option(c, f"{c} · {n}") for c, n in REGIONS])
+            price = ft.TextField(label="绝对价（元）", value=str(row.get("price", 0)), width=130,
+                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
 
             def sync(e=None):
-                row["currency"] = cur.value or "USD"
+                row["country"] = cur.value or "US"
                 try:
-                    row["rate"] = float(rate.value or 1)
+                    row["price"] = float(price.value or 0)
                 except Exception:
                     return
-                reg_persist()
+                rq_persist()
 
             cur.on_change = sync
-            rate.on_change = sync
+            price.on_change = sync
 
             def remove(e):
                 try:
-                    reg_state["rows"].remove(row)
+                    rq_state["rows"].remove(row)
                 except ValueError:
                     pass
-                reg_render(); reg_persist()
+                rq_render(); rq_persist()
 
-            return ft.Row([cur, rate,
+            return ft.Row([cur, price,
                            ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
                           spacing=8, wrap=True)
 
-        def reg_render():
-            reg_col.controls = [reg_row(r) for r in reg_state["rows"]] or [
-                ft.Text("还没有区域倍率。点「添加币种」，或直接点「套用常用币种」。", size=11, color=MUTED)]
+        def rq_render():
+            rq_col.controls = [rq_row(r) for r in rq_state["rows"]] or [
+                ft.Text("还没有区域价。点「添加国家」，例如 US 12.99、RU 15.99。", size=11, color=MUTED)]
             try:
                 self._safe_update()
             except Exception:
                 pass
 
-        def reg_add(e=None):
-            used = {r.get("currency") for r in reg_state["rows"]}
-            nxt = next((c for c in CURRENCIES if c not in used), "USD")
-            reg_state["rows"].append({"currency": nxt, "rate": 1.0})
-            reg_render(); reg_persist()
+        def rq_add(e=None):
+            used = {r.get("country") for r in rq_state["rows"]}
+            nxt = next((c for c, _ in REGIONS if c not in used), "US")
+            rq_state["rows"].append({"country": nxt, "price": 0})
+            rq_render(); rq_persist()
 
-        def reg_common(e=None):
-            reg_state["rows"] = [{"currency": c, "rate": r} for c, r in
-                                 (("USD", 1.0), ("EUR", 0.92), ("GBP", 0.79), ("RUB", 12.5), ("BRL", 5.4))]
-            reg_render(); reg_persist()
-
-        reg_render()
+        rq_render()
         reg_card = card(ft.Column([
-            h1("区域倍率", 15),
-            muted("成交价按币种展示（人民币价 × 倍率），用于核对各站点价格；不影响商品人民币价"),
-            ft.Row([ft.ElevatedButton("添加币种", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=reg_add),
-                    ft.OutlinedButton("套用常用币种", icon=ft.Icons.AUTO_AWESOME, on_click=reg_common)],
+            h1("区域调价", 15),
+            muted("按国家/地区设置绝对成交价（店小秘同款：选中哪个国家就用哪个价）"),
+            ft.Switch(label="启用区域调价", value=bool(getattr(self.cfg, "regional_quote_enable", False)),
+                      active_color=ACCENT,
+                      on_change=lambda e: (self.cfg.set("regional_quote_enable", bool(e.control.value)),
+                                           save_config(self.cfg))),
+            ft.Row([ft.ElevatedButton("添加国家", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=rq_add)],
                    spacing=10, wrap=True),
-            reg_col, reg_status,
+            rq_col, rq_status,
         ], spacing=8))
 
         # ---- 店小秘区域调价模板（搜索/选用）----
@@ -3304,70 +4065,29 @@ class App:
             self.tpl_selected, self.tpl_status, self.tpl_list,
         ], spacing=8))
 
-        # ---- 批发价表格 ----
-        ws_state = {"rows": wholesale_to_rows(getattr(self.cfg, "wholesale_tiers", "[]"))}
-        ws_col = ft.Column(spacing=6)
-        ws_status = ft.Text("", size=11, color=MUTED)
+        # ---- 批发（店小秘风格：购买 N 件减免 X% + 一件代发折扣）----
+        def _num_field(key, label, width, tooltip):
+            ctl = ft.TextField(label=label, width=width, bgcolor=CARD_2, border_color=CARD_2,
+                               color=TEXT, value=str(getattr(self.cfg, key, "") or ""),
+                               tooltip=tooltip)
+            def on(e, _k=key):
+                self.cfg.set(_k, str(e.control.value or "").strip())
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
 
-        def ws_persist():
-            self.cfg.set("wholesale_tiers", rows_to_wholesale(ws_state["rows"]))
-            save_config(self.cfg)
-            ws_status.value = (f"已保存 {len(ws_state['rows'])} 档批发价"
-                               if ws_state["rows"] else "未设置批发价")
-            ws_status.color = ACCENT_2 if ws_state["rows"] else MUTED
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-            calc()
+        self.bulk_order = _num_field("bulk_order", "购买 N 件以上", 140, "2~100000")
+        self.bulk_discount = _num_field("bulk_discount", "减免 X%", 110, "1~99")
+        self.dropship_discount = _num_field("dropship_discount", "一件代发折扣 Y%", 150, "0~99")
 
-        def ws_row(row: dict):
-            qty = ft.TextField(label="起订量", value=str(row.get("min_qty", 10)), width=110,
-                               bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            price = ft.TextField(label="单价（元）", value=str(row.get("price", 0)), width=120,
-                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-
-            def sync(e=None):
-                try:
-                    row["min_qty"] = int(float(qty.value or 0))
-                    row["price"] = float(price.value or 0)
-                except Exception:
-                    return
-                ws_persist()
-
-            qty.on_change = sync
-            price.on_change = sync
-
-            def remove(e):
-                try:
-                    ws_state["rows"].remove(row)
-                except ValueError:
-                    pass
-                ws_render(); ws_persist()
-
-            return ft.Row([qty, price,
-                           ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="#FF8A8A", on_click=remove)],
-                          spacing=8, wrap=True)
-
-        def ws_render():
-            ws_col.controls = [ws_row(r) for r in ws_state["rows"]] or [
-                ft.Text("未设置批发价。点「添加一档」，例如 ≥10 件 ¥9.9。", size=11, color=MUTED)]
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-
-        def ws_add(e=None):
-            ws_state["rows"].append({"min_qty": 10, "price": 9.9})
-            ws_render(); ws_persist()
-
-        ws_render()
         ws_card = card(ft.Column([
-            h1("批发价", 15),
-            muted("按起订量分档；刊登时随价格结果一起计算（是否写入店铺看平台字段）"),
-            ft.Row([ft.ElevatedButton("添加一档", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=ws_add)],
-                   spacing=10, wrap=True),
-            ws_col, ws_status,
+            h1("批发", 15),
+            muted("店小秘同款：勾选后，买家一次购买满 N 件自动减免 X%"),
+            ft.Switch(label="启用批发", value=bool(getattr(self.cfg, "wholesale_enable", False)),
+                      active_color=ACCENT,
+                      on_change=lambda e: (self.cfg.set("wholesale_enable", bool(e.control.value)),
+                                           save_config(self.cfg))),
+            ft.Row([self.bulk_order, self.bulk_discount, self.dropship_discount], spacing=12, wrap=True),
         ], spacing=8))
 
         # ---- 本地区域模板（保存/套用倍数表）----
@@ -3474,56 +4194,26 @@ class App:
 
     def _p_variant(self):
         self._current = 7
-        self.src_attrs = ft.TextField(label="源属性（逗号分隔）", value="Model Number, Power (W)",
-                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.tgt_attrs = ft.TextField(label="目标属性（逗号分隔）", value="型号, 功率",
-                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.map_out = ft.Column(spacing=4)
+        # SKU 编码写回开关（多 SKU 时是硬约束：关了才能继续）
+        sku_write_cb = ft.Checkbox(
+            label="SKU 编码写回商品（多 SKU 商品需要先关掉才能继续）",
+            value=bool(getattr(self.cfg, "write_sku_codes_to_product", True)))
 
-        def preview(e):
-            src = [x.strip() for x in (self.src_attrs.value or "").split(",") if x.strip()]
-            tgt = [x.strip() for x in (self.tgt_attrs.value or "").split(",") if x.strip()]
-            mapping = auto_map(src, tgt)
-            self.map_out.controls = [ft.Text(f"{k}  →  {v}", size=12, color=MUTED) for k, v in mapping.items()] or \
-                                    [ft.Text("无匹配结果", size=12, color="#FFB020")]
-            self._safe_update()
-
-        card_map = card(ft.Column([h1("自动映射预览", 15), self.src_attrs, self.tgt_attrs,
-                                   ft.ElevatedButton("生成映射", on_click=preview), self.map_out], spacing=10))
-
-        # 可视化映射编辑器
-        self.rows_col = ft.Column(spacing=6)
-        self._mapping_rows: list[tuple[ft.TextField, ft.TextField]] = []
-
-        def add_row(e, src="", dst=""):
-            a = ft.TextField(value=src, hint_text="源属性", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            b = ft.TextField(value=dst, hint_text="目标属性", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            self._mapping_rows.append((a, b))
-            self.rows_col.controls.append(ft.Row([a, b], spacing=8))
-            self._safe_update()
-
-        def save_rows(e):
-            data = [{"from": a.value, "to": b.value} for a, b in self._mapping_rows if (a.value or "").strip()]
-            import json as _json
-            self.cfg.variant_mappings = _json.dumps(data, ensure_ascii=False)
+        def on_sku_write(e):
+            self.cfg.set("write_sku_codes_to_product", bool(sku_write_cb.value))
             save_config(self.cfg)
-            self._log(f"映射已保存：{len(data)} 条")
-            self.toast(f"已保存 {len(data)} 条映射")
+            self._log(f"SKU 编码写回：{'开' if sku_write_cb.value else '关'}")
 
-        import json as _json
-        try:
-            for row in _json.loads(self.cfg.variant_mappings or "[]"):
-                add_row(None, str(row.get("from", "")), str(row.get("to", "")))
-        except Exception:
-            pass
+        sku_write_cb.on_change = on_sku_write
+        write_card = card(ft.Column([
+            h1("SKU 写回", 15),
+            sku_write_cb,
+            muted("产品有多于 1 个 SKU 时，编辑器行身份还无法可靠匹配；"
+                  "先关掉这个开关即可继续上架（编码不写回，价格/库存照常）。"),
+        ], spacing=8))
 
-        editor = card(ft.Column([h1("映射编辑器", 15),
-                                 ft.Row([ft.ElevatedButton("新增一行", icon=ft.Icons.ADD, on_click=add_row),
-                                         ft.ElevatedButton("保存映射", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white",
-                                                           on_click=save_rows)], spacing=10),
-                                 self.rows_col], spacing=10))
         view = self._render("变种设置", schema_variant())
-        return [view[0], card_map, editor] + view[1:]
+        return [view[0], write_card] + view[1:]
 
     def _image_bench(self):
         self.aw_img = ft.TextField(label="图片 URL", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
@@ -3585,6 +4275,9 @@ class App:
         self.wb_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
         self.wb_urls = ft.TextField(label="图片 URL（每行一个，也可从产品取图）", multiline=True,
                                     min_lines=3, max_lines=6, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.wb_index = ft.TextField(label="只处理第N张（留空=全部）", width=160,
+                                       bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                       value="", tooltip="只对选中图片里的第 N 张做 AI 编辑")
         self.wb_prompt = ft.TextField(label="「编辑」提示词（中文/英文均可；逐张不同请到「AI图片处理 → 精细任务」）",
                                       value=self.cfg.edit_prompt or "", multiline=True, min_lines=2, max_lines=3,
                                       bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
@@ -3598,18 +4291,14 @@ class App:
                 if ok2:
                     self._wb_check_login()
                 else:
-                    self.toast("仍未读到 Cookie，请粘贴 Cookie 或启动浏览器", False)
+                    self.toast("仍未读到 Cookie，请粘贴 Cookie", False)
             threading.Thread(target=go, daemon=True).start()
-
-        def open_browser(e):
-            threading.Thread(target=self._connect_browser, daemon=True).start()
 
         conn_card = card(ft.Column([
             h1("1 · 连接", 15),
             ft.Row([self.wb_conn,
                     ft.OutlinedButton("重新检测 Cookie", icon=ft.Icons.REFRESH, on_click=recheck),
                     ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE, on_click=lambda e: self._paste_cookie()),
-                    ft.OutlinedButton("启动浏览器（兜底）", icon=ft.Icons.OPEN_IN_BROWSER, on_click=open_browser),
                     ft.OutlinedButton("打开店小秘", icon=ft.Icons.LINK,
                                       on_click=lambda e: self._open_dxm_page())], spacing=8, wrap=True),
             self.wb_conn_hint,
@@ -3710,6 +4399,7 @@ class App:
             h1("3 · 图片处理", 15),
             muted("简单处理：白底 / 去水印 / 翻译 / 四合一；精细处理：填提示词后点「编辑」"),
             ft.Row([ft.ElevatedButton("白底", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
+                    ft.ElevatedButton("加水印", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("add_watermark")),
                     ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
                     ft.ElevatedButton("翻译成英文", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("translate")),
                     ft.ElevatedButton("编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
@@ -3722,7 +4412,7 @@ class App:
                     ft.OutlinedButton("加载图片", icon=ft.Icons.DOWNLOAD, on_click=lambda e: self._wb_load_urls()),
                     ft.OutlinedButton("从已拉取产品取图", icon=ft.Icons.INVENTORY_2, on_click=fill_from_products)],
                    spacing=8, wrap=True),
-            self.wb_prompt,
+            self.wb_index, self.wb_prompt,
             self.wb_status,
             ft.Text("图片墙：点勾选要处理的图（默认全选）", size=11, color=MUTED),
             self.wb_wall,
@@ -3780,12 +4470,6 @@ class App:
     # ---------- 工作台内部 ----------
     def _open_dxm_page(self):
         url = "https://www.dianxiaomi.com/web/smt/smtProductList/offline"
-        if self.ws_endpoint:
-            try:
-                open_url_via_cdp(self.ws_endpoint, url)
-                return
-            except Exception:
-                pass
         try:
             self.page.launch_url(url)
         except Exception:
@@ -3883,8 +4567,9 @@ class App:
         threading.Thread(target=self._download_images, args=(urls,), daemon=True).start()
 
     def _wb_make_video(self):
-        if not self.picked:
-            self.toast("请先取图（选产品 → 取选中图片）", False); return
+        _sel = [p for p in self._wb_selected_paths() if Path(p).exists()]
+        if not _sel:
+            self.toast("请先勾选存在的图片", False); return
         info = video_probe()
         if not info["available"]:
             self.toast("未检测到 ffmpeg，请先安装", False); return
@@ -3892,7 +4577,6 @@ class App:
             outdir = Path(self.cfg.video_output_dir) if self.cfg.video_output_dir else (Path.home() / "Movies" / "AuroraList")
             outdir.mkdir(parents=True, exist_ok=True)
             out = outdir / f"carousel-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.mp4"
-            _sel = [p for p in self._wb_selected_paths() if Path(p).exists()] or list(self.picked)
             self._log(f"开始合成视频：{len(_sel)} 张图 → {out}")
             generate_carousel_video(
                 list(_sel), out,
@@ -3914,8 +4598,6 @@ class App:
         tiles = []
         for pth in list(self.picked):
             key = str(pth)
-            if key not in self.wb_sel_paths:
-                self.wb_sel_paths.add(key)
             cb = ft.Checkbox(value=key in self.wb_sel_paths,
                              on_change=lambda e, _k=key: self._wb_pick_one(_k, e.control.value))
             tiles.append(ft.Column([
@@ -3935,8 +4617,7 @@ class App:
             self.wb_sel_paths.discard(key)
 
     def _wb_selected_paths(self) -> list:
-        sel = [pth for pth in self.picked if str(pth) in self.wb_sel_paths]
-        return sel or list(self.picked)
+        return [pth for pth in self.picked if str(pth) in self.wb_sel_paths]
 
     def _wb_toggle(self, pid: str, on: bool):
         if on:
@@ -3970,21 +4651,14 @@ class App:
             pass
 
     def _process_queue(self):
-        """队列并发处理（受「并发数」限制），失败不影响其它任务。"""
+        """离线队列预览：不连接账号、不保存商品、不标记实际已编辑。"""
         if getattr(self, "_running", False):
             self._log("已有任务在运行，队列稍后再处理", "WARN")
             self.toast("已有任务在运行", False)
             return
         self._running = True
         self._stop_requested = False
-        try:
-            ck = self._cookies()
-            if not getattr(self, "ws_endpoint", ""):
-                self._ensure_browser_session(ck)
-            DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-        except Exception as ex:
-            self._log(f"队列：未连接浏览器（{ex}），将以离线模式运行")
-            ck = None
+        # This entry point is always an offline preview, regardless of save settings.
         by_id = {str(p.get("id")): p for p in (self.products or [])}
         by_id.update({str(k): v for k, v in getattr(self, "_queue_products", {}).items()})
         items = self.q.pending()
@@ -4001,16 +4675,6 @@ class App:
                 self._log(f"已停止，跳过队列 {item.product_id}", "WARN")
                 return
             base = by_id.get(item.product_id, {})
-            try:
-                from ..services.edited import is_edited as _is_edited
-                if _is_edited(item.product_id):
-                    self._log(f"队列跳过已编辑过：{item.product_id}", "INFO")
-                    with lock:
-                        self.q.mark(item.product_id, "done", "已编辑过，跳过")
-                        self._refresh_queue()
-                    return
-            except Exception:
-                pass
             if str(base.get("status_type") or "") in ("auditing", "onSelling", "published", "online") or \
                     "PRODUCT_IN_AUDIT_PENDING" in str((base.get("raw") or {}).get("errMsg") or ""):
                 self._log(f"队列跳过审核中/已上架：{item.product_id}", "WARN")
@@ -4029,21 +4693,19 @@ class App:
                 self.q.mark(item.product_id, "running")
                 self._refresh_queue()
             try:
-                local_dxm = DianxiaomiClient(dict(ck) if ck else {}, overrides=self.cfg.endpoint_overrides or {}) if ck else None
-                pub = Publisher(self.cfg, dxm=local_dxm, ws_endpoint=self.ws_endpoint,
-                                scheduler=getattr(self, "scheduler", None))
-                res = pub.run(prod, dry_run=not self.cfg.auto_save_products, manage_progress=False)
+                pub = Publisher(self.cfg)
+                res = pub.run(prod, dry_run=True, manage_progress=False)
                 status = "done" if res.ok else "failed"
-                msg = res.error
+                msg = "仅预览完成，未保存商品、未标记已编辑" if res.ok else res.error
             except Exception as ex:  # noqa: BLE001
                 status, msg = "failed", str(ex)[:160]
             with lock:
                 self.q.mark(item.product_id, status, msg)
                 counts["ok" if status == "done" else "fail"] += 1
                 self._refresh_queue()
-                self._log(f"队列 {item.product_id}: {'完成' if status == 'done' else '失败 ' + msg}")
+                self._log(f"队列预览 {item.product_id}: {msg if status == 'done' else '失败 ' + msg}")
 
-        self._log(f"队列开始：{len(items)} 个任务，并发 {workers}")
+        self._log(f"队列预览开始：{len(items)} 个任务，并发 {workers}")
         import concurrent.futures as _cf
         try:
             with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
@@ -4051,9 +4713,9 @@ class App:
         finally:
             self._running = False
         ok, fail = counts["ok"], counts["fail"]
-        history.record("queue", ok, fail)
-        self._log(f"队列完成：成功 {ok} / 失败 {fail}" + ("（已按请求停止）" if self._stop_requested else ""))
-        self.toast(f"队列处理完成：成功 {ok} / 失败 {fail}")
+        history.record("queue:preview", ok, fail)
+        self._log(f"队列预览完成（未保存商品）：成功 {ok} / 失败 {fail}" + ("（已按请求停止）" if self._stop_requested else ""))
+        self.toast(f"队列预览完成（未保存商品）：成功 {ok} / 失败 {fail}")
 
     def _images_from_products(self):
         urls: list[str] = []
@@ -4099,7 +4761,7 @@ class App:
             except Exception as ex:
                 self._log(f"下载失败 {u[:60]}: {ex}")
         self.picked = got
-        self.wb_sel_paths = set()
+        self.wb_sel_paths = {str(p) for p in got}
         self.wb_status.value = f"已下载 {len(got)}/{len(urls)} 张"
         self.wb_status.color = ACCENT_2 if got else "#FF6B6B"
         try:
@@ -4138,6 +4800,12 @@ class App:
         self.toast({"pause": "已暂停", "resume": "已继续", "cancel": "已取消"}[action])
 
     def _wb_process(self, kind):
+        targets = self._wb_selected_paths()
+        if not targets:
+            self.wb_busy.visible = False
+            self.toast("请先勾选要处理的图片", False)
+            self._safe_update()
+            return
         svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
         runner = BatchRunner(self.cfg.concurrency, retries=int(self.cfg.retry_max or 1), retry_delay=float(self.cfg.retry_delay or 2.0))
         self.wb_runner = runner
@@ -4167,7 +4835,21 @@ class App:
                                                             color=MUTED, selectable=True)], spacing=8))
             self._safe_update()
 
-        targets = self._wb_selected_paths() if hasattr(self, "_wb_selected_paths") else list(self.picked)
+        # 只处理第 N 张（1 基）时，过滤 targets
+        _nth = ""
+        try:
+            _nth = str(getattr(getattr(self, "wb_index", None), "value", "") or "").strip()
+        except Exception:
+            _nth = ""
+        if _nth and _nth.isdigit():
+            _i = int(_nth) - 1
+            if 0 <= _i < len(targets):
+                targets = {_i: targets[_i]}
+            else:
+                self.toast(f"第 {_nth} 张超出范围（共 {len(targets)} 张）", False)
+                self.wb_busy.visible = False
+                self._safe_update()
+                return
         results = runner.run(list(targets), job, done)
         ok = sum(1 for r in results if r.ok)
         try:
@@ -4177,236 +4859,6 @@ class App:
         self.wb_status.value = f"处理完成：成功 {ok} / {len(results)}"
         self.wb_busy.visible = False
         self._safe_update()
-
-    def _p_prompts(self):
-        self._current = 11
-        view = self._render("提示词", schema_prompts())
-        resets = []
-        for key, label in (("title_prompt", "标题"), ("detail_prompt", "描述"), ("sku_prompt", "SKU"),
-                           ("weight_prompt", "估重"), ("main_image_generate_prompt", "主图生成"),
-                           ("designated_edit_prompt", "指定编辑"), ("translate_prompt", "翻译"),
-                           ("background_gen_sku_prompt", "换背景"), ("edit_prompt", "通用编辑"),
-                           ("review_text_prompt", "文本审查"), ("review_main_img_prompt", "主图审查"),
-                           ("review_detail_img_prompt", "详情图审查")):
-            def make(k=key, n=label):
-                def _r(e):
-                    default = AppConfig.DEFAULTS.get(k, "")
-                    self.cfg.set(k, default)
-                    save_config(self.cfg)
-                    self.toast(f"{n}提示词已恢复默认")
-                    self._switch(11)
-                return _r
-            resets.append(ft.OutlinedButton(f"恢复默认：{label}", on_click=make()))
-        tip = card(ft.Column([
-            h1("提示词说明", 15),
-            muted("• 这里的提示词直接决定 AI 产出的专业度，改动会立即用于下一次刊登"),
-            muted("• 主图生成提示词支持变量 {title}（会自动替换为产品标题）"),
-            muted("• 审查提示词建议要求模型只回 PASS 或 FAIL|原因，才能自动拦截不合规内容"),
-            ft.Row(resets, spacing=8, wrap=True)], spacing=8))
-        # ---- 预设切换 ----
-        self.preset_dd = ft.Dropdown(label="标题风格预设", width=260, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                     value=self.cfg.get("prompt_preset", "standard") or "standard",
-                                     options=[ft.dropdown.Option(k, v[0]) for k, v in TITLE_PRESETS.items()])
-
-        def apply_preset(e):
-            name = self.preset_dd.value or "standard"
-            prompt_text = TITLE_PRESETS.get(name, TITLE_PRESETS["standard"])[1]
-            self.cfg.set("title_prompt", prompt_text)
-            self.cfg.set("prompt_preset", name)
-            save_config(self.cfg)
-            self.toast(f"已应用预设：{TITLE_PRESETS[name][0]}")
-            self._switch(11)
-
-        # ---- 方案库（按品类） ----
-        from ..services.prompt_sets import list_sets, save_set, delete_set, apply_set
-        self.ps_name = ft.TextField(label="方案名称", width=180, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.ps_cat = ft.TextField(label="绑定品类关键词（如 crane / 吊机）", width=240,
-                                   bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.ps_dd = ft.Dropdown(label="已有方案", width=240, bgcolor=CARD_2, border_color=CARD_2, color=TEXT, options=[])
-
-        def _ps_refresh():
-            sets = list_sets(self.cfg)
-            self.ps_dd.options = [ft.dropdown.Option(s["name"],
-                                                     f"{s['name']}" + (f"（{s.get('category')}）" if s.get("category") else ""))
-                                  for s in sets]
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-
-        def ps_save(e):
-            name = (self.ps_name.value or "").strip()
-            if not name:
-                self.toast("请输入方案名称", False); return
-            save_set(self.cfg, name, self.ps_cat.value or "")
-            save_config(self.cfg)
-            _ps_refresh()
-            self.toast(f"方案已保存：{name}")
-
-        def ps_apply(e):
-            name = self.ps_dd.value
-            if not name:
-                self.toast("请选择方案", False); return
-            if apply_set(self.cfg, name):
-                save_config(self.cfg)
-                self.toast(f"已套用方案：{name}")
-                self._switch(11)
-            else:
-                self.toast("方案不存在", False)
-
-        def ps_del(e):
-            name = self.ps_dd.value
-            if not name:
-                self.toast("请选择方案", False); return
-            delete_set(self.cfg, name)
-            save_config(self.cfg)
-            _ps_refresh()
-            self.toast("已删除")
-
-        _ps_refresh()
-        ps_card = card(ft.Column([
-            h1("提示词方案库（按品类）", 15),
-            muted("把当前 9 条提示词存成一套方案并绑定品类；刊登时若商品类目/标题含该关键词，自动套用该方案"),
-            ft.Row([self.ps_name, self.ps_cat,
-                    ft.ElevatedButton("保存当前为方案", icon=ft.Icons.BOOKMARK_ADD, bgcolor=CARD_2, color=TEXT,
-                                      on_click=ps_save)], spacing=10, wrap=True),
-            ft.Row([self.ps_dd,
-                    ft.ElevatedButton("套用", icon=ft.Icons.CHECK, bgcolor=ACCENT, color="white", on_click=ps_apply),
-                    ft.OutlinedButton("删除", on_click=ps_del)], spacing=10, wrap=True)], spacing=8))
-
-        preset_card = card(ft.Column([
-            h1("标题风格预设", 15),
-            muted("一键切换三种投放策略，会覆盖「标题提示词」，可随时恢复默认"),
-            ft.Row([self.preset_dd,
-                    ft.ElevatedButton("应用预设", icon=ft.Icons.AUTO_AWESOME, bgcolor=ACCENT, color="white",
-                                      on_click=apply_preset)], spacing=10)], spacing=8))
-
-        # ---- 试写 + A/B 对比 ----
-        self.try_input = ft.TextField(label="试写商品（中文标题或关键词）", width=560,
-                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                      value="3吨小型蜘蛛吊车 20米吊高 履带式电动")
-        self.ab_mode = ft.Dropdown(label="对比对象", width=140, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                   value="标题", options=[ft.dropdown.Option(x) for x in ("标题", "描述", "图片")])
-        self.try_b_prompt = ft.TextField(label="B 方案提示词（留空则用内置对照预设）", multiline=True,
-                                         min_lines=3, max_lines=6, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.try_a_col = ft.Column(spacing=4)
-        self.try_b_col = ft.Column(spacing=4)
-        self.try_status = ft.Text("", size=11, color=MUTED)
-        self.try_a_prompt_text = ""
-        self.try_b_prompt_text = ""
-
-        def _render_variants(col, variants, tag, prompt_text):
-            col.controls = []
-            for i, v in enumerate(variants, 1):
-                if not v.ok:
-                    col.controls.append(ft.Text(f"{tag} 失败：{v.error}", size=11, color="#FF6B6B"))
-                    continue
-                sc = score_title(v.text)
-                color = ACCENT_2 if sc["score"] >= 90 else ("#FFB020" if sc["score"] >= 70 else "#FF6B6B")
-                col.controls.append(ft.Column([
-                    ft.Text(v.text, size=12, color=TEXT, selectable=True),
-                    ft.Row([ft.Text(f"评分 {sc['score']} · {sc['chars']} 字符 · {sc['words']} 词", size=10, color=color),
-                            ft.TextButton("采用", on_click=lambda e, _t=v.text, _p=prompt_text: self._adopt_title(_t, _p))],
-                           spacing=8),
-                ], spacing=2))
-
-        def run_ab(e):
-            src = (self.try_input.value or "").strip()
-            if not src:
-                self.toast("请输入要试写的商品", False); return
-            if not self.cfg.api_key:
-                self.toast("请先在设置里填 API Key", False); return
-            self.try_status.value = "生成中…"
-            self._safe_update()
-            threading.Thread(target=_do_ab, args=(src,), daemon=True).start()
-
-        def _do_ab(src):
-            from ..services import model_of
-            from ..api import ApiClient
-            from ..services.prompt_presets import title_variants
-            mode = self.ab_mode.value or "标题"
-            client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
-            model = model_of(self.cfg, 'text')
-            try:
-                if mode == "标题":
-                    a_prompt = self.cfg.title_prompt
-                    b_prompt = (self.try_b_prompt.value or "").strip() or TITLE_PRESETS["longtail"][1]
-                    va = title_variants(client, model, a_prompt, src, 3)
-                    vb = title_variants(client, model, b_prompt, src, 3)
-                    _render_variants(self.try_a_col, va, "A", a_prompt)
-                    _render_variants(self.try_b_col, vb, "B", b_prompt)
-                    ba = max((score_title(v.text)["score"] for v in va if v.ok), default=0)
-                    bb = max((score_title(v.text)["score"] for v in vb if v.ok), default=0)
-                    self.try_status.value = f"完成：A 最高 {ba} 分 / B 最高 {bb} 分（{model}）"
-
-                elif mode == "描述":
-                    a_prompt = self.cfg.detail_prompt
-                    b_prompt = (self.try_b_prompt.value or "").strip() or (
-                        "你是速卖通详情页文案。用英文输出 HTML：一段 60 词的卖点、5 条要点、"
-                        "参数表（Model/Material/Size/Weight/Power）、包装清单、售后说明。"
-                        "全英文，禁止联系方式与促销语，300~400 词。")
-                    def gen(prompt):
-                        out = client.chat(model, [{"role": "system", "content": prompt},
-                                                  {"role": "user", "content": src}], max_tokens=1200)
-                        return out or ""
-                    da, db = gen(a_prompt), gen(b_prompt)
-                    for col, text, tag, pr in ((self.try_a_col, da, "A", a_prompt),
-                                                (self.try_b_col, db, "B", b_prompt)):
-                        col.controls = [
-                            ft.Text(f"{tag} 长度 {len(text)} 字符 · 约 {len(text.split())} 词", size=10, color=MUTED),
-                            ft.Text(text[:1200], size=11, color=TEXT, selectable=True),
-                        ]
-                    self.try_status.value = (f"完成：A {len(da)} 字符 / B {len(db)} 字符（{model}）")
-
-                else:  # 图片
-                    from ..services import ImageService
-                    from ..services.progress import BUS
-                    a_prompt = (self.cfg.main_image_generate_prompt or "").replace("{title}", src).replace("{subject}", src)
-                    b_prompt = (self.try_b_prompt.value or "").strip() or (
-                        f"Professional e-commerce product photo of {src}, pure white background, "
-                        "soft studio light, centered, 1:1, no text, no watermark")
-                    svc = ImageService(client, self.cfg)
-                    ua = svc.generate(a_prompt, "1024x1024", 1)
-                    ub = svc.generate(b_prompt, "1024x1024", 1)
-                    for col, url, tag, pr in ((self.try_a_col, ua, "A", a_prompt),
-                                                (self.try_b_col, ub, "B", b_prompt)):
-                        col.controls = [ft.Text(f"{tag} · {model_of(None, 'image_gen')}", size=10, color=MUTED),
-                                        ft.Image(src=str(url), width=320, height=320, fit=ft.ImageFit.CONTAIN),
-                                        ft.Text(str(url)[:70], size=9, color=MUTED, selectable=True)]
-                    self.try_status.value = f"完成：两张图各扣约 ¥{BUS.price_of(model_of(None, 'image_gen')):.2f}"
-            except Exception as ex:
-                self.try_status.value = f"失败：{str(ex)[:140]}"
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-
-        ab_card = card(ft.Column([
-            h1("试写 / A-B 对比", 15),
-            muted("同一商品，用两套提示词各生成 3 条候选，带本地评分，选中即设为标题提示词"),
-            ft.Row([self.try_input, self.ab_mode,
-                    ft.ElevatedButton("生成对比", icon=ft.Icons.COMPARE_ARROWS, bgcolor=ACCENT, color="white",
-                                      on_click=run_ab)], spacing=10, wrap=True),
-            self.try_b_prompt,
-            ft.Row([ft.Column([ft.Text("A 方案（当前提示词）", size=12, color=ACCENT_2), self.try_a_col], spacing=4, expand=True),
-                    ft.Column([ft.Text("B 方案（对照）", size=12, color="#7C5CFF"), self.try_b_col], spacing=4, expand=True)],
-                   spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
-            self.try_status], spacing=10))
-
-        return [view[0], ps_card, preset_card, ab_card, tip] + view[1:]
-
-    def _adopt_title(self, text: str, prompt_text: str):
-        """采用某条标题：把它记录为该提示词的样例，并保存到本地供下次参考。"""
-        try:
-            samples = self.cfg.get("title_samples", []) or []
-            if not isinstance(samples, list):
-                samples = []
-            samples = ([text] + samples)[:20]
-            self.cfg.set("title_samples", samples)
-            save_config(self.cfg)
-            self.toast("已记录为优质样例，下次同类产品可参考")
-        except Exception as ex:
-            self.toast(str(ex), False)
 
     def _p_logs(self):
         self._current = 10
@@ -4766,13 +5218,35 @@ class App:
             return muted("已编辑记录：-")
 
     def _clear_edited(self):
-        try:
-            from ..services import edited
-            n = edited.clear()
-            self.toast(f"已清空 {n} 条已编辑记录；这些产品下次会被重新处理")
-            self._switch(8)
-        except Exception as ex:
-            self.toast(f"清空失败：{ex}", False)
+        from ..services import edited
+        count = edited.count()
+        if count == 0:
+            self.toast("没有已编辑记录")
+            return
+        
+        def do_clear(e):
+            try:
+                n = edited.clear()
+                self.toast(f"已清空 {n} 条已编辑记录；这些产品下次会被重新处理")
+                self._switch(8)
+            except Exception as ex:
+                self.toast(f"清空失败：{ex}", False)
+            finally:
+                self._close_dialog()
+        
+        self.dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("确认清空已编辑记录"),
+            content=ft.Text(f"将清空 {count} 条已编辑记录。\n\n这些产品将在下次队列处理时被重新编辑（会再次调用 AI 并消耗费用）。"),
+            actions=[
+                ft.TextButton("取消", on_click=lambda e: self._close_dialog()),
+                ft.FilledButton("确认清空", on_click=do_clear),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.overlay.append(self.dlg)
+        self.dlg.open = True
+        self.update()
 
     def _p_settings(self):
         self._current = 8
@@ -4841,18 +5315,9 @@ class App:
                                             bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.cfg_timeout = ft.TextField(label="超时（秒）", value=str(self.cfg.timeout or 180), width=160,
                                         bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        # 输入即保存（0.6s 防抖），避免客户改完 Key 直接点启动却没落盘
+        # 输入立即保存；切页会重建控件，延迟读取 self 上的字段会丢掉新输入。
         def _api_autosave(e=None):
-            t = getattr(self, "_api_timer", None)
-            if t:
-                try:
-                    t.cancel()
-                except Exception:
-                    pass
-            timer = threading.Timer(0.6, self._save_api_fields)
-            timer.daemon = True
-            self._api_timer = timer
-            timer.start()
+            self._save_api_fields()
         for _c in (self.api_key_field, self.cfg_concurrency, self.cfg_timeout):
             _c.on_change = _api_autosave
 
@@ -4874,12 +5339,26 @@ class App:
                 pass
 
             def go():
+                from ..api import classify_api_error
+                key = (self.cfg.api_key or "").strip()
+                if not key:
+                    self.api_status.value = "连接失败：未填写 API Key"
+                    self.api_status.color = "#FF6B6B"
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+                    return
                 try:
-                    models = ApiClient(self.cfg.api_base, self.cfg.api_key, 20).models(force=True)
+                    models = ApiClient(self.cfg.api_base, key, 20).models(force=True)
                     self.api_status.value = f"连接正常：{len(models)} 个模型"
                     self.api_status.color = ACCENT_2
                 except Exception as ex:  # noqa: BLE001
-                    self.api_status.value = f"连接失败：{str(ex)[:90]}"
+                    kind = classify_api_error(ex)
+                    hint = {"auth": " → Key 无效，请重新复制粘贴",
+                            "quota": " → 余额不足，请充值",
+                            "other": " → 网络或服务端问题，可稍后重试"}.get(kind, "")
+                    self.api_status.value = f"连接失败：{str(ex)[:80]}{hint}"
                     self.api_status.color = "#FF6B6B"
                 try:
                     self._safe_update()
@@ -4906,6 +5385,115 @@ class App:
                                       bgcolor="#F0A020", color="#1A1200", on_click=buy_api)],
                    spacing=8, wrap=True),
             self.api_status,
+        ], spacing=8))
+
+        # ---------------- 图床 ----------------
+        self.host_url = ft.TextField(
+            label="图床地址", width=340,
+            value=str(getattr(self.cfg, "image_host_url", "") or ""),
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.host_key = ft.TextField(
+            label="图床密钥", width=220, password=True, can_reveal_password=True,
+            value=str(getattr(self.cfg, "image_host_key", "") or ""),
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.host_status = ft.Text("", size=11, color=MUTED)
+        self.host_keep = ft.TextField(
+            label="保留天数（清理时删更早的）", width=210,
+            value=str(getattr(self.cfg, "host_keep_days", 7)),
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+        def clean_host(e=None):
+            try:
+                _days = max(0, int(float(self.host_keep.value or 7)))
+            except Exception:
+                _days = 7
+            self.cfg.set("host_keep_days", _days)
+            save_config(self.cfg)
+            self.host_status.value = "清理中…"
+            self.host_status.color = MUTED
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def go():
+                try:
+                    from ..services.hosting import clean_old
+                    r = clean_old()          # 天数由 services 读配置决定
+                    self.host_status.value = r.get("message", "")
+                    self.host_status.color = ACCENT_2 if r.get("ok") else "#FF6B6B"
+                    self._log(f"图床清理：{r.get('message','')}", "INFO" if r.get("ok") else "WARN")
+                except Exception as ex:  # noqa: BLE001
+                    self.host_status.value = f"清理失败：{str(ex)[:110]}"
+                    self.host_status.color = "#FF6B6B"
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            threading.Thread(target=go, daemon=True).start()
+
+        def save_host(e=None):
+            self.cfg.set("image_host_url", str(self.host_url.value or "").strip())
+            self.cfg.set("image_host_key", str(self.host_key.value or "").strip())
+            save_config(self.cfg)
+            self.host_status.value = "已保存"
+            self.host_status.color = ACCENT_2
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def test_host(e=None):
+            save_host()
+            self.host_status.value = "测试中…"
+            self.host_status.color = MUTED
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def go():
+                try:
+                    import tempfile as _tf
+                    from pathlib import Path as _P
+                    from ..services.hosting import upload as _up
+                    from PIL import Image, ImageDraw
+                    d = _P(_tf.mkdtemp()) / "host_test.png"
+                    im = Image.new("RGB", (1200, 1200), (250, 250, 250))
+                    ImageDraw.Draw(im).rectangle([300, 300, 900, 900], fill=(60, 120, 220))
+                    im.save(d)
+                    url = _up(d)
+                    self.host_status.value = f"上传成功：{url}"
+                    self.host_status.color = ACCENT_2
+                    self._log(f"图床上传成功：{url}", "INFO")
+                except Exception as ex:  # noqa: BLE001
+                    self.host_status.value = f"上传失败：{str(ex)[:110]}"
+                    self.host_status.color = "#FF6B6B"
+                    self._log(f"图床上传失败：{ex}", "WARN")
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            threading.Thread(target=go, daemon=True).start()
+
+        self.host_url.on_change = lambda e: save_host()
+        self.host_key.on_change = lambda e: save_host()
+        host_card = card(ft.Column([
+            h1("图床", 15),
+            muted("AI 出图先放这里，店小秘编辑器再按 URL 取图。"
+                  "AI 返回的是约 1 天过期的临时地址，不能直接写进商品。"),
+            ft.Row([self.host_url, self.host_key], spacing=10, wrap=True),
+            ft.Row([self.host_keep, ft.ElevatedButton("清理旧图", icon=ft.Icons.DELETE_SWEEP,
+                                                     on_click=lambda e: clean_host())],
+                   spacing=8, wrap=True),
+            ft.Row([ft.ElevatedButton("保存", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white",
+                                      on_click=save_host),
+                    ft.OutlinedButton("测试上传", icon=ft.Icons.CLOUD_UPLOAD, on_click=test_host)],
+                   spacing=8, wrap=True),
+            self.host_status,
+            muted("支持 Cloudflare-ImgBed（POST /rest/upload）和老自建服务（POST /upload），自动识别。"),
         ], spacing=8))
 
         # ---------------- 模型（已固定，不提供选择） ----------------
@@ -4983,11 +5571,7 @@ class App:
             h1("诊断（出问题时再点）", 15),
             muted("检查 API、浏览器、店小秘、ffmpeg、磁盘；不影响正常使用"),
             ft.Row([ft.ElevatedButton("开始诊断", icon=ft.Icons.HEALTH_AND_SAFETY, bgcolor=ACCENT, color="white",
-                                      on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start()),
-                    ft.ElevatedButton("全接口冒烟（约 ¥0.4）", icon=ft.Icons.WIFI_TETHERING, bgcolor="#F0A020",
-                                      color="#1A1200", on_click=lambda e: self._smoke_confirm()),
-                    ft.OutlinedButton("AI 自检", icon=ft.Icons.PLAY_CIRCLE_FILL,
-                                      on_click=lambda e: threading.Thread(target=self._self_test, daemon=True).start())],
+                                      on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start())],
                    spacing=8, wrap=True),
             self.diag_list], spacing=8))
         self.price_list = ft.Column(spacing=3)
@@ -4999,49 +5583,7 @@ class App:
             spacing=8))
         threading.Thread(target=self._load_prices, daemon=True).start()
 
-        # ---------------- 额外选项（老软件「设置」页） ----------------
-        def sw(key, label):
-            ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)), active_color=ACCENT)
-            def on(e, _k=key):
-                self.cfg.set(_k, bool(e.control.value))
-                save_config(self.cfg)
-            ctl.on_change = on
-            return ctl
-
-        self.publish_pos = ft.Dropdown(
-            label="发布到什么地方", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            value=str(getattr(self.cfg, "publish_action", "save_only") or "save_only"),
-            options=[ft.dropdown.Option("save_only", "待发布"), ft.dropdown.Option("publish", "直接发布")])
-        def set_pub(e):
-            self.cfg.set("publish_action", str(self.publish_pos.value or "save_only"))
-            save_config(self.cfg)
-        self.publish_pos.on_change = set_pub
-        extra_card = card(ft.Column([
-            h1("额外选项", 15),
-            muted("老软件「设置」页的常用开关；每个开关都会实际影响保存/发布流程"),
-            ft.Row([sw("prefer_collected_weight", "优先使用采集重量尺寸"),
-                    sw("four_in_one", "四合一主图"),
-                    sw("main_as_detail", "启用主图作为详情图"),
-                    sw("pad_main_images_from_extra", "主图不足6张时用额外图片补齐"),
-                    sw("keep_main_images_local", "保留主图及AI生成图片至本地")], spacing=14, wrap=True),
-            ft.Row([sw("custom_detail_text_enable", "添加自定义详情文本或图片"),
-                    sw("delete_detail_text", "删除详情原有文本"),
-                    sw("copy_sku_to_detail", "复制SKU至详情")], spacing=14, wrap=True),
-            ft.Row([sw("modify_stock_999", "修改库存为999"),
-                    sw("original_box", "是否原箱"),
-                    sw("auto_generate_sku_code", "自动生成唯一商品编码"),
-                    sw("check_banned_word", "违禁词检查")], spacing=14, wrap=True),
-            ft.Row([sw("use_template_video", "使用模板产品视频"),
-                    sw("generate_main_video", "生成主图轮播视频"),
-                    sw("keep_custom_attributes", "保留自定义属性"),
-                    sw("split_product_price", "启用产品信息/价格分离处理")], spacing=14, wrap=True),
-            ft.Row([self.publish_pos], spacing=10, wrap=True),
-            ft.Row([self._edited_count_text(), ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
-                                                              on_click=lambda e: self._clear_edited())],
-                   spacing=10, wrap=True),
-        ], spacing=10))
-
-        return [lic_card, api_card, model_card, extra_card, inst_card, upd, diag_card, price_card]
+        return [lic_card, api_card, host_card, model_card, inst_card, upd, diag_card, price_card]
 
     def _price_of(self, model: str) -> float:
         try:
@@ -5203,16 +5745,7 @@ class App:
         except Exception as ex:
             add("价格接口", False, str(ex)[:90])
 
-        # 3) 浏览器（CDP）
-        try:
-            import requests as _rq
-            port = getattr(self.cfg, "cdp_port", 9333) or 9333
-            r = _rq.get(f"http://127.0.0.1:{port}/json/version", timeout=5)
-            add("浏览器 CDP", r.status_code == 200, f"端口 {port} 可用")
-        except Exception as ex:
-            add("浏览器 CDP", False, f"端口不可用：{str(ex)[:60]}", warn=True)
-
-        # 4) 店小秘
+        # 3) 店小秘
         try:
             ck = self._cookies()
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
@@ -5351,9 +5884,18 @@ class App:
             from ..core.updater import CURRENT as _ver
         except Exception:
             _ver = ""
+        try:
+            from ..license import machine_code as _dbg_mc
+            self._log(f"授权检测：机器码 {_dbg_mc()} / 旧ID {getattr(self.cfg, 'license_identity', '') or '-'}")
+        except Exception:
+            pass
         res = verify_license(self.cfg.license_server, version=_ver,
                              identity_override=str(getattr(self.cfg, "license_identity", "") or ""),
                              public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""))
+        try:
+            self._log(f"授权结果：{res.get('message')} / tried {res.get('tried')}")
+        except Exception:
+            pass
         self.license_state = res
         try:
             if res.get("ok"):
@@ -5474,7 +6016,7 @@ class App:
 
     def _safe_update(self):
         """串行化 UI 更新：避免后台线程并发 page.update 导致卡死/重连。"""
-        if getattr(self, "_building_page", False):
+        if getattr(self, "_building_page", False) or getattr(self, "_page_dead", False):
             return
         lock = getattr(self, "_ui_lock", None)
         try:
@@ -5484,6 +6026,11 @@ class App:
             else:
                 self.page.update()
         except Exception as ex:  # noqa: BLE001
+            # 窗口/事件循环已关闭 → 界面已经死了，后续 UI 更新全部静默跳过，
+            # 否则心跳线程会每 15 秒往 error.log 刷一条 "Event loop is closed"。
+            if "Event loop is closed" in str(ex) or "has been closed" in str(ex):
+                self._page_dead = True
+                return
             now = time.time()
             if now - float(getattr(self, "_update_err_ts", 0) or 0) > 5:
                 self._update_err_ts = now

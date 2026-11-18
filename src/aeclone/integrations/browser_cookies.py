@@ -81,18 +81,7 @@ def resolve(domain: str = "dianxiaomi.com", manual: dict | None = None,
     if isinstance(manual, dict) and manual:
         return CookieSource(SOURCE_MANUAL, True, {str(k): str(v) for k, v in manual.items()})
 
-    # 2) 已经启动的浏览器会话（CDP；最新、最可靠）
-    if ws_endpoint:
-        try:
-            from .cdp import cookies_via_cdp
-            ck = cookies_via_cdp(ws_endpoint, domains=["dianxiaomi"])
-            if ck:
-                return CookieSource(SOURCE_CDP, True, ck)
-            errors.append("已开浏览器：未读到 dianxiaomi Cookie")
-        except Exception as e:  # noqa: BLE001
-            errors.append(f"已开浏览器：{type(e).__name__}: {e}")
-
-    # 3) 本机浏览器 Cookie 库（可能因加密/权限读不到）
+    # 2) 本机浏览器 Cookie 库（可能因加密/权限读不到）
     if use_local:
         src = read_best(domain)
         if src.ok and src.cookies:

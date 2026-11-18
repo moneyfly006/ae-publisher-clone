@@ -74,6 +74,11 @@ class ProgressBus:
                 self._events = self._events[-self._limit:]
             if cost:
                 self.total_cost += cost
+                try:
+                    from . import history as _hist
+                    _hist.record_cost(stage, model, cost, detail)
+                except Exception:
+                    pass
             subs = list(self._subs)
         for cb in subs:
             try:

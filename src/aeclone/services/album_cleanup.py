@@ -183,6 +183,34 @@ def auto_clean(client, days: int = 30) -> dict:
         return {"ok": False, "message": f"创建清理任务失败：{str(ex)[:140]}"}
 
 
+# 店小秘这个接口在不少账号上直接回「功能暂未开放！」（老软件也踩过，见 ISSUES #37）
+_UNAVAILABLE_MARKS = ("功能暂未开放", "暂未开放", "not open", "not available", "unsupported")
+
+
+def maybe_auto_clean(cfg, client) -> dict:
+    """开关 album_auto_clean_enable：刊登完成后创建「删未引用图片」任务。
+
+    days=None 时读配置 album_auto_clean_days。
+    接口不可用（店小秘「功能暂未开放」）时返回 unavailable=True 并给出替代做法，
+    **不会退化成乱删**。
+    """
+    if not getattr(cfg, "album_auto_clean_enable", False):
+        return {"ok": False, "skipped": True, "message": "未开启自动清理"}
+    try:
+        days = int(getattr(cfg, "album_auto_clean_days", 7) or 7)
+    except Exception:
+        days = 7
+    r = auto_clean(client, days)
+    msg = str(r.get("message") or "")
+    if not r.get("ok") and any(m in msg for m in _UNAVAILABLE_MARKS):
+        return {
+            "ok": False, "unavailable": True,
+            "message": ("店小秘的「自动清理未引用图片」接口当前不可用（功能暂未开放）；"
+                        "请改用「图片工作台 → 清理旧图」手动扫描删除"),
+        }
+    return r
+
+
 def latest_task(client) -> dict:
     try:
         data = client.album_auto_delete_latest() or {}

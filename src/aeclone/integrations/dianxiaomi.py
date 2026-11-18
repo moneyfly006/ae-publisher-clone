@@ -237,6 +237,9 @@ class DianxiaomiClient:
             values["型号"] = {"t": "text", "v": amap["model number"]}
         if fields["weight"]:
             values["包装后重量"] = {"t": "text", "v": fields["weight"]}
+        _sz = "x".join(str(p.get(k) or "") for k in ("packageLength", "packageWidth", "packageHeight"))
+        if _sz.strip("x"):
+            values["包装后尺寸"] = {"t": "text", "v": _sz}
         if p.get("productManual"):
             values["商品说明书"] = {"t": "file", "v": str(p.get("productManual"))}
         imgs = [x for x in str(p.get("imageURLs") or "").split(";") if x.strip().startswith("http")]
@@ -316,6 +319,15 @@ class DianxiaomiClient:
             else:
                 imgs = [x.strip() for x in raw.split(";") if x.strip().startswith("http")]
         imgs = imgs if isinstance(imgs, list) else []
+        _st = it.get("productStatusType")
+        if not _st:
+            _dxm = str(it.get("dxmState") or "")
+            if _dxm == "draft":
+                _st = "draft"
+            elif _dxm == "online":
+                _st = "editingRequired"
+            else:
+                _st = ""
         return {
             "id": str(it.get("id") or it.get("productId") or ""),
             "title": it.get("subject") or it.get("title") or "",
@@ -323,8 +335,11 @@ class DianxiaomiClient:
             "category_id": it.get("categoryId"),
             "shop_id": it.get("shopId"),
             "price": it.get("productPrice"),
-            "status": it.get("productStatusType"),
-            "status_type": it.get("productStatusType"),
+            # 草稿商品的 productStatusType 是 None，但 dxmState=draft。
+            # 不补这一条，run() 会把它判成"状态未知"直接跳过 —— 而草稿恰好是
+            # 唯一不会被"审核中"拦住、真正能保存的那一类商品。
+            "status": _st,
+            "status_type": _st,
             "images": [str(x) for x in imgs if x],
             "image": (str(imgs[0]) if imgs else ""),
             "raw": it,
@@ -380,9 +395,24 @@ class DianxiaomiClient:
         return self.iter_products(shop_id, "onSelling", limit)
 
     def pending_products(self, limit: int = 0, shop_id=None) -> list[dict]:
-        """待发布产品：店小秘 editingRequired 列表里也会混入审核中产品，必须再过滤。"""
+        """待处理产品：editingRequired + 草稿(draft)。
+
+        草稿的 productStatusType 是 None，用 editingRequired 过滤查不到，
+        但它们恰恰是最该处理的（没发布、不会被"审核中"拦住）。
+        """
         items = self.iter_products(shop_id, "editingRequired",
                                    max_items=(max(limit * 4, 80) if limit else 0))
+        # 草稿优先：草稿没发布过，不会被速卖通的"审核中"挡住，是唯一能真正保存的一类。
+        # 之前把草稿追加在末尾，edit_sum=1 时永远选中 editingRequired（注定被拒）。
+        try:
+            more = self.iter_products(shop_id, None,
+                                      max_items=(max(limit * 6, 120) if limit else 120))
+            drafts = [x for x in more if str(x.get("status_type")) == "draft"]
+            if drafts:
+                seen = {str(x.get("id")) for x in drafts}
+                items = drafts + [x for x in items if str(x.get("id")) not in seen]
+        except Exception:
+            pass
         out = []
         for p in items:
             st = str(p.get("status_type") or p.get("status") or "")
@@ -396,6 +426,25 @@ class DianxiaomiClient:
     EDITABLE_STATUS = {"editingRequired", "offline", "publishFail", "draft", "waitPublish"}
     BLOCKED_STATUS = {"auditing", "onSelling", "published", "online"}
 
+    def save_product_via_api(self, payload: dict) -> dict:
+        """直接 API 保存商品（绕开浏览器 DOM）。
+
+        真机逆向（2026-11-18）：add.json 的真实格式是
+        multipart/form-data，字段 `file` 是一个 ZIP 压缩包，
+        里面装 `smtEditSave.txt`，其内容为 JSON.stringify(payload)。
+        """
+        import io as _io
+        import json as _j
+        import zipfile as _zf
+
+        txt = _j.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        buf = _io.BytesIO()
+        with _zf.ZipFile(buf, "w", _zf.ZIP_DEFLATED) as zf:
+            zf.writestr("smtEditSave.txt", txt)
+        files = {"file": ("blob", buf.getvalue(), "application/zip")}
+        r = self.session.post(self._url("product_save"), files=files, timeout=self.timeout * 3)
+        return self._parse(r)
+
     def upload_image_from_url(self, image_url: str, full_cid: str = "") -> dict:
         """按 URL 上传图片到店小秘相册（实测可用）。"""
         payload = {"urls": image_url}
@@ -406,6 +455,20 @@ class DianxiaomiClient:
 
     def upload_sign(self, file_name: str, file_size: int) -> dict:
         data = self._post("upload_sign", {"fileName": file_name, "fileSize": file_size})
+        return (data.get("data") or data) if isinstance(data, dict) else {}
+
+    def upload_callback(self, file_id: str, file_name: str = "", file_size: int = 0,
+                        full_cid: str = "", bucket: str = "wxalbum") -> dict:
+        """COS 上传完成后的登记回调。
+
+        cos_upload.upload_image() 会调它；以前只有端点没有方法，
+        导致「直传相册」必然抛 AttributeError —— 现在补上。
+        """
+        payload = {"fileId": file_id, "fileName": file_name,
+                   "fileSize": int(file_size or 0), "bucket": bucket or "wxalbum"}
+        if full_cid:
+            payload["fullCid"] = full_cid
+        data = self._post("upload_callback", payload)
         return (data.get("data") or data) if isinstance(data, dict) else {}
 
     def search_price_templates(self, keyword: str = "", page: int = 1, size: int = 50) -> list[dict]:

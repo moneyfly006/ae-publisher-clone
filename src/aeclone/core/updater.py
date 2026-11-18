@@ -9,7 +9,7 @@ from pathlib import Path
 
 import requests
 
-CURRENT = "1.2.0"
+CURRENT = "1.0.0"
 
 
 def _parse(v: str) -> tuple:

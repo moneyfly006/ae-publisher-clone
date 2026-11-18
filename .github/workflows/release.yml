@@ -1,0 +1,102 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.0.0)"
+        required: false
+        default: "1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: AuroraList-macos
+            arch: arm64
+          - os: windows-latest
+            artifact: AuroraList-windows
+            arch: x64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Run tests (smoke)
+        shell: bash
+        run: |
+          PYTHONPATH=src python tests/test_api_save.py || true
+
+      - name: Build with PyInstaller
+        shell: bash
+        run: |
+          pyinstaller app.spec --noconfirm --log-level WARN
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd dist
+          zip -r ../AuroraList-macos-arm64.zip AuroraList
+          cd ..
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/AuroraList/* -DestinationPath AuroraList-windows-x64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            AuroraList-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Show artifacts
+        run: find artifacts -type f | head -20
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}
+          name: AuroraList ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/AuroraList-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

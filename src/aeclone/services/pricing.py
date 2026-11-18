@@ -37,8 +37,11 @@ def calc_free_shipping(base: float, express: float, profit_rate: float = 0.0) ->
 
 def calc_with_commission(base: float, multiplier: float, fixed_add: float,
                          commission_rate: float, profit_rate: float) -> PriceResult:
-    cost = base * (1 - commission_rate) if commission_rate < 1 else base
-    final = (cost + fixed_add) * multiplier * (1 + profit_rate)
+    import math
+    if not math.isfinite(commission_rate) or not 0 <= commission_rate < 1:
+        raise ValueError("平台佣金必须在 0%（含）到 100%（不含）之间")
+    # Commission is deducted from the selling price, not from acquisition cost.
+    final = (base + fixed_add) * multiplier * (1 + profit_rate) / (1 - commission_rate)
     return PriceResult(base, multiplier, fixed_add, round(final, 2), "含佣金/利润", mode="commission")
 
 
@@ -153,7 +156,7 @@ def compute_price(cfg, cost, *, commission: float | None = None, profit: float |
         r = calc_free_shipping(base, express, profit_rate)
         if tier_m:
             # 包邮模式下阶梯倍率作为「对成本的加价倍率」
-            r = PriceResult(base, mult, express, round(base * mult + express, 2),
+            r = PriceResult(base, mult, express, round((base * mult + express) * (1 + profit_rate), 2),
                             f"包邮价格 · 阶梯倍率 {mult:g}", mode="free_shipping")
     else:
         r = calc_multiplier(base, mult, add)

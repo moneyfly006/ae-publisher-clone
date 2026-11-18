@@ -13,13 +13,22 @@ from .progress import BUS, track
 from ..config import AppConfig
 
 TEXT_MODEL = "qwen-plus"
-IMAGE_MODEL = "qwen-image-2.1-turbo"
+IMAGE_MODEL = "qwen-image-3.0"
 VISION_MODEL = "qwen3-vl-plus"
 IMAGE_GEN_MODEL = "z-image-turbo"
 
-# 模型已固定（真机实测 2026-11-17）：文本 qwen-plus、视觉 qwen3-vl-plus、
-# 图片编辑 qwen-image-2.1-turbo（约 13s/张）、图片生成 z-image-turbo（约 6s/张、¥0.2）。
-# 不再让客户自选，避免选到不可用/超慢/超贵的模型。
+# 模型已固定（真机实测）：文本 qwen-plus、视觉 qwen3-vl-plus、图片生成 z-image-turbo。
+#
+# 图片编辑从 qwen-image-2.1-turbo 换成 qwen-image-3.0（2026-11-18 实测）：
+#   同一张输入图、两条完全不同的提示词（纯白背景 vs 深蓝车间火花），
+#   2.1-turbo 返回的是**同一个 URL**（说明提示词根本没进推理），
+#   3.0 返回两张内容明显不同的图（346KB vs 969KB）。
+#   用户反馈的「AI 不按提示词改图」根因就在这里。
+#
+# 代价：3.0 约 ¥0.30/次（2.1 是 ¥0.20），但它至少会照提示词做。
+# 另外 3.0 返回的是阿里云临时签名 URL（约 1 天过期），
+# 所以 ImageService 拿到结果后会立刻转存到我们自己的图床（见 _stabilize）。
+# 不再让客户自选模型，避免选到不可用/超慢/超贵的。
 FIXED_MODELS = {
     "text": TEXT_MODEL,
     "vision": VISION_MODEL,
@@ -99,10 +108,46 @@ class ImageService:
         self.client = client
         self.cfg = cfg
 
+    # 已经在稳定图床上的域名，不用再转存
+    _STABLE_HOSTS = ("132.226.1.44:8099", "moneyfly.club", "alicdn.com")
+
+    def _stabilize(self, url: str) -> str:
+        """把模型返回的临时 URL 转存到我们自己的图床。
+
+        qwen-image-3.0 返回的是带 Expires 的临时签名地址（约 1 天过期），
+        直接写进商品会在审核期间失效。这里立刻下载并转存，换成长久地址。
+        """
+        u = str(url or "")
+        if not u.startswith("http"):
+            return u
+        # 开了「出图直传店小秘相册」时，这里不转图床：
+        # 图马上会被传进相册，先去图床等于白传一次。
+        try:
+            if getattr(self.cfg, "prefer_dianxiaomi_album", False):
+                return u
+        except Exception:
+            pass
+        if any(h in u for h in self._STABLE_HOSTS):
+            return u
+        try:
+            import tempfile as _tf
+            from pathlib import Path as _P
+            import requests as _rq
+            from .hosting import upload as _up
+            data = _rq.get(u, timeout=120).content
+            if not data:
+                return u
+            fp = _P(_tf.mkdtemp()) / "out.png"
+            fp.write_bytes(data)
+            return str(_up(fp))
+        except Exception:
+            return u
+
     def white_background(self, image: Path) -> str:
         m = model_of(self.cfg, "image_edit")
         with track("白底", "调用图像编辑", model=m, product=Path(image).name) as t:
             url = self.client.images_edit(m, PROMPT_WHITE_BG, [image])
+            url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
 
@@ -110,6 +155,7 @@ class ImageService:
         m = model_of(self.cfg, "image_edit")
         with track("去水印", "调用图像编辑", model=m, product=Path(image).name) as t:
             url = self.client.images_edit(m, PROMPT_WATERMARK, [image])
+            url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
 
@@ -118,6 +164,7 @@ class ImageService:
         m = model_of(self.cfg, "image_edit")
         with track("白底+去水印", "合并调用", model=m, product=Path(image).name) as t:
             url = self.client.images_edit(m, PROMPT_COMBINED, [image])
+            url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
 
@@ -125,6 +172,7 @@ class ImageService:
         m = model_of(self.cfg, "image_edit")
         with track("精细编辑", (prompt or "")[:24], model=m, product=Path(image).name) as t:
             url = self.client.images_edit(m, prompt, [image])
+            url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
 
@@ -132,6 +180,10 @@ class ImageService:
         m = model_of(self.cfg, "image_gen")
         with track("文生图", (prompt or "")[:24], model=m, cost=BUS.price_of(m) * max(1, n)) as t:
             url = self.client.images_generate(m, prompt, size, n)
+            if isinstance(url, list):
+                url = [self._stabilize(u) for u in url]
+            else:
+                url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
 
@@ -140,15 +192,22 @@ class ImageService:
         m = model_of(self.cfg, "image_edit")
         with track("营销图", (prompt or "")[:24], model=m, cost=BUS.price_of(m) * max(1, n)) as t:
             url = self.client.images_edit(m, prompt, [image])
+            url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return [url]
+
+    # qwen-image-3.0 的服务端限制：单次最多 3 张输入图（第 4 张报
+    # "too many input images for this model"）。超了就在这里截断，
+    # 避免把服务端错误抛给上层。
+    MAX_INPUT_IMAGES = 3
 
     def edit_many(self, images: Iterable[Path], prompt: str, tag: str = "多图素材编辑") -> str:
         """多图素材编辑：把 target + 参考图一起交给图像编辑模型（图生图）。"""
         m = model_of(self.cfg, "image_edit")
-        imgs = list(images)
+        imgs = list(images)[: self.MAX_INPUT_IMAGES]
         with track(tag, f"{len(imgs)} 张素材 · {(prompt or '')[:16]}", model=m) as t:
             url = self.client.images_edit(m, prompt, imgs)
+            url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
 
@@ -157,6 +216,7 @@ class ImageService:
         imgs = list(images)
         with track("多图融合", f"{len(imgs)} 张", model=m) as t:
             url = self.client.images_edit(m, prompt, imgs)
+            url = self._stabilize(url)
             t.detail = str(url)[-40:]
             return url
 

@@ -46,6 +46,23 @@ class ApiError(RuntimeError):
         self.body = body
 
 
+def classify_api_error(ex: Exception) -> str:
+    """把 API 异常归成三类，供启动前预检决定是否阻断。
+
+    - "auth"  : Key 无效/无权限 —— 一定跑不通，必须阻断
+    - "quota" : 额度不足/限流   —— 一定跑不通，必须阻断
+    - "other" : 网络抖动/服务端 5xx —— 可能瞬时，只告警不阻断
+    """
+    status = int(getattr(ex, "status", 0) or 0)
+    msg = str(ex)
+    low = msg.lower()
+    if status in (401, 403) or "invalid token" in low or "unauthorized" in low:
+        return "auth"
+    if status in (402, 429) or "quota" in low or "额度" in msg or "balance" in low:
+        return "quota"
+    return "other"
+
+
 class ApiClient:
     def __init__(self, base: str, key: str, timeout: int = 180, session: requests.Session | None = None,
                  proxy: str = ""):
@@ -70,6 +87,10 @@ class ApiClient:
 
     # ---------- 基础 ----------
     def _headers(self, extra: dict | None = None) -> dict:
+        # Key 为空时不要发 "Bearer " 出去：服务端只会回 "Invalid token"，
+        # 用户看不出是「没填 Key」还是「Key 过期」。这里直接给可操作的错误。
+        if not self.key:
+            raise ApiError("未配置 API Key：请在「设置 → API 配置」填写后再运行", 401, "")
         h = {"Authorization": f"Bearer {self.key}"}
         if extra:
             h.update(extra)
@@ -85,7 +106,9 @@ class ApiClient:
             return list(cached)
         r = self.session.get(self._url("/v1/models"), headers=self._headers(), timeout=30)
         if r.status_code >= 400:
-            raise ApiError(f"获取模型失败: {r.status_code}", r.status_code, r.text[:300])
+            # 带上服务端原文，否则只剩 "获取模型失败: 401"，看不出是 Key 无效还是权限问题
+            raise ApiError(f"获取模型失败({r.status_code}): {self._extract_error(r)}",
+                           r.status_code, r.text[:300])
         out = [m.get("id", "") for m in r.json().get("data", [])]
         _cache_put(key, out)
         return out

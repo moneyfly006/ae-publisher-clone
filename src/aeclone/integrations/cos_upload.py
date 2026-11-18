@@ -81,3 +81,39 @@ def upload_many(client, paths: list[Path], full_cid: str = "", on_done=None) -> 
         if on_done:
             on_done(Path(p), res, "")
     return results
+
+
+def upload_video(client, path: Path, timeout: int = 300) -> str:
+    """上传视频到店小秘，返回 cspVideoId（写进 payload.cspVideoId）。
+
+    流程同图片：取签名 → PUT 到 COS → video_callback 登记 → 拿视频 id。
+    """
+    path = Path(path)
+    if not path.exists():
+        raise UploadError(f"视频不存在: {path}")
+    data = path.read_bytes()
+    size = len(data)
+    name = path.name
+
+    sign_info = client.upload_sign(name, size)
+    url = sign_info.get("url")
+    file_id = sign_info.get("fileId") or sign_info.get("file_id") or ""
+    if not url:
+        raise UploadError(f"未获取到视频上传地址: {str(sign_info)[:200]}")
+
+    headers = {"Content-Type": "video/mp4"}
+    for k, v in (sign_info.get("headers") or {}).items():
+        headers[k] = v
+    r = requests.put(url, data=data, headers=headers, timeout=timeout)
+    if r.status_code >= 400:
+        raise UploadError(f"视频 COS 上传失败 HTTP {r.status_code}: {r.text[:200]}")
+
+    try:
+        resp = client.video_callback(file_id=file_id, file_name=name, file_size=size)
+        if isinstance(resp, dict):
+            d = resp.get("data") if isinstance(resp.get("data"), dict) else resp
+            vid = d.get("videoId") or d.get("fileId") or d.get("id") or file_id
+            return str(vid)
+        return str(file_id)
+    except Exception:
+        return str(file_id)

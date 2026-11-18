@@ -15,22 +15,20 @@ for pkg in ("flet", "flet_desktop"):
     except Exception:
         pass
 
-# Playwright 驱动（connect_over_cdp 不需要下载浏览器，但需要 driver 可执行文件）
-pw_datas, pw_bins, pw_hidden = [], [], []
-try:
-    pw_datas, pw_bins, pw_hidden = collect_all("playwright")
-except Exception:
-    pass
-
 a = Analysis(
     ["main.py"],
     pathex=[str(Path("src").resolve())],
-    binaries=flet_bins + pw_bins,
-    datas=[("assets", "assets")] + flet_datas + pw_datas,
-    hiddenimports=collect_submodules("aeclone") + flet_hidden + pw_hidden + [
-        "browser_cookie3", "Crypto", "Crypto.Cipher", "Crypto.Cipher.AES",
-        "Crypto.Protocol", "Crypto.Protocol.KDF", "playwright", "playwright.sync_api",
-        "playwright._impl._driver",
+    binaries=flet_bins,
+    datas=[("assets", "assets")] + flet_datas,
+    # pycryptodome 的 C 扩展是按需加载的（Crypto.PublicKey._nist_ecc 等），
+    # 手写列表一定会漏 —— 打包后表现是 VOUCHER_FAIL / 授权校验直接失败。
+    # 所以整包收集，别靠手写。
+    hiddenimports=collect_submodules("aeclone") + flet_hidden
+                   + collect_submodules("Crypto")
+                   + collect_submodules("browser_cookie3") + [
+        "Crypto", "Crypto.Cipher", "Crypto.Cipher.AES",
+        "Crypto.Protocol", "Crypto.Protocol.KDF", "Crypto.PublicKey",
+        "browser_cookie3",
     ],
     hookspath=[],
     hooksconfig={},

@@ -92,6 +92,15 @@ def parse_jobs(raw) -> list[dict]:
                "prompt": str(r.get("prompt") or "").strip(), "mode": mode,
                "count": count, "insert": insert,
                "preset": str(r.get("preset") or "").strip()}
+        # 本地参考图（老软件：图1~图N 为本地参考图，其后才是产品原图）
+        rp = r.get("ref_paths")
+        if isinstance(rp, str):
+            paths = [x.strip() for x in rp.replace("；", ";").split(";") if x.strip()]
+        elif isinstance(rp, (list, tuple)):
+            paths = [str(x).strip() for x in rp if str(x).strip()]
+        else:
+            paths = []
+        job["ref_paths"] = paths[:5]
         if not job["prompt"]:
             continue
         out.append(job)
@@ -193,4 +202,23 @@ def migrate(cfg, with_global: bool = False) -> tuple[str, str]:
                 rules.append({"group": "sku", "range": "1-20", "ops": ops})
     except Exception:
         pass
+    
+    # 4) 四合一迁移：生成主图四合一
+    try:
+        if getattr(cfg, "four_in_one", False):
+            position = str(getattr(cfg, "four_in_one_position", "append") or "append")
+            insert = "first" if position == "first" else "last"
+            jobs.append({
+                "group": "main",
+                "index": 1,
+                "refs": "1,2,3,4",
+                "prompt": "Combine these 4 product images into one clean product photo collage on a white background, arrange in a 2x2 grid.",
+                "mode": "edit",
+                "count": 1,
+                "insert": insert,
+                "preset": "四合一主图"
+            })
+    except Exception:
+        pass
+    
     return rows_to_rules(rules), rows_to_jobs(jobs)

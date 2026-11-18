@@ -14,21 +14,67 @@ PRESETS: dict[str, list[dict]] = {
          "en": "Put the product on a pure white background (#FFFFFF), soft diffused studio lighting, "
                "product centered occupying about 80% of the frame, keep shape/color/texture unchanged. "
                "No text, no watermark, no logo, no props, no border."},
+        {"key": "machinery_white", "zh": "机械设备白底主图",
+         "desc": "工业设备专用：45度角、金属质感、结构清晰、白底居中",
+         "en": "Professional industrial machinery product photo: pure white background (#FFFFFF), "
+               "45-degree angle view showing both front and side, equipment centered occupying 70% of frame, "
+               "soft diffused studio lighting highlighting metallic texture and mechanical structure, "
+               "all details (bolts, pipes, control panels) clearly visible, industrial photography style, "
+               "minimum 1200x1200px, no text, no watermark, no logo overlay, no border."},
+        {"key": "machinery_generate", "zh": "生成机械设备主图（从0开始）",
+         "desc": "AI从产品信息生成专业的机械设备主图，适合没有实拍图的情况",
+         "en": "Generate a professional industrial machinery product photo based on the product title and specifications: "
+               "{equipment type} with {key specs like power/tonnage/depth}, industrial color scheme (yellow/blue/grey), "
+               "pure white background (#FFFFFF), 45-degree angle showing front and side view, "
+               "equipment centered occupying 70% of frame, soft studio lighting highlighting metallic surfaces, "
+               "realistic industrial photography style showing mechanical details and structure, "
+               "brand logo visible if applicable, minimum 1200x1200px resolution, "
+               "professional product photography quality suitable for e-commerce listing, "
+               "no additional text, no watermarks, no decorative borders."},
         {"key": "scene", "zh": "换成使用场景",
          "desc": "例如工地/车间/户外，自然光，产品不变形",
          "en": "Place the product in a realistic usage scene matching its purpose (construction site, "
                "workshop or outdoor job site), natural daylight, product remains the focus and unchanged "
                "in shape/color/material, realistic contact shadow. No text, no watermark."},
+        {"key": "machinery_working", "zh": "机械设备工作场景",
+         "desc": "设备在真实作业环境中，可见操作人员，展示实际应用",
+         "en": "Show the industrial machinery in a realistic working scene: equipment in operation at "
+               "construction site/factory/farm/mining site, operator visible wearing safety gear (optional), "
+               "natural lighting, equipment occupies 40-50% of frame positioned at 1/3 composition, "
+               "realistic work environment background (tools, materials, site context), "
+               "moderate background blur focusing on equipment, natural colors without over-saturation, "
+               "minimum 800x800px, convey professional, reliable and efficient impression, "
+               "documentary photography style, no text, no watermark."},
         {"key": "detail_closeup", "zh": "细节特写",
          "desc": "突出材质/焊缝/轮子等工艺细节，背景虚化",
          "en": "Close-up product detail shot highlighting material, welding seams or wheel quality, "
                "shallow depth of field with blurred background, sharp focus on the product detail, "
                "accurate colors, no text, no watermark."},
+        {"key": "machinery_parts", "zh": "机械核心部件特写",
+         "desc": "液压系统/发动机/控制面板特写，展示技术细节和品牌部件",
+         "en": "Close-up detail shot of machinery core components: hydraulic system (cylinders, valves, hoses), "
+               "power system (engine, motor), control panel (gauges, buttons, display), or transmission parts, "
+               "component occupies 80% of frame, 45-degree top-down or eye-level angle, "
+               "shallow depth of field with focus on key details, brand labels clearly visible (REXROTH, BOSCH, etc.), "
+               "show precision machining surface, connection methods and material texture (metal/rubber), "
+               "sufficient lighting without glare, minimum 800x800px, professional product detail photography, "
+               "suitable for technical showcase in listing details, no text overlay, no watermark."},
         {"key": "multi_hero", "zh": "多图合成主图（用参考图）",
          "desc": "把提供的多张素材合成一张主图，统一背景光线，产品比例正确",
          "en": "Combine the provided reference photos into ONE clean e-commerce hero image: same product, "
                "consistent background and lighting, correct product proportions, no duplicated parts. "
                "No text, no watermark."},
+        {"key": "machinery_4in1", "zh": "机械设备四合一组合",
+         "desc": "整机+场景+部件+控制面板，2x2布局，专业电商展示",
+         "en": "Create a professional 4-in-1 machinery showcase combining the provided reference images into 2x2 grid layout: "
+               "Top-left: full equipment front/side view on white background, "
+               "Top-right: equipment in working scene or side angle view, "
+               "Bottom-left: core component close-up (hydraulic system, drill head or processing part), "
+               "Bottom-right: control panel or operator interface detail, "
+               "unified white or light grey background (#F5F5F5), 1-2px white divider lines between cells, "
+               "all images sharp without compression artifacts, overall size minimum 1200x1200px, "
+               "visually balanced and information-rich, professional e-commerce grid layout, "
+               "suitable as primary listing image, no text labels, no watermark."},
         {"key": "clean_bg", "zh": "清理背景杂物",
          "desc": "去掉背景里的杂物/人影/电线，保留产品",
          "en": "Remove distracting objects, people, wires and clutter from the background, keep the product "

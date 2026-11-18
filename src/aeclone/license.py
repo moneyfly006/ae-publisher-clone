@@ -45,7 +45,10 @@ def _raw_identity() -> str:
                 raw = line.split()[-1].strip()
                 break
     elif system == "Darwin":
-        out = _run(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"])
+        # 打包后的 app PATH 可能不含 /usr/sbin，必须用绝对路径，否则机器码会变
+        out = _run(["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"])
+        if not out:
+            out = _run(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"])
         for line in out.splitlines():
             if "IOPlatformUUID" in line:
                 raw = line.split("=")[-1].strip().strip('"')
@@ -159,6 +162,12 @@ def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
                         if not verify_voucher(voucher, signature, identity, ctype, public_key_pem):
                             raise ValueError("凭证内容不匹配")
                     except Exception as _e:  # noqa: BLE001
+                        try:
+                            from .config import config_dir
+                            with (config_dir() / "error.log").open("a", encoding="utf-8") as _f:
+                                _f.write(f"VOUCHER_FAIL {type(_e).__name__}: {_e}\n")
+                        except Exception:
+                            pass
                         last = {"ok": False, "authorized": False,
                                 "message": f"授权凭证验签失败：{str(_e)[:60]}",
                                 "expiry": "", "identity": identity, "machine_code": identity,

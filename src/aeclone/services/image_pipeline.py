@@ -43,12 +43,29 @@ class ImagePipeline:
         self.workdir = workdir or (Path.home() / ".auroralist" / "cache")
 
     def _download(self, url: str) -> Path:
+        import hashlib
+        import os
+        import tempfile
+        from urllib.parse import urlsplit
         self.workdir.mkdir(parents=True, exist_ok=True)
-        p = self.workdir / (url.split("/")[-1].split("?")[0] or "img.png")
+        suffix = Path(urlsplit(url).path).suffix.lower()
+        if suffix not in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}:
+            suffix = ".img"
+        p = self.workdir / (hashlib.sha256(url.encode("utf-8")).hexdigest() + suffix)
         if not p.exists():
             r = requests.get(url, timeout=60)
             r.raise_for_status()
-            p.write_bytes(r.content)
+            if not r.content:
+                raise ValueError("图片下载返回空内容")
+            tmp = None
+            try:
+                with tempfile.NamedTemporaryFile(dir=self.workdir, delete=False) as f:
+                    tmp = Path(f.name)
+                    f.write(r.content)
+                os.replace(tmp, p)
+            finally:
+                if tmp is not None and tmp.exists():
+                    tmp.unlink()
         return p
 
     def run(self, image_url: str, white_bg: bool | None = None,

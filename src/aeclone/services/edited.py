@@ -36,18 +36,8 @@ def _save(data: dict) -> None:
 
 
 def _prune(data: dict) -> dict:
-    # 只保留最近 180 天；最多 5000 条
-    now = time.time()
-    items = []
-    for pid, rec in data.items():
-        try:
-            ts = float((rec or {}).get("ts") or 0)
-        except Exception:
-            ts = 0
-        if ts and now - ts < 180 * 86400:
-            items.append((ts, str(pid), rec))
-    items.sort(reverse=True)
-    return {pid: rec for _ts, pid, rec in items[:5000]}
+    # 防重复编辑凭据不是缓存，不能按时间或数量自动淘汰。
+    return dict(data)
 
 
 def is_edited(product_id: str) -> bool:

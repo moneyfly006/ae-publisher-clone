@@ -21,16 +21,32 @@ class Step:
     detail: str = ""
 
 
+def is_audit_pending(message: str) -> bool:
+    """速卖通「商品审核中」的保存失败——应跳过，不算失败。"""
+    m = str(message or "").upper()
+    return ("PRODUCT_IN_AUDIT_PENDING" in m) or ("PENDING IN AUDIT" in m)
+
+
 @dataclass
 class PublishResult:
     product_id: str
     ok: bool
     steps: list[Step] = field(default_factory=list)
     error: str = ""
+    # 商品在速卖通审核中：不算失败，下次再处理
+    skipped_auditing: bool = False
 
     def log(self) -> str:
         lines = [f"{'✓' if s.ok else '✗'} {s.name}: {s.detail}" for s in self.steps]
         return "\n".join(lines)
+
+
+@dataclass
+class SaveResult:
+    ok: bool
+    message: str
+    title: str = ""
+    published: bool = False
 
 
 def add_step(res, name, ok, detail=""):
@@ -76,10 +92,14 @@ class Publisher:
         self.scheduler = scheduler
         self.image_pipeline = ImagePipeline(cfg)
         self._img_svc = image_service
+        self._size_rejects: list[tuple[str, str]] = []
+        self._album_urls: set[str] = set()
 
     # ---------- 单步 ----------
     def _normalize(self, product: dict) -> dict:
-        p = dict(product)
+        # Keep the source snapshot intact for write-back comparison and retries.
+        from copy import deepcopy
+        p = deepcopy(product)
         p["title"] = (p.get("title") or "").strip()
         prefix = (getattr(self.cfg, "custom_sku_prefix", "") or "").strip()
         if not getattr(self.cfg, "custom_sku_prefix_enable", True):
@@ -111,15 +131,29 @@ class Publisher:
             except Exception:
                 fallback = None
             p["skus"] = _combo_expand(list(p.get("skus") or []), pref, factor, fallback)
-        try:
-            limit = int(self.cfg.max_sku_count or 256)
-            p["skus"] = (p.get("skus") or [])[:limit]
-        except Exception:
-            p["skus"] = p.get("skus") or []
+        p["skus"] = p.get("skus") or []
         p["images"] = p.get("images") or []
         return p
 
-    def _form_values(self) -> dict:
+    def _template_values_cached(self, tpl_pid: str) -> dict:
+        """读模板产品的完整表单值，进程内缓存（同一批只读一次）。"""
+        _c = getattr(self, "_tpl_cache", None)
+        if _c is None:
+            self._tpl_cache = {}
+            _c = self._tpl_cache
+        if tpl_pid in _c:
+            return _c[tpl_pid]
+        vals: dict = {}
+        try:
+            if self.dxm is not None:
+                snap = self.dxm.template_snapshot(tpl_pid) or {}
+                vals = snap.get("values") or {}
+        except Exception:
+            vals = {}
+        _c[tpl_pid] = vals
+        return vals
+
+    def _form_values(self, product: dict | None = None) -> dict:
         """模板抓取到的表单值 + 欧盟资质/责任人（编辑器按 label 回填）。"""
         import json as _jf
         try:
@@ -133,6 +167,26 @@ class Publisher:
         fv["__eu_address__"] = getattr(self.cfg, "eu_responsible_address", "")
         fv["__eu_email__"] = getattr(self.cfg, "eu_responsible_email", "")
         fv["__eu_phone__"] = getattr(self.cfg, "eu_responsible_phone", "")
+        # 草稿商品缺的必填项：货值 / 是否原箱 / 服务模板 / 运费模板（能填就填）
+        # 货值：配置为空时给个安全默认值（草稿必填，不填就存不进去）
+        fv["__declared__"] = str(getattr(self.cfg, "declared_value", "") or "").strip() or "50"
+        fv["__original_box__"] = "是" if getattr(self.cfg, "original_box", False) else "否"
+        _st_tpl = str(getattr(self.cfg, "service_template", "") or "").strip() \
+            or "Service Template for New Sellers"
+        fv["__service_template__"] = _st_tpl
+        # 类目属性默认值（模板读不到时用）
+        fv["__high_concerned__"] = str(getattr(self.cfg, "high_concerned_chemical", "否") or "否")
+        fv["__charge_status__"] = str(getattr(self.cfg, "charge_status", "否") or "否")
+        # 保存后去向：save_only / save_to_waiting / publish
+        fv["__publish_action__"] = str(getattr(self.cfg, "publish_action", "save_only") or "save_only")
+        # 运费模板：配置为空时用商品自带的运费模板名（列表接口里的 shippingTempateName）
+        _ft = str(getattr(self.cfg, "freight_template", "") or "").strip()
+        if not _ft:
+            _ft = str((product or {}).get("shipping_template") or "").strip()
+        if not _ft:
+            # 该店实际存在的模板名（只读探测得到的选项之一）
+            _ft = "Shipping Cost Template for New Sellers"
+        fv["__freight_template__"] = _ft
         return fv
 
     # ---------- 逐图编辑方案（图生图 / 多图素材）----------
@@ -145,10 +199,20 @@ class Publisher:
         return self._img_svc
 
     def _pmap(self, fn, items, workers: int | None = None):
-        """小工具：按图片并发数并行执行，保持输入顺序；单张失败返回 None。"""
+        """小工具：按图片并发数并行执行，保持输入顺序；单张失败返回 None。
+
+        中止支持：用户点「停止」后，还没开始的图片直接返回 None，
+        不再白烧 AI 调用。
+        """
         items = list(items)
         if not items:
             return []
+        _raw_fn = fn
+
+        def fn(x):  # noqa: F811
+            if self._aborted():
+                return None
+            return _raw_fn(x)
         try:
             n = int(workers if workers is not None else getattr(self.cfg, "image_concurrency", 4) or 4)
         except Exception:
@@ -177,7 +241,7 @@ class Publisher:
 
     def _edit_with_prompt(self, url: str, prompt: str) -> str:
         """对单张 URL 用指定提示词做一次编辑，返回新 URL。"""
-        _act = "edit:" + (prompt or "")[:120]
+        _act = "edit:" + (prompt or "")
         _hit = self._cache_get(url, _act, self._img_model())
         if _hit:
             return _hit
@@ -215,20 +279,63 @@ class Publisher:
             return ""
 
     def _fetch(self, url: str, workdir=None):
-        """下载图片到本地（供多图素材上传用）。"""
+        """下载图片到本地（供多图素材上传用）；本地路径直接返回。"""
         import tempfile
         from pathlib import Path as _P
         import requests as _rq
+        s = str(url or "")
+        if s and not s.startswith(("http://", "https://", "data:")):
+            lp = _P(s)
+            if lp.exists():
+                return lp
         d = _P(workdir or tempfile.mkdtemp())
-        name = str(url).split("?")[0].split("/")[-1] or "img.png"
+        name = s.split("?")[0].split("/")[-1] or "img.png"
         if not name.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
             name += ".png"
         fp = d / f"{abs(hash(url)) % 10**8}_{name}"
         if not fp.exists():
-            r = _rq.get(str(url), timeout=60)
+            r = _rq.get(s, timeout=60)
             r.raise_for_status()
             fp.write_bytes(r.content)
         return fp
+
+    # ---------- 图片尺寸校验（速卖通 ≥800×800）----------
+    def _min_size(self) -> int:
+        try:
+            return max(1, int(getattr(self.cfg, "img_min_size", 800) or 800))
+        except Exception:
+            return 800
+
+    def _size_ok(self, url: str) -> tuple[bool, str]:
+        """校验一张图的实际像素；用本地已下载文件，不额外联网。"""
+        if not str(url or ""):
+            return False, "图片地址为空"
+        if not getattr(self.cfg, "img_min_size_enable", True):
+            return True, "尺寸校验已关闭"
+        try:
+            from .image_validation import check
+            d = getattr(self, "_size_tmp", None)
+            if d is None or not getattr(d, "exists", lambda: False)():
+                import tempfile
+                from pathlib import Path as _P
+                d = _P(tempfile.mkdtemp(prefix="ae_size_"))
+                self._size_tmp = d
+            return check(self._fetch(url, d), self._min_size())
+        except Exception as ex:  # noqa: BLE001
+            return False, f"无法读取尺寸：{str(ex)[:60]}"
+
+    def _vet(self, url: str, fallback: str = "") -> str:
+        """尺寸不合格就退回 fallback（通常是原图），合格则用新图。"""
+        if not str(url or ""):
+            return fallback or url
+        ok, info = self._size_ok(url)
+        if ok:
+            return url
+        try:
+            self._size_rejects.append((str(url), str(info)))
+        except Exception:
+            pass
+        return fallback or ""
 
     @staticmethod
     def _group_urls(p: dict, group: str) -> list[str]:
@@ -288,6 +395,14 @@ class Publisher:
             self._cache_put(url, _act, cur, self._img_model())
         return cur
 
+    def _aborted(self) -> bool:
+        """外部（界面「停止」按钮）请求中止时返回 True。"""
+        cb = getattr(self, "should_stop", None)
+        try:
+            return bool(cb()) if callable(cb) else False
+        except Exception:
+            return False
+
     def _apply_image_jobs(self, p: dict, res, dry_run: bool = False) -> dict:
         """执行「简单规则 + 精细任务」（新引擎；旧配置自动迁移）。"""
         if not getattr(self.cfg, "ai_image_enable", True):
@@ -296,44 +411,111 @@ class Publisher:
         from .image_jobs import parse_rules, parse_jobs, refs_indices, migrate, GROUP_LABELS
         rules = parse_rules(getattr(self.cfg, "image_simple_rules", "[]"))
         jobs = parse_jobs(getattr(self.cfg, "image_ai_jobs", "[]"))
-        if not rules and not jobs:
+        _mode = str(getattr(self.cfg, "image_edit_mode", "fine") or "fine").strip().lower()
+        _general = _mode in ("general", "simple")
+        _general_prompt = str(getattr(self.cfg, "img_general_prompt", "") or "").strip() \
+            or str(getattr(self.cfg, "edit_prompt", "") or "").strip()
+        if not rules and not jobs and not (_general and _general_prompt):
             try:
                 rj, jj = migrate(self.cfg)
                 rules, jobs = parse_rules(rj), parse_jobs(jj)
             except Exception:
                 rules, jobs = [], []
-        if not rules and not jobs:
+        if not rules and not jobs and not (_general and _general_prompt):
             return p
         if dry_run:
-            add_step(res, "图片方案", True,
-                     f"dry-run 跳过（简单规则 {len(rules)} 条 / 精细任务 {len(jobs)} 条）")
+            _parts = []
+            if _general:
+                _a = str(getattr(self.cfg, "img_general_main_from", "1") or "1")
+                _b = str(getattr(self.cfg, "img_general_main_to", "8") or "8")
+                try:
+                    _n = len(self._group_urls(p, "main"))
+                    _ai = max(0, min(int(_b), _n) - max(1, int(_a)) + 1)
+                except Exception:
+                    _ai = 0
+                _parts.append(f"通用编辑：主图 {_a}-{_b}，预计调用 AI {_ai} 次")
+            if rules:
+                _parts.append(f"简单规则 {len(rules)} 条")
+            if jobs:
+                _never = {
+                    "main": bool(getattr(self.cfg, "img_fine_main_enable", True)),
+                    "detail": bool(getattr(self.cfg, "img_fine_detail_enable", False)),
+                    "sku": bool(getattr(self.cfg, "img_fine_sku_enable", False)),
+                }
+                _act = [j for j in jobs if _never.get(j["group"], False)]
+                _parts.append(f"精细任务 {len(jobs)} 条（会执行 {len(_act)} 条）")
+            add_step(res, "图片方案", True, "dry-run 跳过实际调用 · " + "；".join(_parts or ["无"]))
             return p
 
         svc = self._img_service()
-        # ---- 简单规则 ----
+        try:
+            self._size_rejects = []
+        except Exception:
+            pass
+        # ---- 简单规则（图片简单编辑：白底/去水印/翻译）----
         for rule in rules:
             group = rule["group"]
             urls = self._group_urls(p, group)
             if not urls:
                 continue
-            idx = []
             from .image_index import parse_indices as _pi
             idx = _pi(rule.get("range") or "1-20", len(urls)) or []
-            src = [urls[i - 1] for i in idx]
+            # 空地址（比如 SKU 还没有图）直接跳过，别拿 "" 去下载/调用，白花一次失败
+            _pairs = [(i, urls[i - 1]) for i in idx if str(urls[i - 1] or "").strip()]
+            _skipped = len(idx) - len(_pairs)
+            idx = [i for i, _u in _pairs]
+            src = [u for _i, u in _pairs]
+            if not src:
+                add_step(res, f"简单处理·{GROUP_LABELS.get(group, group)}", True,
+                         f"范围内没有可用图片（跳过 {_skipped} 个空地址）")
+                continue
             vals = self._pmap(lambda u: self._apply_simple_ops(u, rule["ops"]), src)
             done = failed = 0
+            rejected = 0
             for i, old_u, new in zip(idx, src, vals):
                 if new and str(new) != str(old_u):
-                    self._set_group_url(p, group, i - 1, str(new))
+                    _vet_fn = getattr(self, "_vet", None)
+                    vetted = (_vet_fn(str(new), str(old_u))
+                              if callable(_vet_fn) else str(new))
+                    if not vetted:
+                        rejected += 1
+                        continue
+                    if str(vetted) != str(new):
+                        rejected += 1
+                    self._set_group_url(p, group, i - 1, str(vetted))
                     done += 1
                 elif new is None:
                     failed += 1
+            tail = f" / 尺寸不合格 {rejected}" if rejected else ""
+            if _skipped:
+                tail += f" / 跳过空图 {_skipped}"
             add_step(res, f"简单处理·{GROUP_LABELS.get(group, group)}", failed == 0 and done > 0,
-                     f"成功 {done} / 失败 {failed}")
+                     f"成功 {done} / 失败 {failed}{tail}")
+
+        # ---- 图片通用编辑：两种模式二选一（对齐老软件）----
+        if _general:
+            return self._apply_general_edit(p, res)
+
+        # ---- 精细化编辑：按分组启用 + 逐图提示词 ----
+        _group_enable = {
+            "main": bool(getattr(self.cfg, "img_fine_main_enable", True)),
+            "detail": bool(getattr(self.cfg, "img_fine_detail_enable", False)),
+            "sku": bool(getattr(self.cfg, "img_fine_sku_enable", False)),
+        }
+        if not any(_group_enable.values()):
+            add_step(res, "精细化编辑", True, "主图/详情图/SKU 图都未启用，跳过 AI 编辑")
+            return p
+        _detail_before = len(p.get("detail_images") or [])
+        _detail_touched = False
+        _ai_made_detail: set[str] = set()
 
         # ---- 精细任务 ----
         for n, job in enumerate(jobs, 1):
             group = job["group"]
+            if not _group_enable.get(group, False):
+                add_step(res, f"精细任务{n}", True,
+                         f"{GROUP_LABELS.get(group, group)} 编辑未启用，跳过该条任务")
+                continue
             urls = self._group_urls(p, group)
             if not urls:
                 continue
@@ -348,10 +530,15 @@ class Publisher:
             if job["mode"] == "edit" and not target:
                 add_step(res, f"精细任务{n}", False, f"{GROUP_LABELS.get(group, group)} 第{job['index']}张不存在")
                 continue
-            _cache_action = ("many:" + prompt[:120] + "|" + (target or "")[:200] + "|"
-                             + ",".join(ref_urls)[:300])
+            import json as _json
+            count = max(1, min(3, int(job.get("count") or 1))) if job["mode"] == "generate" else 1
+            # The cache stores one URL, so multi-output jobs must not reuse it.
+            cacheable = count == 1
+            _cache_action = "many:v2:" + _json.dumps(
+                [job["mode"], prompt, target or "", ref_urls[:4], job.get("ref_paths") or []],
+                ensure_ascii=False)
             _hit = self._cache_get(target or (ref_urls[0] if ref_urls else ""), _cache_action,
-                                   self._img_model()) if (target or ref_urls) else None
+                                   self._img_model()) if cacheable and (target or ref_urls) else None
             if _hit:
                 made = [_hit]
                 insert = job.get("insert") or ("first" if job["mode"] == "generate" else "replace")
@@ -362,12 +549,23 @@ class Publisher:
                 else:
                     self._set_group_url(p, group, tgt_i, _hit)
                 add_step(res, f"精细任务{n}", True, "命中缓存（同一张图之前处理过）")
+                if group == "detail":
+                    _detail_touched = True
+                    _ai_made_detail.add(str(_hit))
                 continue
             try:
                 import tempfile as _tf
                 from pathlib import Path as _P
                 workdir = _P(_tf.mkdtemp())
                 files = []
+                # 先本地参考图（图1~图N），再产品原图（老软件顺序）
+                for _lp in (job.get("ref_paths") or [])[:5]:
+                    try:
+                        _p = _P(str(_lp))
+                        if _p.exists():
+                            files.append(_p)
+                    except Exception:
+                        pass
                 if job["mode"] == "edit" and target:
                     files.append(self._fetch(target, workdir))
                 for u in ref_urls[:4]:
@@ -376,17 +574,73 @@ class Publisher:
                     files.append(self._fetch(target, workdir))
                 if not files:
                     raise RuntimeError("没有可用素材图")
+                # 四合一：本地拼（免费、确定、无张数限制）。
+                # 走 AI 的话 qwen-image-3.0 最多只吃 3 张输入，4 张会直接报
+                # "too many input images"。
+                # 只有明确选了「四合一主图」预设才走本地拼图；
+                # 普通多图任务仍交给 AI（按 3 张上限截断），避免悄悄换掉用户要的效果
+                _is_four = str(job.get("preset") or "") == "四合一主图"
+                if _is_four and len(files) >= 2:
+                    try:
+                        import tempfile as _tf4
+                        from pathlib import Path as _P4
+                        from .image_ops import four_in_one as _four
+                        from .hosting import upload as _host4
+                        out4 = _P4(_tf4.mkdtemp()) / "four_in_one.png"
+                        _four([_P4(f) for f in files[:4]], out4)
+                        made = [str(_host4(out4))]
+                        add_step(res, f"精细任务{n}·四合一", True,
+                                 f"本地拼图（{min(4, len(files))} 张，不调 AI）")
+                    except Exception as _ex4:  # noqa: BLE001
+                        add_step(res, f"精细任务{n}·四合一", False,
+                                 f"本地拼图失败：{str(_ex4)[:60]}，改用 AI")
+                        made = []
+                else:
+                    made = []
                 count = int(job.get("count") or 1) if job["mode"] == "generate" else 1
-                made: list[str] = []
-                for _ in range(max(1, min(3, count))):
-                    u = svc.edit_many(files, prompt,
-                                      tag=f"精细任务{n}·{GROUP_LABELS.get(group, group)}")
-                    if u:
-                        made.append(str(u))
+                if not made:
+                    # qwen-image-3.0 的输入上限是 3 张，超了会被服务端拒
+                    _use = list(files)[:3]
+                    if len(files) > 3:
+                        add_step(res, f"精细任务{n}·素材", False,
+                                 f"模型最多接受 3 张输入，已用前 3 张（原 {len(files)} 张）")
+                    for _ in range(max(1, min(3, count))):
+                        u = svc.edit_many(_use, prompt,
+                                          tag=f"精细任务{n}·{GROUP_LABELS.get(group, group)}")
+                        if u:
+                            made.append(str(u))
                 if not made:
                     raise RuntimeError("接口未返回图片")
             except Exception as ex:  # noqa: BLE001
                 add_step(res, f"精细任务{n}", False, str(ex)[:100])
+                continue
+            # 尺寸校验：不合格的产出直接不要（replace 时保留原图）
+            _rej = 0
+            _raw = list(made)
+            made = []
+            _size_fn = getattr(self, "_size_ok", None)
+            for u in _raw:
+                if callable(_size_fn):
+                    ok, info = _size_fn(u)
+                else:
+                    ok, info = True, "跳过尺寸校验"
+                if ok:
+                    made.append(u)
+                else:
+                    _rej += 1
+                    try:
+                        self._size_rejects.append((str(u), str(info)))
+                    except Exception:
+                        pass
+            if _rej:
+                try:
+                    _ms = int(getattr(self, "_min_size", lambda: 800)())
+                except Exception:
+                    _ms = 800
+                add_step(res, f"精细任务{n}·尺寸", False,
+                         f"{_rej} 张低于 {_ms}px 未采用（{info[:40]}）")
+            if not made:
+                add_step(res, f"精细任务{n}", False, "产出图尺寸全部不合格，已保留原图")
                 continue
             insert = job.get("insert") or ("first" if job["mode"] == "generate" else "replace")
             if insert == "first":
@@ -399,12 +653,100 @@ class Publisher:
             else:
                 for k, u in enumerate(made):
                     self._set_group_url(p, group, tgt_i + k, u)
-            if made:
+            if made and cacheable:
                 self._cache_put(target or (ref_urls[0] if ref_urls else ""), _cache_action,
                                 made[0], self._img_model())
             add_step(res, f"精细任务{n}", True,
                      f"{GROUP_LABELS.get(group, group)} · 素材 {len(files)} 张 · "
                      + ("插到第1张" if insert == "first" else "放到最后" if insert == "last" else "替换原图"))
+            if group == "detail" and made:
+                _detail_touched = True
+                _ai_made_detail.update(str(u) for u in made)
+
+        # 详情图「删除原有详情图，仅保留编辑结果」
+        if _detail_touched and bool(getattr(self.cfg, "img_fine_detail_replace", False)):
+            _d = [str(u) for u in (p.get("detail_images") or []) if str(u)]
+            _keep = [u for u in _d if u in _ai_made_detail]
+            if _keep and len(_keep) < len(_d):
+                p["detail_images"] = _keep
+                add_step(res, "详情图仅保留 AI 结果", True,
+                         f"删除原有 {len(_d) - len(_keep)} 张，保留 {len(_keep)} 张")
+        return p
+
+    def _keep_local(self, p: dict, res=None) -> None:
+        """开关 keep_main_images_local：把本次处理过的主图另存到本地，方便留档。
+
+        只写本地文件，不改商品、不改 URL，出错也不影响上架。
+        """
+        if not getattr(self.cfg, "keep_main_images_local", False):
+            return
+        try:
+            from ..config import config_dir
+            from pathlib import Path as _P
+            out_dir = _P(config_dir()) / "kept_images" / str(p.get("id") or "product")
+            out_dir.mkdir(parents=True, exist_ok=True)
+            saved = 0
+            for i, u in enumerate((p.get("images") or [])[:8], 1):
+                try:
+                    fp = self._fetch(str(u))
+                    ext = fp.suffix or ".png"
+                    dst = out_dir / f"{i:02d}_{abs(hash(str(u))) % 10**8}{ext}"
+                    if not dst.exists():
+                        dst.write_bytes(fp.read_bytes())
+                    saved += 1
+                except Exception:
+                    continue
+            if saved and res is not None:
+                add_step(res, "本地留档", True, f"{saved} 张 → {out_dir}")
+        except Exception as ex:  # noqa: BLE001
+            if res is not None:
+                add_step(res, "本地留档", False, f"保存失败：{str(ex)[:60]}")
+
+    def _apply_general_edit(self, p: dict, res) -> dict:
+        """图片通用编辑：一条提示词按范围逐张编辑主图（老软件的「通用编辑」）。"""
+        from .image_jobs import GROUP_LABELS
+        prompt = str(getattr(self.cfg, "img_general_prompt", "") or "").strip() \
+            or str(getattr(self.cfg, "edit_prompt", "") or "").strip()
+        if not prompt:
+            add_step(res, "通用编辑", False, "提示词为空，跳过")
+            return p
+        urls = self._group_urls(p, "main")
+        if not urls:
+            add_step(res, "通用编辑", True, "没有主图，跳过")
+            return p
+
+        def _int(name: str, default: int) -> int:
+            try:
+                return int(str(getattr(self.cfg, name, "") or "").strip())
+            except Exception:
+                return default
+
+        a = max(1, _int("img_general_main_from", 1))
+        b = _int("img_general_main_to", len(urls))
+        b = min(max(b, a), len(urls))
+        if a > len(urls):
+            add_step(res, "通用编辑", True, f"主图只有 {len(urls)} 张，范围 {a}-{b} 无图可编辑")
+            return p
+        idx = list(range(a, b + 1))
+        src = [urls[i - 1] for i in idx]
+        vals = self._pmap(lambda u: self._edit_with_prompt(u, prompt), src)
+        done = failed = rejected = 0
+        for i, old_u, new in zip(idx, src, vals):
+            if new and str(new) != str(old_u):
+                _vet_fn = getattr(self, "_vet", None)
+                vetted = (_vet_fn(str(new), str(old_u))
+                          if callable(_vet_fn) else str(new))
+                if not vetted or str(vetted) != str(new):
+                    rejected += 1
+                if not vetted:
+                    continue
+                self._set_group_url(p, "main", i - 1, str(vetted))
+                done += 1
+            elif new is None:
+                failed += 1
+        tail = f" / 尺寸不合格 {rejected}（已保留原图）" if rejected else ""
+        add_step(res, "通用编辑·主图", failed == 0 and done > 0,
+                 f"范围 {a}-{b} · 成功 {done} / 失败 {failed}{tail}")
         return p
 
     @staticmethod
@@ -462,15 +804,81 @@ class Publisher:
         target = [a.get("name", "") for a in (p.get("target_attributes") or [])]
         mapping = auto_map(attrs, target) if target else {}
         p["attr_mapping"] = mapping
-        p["skus"] = limit_skus(p["skus"], int(self.cfg.max_sku_count or 256))
+        raw_limit = getattr(self.cfg, "max_sku_count", 256)
+        p["skus"] = limit_skus(p["skus"], int(raw_limit) if raw_limit is not None else 0)
         required = [a.get("name", "") for a in (p.get("target_attributes") or [])]
-        p["sku_issues"] = [f"{i.sku}: {i.reason}" for i in check_consistency(p["skus"], required)] if required else []
+        p["sku_issues"] = [f"{i.sku}: {i.reason}" for i in check_consistency(p["skus"], required)]
         return p
 
+    def _ship_dims(self, p: dict, res=None):
+        """返回 (weight, length, width, height)。
+
+        开关 prefer_collected_weight 打开且商品采集到了重量/尺寸时优先用采集值，
+        否则退回「设置」里填的统一规格值。
+        """
+        # 用户明确要求：设置里填了尺寸/重量，就以设置为准，不被采集值覆盖。
+        # 只有当设置为空时，才回落到采集值。
+        _spec_filled = all(str(getattr(self.cfg, k, "") or "").strip()
+                           for k in ("spec_weight", "spec_length", "spec_width", "spec_height"))
+        use_collected = bool(getattr(self.cfg, "prefer_collected_weight", False)) and not _spec_filled
+        fields = p.get("fields") or {}
+        cw = str(fields.get("weight") or "").strip() if use_collected else ""
+        cs = str(fields.get("size") or "").strip() if use_collected else ""
+
+        # 采集重量单位可能是克，超过 500 时自动转换为 kg
+        if cw:
+            try:
+                cw_f = float(cw)
+                if cw_f > 500:
+                    cw = f"{cw_f / 1000:.3f}"
+            except Exception:
+                pass
+
+        w = cw or str(getattr(self.cfg, "spec_weight", "") or "").strip()
+        l = str(getattr(self.cfg, "spec_length", "") or "").strip()
+        wd = str(getattr(self.cfg, "spec_width", "") or "").strip()
+        h = str(getattr(self.cfg, "spec_height", "") or "").strip()
+
+        # 设置里没填 → 按模板产品补（用户要求：一律以模板产品为准）
+        if not (w and l and wd and h):
+            try:
+                _pid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+                _tv = self._template_values_cached(_pid) if _pid else {}
+                def _tval(name):
+                    it = (_tv or {}).get(name) or {}
+                    return str((it or {}).get("v") or "").strip() if isinstance(it, dict) else ""
+                if not w:
+                    w = _tval("包装后重量")
+                _sz = _tval("包装后尺寸")
+                if _sz:
+                    _nums = [x for x in str(_sz).replace("*", "x").split("x") if x.strip()]
+                    if len(_nums) >= 1 and not l:
+                        l = _nums[0].strip()
+                    if len(_nums) >= 2 and not wd:
+                        wd = _nums[1].strip()
+                    if len(_nums) >= 3 and not h:
+                        h = _nums[2].strip()
+            except Exception:
+                pass
+
+        if cs:
+            parts = [x.strip() for x in cs.lower().replace("*", "x").replace("×", "x").split("x") if x.strip()]
+            if len(parts) == 3 and all(x.replace(".", "", 1).isdigit() for x in parts):
+                l, wd, h = parts
+                if res is not None:
+                    add_step(res, "尺寸", True, f"用采集尺寸 {l}x{wd}x{h}")
+        if cw and res is not None:
+            add_step(res, "重量", True, f"用采集重量 {cw} kg")
+        return (w or None, l or None, wd or None, h or None)
+
     def _price(self, p: dict) -> dict:
-        """统一走 services.pricing.compute_price，保证试算与刊登一致。"""
+        """统一走 services.pricing.compute_price，保证试算与刊登一致。
+
+        基准价格优先用采集到的产品价格（p["price"]），不依赖手动填写的成本。
+        """
         from .pricing import compute_price
-        base = float(p.get("cost") or self.cfg.goods_cost or 0)
+        # 直接用采集到的产品价格作为基准，倍率模式下即为售价
+        base = float(p.get("price") or p.get("cost") or 0)
         r = compute_price(self.cfg, base)
         if r.regional:
             p["regional"] = dict(r.regional)
@@ -500,6 +908,25 @@ class Publisher:
                 return out
             except Exception:
                 pass
+        # 优先用注入的图片服务（图片测试台/离线测试会注入），没有再走内置流水线
+        svc = getattr(self, "_img_svc", None)
+        if svc is not None:
+            try:
+                fp = self._fetch(str(url))
+                if white_bg and remove_wm and not edit:
+                    fn = getattr(svc, "combined", None)
+                    out = str(fn(fp) if callable(fn) else svc.white_background(fp))
+                elif edit:
+                    out = str(svc.edit(fp, prompt or ""))
+                elif white_bg:
+                    out = str(svc.white_background(fp))
+                else:
+                    out = str(svc.remove_watermark(fp))
+                if out:
+                    self._cache_put(url, _act, out, self._img_model())
+                    return out
+            except Exception:
+                pass
         ip = self.image_pipeline
         r = ip.run(str(url), white_bg=white_bg, remove_wm=remove_wm, edit=edit, prompt=prompt)
         out = r.last_url() or str(url)
@@ -526,12 +953,26 @@ class Publisher:
             return p
         from .image_index import pick
 
+        # 新引擎（简单规则 / 精细任务）已经覆盖的分组，旧路径不要再做一遍，
+        # 否则同一张图会被白底/去水印加工两次：多花一次钱、多等一轮。
+        _covered: set[str] = set()
+        try:
+            from .image_jobs import parse_rules as _pr, parse_jobs as _pj
+            # 检查简单规则和精细任务覆盖的分组
+            _covered = {r["group"] for r in _pr(getattr(self.cfg, "image_simple_rules", "[]"))}
+            _covered.update(j["group"] for j in _pj(getattr(self.cfg, "image_ai_jobs", "[]")))
+        except Exception:
+            _covered = set()
+        if _covered:
+            add_step(res, "图片路径", True,
+                     "已由图片方案处理：" + "/".join(sorted(_covered)) + "（旧路径自动跳过，避免重复扣费）")
+
         # 主图
         main = p.get("images", [])
         main_ops = (self.cfg.white_bg_enable or self.cfg.watermark_enable
                     or getattr(self.cfg, "img_main_edit", False)
                     or (self.cfg.background_gen_rules or "").strip() not in ("", "[]"))
-        if main and main_ops:
+        if main and main_ops and "main" not in _covered:
             # 白底范围
             wb_expr = ""
             if self.cfg.white_background_pic_1 or self.cfg.white_background_pic_2:
@@ -559,7 +1000,7 @@ class Publisher:
                       or getattr(self.cfg, "img_detail_remove_wm", False)
                       or getattr(self.cfg, "img_detail_edit", False)
                       or getattr(self.cfg, "translate_detail_pic_enable", False))
-        if detail and detail_ops:
+        if detail and detail_ops and "detail" not in _covered:
             selected = pick(detail, self.cfg.white_background_detail_pic_indices)
             if selected:
                 out, done = self._process_urls(selected, limit=20,
@@ -715,9 +1156,100 @@ class Publisher:
                          f"成功 {done_bg} / 失败 {failed_bg}")
         return p
 
+    @staticmethod
+    def _url_readable(url: str, timeout: int = 12) -> bool:
+        """回读一次，确认图片地址真的能公开访问。
+
+        店小秘 COS 上传返回的可能是带签名的私有地址（去掉 query 后 403），
+        直接写进商品会导致主图裂开。宁可退回图床，也不要交一个坏地址。
+        """
+        try:
+            import requests as _rq
+            r = _rq.get(url, timeout=timeout, stream=True)
+            ok = 200 <= r.status_code < 300
+            ctype = (r.headers.get("Content-Type") or "").lower()
+            try:
+                r.close()
+            except Exception:
+                pass
+            return ok and ("image" in ctype or ctype == "")
+        except Exception:
+            return False
+
+    def _upload_to_album(self, p: dict, res=None) -> dict:
+        """开关 prefer_dianxiaomi_album：把处理后的图直接传进店小秘「图片空间」。
+
+        走 cos_upload（取签名 → PUT → 回调登记），传完用店小秘返回的地址替换原 URL，
+        这样就不需要外部图床了。
+
+        失败的单张不做替换（保留原地址），并在步骤里写清楚，绝不静默改坏。
+        """
+        if not getattr(self.cfg, "prefer_dianxiaomi_album", False) or self.dxm is None:
+            return p
+        try:
+            self._album_urls
+        except AttributeError:
+            self._album_urls = set()
+        try:
+            from ..integrations.cos_upload import upload_image as _album_up
+        except Exception as ex:  # noqa: BLE001
+            if res is not None:
+                add_step(res, "传店小秘相册", False, f"模块不可用：{str(ex)[:60]}")
+            return p
+
+        # 已在店小秘/速卖通域名上的图不用再传
+        skip_hosts = ("alicdn.com", "dianxiaomi.com", "dxm.com")
+        full_cid = str(getattr(self.cfg, "upload_full_cid", "") or "")
+        done = failed = skipped = 0
+        for key in ("images", "detail_images"):
+            urls = p.get(key) or []
+            for i, u in enumerate(urls):
+                su = str(u or "")
+                if not su:
+                    skipped += 1
+                    continue
+                if su.startswith("http") and any(h in su for h in skip_hosts):
+                    skipped += 1
+                    continue
+                try:
+                    # 本地文件直接用；网络地址先下到本地
+                    if su.startswith("http"):
+                        fp = self._fetch(su)
+                    else:
+                        from pathlib import Path as _Ploc
+                        fp = _Ploc(su)
+                        if not fp.exists():
+                            skipped += 1
+                            continue
+                    r = _album_up(self.dxm, fp, full_cid=full_cid)
+                    new_u = str(getattr(r, "url", "") or "")
+                    if new_u.startswith("http") and getattr(self.cfg, "album_verify_url", True):
+                        if not self._url_readable(new_u):
+                            add_step(res, "传店小秘相册", False,
+                                     f"第{i + 1}张上传成功但地址打不开，已保留原地址")
+                            failed += 1
+                            continue
+                    if new_u.startswith("http"):
+                        urls[i] = new_u
+                        try:
+                            self._album_urls.add(new_u)
+                        except Exception:
+                            pass
+                        done += 1
+                    else:
+                        failed += 1
+                except Exception:
+                    failed += 1
+            p[key] = urls
+        if res is not None:
+            add_step(res, "传店小秘相册", failed == 0 and done > 0,
+                     f"成功 {done} / 失败 {failed} / 跳过 {skipped}")
+        return p
+
     def _publicize_images(self, p: dict, res, dry_run: bool = False) -> dict:
         """把私有图片下载后转存到我们的服务器，得到公网可访问 URL。
 
+        已经是公网托管 URL 的图片（以 moneyfly.club 或 alicdn 开头）跳过重复托管。
         dry-run 时跳过下载/上传（预演只需计划，不需要真实公网 URL），速度快 20 倍以上。
         """
         if dry_run:
@@ -726,6 +1258,28 @@ class Publisher:
         import tempfile
         from pathlib import Path as _P
         from .hosting import upload as host_upload
+        
+        # 跳过已托管的公网图片
+        # 注意：要把「我们自己的图床」也算进来，否则刚处理完的图会被反复重传。
+        # 以前只列了 moneyfly / alicdn，导致自建图床（132.226.1.44:8099）的图每轮都重传。
+        try:
+            from .hosting import DEFAULT_HOST as _HOST
+            _host_key = _HOST.split("//")[-1].rstrip("/")
+        except Exception:
+            _host_key = ""
+        hosted_patterns = tuple(x for x in ("moneyfly.club", "alicdn.com", "ae01.alicdn.com",
+                                            _host_key) if x)
+        all_images = p.get("images", [])
+        images = all_images[:8]  # 只处理前8张
+        _album = getattr(self, "_album_urls", set())
+        needs_upload = [i for i, u in enumerate(images)
+                        if not any(pattern in str(u).lower() for pattern in hosted_patterns)
+                        and str(u) not in _album]
+        
+        if not needs_upload:
+            add_step(res, "图片转存", True, f"已全部公网（{len(images)} 张）")
+            return p
+            
         d = _P(tempfile.mkdtemp())
         cookies = None
         if self.dxm is not None:
@@ -733,126 +1287,396 @@ class Publisher:
                 cookies = self.dxm.cookies_dict()
             except Exception:
                 cookies = None
-        def _one(iu):
-            i, u = iu
+        
+        def _one(i):
+            u = images[i]
             try:
                 r = __import__("requests").get(str(u), timeout=60, cookies=cookies)
                 r.raise_for_status()
                 fp = d / f"pub_{i}.png"; fp.write_bytes(r.content)
-                return host_upload(fp)
+                return i, host_upload(fp)
             except Exception:
-                return str(u)
-        _items = list(enumerate(p.get("images", [])[:8]))
-        out = self._pmap(_one, _items)
-        if out:
-            p["images"] = out
-            add_step(res, "图片转存", True, f"{len(out)} 张已转公网")
+                return i, str(u)
+        
+        results = self._pmap(_one, needs_upload)
+        for i, url in results:
+            images[i] = url
+
+        # ---- 尺寸校验：速卖通要求 ≥800×800，不合格的不写回去 ----
+        if getattr(self.cfg, "img_min_size_enable", True) and images:
+            ms = self._min_size()
+            bad: list[tuple[int, str, str]] = []
+            for i, u in enumerate(images):
+                ok, info = self._size_ok(str(u))
+                if not ok:
+                    bad.append((i, str(u), str(info)))
+            if bad:
+                try:
+                    self._size_rejects.extend((b[1], b[2]) for b in bad)
+                except Exception:
+                    pass
+                if bool(getattr(self.cfg, "img_min_size_drop_invalid", False)):
+                    bad_idx = {b[0] for b in bad}
+                    images = [u for i, u in enumerate(images) if i not in bad_idx]
+                    add_step(res, "尺寸校验", False,
+                             f"移除 {len(bad)} 张 <{ms}px 的图（剩 {len(images)} 张）")
+                else:
+                    add_step(res, "尺寸校验", False,
+                             f"{len(bad)} 张 <{ms}px 未删除，仅告警：" +
+                             "；".join(f"第{b[0] + 1}张 {b[2][:24]}" for b in bad[:3]))
+            else:
+                add_step(res, "尺寸校验", True, f"{len(images)} 张全部 ≥{ms}px")
+
+        # 只更新前8张，保留后续图片
+        p["images"] = images + all_images[8:]
+        add_step(res, "图片转存", True, f"{len(needs_upload)} 张已转公网，{len(images) - len(needs_upload)} 张已复用")
         return p
 
     def _local_image_ops(self, p: dict, res) -> dict:
-        """水印 / 四合一：下载 → 本地处理 → 托管 → 回填 URL。"""
+        """水印 / 四合一：下载 → 本地处理 → 托管 → 回填 URL。
+        
+        重要：只修改需要处理的图片，其他图片保持原样。
+        - 水印：替换对应位置的图片
+        - 四合一：生成新图插入（不删除原图）
+        """
         import tempfile
         import requests as _rq
         from pathlib import Path as _P
         from .image_ops import add_watermark, four_in_one
         from .hosting import upload as host_upload
 
+        original_images = list(p.get("images", []))  # 保存原始列表
         d = _P(tempfile.mkdtemp())
         local = []
-        for i, u in enumerate(p.get("images", [])[:8]):
+        local_indices = []  # 记录下载的图片对应的原始索引
+        
+        for i, u in enumerate(original_images[:8]):
             try:
                 r = _rq.get(str(u), timeout=60); r.raise_for_status()
-                fp = d / f"src_{i}.png"; fp.write_bytes(r.content); local.append(fp)
+                fp = d / f"src_{i}.png"; fp.write_bytes(r.content)
+                local.append(fp)
+                local_indices.append(i)
             except Exception:
                 continue
+        
         if not local:
             return p
 
+        # 水印处理：替换对应位置
         if self.cfg.watermark:
-            outs = []
+            watermarked = []
             for i, fp in enumerate(local):
                 try:
-                    outs.append(add_watermark(fp, self.cfg.watermark, d / f"wm_{i}.png"))
+                    wm_fp = add_watermark(fp, self.cfg.watermark, d / f"wm_{i}.png")
+                    watermarked.append((local_indices[i], wm_fp))
                 except Exception:
-                    outs.append(fp)
-            local = outs
+                    # 失败则保持原图
+                    pass
+            
+            # 上传水印图并替换对应位置
+            for orig_idx, fp in watermarked:
+                try:
+                    url = host_upload(fp)
+                    original_images[orig_idx] = url
+                except Exception:
+                    pass
 
+        # 四合一：生成新图并插入（不删除原图）
+        four_url = None
         if self.cfg.four_in_one and len(local) >= 2:
             try:
-                four = four_in_one(local[:4], d / "four.png")
-                if str(getattr(self.cfg, "four_in_one_position", "append") or "append") == "first":
-                    local.insert(0, four)
-                else:
-                    local.append(four)
+                four_fp = four_in_one(local[:4], d / "four.png")
+                four_url = host_upload(four_fp)
             except Exception:
                 pass
+        
+        if four_url:
+            position = str(getattr(self.cfg, "four_in_one_position", "append") or "append")
+            if position == "first":
+                original_images.insert(0, four_url)
+                add_step(res, "四合一", True, "已插入到第一位")
+            else:
+                original_images.append(four_url)
+                add_step(res, "四合一", True, "已追加到末尾")
 
-        urls = []
-        for fp in local:
-            try:
-                urls.append(host_upload(fp))
-            except Exception:
-                continue
-
-        # 回传店小秘相册：水印图先进图片库，商品再用相册 URL（老软件同款做法）
+        # 回传店小秘相册：水印图先进图片库
         album_ok = 0
-        if urls and self.dxm is not None and getattr(self.cfg, "watermark_upload_album", True) and self.cfg.watermark:
+        if self.cfg.watermark and self.dxm is not None and getattr(self.cfg, "watermark_upload_album", True):
             full_cid = getattr(self.cfg, "upload_full_cid", "") or ""
-            for u in urls:
-                try:
-                    self.dxm.upload_image_from_url(str(u), full_cid=full_cid)
-                    album_ok += 1
-                except Exception:
-                    continue
+            for img_url in original_images[:8]:  # 只上传前8张
+                if img_url != p.get("images", [])[original_images.index(img_url) if img_url in (p.get("images", [])) else -1]:
+                    # 只上传被修改过的图片
+                    try:
+                        self.dxm.upload_image_from_url(str(img_url), full_cid=full_cid)
+                        album_ok += 1
+                    except Exception:
+                        continue
             if album_ok:
                 add_step(res, "水印回传相册", True, f"{album_ok} 张已入店小秘图片库")
 
-        if urls:
-            p["images"] = urls
-        add_step(res, "本地图片处理", bool(urls),
-                 f"{len(urls)} 张已托管" + (f"（相册 {album_ok}）" if album_ok else ""))
+        p["images"] = original_images
+        
+        msg_parts = []
+        if self.cfg.watermark:
+            msg_parts.append("水印已应用")
+        if four_url:
+            msg_parts.append("四合一已生成")
+        
+        add_step(res, "本地图片处理", True, " · ".join(msg_parts) if msg_parts else "完成")
         return p
 
+    def _review_content(self, p: dict, res) -> bool:
+        """Review verdicts are metadata, never replacement product content."""
+        import re
+        block = bool(getattr(self.cfg, "review_block_on_fail", False))
+
+        def check(label, call):
+            try:
+                verdict = call()
+                if not isinstance(verdict, str) or not verdict.strip():
+                    raise ValueError("审查返回空结果")
+                match = re.fullmatch(r"(PASS|FAIL)(?:\s*[|｜:].*)?", verdict.strip(), re.I | re.S)
+                if not match:
+                    raise ValueError("审查结果格式无法识别，应返回 PASS 或 FAIL|原因")
+                ok = match.group(1).upper() == "PASS"
+                add_step(res, label, ok, verdict[:160])
+                if not ok and block:
+                    res.ok = False
+                    res.error = f"{label}不合规，已停止保存"
+                    return False
+            except Exception as ex:
+                add_step(res, label, False, str(ex)[:160])
+                if block:
+                    res.ok = False
+                    res.error = f"{label}未完成，已停止保存：{ex}"
+                    return False
+            return True
+
+        for group, key, enabled in (("detail", "detail_images", "review_detail_img_enable"),
+                                     ("main", "images", "review_main_img_enable")):
+            if not getattr(self.cfg, enabled, False) or not p.get(key):
+                continue
+            urls = list(p[key])
+            if group == "detail":
+                first = max(0, int(getattr(self.cfg, "detail_review_first_count", 0) or 0))
+                last = max(0, int(getattr(self.cfg, "detail_review_last_count", 0) or 0))
+                urls = (urls[:first] if first else []) + (urls[-last:] if last else []) if first or last else urls
+            reviewer = ImagePipeline(self.cfg)
+            for index, url in enumerate(dict.fromkeys(urls), 1):
+                label = f"{'详情' if group == 'detail' else '主'}图审查{index}"
+                if not check(label, lambda u=url: reviewer.review(str(u), group)):
+                    return False
+        if getattr(self.cfg, "review_text_enable", False) and p.get("detail_html"):
+            def text_verdict():
+                result = TextPipeline(self.cfg).review_text(p["detail_html"])
+                if not result.ok:
+                    raise ValueError(result.error or "文本审查请求失败")
+                return result.value
+            if not check("文本审查", text_verdict):
+                return False
+        return True
+
     # ---------- 主流程 ----------
+    def _prepare_video(self, p: dict, res, product: dict, dry_run: bool):
+        """主图视频：模板视频 / 生成轮播视频 → 上传店小秘 → p["csp_video_id"]。
+
+        失败只记日志不阻断保存（视频是可选增强）。
+        """
+        if dry_run or self.dxm is None:
+            return
+        from pathlib import Path
+        src_video: str = ""
+        # ① 模板视频（需填路径）
+        if getattr(self.cfg, "use_template_video", False):
+            _tp = str(getattr(self.cfg, "template_video_path", "") or "").strip()
+            if _tp and Path(_tp).exists():
+                src_video = _tp
+        # ② 生成轮播视频（本地 ffmpeg 合成，不调 AI）
+        if not src_video and getattr(self.cfg, "generate_main_video", False) and p.get("images"):
+            try:
+                import tempfile as _tf
+                import requests as _rq
+                from .video import generate_carousel_video
+                d = Path(_tf.mkdtemp())
+                imgs = []
+                for i, u in enumerate(p["images"][:6]):
+                    _f = d / f"v{i}.jpg"
+                    try:
+                        _f.write_bytes(_rq.get(str(u), timeout=60).content)
+                        imgs.append(_f)
+                    except Exception:
+                        continue
+                if imgs:
+                    out = d / "carousel.mp4"
+                    generate_carousel_video(imgs, out)
+                    src_video = str(out)
+                    add_step(res, "生成轮播视频", True, f"{len(imgs)} 张图已合成")
+            except Exception as ex:  # noqa: BLE001
+                add_step(res, "生成轮播视频", False, str(ex)[:80])
+                return
+        if not src_video:
+            return
+        # 上传
+        try:
+            from ..integrations.cos_upload import upload_video
+            vid = upload_video(self.dxm, Path(src_video))
+            if vid:
+                p["csp_video_id"] = vid
+                add_step(res, "视频上传", True, f"cspVideoId={vid[:24]}")
+        except Exception as ex:  # noqa: BLE001
+            add_step(res, "视频上传", False, str(ex)[:80])
+
+    def _save_via_api(self, p: dict, res, action: str, ship, images: list[str] | None):
+        """用 add.json 的 API 直存路径保存（绕开 DOM）。
+
+        返回 SaveResult；无法走 API（没模板/没 dxm）时返回 None，由调用方回退 DOM。
+        """
+        from .api_save import build_save_payload, build_ai_overrides
+
+        if self.dxm is None:
+            return None
+        _tpl_pid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+        if not _tpl_pid:
+            return None
+
+        pid = str(p.get("id", ""))
+        try:
+            target = self.dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
+            tpl = None
+            if bool(getattr(self.cfg, "apply_template_on_save", True)):
+                tpl = self.dxm._get("product_detail", {"id": _tpl_pid}).get("data", {}).get("product", {})
+        except Exception as ex:
+            add_step(res, "API 直存", False, f"读取商品详情失败：{str(ex)[:80]}")
+            return None
+        if not target:
+            add_step(res, "API 直存", False, "没取到目标商品详情")
+            return None
+
+        try:
+            # 主图数量上限
+            _imgs = images
+            _cap = int(getattr(self.cfg, "editor_main_images_max", 6) or 6)
+            if _imgs and _cap > 0:
+                _imgs = list(_imgs)[:_cap]
+            overrides = build_ai_overrides(target, p, self.cfg, images=_imgs, ship=ship)
+            payload = build_save_payload(
+                target, tpl, action=action, overrides=overrides,
+                custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None))
+            resp = self.dxm.save_product_via_api(payload)
+        except Exception as ex:  # noqa: BLE001
+            add_step(res, "API 直存", False, f"保存失败：{str(ex)[:120]}")
+            return None
+
+        _code = resp.get("code") if isinstance(resp, dict) else None
+        if _code == 0:
+            _msg = ((resp.get("data") or {}).get("msg") if isinstance(resp.get("data"), dict)
+                    else str(resp.get("msg") or ""))
+            return SaveResult(ok=True, message=f"API 直存成功：{_msg[:120]}",
+                              published=(action in ("publish", "save_to_waiting")))
+        _msg = str(resp.get("msg") or "") or "保存失败"
+        return SaveResult(ok=False, message=f"API 直存：{_msg[:200]}")
+
     def run(self, product: dict, dry_run: bool = True, manage_progress: bool = True) -> PublishResult:
         res = PublishResult(product_id=str(product.get("id", "")), ok=True)
         # 自动化测试/验收默认不真实保存，避免误改客户商品
         import os as _os
         if _os.environ.get("AURORA_TEST") or _os.environ.get("AURORA_NO_SAVE"):
             dry_run = True
+        if dry_run:
+            # 预演：把「不改数据也不花钱」的步骤都跑一遍，让用户看到到底会发生什么。
+            # 不调用 AI、不下载图片、不连接浏览器、不写配置、不保存商品。
+            res.steps.append(Step("预演", True, "不调用 AI、不下载图片、不连接浏览器、不保存商品"))
+            try:
+                p = self._normalize(product)
+                res.steps.append(Step("标准化", True,
+                                      f"{len(p.get('skus') or [])} 个 SKU / "
+                                      f"{len(p.get('images') or [])} 张主图"))
+            except Exception as ex:  # noqa: BLE001
+                res.steps.append(Step("标准化", False, f"失败：{str(ex)[:80]}"))
+                res.ok = False
+                res.error = "预演：标准化失败"
+                return res
+
+            # 价格（纯计算，不联网）
+            try:
+                self._price(p)
+                pr = p.get("price_result")
+                if pr is not None:
+                    _note = getattr(pr, "note", "") or getattr(pr, "mode", "")
+                    _final = getattr(pr, "final", None)
+                    res.steps.append(Step("价格计算", True, f"{_note} · ¥{_final}"))
+            except Exception as ex:  # noqa: BLE001
+                res.steps.append(Step("价格计算", False, str(ex)[:80]))
+
+            # 图片计划（纯计算）
+            try:
+                from .image_task_plan import build_plan
+                plan = build_plan(self.cfg, p)
+                if getattr(plan, "steps", None):
+                    res.steps.append(Step("图片计划", not getattr(plan, "blockers", False),
+                                          "；".join(plan.steps[:4])))
+                if getattr(plan, "blockers", None):
+                    res.steps.append(Step("计划阻断", False, "；".join(plan.blockers[:3])))
+            except Exception as ex:  # noqa: BLE001
+                res.steps.append(Step("图片计划", False, f"生成失败：{str(ex)[:80]}"))
+
+            # 图片方案摘要（新引擎自带 dry_run 分支，不调 AI）
+            try:
+                before = len(p.get("images") or [])
+                self._apply_image_jobs(p, res, dry_run=True)
+                after = len(p.get("images") or [])
+                if before != after:
+                    res.steps.append(Step("图片结果", True, f"预计 {before} → {after} 张"))
+            except Exception as ex:  # noqa: BLE001
+                res.steps.append(Step("图片方案", False, str(ex)[:80]))
+
+            # 多 SKU 拦截（真跑时也会拦）
+            if (getattr(self.cfg, "write_sku_codes_to_product", True)
+                    and len(product.get("skus") or []) > 1):
+                res.steps.append(Step("保存能力检查", False,
+                                      "多 SKU + SKU 编码写回：真跑时会被拦截（去「变种设置 → SKU 写回」关掉）"))
+
+            res.steps.append(Step("保存到店小秘", True, "dry-run：未写入；点「真实写入」才会保存"))
+            return res
+        # Check known editor limitations before any paid processing or uploads.
+        if getattr(self.cfg, "combo_enable", False):
+            res.ok = False
+            res.error = "套装 SKU 尚未支持安全创建编辑器行，请关闭套装后再执行"
+            res.steps.append(Step("保存能力检查", False, res.error))
+            return res
+        if getattr(self.cfg, "write_sku_codes_to_product", True) and len(product.get("skus") or []) > 1:
+            res.ok = False
+            res.error = ("多 SKU 编码尚未支持可靠的行身份匹配：请到「变种设置 → SKU 写回」"
+                         "取消勾选「SKU 编码写回商品」后重试；本次未调用 AI")
+            res.steps.append(Step("保存能力检查", False, res.error))
+            return res
         # 审核中的产品禁止再次编辑（店小秘会返回 PRODUCT_IN_AUDIT_PENDING，且会白跑 AI）
         _st = str(product.get("status_type") or product.get("status") or "")
         _err = str((product.get("raw") or {}).get("errMsg") or "")
-        if self.dxm is not None:
+        _state_known = False
+        if self.dxm is not None and hasattr(self.dxm, "product_state"):
             try:
                 _state = self.dxm.product_state(str(product.get("id", "")))
-                _st = _state.get("status") or _st
-                _err = _state.get("err") or _err
-            except Exception:
-                pass
-        if _st in ("auditing", "onSelling", "published", "online") or "PRODUCT_IN_AUDIT_PENDING" in _err:
-            add_step(res, "跳过", False, f"产品状态 {_st or '审核中'}，审核中/已上架不重复编辑")
+                _probe = str(_state.get("status") or "")
+                # 草稿的 product_state 返回空 status，别用它把已知的 draft 覆盖掉
+                if _probe:
+                    _st = _probe
+                    _state_known = True
+                _err = str(_state.get("err") or "") or _err
+            except Exception as _se:  # noqa: BLE001
+                _state_known = False
+                _err = f"状态查询失败：{str(_se)[:60]}"
+        _editable = {"editingRequired", "offline", "publishFail", "draft", "waitPublish"}
+        if (not _state_known and _st not in _editable) or _st in ("auditing", "onSelling", "published", "online") \
+                or "PRODUCT_IN_AUDIT_PENDING" in _err:
+            add_step(res, "跳过", False, f"产品状态 {_st or '未知'}，审核中/状态未知不编辑")
             res.ok = False
-            res.error = f"产品状态 {_st or '审核中'}，已跳过"
+            res.error = f"产品状态 {_st or '未知'}，已跳过"
             return res
         try:
             if manage_progress:
                 BUS.begin(9)
             emit("开始", f"产品 {product.get('id','')}", (product.get("title") or "")[:60], "INFO")
-            # 提示词方案：按品类自动套用
-            try:
-                from .prompt_sets import apply_for_product
-                _cat = ""
-                try:
-                    _snap = __import__("json").loads(getattr(self.cfg, "template_snapshot", "") or "{}")
-                    _cat = str((_snap.get("fields") or {}).get("category") or "")
-                except Exception:
-                    _cat = ""
-                _set_name = apply_for_product(self.cfg, _cat + " " + str(product.get("title") or ""))
-                if _set_name:
-                    emit("提示词方案", _set_name, f"品类={_cat or '-'}", "INFO")
-            except Exception:
-                pass
             from . import model_of as _model_of
             if not BUS.price_of(_model_of(self.cfg, "image_edit")):
                 try:
@@ -881,7 +1705,10 @@ class Publisher:
                 specs["Declared Value"] = self.cfg.declared_value
             if specs:
                 p["specs"] = specs
-                add_step(res, "规格属性", True, ", ".join(f"{k}={v}" for k, v in specs.items())[:80])
+                # 这些值是「喂给 AI 详情/模板」的上下文，不会作为商品属性写进编辑器
+                add_step(res, "规格上下文", True,
+                         "供 AI 详情使用（不写入商品属性）："
+                         + ", ".join(f"{k}={v}" for k, v in specs.items())[:70])
 
             try:
                 from .image_task_plan import build_plan
@@ -890,17 +1717,35 @@ class Publisher:
                     add_step(res, "图片计划", not plan.blockers, "；".join(plan.steps[:4]))
                 if plan.blockers:
                     add_step(res, "计划阻断", False, "；".join(plan.blockers[:3]))
-            except Exception:
-                pass
+                    res.ok = False
+                    res.error = "图片计划被阻断：" + "；".join(plan.blockers[:3])
+                    return res
+            except Exception as ex:  # noqa: BLE001
+                add_step(res, "图片计划", False, "计划生成失败：" + str(ex)[:80])
+                res.ok = False
+                res.error = "图片计划生成失败，已停止"
+                return res
 
             p = self._apply_template(p, res)
             p = self._map_variants(p)
-            res.steps.append(Step("变种映射", True, f"{len(p.get('attr_mapping') or {})} 项映射"
-                                                    + (f"，{len(p['sku_issues'])} 个问题" if p.get("sku_issues") else "")))
+            issues = p.get("sku_issues") or []
+            _has_attrs = bool(p.get("attributes") or p.get("target_attributes"))
+            _detail = (f"{len(p.get('attr_mapping') or {})} 项映射"
+                       if _has_attrs else
+                       "商品列表接口不含属性字段，本次未做名称映射")
+            res.steps.append(Step("变种映射", not issues,
+                                  _detail + (f"，{len(issues)} 个问题" if issues else "")))
+            if issues:
+                res.ok = False
+                res.error = "SKU 一致性检查失败：" + "；".join(issues[:3])
+                return res
 
-            tp = TextPipeline(self.cfg)
+            # 优先用注入的文本服务（便于离线测试/替换实现），没有再自建
+            tp = self.text or TextPipeline(self.cfg)
             if self.cfg.enable_ai_title and p["title"]:
-                r = tp.make_title(p["title"], p.get("brands"))
+                # 优先用已有英文标题（在原标题上优化），没有再发中文翻译
+                title_to_optimize = p.get("title_en") or p["title"]
+                r = tp.make_title(title_to_optimize, p.get("brands"))
                 if r.ok:
                     p["title_en"] = r.value
                     add_step(res, "AI 标题", True, r.value[:70])
@@ -926,6 +1771,40 @@ class Publisher:
                             html = html + f"<p>{tail}</p>"
                     p["detail_html"] = html
 
+            # 本地详情图：用户从电脑选的图片 → 上传图床 → 插入详情头/尾
+            try:
+                import json as _jli
+                _lp = _jli.loads(getattr(self.cfg, "detail_local_images", "[]") or "[]")
+            except Exception:
+                _lp = []
+            if _lp and getattr(self.cfg, "custom_detail_text_enable", True) and not dry_run:
+                try:
+                    from pathlib import Path as _Pl2
+                    from .hosting import upload as _host_l
+                    _urls = []
+                    for _sp in (_lp if isinstance(_lp, list) else []):
+                        try:
+                            _f = _Pl2(str(_sp))
+                            if _f.exists():
+                                _urls.append(_host_l(_f))
+                        except Exception:
+                            continue
+                    if _urls:
+                        _mh = "".join(f'<p><img src="{u}" style="max-width:100%;" /></p>' for u in _urls)
+                        _pos_l = str(getattr(self.cfg, "detail_local_image_position", "tail") or "tail").lower()
+                        if p.get("detail_html"):
+                            _cur = p["detail_html"]
+                            if _pos_l in ("head", "both"):
+                                _cur = _mh + _cur
+                            if _pos_l in ("tail", "both"):
+                                _cur = _cur + _mh
+                            p["detail_html"] = _cur
+                        else:
+                            p["detail_local_images_html"] = _mh
+                        add_step(res, "详情本地图", True, f"{len(_urls)} 张已插入（{_pos_l}）")
+                except Exception as ex:  # noqa: BLE001
+                    add_step(res, "详情本地图", False, str(ex)[:80])
+
             if self.cfg.enable_ai_sku and p.get("skus"):
                 names = [str(s.get("sku") or s.get("name") or "") for s in p["skus"]]
                 r = tp.make_skus(names)
@@ -935,12 +1814,10 @@ class Publisher:
                         sku["optimized_name"] = nm
                 add_step(res, "AI SKU", r.ok, (r.value[:50].replace("\n", " ") if r.ok else r.error))
 
-            if self.cfg.four_in_one or self.cfg.watermark:
-                try:
-                    p = self._local_image_ops(p, res)
-                except Exception as ex:  # noqa: BLE001
-                    add_step(res, "本地图片处理", False, str(ex)[:120])
-
+            # 注意：四合一和水印现在统一通过 _apply_image_jobs 处理
+            # 如果用户使用旧配置 cfg.four_in_one 或 cfg.watermark，
+            # migrate() 会自动迁移到 image_simple_rules 或 image_ai_jobs
+            
             _img_ops = (getattr(self.cfg, "ai_image_enable", True)
                         and (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable
                         or getattr(self.cfg, "img_main_edit", False)
@@ -1004,31 +1881,25 @@ class Publisher:
                                 break
                         if gen:
                             add_step(res, "AI主图生成", True, f"{len(gen)} 张（纯文生图）")
+                    
                     if gen:
-                        p["images"] = gen + (p.get("images") or [])
+                        # 配置生成图片的插入位置
+                        position = str(getattr(self.cfg, "main_image_generate_position", "prepend") or "prepend")
+                        original_images = p.get("images") or []
+                        
+                        if position == "replace_first" and original_images:
+                            # 替换第一张，保留其余
+                            p["images"] = gen[:1] + original_images[1:]
+                        elif position == "append":
+                            # 追加到末尾
+                            p["images"] = original_images + gen
+                        else:  # prepend (默认)
+                            # 插入到最前面
+                            p["images"] = gen + original_images
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "AI主图生成", False, str(ex)[:80])
 
-            # 指定图片编辑
-            if getattr(self.cfg, "designated_edit_enable", False) and getattr(self.cfg, "ai_image_enable", True):
-                try:
-                    from .image_index import pick as _pk2
-                    idx = getattr(self.cfg, "designated_edit_indices", "") or ""
-                    prompt = (getattr(self.cfg, "designated_edit_prompt", "") or "").strip()
-                    if idx and prompt and p.get("images"):
-                        targets = _pk2(p["images"], idx)
-                        n2 = 0
-                        for i, u in enumerate(p["images"]):
-                            if u in targets:
-                                try:
-                                    p["images"][i] = self._run_ops(u, False, False, True, prompt=prompt)
-                                    n2 += 1
-                                except Exception:
-                                    pass
-                        if n2:
-                            add_step(res, "指定图片编辑", True, f"{n2} 张")
-                except Exception as ex:  # noqa: BLE001
-                    add_step(res, "指定图片编辑", False, str(ex)[:80])
+            # 指定图片编辑统一由下方图片方案（含旧配置迁移）执行，避免同一图重复调用
 
             if getattr(self.cfg, "pad_main_images_from_extra", False):
                 try:
@@ -1049,14 +1920,6 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "图片AI处理", False, str(ex)[:100])
 
-            if getattr(self.cfg, "write_detail_html_to_product", True) and p.get("detail_images"):
-                _imgs_html = "".join(
-                    f'<p><img src="{str(u)}" style="max-width:100%;" /></p>'
-                    for u in p["detail_images"][:20] if str(u).startswith("http"))
-                if _imgs_html:
-                    p["detail_html"] = (p.get("detail_html") or "") + _imgs_html
-                    add_step(res, "详情图写回", True, f"{min(len(p['detail_images']), 20)} 张")
-
             if getattr(self.cfg, "main_as_detail", False) and p.get("images"):
                 dimgs = list(p.get("detail_images") or [])
                 for u in p["images"]:
@@ -1065,12 +1928,18 @@ class Publisher:
                 p["detail_images"] = dimgs
                 add_step(res, "主图转详情", True, f"详情图共 {len(dimgs)} 张")
 
-            # 图片方案（简单规则 + 精细任务；兼容旧逐图/指定编辑），放在常规处理之后、转存之前
+            self._keep_local(p, res)
+
+            # 图片方案（通用编辑 / 精细化编辑 / 简单规则；兼容旧逐图/指定编辑）
+            # 注意：通用编辑是靠 img_general_prompt 触发的，rules/jobs 都是空——只判断后两者会漏掉整条链路
+            _mode_gen = str(getattr(self.cfg, "image_edit_mode", "fine") or "fine").lower() in ("general", "simple")
+            _has_general = _mode_gen and bool((getattr(self.cfg, "img_general_prompt", "") or "").strip())
             _has_img_jobs = any(
                 (getattr(self.cfg, k, "") or "").strip() not in ("", "[]")
                 for k in ("image_simple_rules", "image_ai_jobs", "image_edit_plans"))
             _has_img_jobs = _has_img_jobs or bool(getattr(self.cfg, "designated_edit_enable", False))
-            if _has_img_jobs:
+            _has_img_jobs = _has_img_jobs or _has_general
+            if _has_img_jobs and getattr(self.cfg, "ai_image_enable", True):
                 try:
                     p = self._apply_image_jobs(p, res, dry_run=dry_run)
                 except Exception as ex:  # noqa: BLE001
@@ -1100,8 +1969,8 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "水印叠加", False, str(ex)[:80])
 
-            # 营销场景图（基于主图生成，追加到详情图）
-            if (getattr(self.cfg, "marketing_image_enable", False)
+            # 营销图（基于主图生成，写进 marketImg1/marketImg2，走 API 直存）
+            if (getattr(self.cfg, "marketing_auto_generate", True)
                     and getattr(self.cfg, "ai_image_enable", True) and p.get("images") and not dry_run):
                 try:
                     import tempfile as _tf, requests as _rq
@@ -1112,14 +1981,30 @@ class Publisher:
                     src = d_m / "m0.png"
                     src.write_bytes(_rq.get(str(p["images"][0]), timeout=60).content)
                     svc = ImageService(_ACm(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
-                    out = svc.marketing(src, getattr(self.cfg, "marketing_image_prompt", ""),
-                                        int(getattr(self.cfg, "marketing_image_count", 1) or 1))
-                    if out:
-                        p.setdefault("detail_images", [])
-                        p["detail_images"] = list(p["detail_images"]) + [u for u in out if u]
-                        add_step(res, "营销图", True, f"{len(out)} 张已生成")
+                    _mk = []
+                    for _i in range(2):
+                        try:
+                            _u = svc.marketing(src, getattr(self.cfg, "marketing_image_prompt", ""), 1)
+                            if _u and _u[0] not in _mk:
+                                _mk.append(_u[0])
+                        except Exception:
+                            break
+                    if _mk:
+                        p["market_images"] = _mk
+                        add_step(res, "营销图", True, f"{len(_mk)} 张已生成")
+                    else:
+                        add_step(res, "营销图", False, "生成失败")
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "营销图", False, str(ex)[:80])
+
+            # 详情图必须在主图转详情、图片方案、营销图全部完成后组装
+            if getattr(self.cfg, "write_detail_html_to_product", True) and p.get("detail_images"):
+                _imgs_html = "".join(
+                    f'<p><img src="{str(u)}" style="max-width:100%;" /></p>'
+                    for u in p["detail_images"][:20] if str(u).startswith("http"))
+                if _imgs_html:
+                    p["detail_html"] = (p.get("detail_html") or "") + _imgs_html
+                    add_step(res, "详情图写回", True, f"{min(len(p['detail_images']), 20)} 张")
 
             if p.get("images"):
                 try:
@@ -1127,8 +2012,13 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "图片转存", False, str(ex)[:100])
 
+            # 开了「出图直传相册」就先走那一步（换成店小秘自己的地址）
+            if getattr(self.cfg, "prefer_dianxiaomi_album", False):
+                p = self._upload_to_album(p, res)
+
             # 主图写回走编辑器「网络图片」时，不再上传店小秘相册（省一次上传，避免空间不足）
-            _need_album = not getattr(self.cfg, "write_main_images_to_product", True)
+            _need_album = (not getattr(self.cfg, "prefer_dianxiaomi_album", False)
+                           and not getattr(self.cfg, "write_main_images_to_product", True))
             if not dry_run and self.dxm and p.get("images") and _need_album:
                 uploaded, failed, space_full = 0, 0, False
 
@@ -1161,24 +2051,6 @@ class Publisher:
                     add_step(res, "图片上传", uploaded > 0 or failed == 0,
                              f"成功 {uploaded} / 失败 {failed}")
 
-            if (self.cfg.review_detail_img_enable and p.get("detail_images")):
-                try:
-                    ip2 = ImagePipeline(self.cfg)
-                    n_first = int(getattr(self.cfg, "detail_review_first_count", 0) or 0)
-                    n_last = int(getattr(self.cfg, "detail_review_last_count", 0) or 0)
-                    imgs = p["detail_images"]
-                    subset = []
-                    if n_first:
-                        subset += imgs[:n_first]
-                    if n_last:
-                        subset += imgs[-n_last:]
-                    if not subset:
-                        subset = imgs[:2]
-                    verdict = ip2.review(str(subset[0]), "detail")
-                    add_step(res, "详情图审查", True, verdict[:50].replace("\n", " "))
-                except Exception as ex:  # noqa: BLE001
-                    add_step(res, "详情图审查", False, str(ex)[:80])
-
             if getattr(self.cfg, "copy_sku_to_detail", False) and p.get("skus") and p.get("detail_html"):
                 names = " / ".join(str(s.get("sku") or "") for s in p["skus"][:20])
                 p["detail_html"] = p["detail_html"] + f"<p>SKU: {names}</p>"
@@ -1187,14 +2059,8 @@ class Publisher:
             if getattr(self.cfg, "pack_weight", ""):
                 p.setdefault("specs", {})["Pack Weight"] = self.cfg.pack_weight
 
-            if self.cfg.review_text_enable and p.get("detail_html"):
-                try:
-                    cleaned = TextPipeline(self.cfg).review_text(p["detail_html"]).value
-                    if cleaned:
-                        p["detail_html"] = cleaned
-                    add_step(res, "文本审查", True, (cleaned or "")[:40].replace("\n", " "))
-                except Exception as ex:  # noqa: BLE001
-                    add_step(res, "文本审查", False, str(ex)[:80])
+            if not self._review_content(p, res):
+                return res
 
             if self.cfg.check_banned_word and p.get("title_en"):
                 from .text_pipeline import find_banned, BANNED_DEFAULT
@@ -1207,7 +2073,7 @@ class Publisher:
                     rw = tp_w.estimate_weight(str(p["images"][0]), p.get("title_en") or p.get("title", ""))
                     p["ai_weight"] = rw.value[:200]
                     # 解析成结构化数值，自动填入规格（缺失才填，不覆盖手工值）
-                    est = tp_w.estimate_weight_json(str(p["images"][0]), p.get("title_en") or p.get("title", ""))
+                    est = tp_w.estimate_weight_json(str(p["images"][0]), p.get("title_en") or p.get("title", ""), result=rw)
                     if est:
                         specs = p.setdefault("specs", {})
                         if est.get("weight_kg") and not specs.get("Weight"):
@@ -1219,25 +2085,6 @@ class Publisher:
                     add_step(res, "AI 估重", rw.ok, rw.value[:40].replace("\n", " "))
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "AI 估重", False, str(ex)[:80])
-
-            if (self.cfg.review_main_img_enable or self.cfg.review_detail_img_enable) and p.get("images"):
-                ip = ImagePipeline(self.cfg)
-                try:
-                    verdict = ip.review(str(p["images"][0]), "main")
-                    p["image_review"] = verdict[:300]
-                    _v = (verdict or "").upper()
-                    bad = ("FAIL" in _v) or any(k in verdict for k in ("不符合", "违规", "建议删除", "不建议", "含厂家", "含联系方式"))
-                    if bad and self.cfg.review_block_on_fail and len(p["images"]) > 1:
-                        p["images"] = p["images"][1:]
-                        add_step(res, "图片审查", False, "不合规，已剔除该图")
-                    elif bad and self.cfg.review_block_on_fail:
-                        add_step(res, "图片审查", False, "不合规，已拦截：" + verdict[:50].replace("\n", " "))
-                        res.ok = False
-                        res.error = "图片审查不合规"
-                        return res
-                    add_step(res, "图片审查", True, ("⚠ " if bad else "") + verdict[:60].replace("\n", " "))
-                except Exception as ex:  # noqa: BLE001
-                    add_step(res, "图片审查", False, "跳过：" + str(ex)[:100])
 
             p = self._price(p)
             r = p["price_result"]
@@ -1302,64 +2149,76 @@ class Publisher:
             if dry_run:
                 add_step(res, "保存到店小秘", True, "dry-run：未写入")
             else:
-                if not self.ws_endpoint:
-                    raise RuntimeError("未连接浏览器（缺少 CDP 端点）")
-                from ..integrations.editor_automation import apply_and_save, update_and_save, apply_template_fields
-                snap_json = (getattr(self.cfg, "template_snapshot", "") or "").strip()
-                _snap_obj = None
-                if snap_json and getattr(self.cfg, "apply_template_on_save", True):
+                # ws_endpoint 仅在 DOM 回退时需要；API 直存不需要浏览器
+                if self.dxm is not None and hasattr(self.dxm, "product_state"):
                     try:
-                        import json as _jt
-                        _snap_obj = _jt.loads(snap_json)
-                        _extra = getattr(self.cfg, "custom_attributes", None) or []
-                        if _extra:
-                            _attrs = []
-                            _seen = set()
-                            for _x in list(_snap_obj.get("attributes") or []) + list(_extra):
-                                if not isinstance(_x, str) or "=" not in _x:
-                                    continue
-                                _name = _x.split("=", 1)[0].strip().lower()
-                                if not _name or _name in _seen:
-                                    continue
-                                _seen.add(_name)
-                                _attrs.append(_x)
-                            _snap_obj["attributes"] = _attrs
-                    except Exception:
-                        _snap_obj = None
-                # 主图视频：不再单独开页面，交给合并流程在同一次加载里上传（ISSUES #6）
-                _video = ""
-                if p.get("main_video") and getattr(self.cfg, "upload_main_video", True):
-                    _video = str(p["main_video"])
-
-                # 合并流程：一次开页面完成 写模板 + 改标题 +（视频）+ 保存（+ 发布）
-                _fv = self._form_values()
+                        _pre = self.dxm.product_state(str(p.get("id", "")))
+                        _pst = str(_pre.get("status") or "")
+                        # 草稿的 product_state 返回空 status —— 用列表里已知的状态兜底，
+                        # 否则草稿永远卡在"状态未知"。
+                        if not _pst:
+                            _pst = str(p.get("status_type") or p.get("status") or "")
+                        if _pst not in ("editingRequired", "offline", "publishFail", "draft", "waitPublish"):
+                            add_step(res, "保存前复核", False, f"当前状态 {_pst or '未知'}，已停止保存")
+                            res.ok = False
+                            res.error = f"保存前状态 {_pst or '未知'}，已停止"
+                            return res
+                    except Exception as _pe:  # noqa: BLE001
+                        add_step(res, "保存前复核", False, "状态查询失败：" + str(_pe)[:60])
+                        res.ok = False
+                        res.error = "保存前无法确认商品状态，已停止"
+                        return res
                 # 发布动作：save_only=留在待发布 / publish=保存并发布
                 _action = (getattr(self.cfg, "publish_action", "") or
                            ("publish" if getattr(self.cfg, "publish_after_save", False) else "save_only"))
                 # 定时发布时先只保存，到点由调度器发布
-                r = apply_and_save(self.ws_endpoint, str(p.get("id", "")), _snap_obj,
-                                   p.get("title_en") or None, form_values=_fv,
-                                   do_publish=(_action == "publish" and not _sched_at),
-                                   video_path=(_video or None),
-                                   images=((p.get("images") or None)
-                                           if (getattr(self.cfg, "write_main_images_to_product", True)
-                                               and (p.get("images") or []) != (product.get("images") or []))
-                                           else None),
-                                   detail_html=((p.get("detail_html") or None)
-                                                if getattr(self.cfg, "write_detail_html_to_product", True) else None),
-                                   price=(float(p["price_result"].final)
-                                          if getattr(self.cfg, "write_price_to_product", True)
-                                          and p.get("price_result") and float(p["price_result"].final) > 0
-                                          else None),
-                                   stock=(str((p.get("skus") or [{}])[0].get("stock") or "")
-                                          if p.get("skus") else None),
-                                   weight=(getattr(self.cfg, "spec_weight", "") or None),
-                                   length=(getattr(self.cfg, "spec_length", "") or None),
-                                   width=(getattr(self.cfg, "spec_width", "") or None),
-                                   height=(getattr(self.cfg, "spec_height", "") or None),
-                                   skus=(p.get("skus") if getattr(self.cfg, "write_sku_codes_to_product", True) else None))
+                _ship = self._ship_dims(p, res)
+                # 要写回的主图（与 DOM 路径同一条件）
+                _img_for_save = (p.get("images") or None) \
+                    if ((getattr(self.cfg, "write_main_images_to_product", True)
+                         or getattr(self.cfg, "ai_image_enable", True))
+                        and (p.get("images") or []) != (product.get("images") or [])) \
+                    else None
+                # 记录改前/改后快照，供界面「对比预览」
+                if not dry_run:
+                    try:
+                        from . import preview as _pv
+                        _pv.record(
+                            str(p.get("id", "")),
+                            before={"title": product.get("title") or "",
+                                    "detail": str(product.get("detail") or "")[:2000],
+                                    "images": list(product.get("images") or [])[:6]},
+                            after={"title": p.get("title_en") or p.get("title") or "",
+                                   "detail": str(p.get("detail_html") or "")[:2000],
+                                   "images": list(p.get("images") or [])[:6]},
+                            title=p.get("title_en") or p.get("title") or "",
+                        )
+                    except Exception:
+                        pass
+
+                # 主图视频：模板视频 / 生成轮播视频（本地 ffmpeg）→ 上传店小秘 → cspVideoId
+                self._prepare_video(p, res, product, dry_run)
+
+                # API 直存（唯一保存路径，无 DOM 模拟、支持并发）
+                r = self._save_via_api(p, res, _action, _ship, _img_for_save)
+                if r is None:
+                    raise RuntimeError(
+                        "API 直存不可用：请先在设置里选择「产品模板」并确认 Cookie 有效")
+                if not r.ok and getattr(r, "skipped_no_sku", False):
+                    add_step(res, "跳过", True, f"{r.message[:90]}（不算失败）")
+                    res.ok = True
+                    return res
                 if not r.ok:
-                    raise RuntimeError(r.message)
+                    _msg = str(r.message or "")
+                    # 商品正在审核：不是代码问题，也不是本商品的错，标记跳过而不是失败重试
+                    if is_audit_pending(_msg):
+                        add_step(res, "保存到店小秘", False,
+                                 "商品在速卖通审核中，本次跳过（审核通过后再处理）")
+                        res.ok = False
+                        res.error = "商品在审核中，已跳过"
+                        res.skipped_auditing = True
+                        return res
+                    raise RuntimeError(_msg)
                 add_step(res, "保存到店小秘", True, r.message[:200])
                 if _sched_at:
                     _ok_sched = False
@@ -1384,18 +2243,8 @@ class Publisher:
                         res.error = (res.error + " " if res.error else "") + f"定时登记失败：{_err}"
                 elif r.published:
                     add_step(res, "发布到速卖通", True, "同一页面完成（省一次列表页加载）")
-                elif _action == "publish":
-                    try:
-                        from ..integrations.editor_automation import publish_from_list
-                        rp = publish_from_list(self.ws_endpoint, str(p.get("id", "")),
-                                               confirm=True, dry_run=False,
-                                               title_hint=p.get("title_en") or p.get("title", ""))
-                        add_step(res, "发布到速卖通", rp.ok, rp.message[:100])
-                        if not rp.ok:
-                            res.error = (res.error + " " if res.error else "") + f"发布失败：{rp.message[:120]}"
-                    except Exception as ex:  # noqa: BLE001
-                        add_step(res, "发布到速卖通", False, str(ex)[:100])
-            if not dry_run and res.ok and any(s.name == "保存到店小秘" and s.ok for s in res.steps):
+
+            if not dry_run and any(s.name == "保存到店小秘" and s.ok for s in res.steps):
                 try:
                     from .edited import mark as _mark
                     _mark(str(p.get("id", "")), p.get("title_en") or p.get("title", ""), "saved")

@@ -31,9 +31,6 @@ DEFAULTS: dict = {
     "write_sku_codes_to_product": True,                   # SKU 编码写回商品
     "keep_main_images_local": False,                      # 保留主图/AI图到本地
     "custom_detail_text_enable": True,                    # 添加自定义详情文本/图片
-    "delete_detail_text": False,                          # 删除详情原有文本
-    "keep_custom_attributes": True,                       # 保留商品自己的自定义属性
-    "split_product_price": False,                         # 产品信息/价格分离处理
     "original_box": False,                                # 是否原箱
     "prefer_collected_weight": True,                      # 优先采集重量尺寸
     "custom_sku_prefix_enable": True,                     # 启用自定义 SKU 前缀
@@ -45,10 +42,6 @@ DEFAULTS: dict = {
     "retry_delay": 2.0,
     "timeout": 180,
     # ---- 店铺 / 浏览器 / 模板 ----
-    "browser_type": "本机Chrome",
-    "bit_browser_id": "",
-    "bit_browser_name": "",
-    "zhanfu_port": "9222",
     "store_name": "",
     "store_id": "",
     "product_template_id": "",
@@ -67,27 +60,27 @@ DEFAULTS: dict = {
     "enable_ai_sku": False,
     "enable_ai_weight": False,
     "title_prompt": (
-        "你是资深速卖通（AliExpress）英文刊登运营。请把用户给出的中文商品标题改写为专业英文标题。\n"
-        "硬性规则：\n"
-        "1) 总长度不超过 125 个字符（含空格），超长必须删减，不得截断单词；\n"
-        "2) 结构：核心产品词 + 关键规格/型号 + 主要卖点 + 用途/适用场景；\n"
-        "3) 品牌词一律前置 for（例：for CAT），不得暗示官方授权；\n"
-        "4) 禁止：best/cheapest/No.1/100% 等绝对化用语、促销词（free shipping、hot sale）、表情符号、全大写堆砌、联系方式；\n"
-        "5) 数字与单位保留（如 3 Ton、20m、220V），单位用英文缩写；\n"
-        "6) 只输出一行英文标题，不要引号、不要解释、不要中文。"
+        "你是一名资深AliExpress速卖通SEO运营专家。请对我提供的商品标题进行专业优化。\n"
+        "要求：\n"
+        "1) 保留原标题的核心产品名称、产品属性和主要卖点，不改变产品实际用途；\n"
+        "2) 优化关键词布局，将核心关键词、长尾关键词、属性词合理组合；\n"
+        "3) 提升搜索匹配度，优先使用海外买家常用的搜索表达；\n"
+        "4) 删除重复、无效、堆砌的词语，避免语法错误；\n"
+        "5) 在原有标题基础上优化，不要完全推翻重写；\n"
+        "6) 英文标题字符控制在 125 字以内；\n"
+        "7) 只输出一行英文标题，不要引号、不要解释、不要中文。"
     ),
     "detail_prompt": (
-        "你是跨境电商详情页文案专家。根据用户给出的英文标题，写一段可直接用于速卖通商品详情（PC+无线端）的英文 HTML。\n"
-        "结构要求（依次输出，使用 <h3>、<p>、<ul><li>、<table>）：\n"
-        "1) 一句话核心卖点（<h3>）；\n"
-        "2) 产品亮点 4~6 条（<ul><li>，每条 12~20 词，含规格数字）；\n"
-        "3) 关键参数表（<table>：Model / Capacity / Power / Size / Weight / Material / Application，缺失写 N/A）；\n"
-        "4) 适用场景 2~3 句；\n"
-        "5) 包装清单（<ul>）；\n"
-        "6) 发货与售后说明 2~3 句（不含具体时效承诺）。\n"
+        "你是一名专业工业设备外贸营销专家。在保持原有文字基础之上，请优化以下商品描述，面向海外工程承包商、设备经销商、工程公司及终端采购商。\n\n"
+        "重点突出：\n"
+        "1) 设备用途及适用施工场景；\n"
+        "2) 核心技术参数和产品性能；\n"
+        "3) 设备结构、操作特点及实际优势；\n"
+        "4) 适用行业和目标客户；\n"
+        "5) 产品质量、生产制造及服务优势（仅限原文有依据的信息）。\n\n"
+        "排版要求：逻辑清晰，章节段落规范，使用 <h3>、<p>、<ul><li>、<table> 等 HTML 标签。\n"
         "硬性规则：全英文；禁止中文、邮箱、电话、网址、二维码、支付方式、第三方平台名；"
-        "禁止绝对化/医疗功效/侵权表述；不要夸大（如 world best）；不要 markdown 代码块；总词数 300~500。"
-        "只输出 HTML 片段本身，不要任何解释。"
+        "禁止绝对化/医疗功效/侵权表述；只输出 HTML 片段本身，不要任何解释。"
     ),
     "sku_prompt": (
         "你是速卖通 SKU 命名规范专家。用户会给出一组中文 SKU 名称（每行一个），请逐个改写为规范英文 SKU。\n"
@@ -131,9 +124,61 @@ DEFAULTS: dict = {
     # 逐图编辑方案（旧版，保留用于迁移）
     "image_edit_plans": "[]",
     # 新版图片处理：简单规则（按范围）+ 精细任务（按单图提示词）
-    "image_edit_mode": "fine",          # simple | fine（默认精细）
+    "image_edit_mode": "fine",          # general（通用编辑：一条提示词）| fine（精细化编辑：逐图设置）
     "image_simple_rules": "[]",
     "image_ai_jobs": "[]",
+    # ---- 图片通用编辑（对齐老软件：一个总开关 + 通用编辑/精细化编辑二选一）----
+    "img_general_prompt": (
+        "清理并本地化这张商品图：1）彻底去除画面中的水印、Logo、二维码、促销标签等多余叠加元素，"
+        "并用周围背景自然填补；2）把图中的中文文字（卖点、说明、标注等）翻译并替换为准确的英文，"
+        "保持原有字体风格、颜色、大小与位置，排版协调；3）除上述处理外，不得改变商品的形状、颜色、"
+        "材质、数量与构图，保持原图比例与清晰度，画面自然，看不出处理痕迹。不要新增任何文字。"
+    ),
+    "img_general_main_from": "1",       # 通用编辑：主图从第几张开始
+    "img_general_main_to": "8",         # 通用编辑：主图编辑到第几张（不选则不处理主图）
+    # 精细化编辑：每组独立启用（老软件：主图/详情图/SKU 图各自开关）
+    "img_fine_main_enable": True,
+    "img_fine_detail_enable": False,
+    "img_fine_detail_replace": False,   # 删除原有详情图，仅保留编辑结果
+    "img_fine_sku_enable": False,
+    # ---- 图片尺寸校验（速卖通要求 ≥800×800）----
+    "img_min_size_enable": True,        # AI 产出的图小于下限时不采用（保留原图）
+    "img_min_size": 800,                # 最小边长（px）
+    "img_min_size_drop_invalid": False, # 连原图里本来就不合规的也去掉（默认关，避免误删）
+    # 编辑器主图上限（速卖通一般是 6；改大前请确认类目允许）
+    "editor_main_images_max": 6,
+    # 保存时删除「与系统属性重名」的自定义属性行。
+    # 默认关：这是唯一会删用户数据的属性操作，而且实测该商品 22 条自定义属性里
+    # 有 7 条名字与系统属性重名（Brand Name / Type / Model Number / Origin …），
+    # 一开就会静默删掉它们。要清理再手动打开。
+    "auto_clean_dup_attributes": True,
+    # 主图写回方式：auto=先试「网络图片」URL 粘贴，失败再用文件上传 | url | file
+    # 实测新版编辑器没有「网络图片」入口，所以 auto 的兜底（文件上传）才是实际生效的那条。
+    # 服务模板名称（草稿商品的必填项之一，留空则跳过不填）
+    "service_template": "",
+    # 运费模板名称（草稿必填项，留空则跳过不填）
+    "freight_template": "",
+    # 点店小秘「营销图 → 一键生成」（生成 1:1 + 3:4 两张）
+    "marketing_auto_generate": True,
+    # 类目属性默认值（模板产品读不到时用；速卖通默认都选「否」）
+    "high_concerned_chemical": "否",
+    "charge_status": "否",
+    # ---- 图床（AI 产出的图先放这里，编辑器/速卖通按 URL 取图）----
+    # 店小秘编辑器只认「网络图片 URL」，而 AI 返回的是约 1 天过期的临时地址，
+    # 所以需要一个稳定的公网地址做中转。
+    "image_host_url": "https://image.moneyfly.club",
+    "image_host_key": "120423mm",
+    # 图床也会满：删掉 N 天前上传的图（按本地台账里的 delToken）。
+    # 注意不要设太小——商品审核期间可能还会去抓图，建议 ≥7 天。
+    "host_keep_days": 7,
+    # 出图后直接传进店小秘「图片空间」，用店小秘自己的地址（不再依赖图床）。
+    # 好处：图在店小秘里，空间/引用都由它管；坏处：受相册空间限制，每张多一次上传。
+    "prefer_dianxiaomi_album": False,
+    # 传完相册后回读一次，确认地址真的能公开访问（否则保留原地址，避免商品图裂）
+    "album_verify_url": True,
+    # 刊登完成后自动创建「删除未引用图片」任务（店小秘侧异步跑，已被商品引用的不会删）
+    "album_auto_clean_enable": False,
+    "album_auto_clean_days": 7,
     # 文生图时是否把现有主图当参考素材（图生图，而不是纯文生图）
     "main_image_generate_use_refs": True,
     # 四合一：append=追加为主图最后一张 / first=放到主图第一张
@@ -169,9 +214,7 @@ DEFAULTS: dict = {
     "eu_responsible_address": "",
     "eu_responsible_email": "",
     "eu_responsible_phone": "",
-    "browser_hide": True,          # 连接后隐藏/最小化浏览器窗口（后台运行）
     "browser_headless_login": False, # 首次登录保持可见
-    "cdp_port": 9333,
     "proxy_enabled": False,
     "proxy_url": "",
     "generate_main_video": False,
@@ -183,7 +226,7 @@ DEFAULTS: dict = {
     "adjust_price_template_detail": "{}",
     # 详情文字 / 属性
     "move_detail_text": False,
-    "declared_value": "",
+    "declared_value": "50",
     "product_type": "普货",
     "amount": "",
     "spec_weight": "",
@@ -254,23 +297,23 @@ DEFAULTS: dict = {
     "default_express_price": "0",
     "adjust_price_template_id": "",
     "adjust_price_template_name": "",
-    "marketing_image_enable": False,
-    "marketing_image_count": 1,
     "marketing_image_prompt": (
         "Create a marketing lifestyle image for this product: place the product in a clean modern "
         "usage scene matching its purpose, natural lighting, shallow depth of field, product remains "
         "the focus and unchanged in shape/color; no text, no logo, no watermark, 1:1 composition."
     ),
-    "wholesale_enable": False,
-    "wholesale_tiers": "[]",
+    # ---- 批发 / 区域调价（店小秘风格，直接对应平台字段）----
+    "wholesale_enable": False,           # 启用批发（wholeSale）
+    "bulk_order": "2",                   # 购买 N 件以上（2~100000）
+    "bulk_discount": "15",               # 减免 X%（1~99）
+    "dropship_discount": "0",            # 一件代发折扣 Y%（0~99）
+    "regional_quote_enable": False,      # 启用区域调价
+    "regional_quotes": "[]",             # [{"country":"US","price":"12.99"}]
+    "wholesale_tiers": "[]",             # 旧数据，保留兼容
     "price_template_library": [],
-    "prompt_sets": [],
-    "active_prompt_set": "",
-    "prompt_set_by_category": True,
     "custom_attributes": [],
     "attribute_template_id": "",
     # ---- 变种 ----
-    "variant_mappings": "[]",
     # ---- 视频 / 发布 ----
     "check_banned_word": False,
     # ---- 通用 ----
@@ -278,6 +321,9 @@ DEFAULTS: dict = {
     # ---- 详情文字 ----
     "detail_text_info": "",
     "detail_text_info_tail": "",
+    # 本地详情图：用户从电脑选的图片，上传图床后插入详情头/尾
+    "detail_local_images": "[]",          # JSON: ["/path/a.png", ...]
+    "detail_local_image_position": "tail",  # head | tail | both
     "detail_text_position": "head",
     # ---- 主图/图片位置 ----
     "white_background_pic_1": "1",
@@ -380,22 +426,42 @@ class AppConfig:
     def path(cls) -> Path:
         return config_dir() / "config.json"
 
+    # 上次 load() 是否因为主配置损坏而回退（给界面提示用）
+    loaded_from: str = "file"      # file | bak | defaults | new
+
     @classmethod
     def load(cls) -> "AppConfig":
         p = cls.path()
         if not p.exists():
+            cls.loaded_from = "new"
             return cls()
         try:
-            return cls(json.loads(p.read_text(encoding="utf-8")))
+            cfg = cls(json.loads(p.read_text(encoding="utf-8")))
+            cls.loaded_from = "file"
+            object.__setattr__(cfg, "_loaded_from", "file")
+            return cfg
         except Exception:
-            # 主配置损坏时用备份，避免“重启后配置全丢”
+            # 主配置读不出来：先把损坏文件另存一份，再退回备份。
+            # 否则下一步 save() 一写，原来的内容（含 API Key）就永久没了。
+            try:
+                import time as _t
+                bad = p.with_name(f"config.corrupt-{_t.strftime('%Y%m%d-%H%M%S')}.json")
+                bad.write_bytes(p.read_bytes())
+            except Exception:
+                pass
             try:
                 bak = p.with_suffix(".bak")
                 if bak.exists():
-                    return cls(json.loads(bak.read_text(encoding="utf-8")))
+                    cfg = cls(json.loads(bak.read_text(encoding="utf-8")))
+                    cls.loaded_from = "bak"
+                    object.__setattr__(cfg, "_loaded_from", "bak")
+                    return cfg
             except Exception:
                 pass
-            return cls()
+            cls.loaded_from = "defaults"
+            cfg = cls()
+            object.__setattr__(cfg, "_loaded_from", "defaults")
+            return cfg
 
     def save(self) -> None:
         """原子写：先写临时文件，再替换；保留一份 .bak 防止断电损坏。"""
