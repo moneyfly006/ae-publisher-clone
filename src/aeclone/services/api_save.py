@@ -53,58 +53,202 @@ def _props_of(product: dict) -> list[dict]:
     return raw if isinstance(raw, list) else []
 
 
+# 属性名归一化 + 同义词：用来判断「自定义属性」是否和「系统属性」重复
+_ATTR_SYNONYMS = {
+    "place of origin": "origin",
+    "country of origin": "origin",
+    "origin place": "origin",
+    "brand": "brand name",
+    "brands": "brand name",
+    "gross weight": "weight",
+    "item weight": "weight",
+    "product weight": "weight",
+    "net weight": "weight",
+    "package weight": "weight",
+    "weight kg": "weight",
+    "product type": "type",
+    "item type": "type",
+    "product name": "name",
+    "model number": "model",
+    "warranty duration": "warranty",
+}
+_ATTR_PREFIX = ("product ", "item ", "custom ", "the ")
+
+
+def _norm_attr_name(name: str) -> str:
+    """属性名归一化：小写、去标点/单位、去复数、去前缀、同义词归并。"""
+    import re as _re
+    t = str(name or "").strip().lower()
+    t = _re.sub(r"[^a-z0-9 ]+", " ", t)
+    t = _re.sub(r"\s+", " ", t).strip()
+    for pre in _ATTR_PREFIX:
+        if t.startswith(pre):
+            t = t[len(pre):]
+    # 去掉结尾的 (kg)/(mm) 之类
+    t = _re.sub(r"\s*\([^)]*\)\s*$", "", t).strip()
+    if t.endswith("s") and not t.endswith("ss"):
+        t = t[:-1]
+    return _ATTR_SYNONYMS.get(t, t)
+
+
+def relaxed_payload(payload: dict, level: int, template: dict | None = None) -> dict:
+    """在「保存失败！」(店小秘的笼统错误) 时，逐级放宽 payload。
+
+    店小秘对属性/SKU 维度与类目不匹配时只回一句「保存失败！」，
+    所以失败后依次尝试更保守的结构：
+      level=1：属性只保留模板的系统属性 + 纯自定义属性；SKU id 清空
+      level=2：属性只保留模板的系统属性；SKU 属性也清空
+    """
+    import copy as _copy
+    import json as _json
+    q = _copy.deepcopy(payload)
+
+    # 模板里的有效系统属性
+    tpl_sys = []
+    if template is not None:
+        raw = template.get("aeopAeProductPropertys")
+        try:
+            arr = _json.loads(raw) if isinstance(raw, str) else (raw or [])
+        except Exception:
+            arr = []
+        for a in arr:
+            if not isinstance(a, dict):
+                continue
+            nid, vid = a.get("attrNameId"), a.get("attrValueId")
+            if nid in (None, "", "-1", 0) or vid in (None, "", "None", "null", "-1", 0):
+                continue
+            tpl_sys.append({"attrNameId": str(nid), "attrValueId": str(vid)})
+
+    # 属性
+    try:
+        cur = _json.loads(q.get("aeopAeProductPropertys") or "[]")
+    except Exception:
+        cur = []
+    if level >= 2:
+        q["aeopAeProductPropertys"] = _json.dumps(tpl_sys, ensure_ascii=False)
+    else:
+        kept = []
+        for a in cur:
+            if not isinstance(a, dict):
+                continue
+            if "attrNameId" in a:            # 系统属性：只保留模板里有的
+                if any(str(a.get("attrNameId")) == x["attrNameId"] and
+                       str(a.get("attrValueId")) == x["attrValueId"] for x in tpl_sys):
+                    kept.append(a)
+            elif "attrName" in a:            # 纯自定义属性
+                kept.append(a)
+        for x in tpl_sys:
+            if not any(str(a.get("attrNameId")) == x["attrNameId"] for a in kept):
+                kept.insert(0, x)
+        q["aeopAeProductPropertys"] = _json.dumps(kept, ensure_ascii=False)
+
+    # SKU：清空 id（避免引用旧类目的 SKU 维度），level=2 连属性一起清
+    try:
+        sk = _json.loads(q.get("aeopAeProductSKUs") or "[]")
+    except Exception:
+        sk = []
+    for s2 in sk:
+        if not isinstance(s2, dict):
+            continue
+        s2["id"] = ""
+        if level >= 2:
+            s2["aeopSKUProperty"] = []
+    q["aeopAeProductSKUs"] = _json.dumps(sk, ensure_ascii=False)
+    return q
+
+def mobile_detail_ok(md) -> bool:
+    """判断已有 mobileDetail 是否可用。
+
+    历史 bug 会把详情里的 CSS 当成正文塞进去（content 里出现 `#xx .yy{...}`），
+    这种必须重生成，否则保存/发布会失败。
+    """
+    if md in (None, ""):
+        return False
+    try:
+        d = json.loads(md) if isinstance(md, str) else md
+    except Exception:
+        return False
+    mods = (d or {}).get("moduleList")
+    if not isinstance(mods, list) or not mods:
+        return False
+    for m in mods:
+        if not isinstance(m, dict):
+            return False
+        if m.get("type") == "text":
+            for t in (m.get("texts") or []):
+                c = str((t or {}).get("content") or "")
+                # 典型的 CSS 片段特征
+                if ("{" in c and "}" in c) or "magic-" in c or "#detail_decorate" in c:
+                    return False
+    return True
+
+
+def _valid_attr_id(v) -> bool:
+    """属性 id 是否「真的有效」。
+
+    店小秘里 -1 / None / "None" / "null" / 0 都表示「没有这个 id」，
+    当成系统属性提交会报 null#attr_value_id。
+    """
+    if v is None:
+        return False
+    s = str(v).strip().lower()
+    return s not in ("", "none", "null", "-1", "0")
+
+
 def to_submit_props(product: dict, template: dict | None = None,
                     custom_attributes: list | None = None) -> list[dict]:
     """生成保存用的属性数组。
 
-    - 系统属性（有 attrNameId）→ {attrNameId, attrValueId}
-    - 自定义属性（无 id）→ {attrName, attrValue}
-    - 关键：**自动检测并删除自定义属性里与系统属性重名的项**（品牌/型号/产地等，
-      不限于品牌）。系统属性名集合从「模板带 id 的属性」自动推导，所以任何类目都适用。
+    - 系统属性（attrNameId/attrValueId 都有效）→ {attrNameId, attrValueId}
+    - 其余（含 attrNameId = -1 的自定义属性）→ {attrName, attrValue}
+    - 自动删除：自定义属性里与系统属性重名的项
+    - 自动过滤：id 为 -1/None/"None"/null 的脏属性
     """
     def _lower(name: str) -> str:
         return (name or "").strip().lower()
 
-    # 系统属性名集合：模板里所有带 attrNameId 的属性名 + 内置 4 个兜底
-    system_names: set[str] = {_lower(k) for k in SYSTEM_ATTR_NAMES}
+    def _bad_value(v: str) -> bool:
+        return str(v or "").strip().upper() in ("", "NONE", "NULL")
+
+    # 模板里的「真系统属性」：id 有效才算
+    system_names: set[str] = {_norm_attr_name(k) for k in SYSTEM_ATTR_NAMES}
     template_system: dict[str, dict] = {}
     if template is not None:
         for a in _props_of(template):
             nm = str(a.get("attrName") or "").strip()
-            if nm and a.get("attrNameId"):
-                system_names.add(_lower(nm))
-                template_system[_lower(nm)] = a
+            nid = a.get("attrNameId")
+            vid = a.get("attrValueId")
+            if nm and _valid_attr_id(nid) and _valid_attr_id(vid):
+                system_names.add(_norm_attr_name(nm))
+                template_system[_norm_attr_name(nm)] = a
 
     out: list[dict] = []
     seen_system: set[str] = set()
     have_names: set[str] = set()
 
-    # 先放目标自己的属性
+    # 目标自己的属性
     for a in _props_of(product):
         name = str(a.get("attrName") or "").strip()
-        if not name:
-            continue
-        name_id = str(a.get("attrNameId") or "")
-        value_id = str(a.get("attrValueId") or "")
+        name_id = a.get("attrNameId")
+        value_id = a.get("attrValueId")
         value = str(a.get("attrValue") or "").strip()
+
+        # ① id 都有效 → 系统属性
+        if name and _valid_attr_id(name_id) and _valid_attr_id(value_id):
+            if _norm_attr_name(name) not in seen_system:
+                out.append({"attrNameId": str(name_id), "attrValueId": str(value_id)})
+                seen_system.add(_norm_attr_name(name))
+            have_names.add(name)
+            continue
+        # ② 无有效 id → 自定义属性（名字叫 "None"/空 的丢弃）
+        if _bad_value(name) or _bad_value(value):
+            continue
+        if _norm_attr_name(name) in system_names:
+            continue                      # 与系统属性重名（含同义词）→ 删除
+        out.append({"attrName": name, "attrValue": value})
         have_names.add(name)
 
-        # ① 有 id → 系统属性，只留 id 对（过滤 "None"/"null"/"-1" 这类脏值）
-        _bad = ("", "none", "null", "-1", "0")
-        if name_id and value_id and str(value_id).strip().lower() not in _bad \
-                and str(name_id).strip().lower() not in ("", "none", "null"):
-            if _lower(name) not in seen_system:
-                out.append({"attrNameId": name_id, "attrValueId": value_id})
-                seen_system.add(_lower(name))
-            continue
-        # ② 无 id 但名字与系统属性重名 → 删除（重复的自定义属性）
-        if _lower(name) in system_names:
-            continue
-        # ③ 纯自定义属性
-        if value and value.upper() not in ("NONE", "NULL"):
-            out.append({"attrName": name, "attrValue": value})
-
-    # 合并模板的系统属性（目标缺失的才补）
+    # 模板系统属性：目标缺的才补（只补 id 有效的）
     for ln, a in template_system.items():
         if ln in seen_system:
             continue
@@ -112,7 +256,7 @@ def to_submit_props(product: dict, template: dict | None = None,
                        "attrValueId": str(a.get("attrValueId"))})
         seen_system.add(ln)
 
-    # 用户手动追加的自定义属性（"Name=Value" 列表），重名的同样跳过
+    # 用户手动追加的自定义属性
     for c in (custom_attributes or []):
         if isinstance(c, str) and "=" in c:
             _n, _v = c.split("=", 1)
@@ -162,7 +306,7 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
         _base.setdefault("originalBox", "1")
         out = [_base]
 
-    # 补齐站点必填：是否原箱 / SKU 编码
+    # 补齐站点必填：是否原箱 / SKU 编码 / 货值
     for s in out:
         if s.get("originalBox") in (None, ""):
             s["originalBox"] = "1"
@@ -199,11 +343,12 @@ def build_save_payload(product: dict, template: dict | None = None,
             p[k] = template.get(k)
 
     _sku_list = merge_skus(product, template)
+    _sku_list_all = _sku_list
     p["aeopAeProductSKUs"] = json.dumps(_sku_list, ensure_ascii=False)
     # 站点要求商品级「是否原箱」不能为空；取第一个 SKU 的值（与店小秘前端一致）
     if p.get("originalBox") in (None, ""):
         try:
-            p["originalBox"] = str((_sku_list[0] or {}).get("originalBox") or "1")
+            p["originalBox"] = str((_sku_list_all[0] or {}).get("originalBox") or "1")
         except Exception:
             p["originalBox"] = "1"
 
@@ -221,9 +366,32 @@ def build_save_payload(product: dict, template: dict | None = None,
     # 货值（站点必填）：优先用传入值，其次沿用商品原值，最后默认 50
     if not str(p.get("cargoPrice") or "").strip():
         p["cargoPrice"] = str(cargo_price or "50").strip() or "50"
+    _cv = str(p["cargoPrice"]).strip()
+    # 每个 SKU 也必须带货值（站点校验按 SKU 走）
+    for _s in _sku_list_all:
+        if not str(_s.get("cargoPrice") or "").strip():
+            _s["cargoPrice"] = _cv
+    p["aeopAeProductSKUs"] = json.dumps(_sku_list_all, ensure_ascii=False)
 
-    # 无线端描述：为空就从 PC 详情生成，否则发布时会报「请补充无线端描述」
-    if not str(p.get("mobileDetail") or "").strip():
+    # 重量：商品级 grossWeight 为空（或还是默认值）时用首个 SKU 的包装重量
+    try:
+        _sk0 = _sku_list_all[0] if _sku_list_all else {}
+        _pw = str(_sk0.get("packageWeight") or "").strip()
+        if _pw and _pw not in ("0", "0.0"):
+            _cur = str(p.get("grossWeight") or "").strip()
+            if not _cur or _cur in ("0", "0.0", "10", "10.0", "1"):
+                p["grossWeight"] = _pw
+        for _k in ("packageLength", "packageWidth", "packageHeight"):
+            _v = str(_sk0.get(_k) or "").strip()
+            if _v and _v not in ("0", "0.0"):
+                _cur = str(p.get(_k) or "").strip()
+                if not _cur or _cur in ("0", "0.0", "10", "10.0", "1"):
+                    p[_k] = _v
+    except Exception:
+        pass
+
+    # 无线端描述：为空或被 CSS 污染 → 从 PC 详情重新生成
+    if not mobile_detail_ok(p.get("mobileDetail")):
         p["mobileDetail"] = build_mobile_detail(p.get("detail") or "")
 
     # ★ 数据安全：类目 ID 为空时保存会把商品类目清掉（历史事故），直接拒绝
@@ -257,6 +425,11 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
     import re as _re
 
     html = str(detail_html or "")
+    # ★ 必须先去掉 <style>/<script>/注释：详情 HTML 开头常有大量 CSS，
+    # 不去掉会把 CSS 文本当成正文塞进无线端描述（会导致发布/保存失败）
+    html = _re.sub(r"<style[^>]*>.*?</style>", "", html, flags=_re.I | _re.S)
+    html = _re.sub(r"<script[^>]*>.*?</script>", "", html, flags=_re.I | _re.S)
+    html = _re.sub(r"<!--.*?-->", "", html, flags=_re.S)
     modules: list[dict] = []
     if not html.strip():
         modules.append({"type": "text", "texts": [{"class": "body",

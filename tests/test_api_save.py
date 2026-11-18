@@ -173,7 +173,7 @@ def t9_duplicate_custom_attr_removed():
     product = _product()
     product["aeopAeProductPropertys"] = _j.dumps([
         {"attrName": "Brand Name", "attrValue": "yugong"},          # 与系统 Brand Name 重名 → 删
-        {"attrName": "Place of Origin", "attrValue": "Henan, China"},  # 不重名 → 保留
+        {"attrName": "Place of Origin", "attrValue": "Henan, China"},  # 与系统 Origin 同义 → 删
         {"attrName": "Warranty", "attrValue": "1 Year"},              # 保留
     ])
     # 模板有系统属性 Brand Name / Origin / 及一个自定义属性 "Certificate=CE"
@@ -189,7 +189,8 @@ def t9_duplicate_custom_attr_removed():
     # Brand Name 自定义被删，系统 Brand Name 以 id 形式在
     assert "Brand Name" not in names, f"自定义 Brand Name 应被删除: {props}"
     assert ("2", "201512802") in ids, "系统 Brand Name(id) 应在"
-    assert "Place of Origin" in names, "Place of Origin 应保留（不重名）"
+    # 用户要求：与系统属性重复（含同义词 Place of Origin ≈ Origin）的自定义属性要删
+    assert "Place of Origin" not in names, f"与 Origin 同义应删除: {props}"
     assert "Warranty" in names, "Warranty 应保留"
     print("  ✓ 重名自定义属性已删，非重名保留，系统属性以 id 补齐")
 
@@ -378,6 +379,55 @@ def t20_dirty_attr_value_filtered():
     assert "9441741844" in ids, ids
     print("  ✓ 保留:", ids, "| 自定义:", [p.get("attrName") for p in props if "attrName" in p])
 
+def t21_attr_id_strict_validation():
+    print("\n[测试21] 属性 id 严格校验：-1/None/null 一律不当作系统属性")
+    prod = {"id": "1", "categoryId": "1", "aeopAeProductPropertys": json.dumps([
+        {"attrNameId": "-1", "attrValueId": "None"},
+        {"attrNameId": "-1", "attrValueId": "None"},
+        {"attrName": "Specification", "attrNameId": "-1", "attrValueId": None, "attrValue": "8T*2.3m"},
+        {"attrName": "Boom Type", "attrNameId": "-1", "attrValueId": None, "attrValue": "Full auto"},
+        {"attrName": "Brand Name", "attrNameId": "2", "attrValueId": "201512802"},
+    ])}
+    # 模板也有 -1/None 的「自定义属性」（历史 bug 的来源）
+    tpl = {"id": "9", "aeopAeProductPropertys": json.dumps([
+        {"attrName": "Specification", "attrNameId": "-1", "attrValueId": None, "attrValue": "x"},
+        {"attrName": "Origin", "attrNameId": "219", "attrValueId": "9441741844"},
+    ])}
+    props = A.to_submit_props(prod, tpl)
+    ids = [str(p.get("attrValueId")) for p in props if "attrValueId" in p]
+    assert not any(v.lower() in ("none", "null", "-1", "0") for v in ids), ids
+    names = [p.get("attrName") for p in props if "attrName" in p]
+    assert "Specification" in names and "Boom Type" in names, names
+    print("  ✓ 系统属性:", ids, "| 自定义:", names)
+
+
+def t22_market_image_ratio_order():
+    print("\n[测试22] 营销图顺序：marketImg1=3:4场景图(≥750x1000)，marketImg2=1:1白底图")
+    import aeclone.services.publisher as P
+    from PIL import Image as _Img
+    import io as _io
+
+    sizes = {}
+    def fake_get(u, timeout=25, **kw):
+        class R:
+            content = b""
+            status_code = 200
+        class S:
+            content = b""
+        # 按 url 区分：m1 故意给 800x800（错的），m2 给 750x1000
+        w, h = (800, 800) if "m1" in str(u) else (750, 1000)
+        buf = _io.BytesIO(); _Img.new("RGB", (w, h)).save(buf, format="JPEG")
+        r = R(); r.content = buf.getvalue(); return r
+
+    import requests as _rq
+    _rq.get = fake_get
+    pub = object.__new__(P.Publisher)
+    assert pub._market_ok("https://x/m2.jpg", "3:4") is True, "750x1000 应判为 3:4 合格"
+    assert pub._market_ok("https://x/m1.jpg", "1:1") is True, "800x800 应判为 1:1 合格"
+    assert pub._market_ok("https://x/m1.jpg", "3:4") is False, "800x800 不是 3:4"
+    assert pub._market_ok("https://x/m2.jpg", "1:1") is False, "750x1000 不是 1:1"
+    print("  ✓ 尺寸/比例判定正确")
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -392,7 +442,8 @@ if __name__ == "__main__":
              t15_override_keeps_sku_required_fields,
              t16_mobile_detail_generated, t17_publish_keeps_mobile_detail_when_ai_overrides,
              t18_detail_image_over_5mb_shrunk, t19_cargo_price_from_declared_value,
-             t20_dirty_attr_value_filtered]
+             t20_dirty_attr_value_filtered, t21_attr_id_strict_validation,
+             t22_market_image_ratio_order]
     ok = fail = 0
     for t in tests:
         try:

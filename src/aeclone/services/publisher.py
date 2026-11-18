@@ -1599,6 +1599,60 @@ class Publisher:
         return True
 
     # ---------- 主流程 ----------
+    def _save_with_relax(self, payload: dict, tpl, res=None) -> dict:
+        """保存失败时逐级放宽 payload 重试。
+
+        店小秘对「属性/SKU 维度与类目不匹配」只回一句「保存失败！」，
+        所以失败后按 relaxed_payload(level=1,2) 依次重试。
+        """
+        from .api_save import relaxed_payload
+        try:
+            return self.dxm.save_product_via_api(payload)
+        except Exception as ex:  # noqa: BLE001
+            _msg = str(ex)
+            if "保存失败" not in _msg:
+                raise
+            for _lv in (1, 2):
+                try:
+                    q = relaxed_payload(payload, _lv, tpl)
+                    r = self.dxm.save_product_via_api(q)
+                    if res is not None:
+                        add_step(res, "保存兼容重试", True,
+                                 f"第 {_lv} 级放宽后保存成功（原结构被店小秘拒绝）")
+                    return r
+                except Exception:  # noqa: BLE001
+                    continue
+            raise
+
+    def _market_ok(self, url: str, ratio: str) -> bool:
+        """检查已有营销图尺寸是否符合平台要求。
+
+        marketImg1(场景图)：≥750x1000 且 3:4
+        marketImg2(白底图)：≥800x800 且 1:1
+        """
+        if not url:
+            return False
+        try:
+            import io as _io
+            import requests as _rq
+            from PIL import Image as _Img
+            raw = _rq.get(str(url), timeout=25).content
+            w, h = _Img.open(_io.BytesIO(raw)).size
+        except Exception:
+            return False
+        if ratio == "3:4":
+            return w >= 750 and h >= 1000 and abs(w / max(h, 1) - 0.75) <= 0.03
+        return w >= 800 and h >= 800 and abs(w / max(h, 1) - 1.0) <= 0.05
+
+    def _fix_market_images(self, cur1: str, cur2: str, base_img: str, res=None) -> list[str]:
+        """已有营销图不合规（尺寸/比例不对）就重新生成，返回 [m1, m2]（可能为空）。"""
+        if self._market_ok(cur1, "3:4") and self._market_ok(cur2, "1:1"):
+            return []
+        out = self._market_images_for(base_img, res)
+        if out and res is not None:
+            add_step(res, "营销图", True, "已有营销图尺寸不合规 → 已重新生成")
+        return out
+
     def _market_images_for(self, image_url: str, res=None) -> list[str]:
         """用主图本地裁切出营销图 [1:1, 3:4] 并上传（免费，约 0.5 秒）。
 
@@ -1618,8 +1672,11 @@ class Publisher:
             d = _P(_tf.mkdtemp())
             src = d / "m0.png"
             src.write_bytes(_rq.get(str(image_url), timeout=40).content)
+            # 顺序很重要！店小秘/速卖通规定：
+            #   marketImg1 = 场景图，必须 ≥750x1000 且 3:4
+            #   marketImg2 = 白底图，800x800 (1:1)
             out = []
-            for i, size in enumerate(((800, 800), (750, 1000))):
+            for i, size in enumerate(((750, 1000), (800, 800))):
                 fp = d / f"mk{i}.jpg"
                 make_marketing(src, fp, size)
                 out.append(_up(fp))
@@ -1718,15 +1775,16 @@ class Publisher:
         # 营销图是发布必填：缺了就本地裁切补上（免费）
         _mk = []
         try:
-            if not str(target.get("marketImg1") or "").strip():
-                _imgs = [x for x in str(target.get("imageURLs") or "").split(";") if x.strip()]
-                if _imgs:
-                    _mk = self._market_images_for(_imgs[0], res)
-                    if _mk:
-                        target = dict(target)
-                        target["marketImg1"] = _mk[0]
-                        if len(_mk) > 1:
-                            target["marketImg2"] = _mk[1]
+            _imgs = [x for x in str(target.get("imageURLs") or "").split(";") if x.strip()]
+            _base = _imgs[0] if _imgs else ""
+            _mk = self._fix_market_images(
+                str(target.get("marketImg1") or ""),
+                str(target.get("marketImg2") or ""), _base, res)
+            if _mk:
+                target = dict(target)
+                target["marketImg1"] = _mk[0]
+                if len(_mk) > 1:
+                    target["marketImg2"] = _mk[1]
         except Exception:
             pass
         # 描述图 >5MB 会被站点拒绝：只发布这条路也要压缩（否则会一直失败）
@@ -1756,7 +1814,11 @@ class Publisher:
             _d = resp.get("data") if isinstance(resp.get("data"), dict) else {}
             _m = str(_d.get("msg") or resp.get("msg") or "")
             return SaveResult(ok=True, message=f"只发布成功（商品ID {pid}）：{_m[:110]}", published=True)
-        return SaveResult(ok=False, message=f"发布失败：{str(resp.get('msg') or '')[:200]}")
+        _m2 = str(resp.get("msg") or "")
+        if any(k in _m2 for k in ("PRODUCT_IN_AUDIT_PENDING", "audit process", "正在审核中", "审核中")):
+            return SaveResult(ok=True, published=True,
+                              message=f"已在审核中（商品ID {pid}）：无需重复发布")
+        return SaveResult(ok=False, message=f"发布失败：{_m2[:200]}")
 
     def _prepare_video(self, p: dict, res, product: dict, dry_run: bool):
         """主图视频：模板视频 / 生成轮播视频 → 上传店小秘 → p["csp_video_id"]。
@@ -1862,18 +1924,20 @@ class Publisher:
 
             # 营销图是发布必填项：没有就本地裁切补上（免费，不做会报「请补充营销图」）
             try:
-                if not str(overrides.get("marketImg1") or "").strip():
-                    _base_img = ""
-                    if _imgs:
-                        _base_img = str(_imgs[0])
-                    else:
-                        _iu = [x for x in str(target.get("imageURLs") or "").split(";") if x.strip()]
-                        _base_img = _iu[0] if _iu else ""
-                    _mk2 = self._market_images_for(_base_img, res)
-                    if _mk2:
-                        overrides["marketImg1"] = _mk2[0]
-                        if len(_mk2) > 1:
-                            overrides["marketImg2"] = _mk2[1]
+                _base_img = ""
+                if _imgs:
+                    _base_img = str(_imgs[0])
+                else:
+                    _iu = [x for x in str(target.get("imageURLs") or "").split(";") if x.strip()]
+                    _base_img = _iu[0] if _iu else ""
+                _mk2 = self._fix_market_images(
+                    str(overrides.get("marketImg1") or target.get("marketImg1") or ""),
+                    str(overrides.get("marketImg2") or target.get("marketImg2") or ""),
+                    _base_img, res)
+                if _mk2:
+                    overrides["marketImg1"] = _mk2[0]
+                    if len(_mk2) > 1:
+                        overrides["marketImg2"] = _mk2[1]
             except Exception:
                 pass
 
@@ -2365,7 +2429,8 @@ class Publisher:
                         from .image_ops import make_marketing
                         from .hosting import upload as _host_m
                         _mk = []
-                        for _i, _sz in enumerate(((800, 800), (750, 1000))):
+                        # 3:4 场景图在前（marketImg1），1:1 白底图在后（marketImg2）
+                        for _i, _sz in enumerate(((750, 1000), (800, 800))):
                             _out = d_m / f"mk{_i}.jpg"
                             make_marketing(src, _out, _sz)
                             _mk.append(_host_m(_out))
@@ -2614,6 +2679,16 @@ class Publisher:
                     return res
                 if not r.ok:
                     _msg = str(r.message or "")
+                    if any(k in _msg for k in ("PRODUCT_IN_AUDIT_PENDING", "audit process", "正在审核中", "审核中")):
+                        add_step(res, "保存到店小秘", True,
+                                 f"[{p.get('id', '')}] 已在审核中，无需重复发布")
+                        res.ok = True
+                        try:
+                            from . import publish_retry as _prA
+                            _prA.remove(str(p.get("id", "")))
+                        except Exception:
+                            pass
+                        return res
                     # 记到「发布失败重试」清单：只影响发布，不影响已保存的内容
                     try:
                         if _action in ("publish", "save_to_waiting"):
