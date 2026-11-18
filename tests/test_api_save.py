@@ -93,10 +93,10 @@ def t3_op_mapping():
     print("  ✓ op 映射正确")
 
 
-def t4_payload_has_62_keys_and_promise_zero():
+def t4_payload_has_63_keys_and_promise_zero():
     print("\n[测试4] payload 键完整、promiseTemplateId 默认 0")
     p = A.build_save_payload(_product(), _template(), action="save_only")
-    assert len(p) == 62, len(p)
+    assert len(p) == 63, len(p)
     assert p["promiseTemplateId"] == "0", p["promiseTemplateId"]
     assert p["aeopAeProductPropertys"].startswith("["), "属性应为 JSON 字符串"
     print(f"  ✓ {len(p)} 键，promiseTemplateId=0")
@@ -351,9 +351,22 @@ def t18_detail_image_over_5mb_shrunk():
     assert any("压缩" in s.name for s in res.steps), res.steps
     print("  ✓ URL 已替换：", out)
 
+def t19_cargo_price_from_declared_value():
+    print("\n[测试19] 货值（cargoPrice）必填 —— 从设置 declared_value 取")
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(stock_quantity="999", write_sku_codes_to_product=True,
+                          wholesale_enable=False, regional_quote_enable=False,
+                          detail_local_image_position="tail", declared_value="")
+    ov = A.build_ai_overrides({"id": "1", "categoryId": "1"}, {"skus": [], "images": []}, cfg)
+    assert ov.get("cargoPrice") == "50", ov.get("cargoPrice")
+    cfg.declared_value = "88"
+    ov2 = A.build_ai_overrides({"id": "1", "categoryId": "1"}, {"skus": [], "images": []}, cfg)
+    assert ov2.get("cargoPrice") == "88", ov2.get("cargoPrice")
+    print("  ✓ 空→50 / 设置→88")
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
-             t3_op_mapping, t4_payload_has_62_keys_and_promise_zero,
+             t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
              t5_template_fallback_for_missing_fields,
              t6_ai_overrides_map_title_detail_sku_images,
              t7_ai_overrides_serialized_as_string_in_payload,
@@ -364,7 +377,7 @@ if __name__ == "__main__":
              t13_original_box_product_level, t14_empty_sku_gets_default,
              t15_override_keeps_sku_required_fields,
              t16_mobile_detail_generated, t17_publish_keeps_mobile_detail_when_ai_overrides,
-             t18_detail_image_over_5mb_shrunk]
+             t18_detail_image_over_5mb_shrunk, t19_cargo_price_from_declared_value]
     ok = fail = 0
     for t in tests:
         try:

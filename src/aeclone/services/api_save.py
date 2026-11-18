@@ -30,7 +30,7 @@ _DIRECT_KEYS = [
     "productMinPrice", "productMaxPrice", "aeopAeProductSKUs",
     "cspVideoId", "aeopAEMultimedia", "installVideoId", "productManual",
     "bulkOrder", "bulkDiscount", "dropshipDiscount", "productUnit", "packageType", "lotNum",
-    "originalBox",
+    "originalBox", "cargoPrice",
     "deliveryTime", "wsValidNum", "reduceStrategy", "ladderPriceListJson",
     "aeopNationalQuoteConfiguration", "sizeChartIdListJson", "sizechartId",
     "detail", "mobileDetail", "grossWeight", "packageLength", "packageWidth",
@@ -441,6 +441,15 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
                 "configurationType": "ABSOLUTE",
                 "configurationData": json.dumps(rows, ensure_ascii=False),
             }, ensure_ascii=False)
+
+    # 货值（站点必填，报错「货值不能为空」）：取设置里的申报货值，默认 50
+    try:
+        _dv = str(getattr(cfg, "declared_value", "") or "").strip()
+        if not _dv:
+            _dv = "50"
+        overrides["cargoPrice"] = _dv
+    except Exception:
+        overrides["cargoPrice"] = "50"
 
     # 主图视频：cspVideoId
     if p.get("csp_video_id"):
