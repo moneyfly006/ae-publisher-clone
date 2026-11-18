@@ -509,14 +509,16 @@ class App:
                                  content=ft.Text("A", size=15, weight=ft.FontWeight.BOLD, color="#0B0D12")),
                     ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
                                muted(f"极光上架 v{VERSION}")], spacing=0)], spacing=10),
-            ft.Container(height=12),
-            ft.Container(
-                content=ft.Row([ft.Icon(ft.Icons.ROCKET_LAUNCH, size=16, color="#0B0D12"),
-                                ft.Text("启动", size=13, weight=ft.FontWeight.BOLD, color="#0B0D12")],
-                               spacing=6, alignment=ft.MainAxisAlignment.CENTER),
-                bgcolor=ACCENT, border_radius=10, padding=ft.padding.symmetric(vertical=9, horizontal=10),
-                on_click=lambda e: self._start(), ink=True),
             ft.Container(height=10),
+            ft.Row([ft.Container(
+                content=ft.Row([ft.Icon(ft.Icons.ROCKET_LAUNCH, size=13, color="#0B0D12"),
+                                ft.Text("启动", size=12, weight=ft.FontWeight.BOLD, color="#0B0D12")],
+                               spacing=4, tight=True, alignment=ft.MainAxisAlignment.CENTER),
+                bgcolor=ACCENT, border_radius=7,
+                padding=ft.padding.symmetric(vertical=4, horizontal=12),
+                on_click=lambda e: self._start(), ink=True)],
+                alignment=ft.MainAxisAlignment.START),
+            ft.Container(height=8),
             nav_scroll,
             ft.Container(height=6),
             ft.Container(
