@@ -1723,6 +1723,18 @@ class Publisher:
                             target["marketImg2"] = _mk[1]
         except Exception:
             pass
+        # 描述图 >5MB 会被站点拒绝：只发布这条路也要压缩（否则会一直失败）
+        try:
+            _d0 = str(target.get("detail") or "")
+            _d1 = self._shrink_detail_images(_d0, res)
+            if _d1 != _d0:
+                target = dict(target)
+                target["detail"] = _d1
+                from .api_save import build_mobile_detail as _bmd2
+                target["mobileDetail"] = _bmd2(_d1)
+        except Exception:
+            pass
+
         try:
             payload = build_save_payload(
                 target, tpl, action="publish",
