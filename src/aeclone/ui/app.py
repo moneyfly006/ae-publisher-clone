@@ -1448,7 +1448,7 @@ class App:
         self._log("启动：配置检查通过")
         self._switch(10)
         self._log("开始执行…")
-        threading.Thread(target=self._run_pipeline, daemon=True).start()
+        threading.Thread(target=self._run_pipeline, args=(only_ids,), daemon=True).start()
 
     def _run_scheduled(self, job):
         """到点执行「定时发布」：商品已保存，这里用 API op=2 直接发布（无浏览器）。"""
@@ -1572,8 +1572,11 @@ class App:
             except Exception:
                 pass
 
-    def _run_pipeline(self):
-        """并发处理多个产品；带停止请求与心跳日志，避免看起来“卡死”。"""
+    def _run_pipeline(self, only_ids: list | None = None):
+        """并发处理多个产品；带停止请求与心跳日志，避免看起来“卡死”。
+
+        only_ids: 只跑这些商品 ID（「重跑上次失败」用），并忽略已编辑记录。
+        """
         if getattr(self, "_running", False):
             self._log("已有任务在运行，忽略本次启动", "WARN")
             return
@@ -1636,6 +1639,7 @@ class App:
                 _want = {str(x) for x in only_ids}
                 prods = [x for x in prods if str(x.get("id")) in _want]
                 self._log(f"只重跑指定商品：{len(prods)}/{len(_want)} 个（已忽略「已编辑记录」）", "INFO")
+            _skip_edited = 0
             try:
                 from ..services import edited as _edited
                 if not only_ids:
