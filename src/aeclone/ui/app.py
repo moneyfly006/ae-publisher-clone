@@ -3804,6 +3804,29 @@ class App:
         refined_tab = ft.Column([self._image_jobs_ui()], spacing=10,
                                 scroll=ft.ScrollMode.AUTO, expand=True)
 
+        # ---- 开关冲突提示（自动检测）----
+        try:
+            from ..services.image_task_plan import detect_conflicts
+            _cf = detect_conflicts(self.cfg)
+        except Exception:
+            _cf = []
+        _colors = {"high": "#FF6B6B", "mid": "#FFB020", "low": MUTED}
+        _icon = {"high": ft.Icons.ERROR_OUTLINE, "mid": ft.Icons.WARNING_AMBER_ROUNDED,
+                 "low": ft.Icons.INFO_OUTLINE}
+        conflict_card = card(ft.Column([
+            h1("开关检查", 15),
+            muted("同时开多个图片开关时的冲突提示；红色=建议先处理"),
+            *([ft.Row([ft.Icon(_icon.get(c["level"], ft.Icons.INFO_OUTLINE), size=15,
+                               color=_colors.get(c["level"], MUTED)),
+                       ft.Column([ft.Text(c["title"], size=12, color=TEXT),
+                                  ft.Text(c["detail"], size=10.5, color=MUTED),
+                                  ft.Text("→ " + c["fix"], size=10.5, color=ACCENT_2)],
+                                 spacing=1, expand=True)], spacing=8, vertical_alignment=ft.CrossAxisAlignment.START)
+               for c in _cf] if _cf else
+              [ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, size=15, color=ACCENT_2),
+                       ft.Text("没有检测到开关冲突", size=12, color=ACCENT_2)], spacing=8)]),
+        ], spacing=6))
+
         tabs = ft.Tabs(
             selected_index=0,
             animation_duration=150,
@@ -3812,7 +3835,7 @@ class App:
             expand=True,
         )
         return [view[0], muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
-                write_card, tabs, view[-1]]
+                write_card, conflict_card, tabs, view[-1]]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):

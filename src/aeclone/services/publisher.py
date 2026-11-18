@@ -1629,8 +1629,8 @@ class Publisher:
                 if getattr(plan, "steps", None):
                     res.steps.append(Step("图片计划", not getattr(plan, "blockers", False),
                                           "；".join(plan.steps[:4])))
-                if getattr(plan, "blockers", None):
-                    res.steps.append(Step("计划阻断", False, "；".join(plan.blockers[:3])))
+                for _w in getattr(plan, "warnings", [])[:3]:
+                    res.steps.append(Step("图片计划提醒", True, _w))
             except Exception as ex:  # noqa: BLE001
                 res.steps.append(Step("图片计划", False, f"生成失败：{str(ex)[:80]}"))
 
@@ -1728,12 +1728,12 @@ class Publisher:
                 from .image_task_plan import build_plan
                 plan = build_plan(self.cfg, p)
                 if plan.steps:
-                    add_step(res, "图片计划", not plan.blockers, "；".join(plan.steps[:4]))
+                    add_step(res, "图片计划", True, "；".join(plan.steps[:4]))
+                for _w in getattr(plan, "warnings", [])[:3]:
+                    add_step(res, "图片计划提醒", True, _w)
                 if plan.blockers:
-                    add_step(res, "计划阻断", False, "；".join(plan.blockers[:3]))
-                    res.ok = False
-                    res.error = "图片计划被阻断：" + "；".join(plan.blockers[:3])
-                    return res
+                    # 计划里有无法执行的项：跳过该项继续，不中止整个商品
+                    add_step(res, "图片计划提醒", True, "已跳过：" + "；".join(plan.blockers[:3]))
             except Exception as ex:  # noqa: BLE001
                 add_step(res, "图片计划", False, "计划生成失败：" + str(ex)[:80])
                 res.ok = False

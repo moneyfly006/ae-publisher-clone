@@ -11,7 +11,7 @@
 
 ---
 
-## 🧪 测试（35 个文件）
+## 🧪 测试（36 个文件）
 
 | 文件 | 说明 |
 |------|------|
@@ -33,6 +33,7 @@
 | [test_image_hosting_optimization.py](tests/test_image_hosting_optimization.py) | Already-hosted images must skip redundant download and upload. |
 | [test_image_hosting_protocol.py](tests/test_image_hosting_protocol.py) | 图床上传测试（不联网，用本地假服务模拟两种协议）。 |
 | [test_image_job_regression.py](tests/test_image_job_regression.py) | Exercise real image-job control flow with fake services and temporary files. |
+| [test_image_plan_conflicts.py](tests/test_image_plan_conflicts.py) | 图片计划 / 开关冲突回归：空提示词不能阻断商品，冲突能被检出。 |
 | [test_image_size_validation.py](tests/test_image_size_validation.py) | 图片尺寸校验（速卖通 ≥800×800）专项测试。 |
 | [test_integration.py](tests/test_integration.py) | 功能集成测试 - 不启动GUI，直接测试核心服务逻辑。 |
 | [test_local_features.py](tests/test_local_features.py) | AuroraList 本地功能测试脚本 |
