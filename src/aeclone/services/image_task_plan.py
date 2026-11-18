@@ -44,8 +44,11 @@ def build_plan(cfg, product: dict | None = None) -> ImagePlan:
     if getattr(cfg, "main_image_generate_enable", False):
         prompt = (getattr(cfg, "main_image_generate_prompt", "") or "").strip()
         if not prompt:
-            # 提示词为空 = 该步骤自动跳过，不能因此阻断整个商品
-            plan.warnings.append("AI 生成主图：提示词为空，已跳过该步骤")
+            # 误开（提示词空）→ 当作未启用：不执行、不提醒、不阻断
+            try:
+                cfg.set("main_image_generate_enable", False)
+            except Exception:
+                pass
         else:
             refs = "参考现有主图" if getattr(cfg, "main_image_generate_use_refs", True) else "纯文生图"
             plan.steps.append(f"生成主图 ×{getattr(cfg, 'main_image_generate_count', '1')}（{refs}）")
@@ -142,9 +145,18 @@ def detect_conflicts(cfg) -> list[dict]:
         jobs = _j.loads(getattr(cfg, "image_ai_jobs", "[]") or "[]")
     except Exception:
         jobs = []
-    main_jobs = [x for x in jobs if isinstance(x, dict) and str(x.get("group")) == "main"]
-    gen = bool(getattr(cfg, "main_image_generate_enable", False))
+    # 只有对应分组总开关勾选时，任务才算「启用」；没勾选 = 不算冲突
+    _enabled_group = {
+        "main": bool(getattr(cfg, "img_fine_main_enable", False)),
+        "detail": bool(getattr(cfg, "img_fine_detail_enable", False)),
+        "sku": bool(getattr(cfg, "img_fine_sku_enable", False)),
+    }
+    _active_jobs = [x for x in jobs
+                    if isinstance(x, dict) and _enabled_group.get(str(x.get("group")), False)]
+    main_jobs = [x for x in _active_jobs if str(x.get("group")) == "main"]
     gen_prompt = (getattr(cfg, "main_image_generate_prompt", "") or "").strip()
+    # 开了但提示词为空 = 误开（会被自动关闭），不算启用
+    gen = bool(getattr(cfg, "main_image_generate_enable", False)) and bool(gen_prompt)
 
     # 1) 生成主图 vs 精细化主图编辑（都改主图第 1 张）
     if gen and main_jobs:
@@ -157,14 +169,6 @@ def detect_conflicts(cfg) -> list[dict]:
                 "fix": "二选一：要 AI 生成就关掉主图精细化编辑；要按参考图编辑就关掉「AI 生成主图」。",
             })
 
-    # 2) 生成主图但提示词为空
-    if gen and not gen_prompt:
-        out.append({
-            "level": "mid",
-            "title": "AI 生成主图已开启但提示词为空",
-            "detail": "该步骤会被自动跳过（不会再阻断商品）。",
-            "fix": "要么填提示词，要么关掉「AI 生成主图」。",
-        })
 
     # 3) 去水印 + 叠加水印（互相矛盾）
     if bool(getattr(cfg, "watermark_enable", False)) and bool(getattr(cfg, "overlay_watermark_enable", False)):
@@ -203,7 +207,7 @@ def detect_conflicts(cfg) -> list[dict]:
         })
 
     # 7) 精细化编辑里有提示词为空的条目
-    empty_jobs = [x for x in jobs if isinstance(x, dict) and not (x.get("prompt") or "").strip()]
+    empty_jobs = [x for x in _active_jobs if not (x.get("prompt") or "").strip()]
     if empty_jobs:
         out.append({
             "level": "low",

@@ -159,7 +159,7 @@ DEFAULTS: dict = {
     # 运费模板名称（草稿必填项，留空则跳过不填）
     "freight_template": "",
     # 点店小秘「营销图 → 一键生成」（生成 1:1 + 3:4 两张）
-    "marketing_auto_generate": True,
+    "marketing_auto_generate": False,   # 营销图：可选增强，单张 40~90s，默认关
     # 类目属性默认值（模板产品读不到时用；速卖通默认都选「否」）
     "high_concerned_chemical": "否",
     "charge_status": "否",
@@ -297,6 +297,7 @@ DEFAULTS: dict = {
     "default_express_price": "0",
     "adjust_price_template_id": "",
     "adjust_price_template_name": "",
+    "marketing_timeout": "45",
     "marketing_image_prompt": (
         "Create a marketing lifestyle image for this product: place the product in a clean modern "
         "usage scene matching its purpose, natural lighting, shallow depth of field, product remains "

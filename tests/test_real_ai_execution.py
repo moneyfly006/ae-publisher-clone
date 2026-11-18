@@ -60,42 +60,25 @@ def test_image_jobs_migration():
     """测试1: 配置迁移逻辑"""
     print("\n=== 测试1: 配置迁移逻辑 ===")
     
-    # 测试四合一迁移
+    # 四合一：不再迁移成 AI 任务（由 publisher 本地 PIL 拼图完成，免费）
     cfg = create_mock_config(
         four_in_one=True,
         four_in_one_position="first"
     )
-    
     try:
-        rules_str, jobs_str = migrate(cfg, with_global=True)  # 需要with_global=True来触发全局开关迁移
-        
-        # 解析JSON字符串
+        rules_str, jobs_str = migrate(cfg, with_global=True)
         import json
         rules = json.loads(rules_str)
         jobs = json.loads(jobs_str)
-        
-        print(f"✓ 四合一迁移生成 {len(jobs)} 个任务, {len(rules)} 条规则")
-        
-        if jobs:
-            job = jobs[0]
-            print(f"  - group: {job['group']}")
-            print(f"  - index: {job['index']}")
-            print(f"  - refs: {job['refs']}")
-            print(f"  - insert: {job['insert']}")
-            print(f"  - preset: {job.get('preset', 'N/A')}")
-            
-            assert job["group"] == "main", "四合一应该作用于主图"
-            assert job["insert"] == "first", "position=first应该映射到insert=first"
-            assert "1,2,3,4" in job["refs"], "应该引用前4张图片"
-        else:
-            print("  警告: 未生成任何四合一任务")
-            return False
+        print(f"✓ 四合一迁移生成 {len(jobs)} 个 AI 任务（应为 0，走本地拼图）")
+        assert not any(j.get("group") == "main" for j in jobs), f"不应生成主图 AI 任务: {jobs}"
+        print("  ✓ 四合一不会浪费 AI 调用")
     except Exception as e:
         print(f"错误详情: {e}")
         import traceback
         traceback.print_exc()
         return False
-    
+
     # 测试水印迁移
     cfg2 = create_mock_config(
         watermark=True,

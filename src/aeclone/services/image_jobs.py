@@ -134,6 +134,15 @@ def migrate(cfg, with_global: bool = False) -> tuple[str, str]:
 
     只在用户没有新表时执行一次，由界面写回。
     """
+    # 自动修复：开了「AI 生成主图」但提示词为空 = 误开，直接当作未启用，
+    # 避免它每次都在计划里出现「提示词为空」吓到用户。
+    try:
+        if (getattr(cfg, "main_image_generate_enable", False)
+                and not (getattr(cfg, "main_image_generate_prompt", "") or "").strip()):
+            cfg.set("main_image_generate_enable", False)
+    except Exception:
+        pass
+
     rules = parse_rules(getattr(cfg, "image_simple_rules", "[]"))
     jobs = parse_jobs(getattr(cfg, "image_ai_jobs", "[]"))
     if rules or jobs:
@@ -206,22 +215,8 @@ def migrate(cfg, with_global: bool = False) -> tuple[str, str]:
     except Exception:
         pass
     
-    # 4) 四合一迁移：生成主图四合一
-    try:
-        if getattr(cfg, "four_in_one", False):
-            position = str(getattr(cfg, "four_in_one_position", "append") or "append")
-            insert = "first" if position == "first" else "last"
-            jobs.append({
-                "group": "main",
-                "index": 1,
-                "refs": "1,2,3,4",
-                "prompt": "Combine these 4 product images into one clean product photo collage on a white background, arrange in a 2x2 grid.",
-                "mode": "edit",
-                "count": 1,
-                "insert": insert,
-                "preset": "四合一主图"
-            })
-    except Exception:
-        pass
+    # 4) 四合一：**不迁移成 AI 任务**
+    #    四合一由 publisher 里的本地 PIL 拼图完成（免费、确定、无张数限制），
+    #    迁移成 AI job 会额外花钱，而且生成结果不可控。
     
     return rows_to_rules(rules), rows_to_jobs(jobs)

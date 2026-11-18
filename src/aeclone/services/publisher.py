@@ -49,6 +49,23 @@ class SaveResult:
     published: bool = False
 
 
+# 模板商品 edit.json 的进程内缓存：批量跑时同一模板只取一次（省一次 API 往返）
+_TPL_EDIT_CACHE: dict[str, tuple[float, dict]] = {}
+_TPL_EDIT_TTL = 600.0
+
+
+def _cached_template_edit(dxm, tpl_pid: str) -> dict:
+    import time as _t
+    key = str(tpl_pid)
+    hit = _TPL_EDIT_CACHE.get(key)
+    if hit and (_t.time() - hit[0]) < _TPL_EDIT_TTL:
+        return dict(hit[1])
+    tpl = dxm._get("product_detail", {"id": key}).get("data", {}).get("product", {}) or {}
+    if tpl:
+        _TPL_EDIT_CACHE[key] = (_t.time(), dict(tpl))
+    return dict(tpl)
+
+
 def add_step(res, name, ok, detail=""):
     """记录步骤结果，同时实时上报到进度总线。"""
     res.steps.append(Step(name, bool(ok), str(detail)))
@@ -146,8 +163,31 @@ class Publisher:
         vals: dict = {}
         try:
             if self.dxm is not None:
-                snap = self.dxm.template_snapshot(tpl_pid) or {}
-                vals = snap.get("values") or {}
+                _tpl = _cached_template_edit(self.dxm, tpl_pid)
+                if _tpl:
+                    # 从已缓存的 edit.json 直接构造，避免再发一次请求
+                    import json as _jj
+                    amap = {}
+                    try:
+                        for _a in _jj.loads(_tpl.get("aeopAeProductPropertys") or "[]"):
+                            if isinstance(_a, dict) and _a.get("attrName"):
+                                amap[str(_a["attrName"]).lower()] = str(_a.get("attrValue") or "")
+                    except Exception:
+                        pass
+                    if amap.get("brand name") or amap.get("brand"):
+                        vals["品牌"] = {"t": "text", "v": amap.get("brand name") or amap.get("brand")}
+                    if amap.get("origin") or amap.get("place of origin"):
+                        vals["产地"] = {"t": "text", "v": amap.get("origin") or amap.get("place of origin")}
+                    if _tpl.get("grossWeight"):
+                        vals["包装后重量"] = {"t": "text", "v": str(_tpl.get("grossWeight"))}
+                    _sz = "x".join(str(_tpl.get(k) or "") for k in ("packageLength", "packageWidth", "packageHeight"))
+                    if _sz.strip("x"):
+                        vals["包装后尺寸"] = {"t": "text", "v": _sz}
+                    if _tpl.get("productManual"):
+                        vals["商品说明书"] = {"t": "file", "v": str(_tpl.get("productManual"))}
+                else:
+                    snap = self.dxm.template_snapshot(tpl_pid) or {}
+                    vals = snap.get("values") or {}
         except Exception:
             vals = {}
         _c[tpl_pid] = vals
@@ -491,6 +531,44 @@ class Publisher:
                 tail += f" / 跳过空图 {_skipped}"
             add_step(res, f"简单处理·{GROUP_LABELS.get(group, group)}", failed == 0 and done > 0,
                      f"成功 {done} / 失败 {failed}{tail}")
+
+        # ---- 四合一：本地 PIL 拼图（免费、确定、无张数限制）----
+        if getattr(self.cfg, "four_in_one", False):
+            try:
+                import tempfile as _tf4, requests as _rq4
+                from pathlib import Path as _P4
+                from .image_ops import four_in_one as _four4
+                from .hosting import upload as _host4
+                _urls4 = self._group_urls(p, "main")
+                if len(_urls4) >= 2:
+                    _d4 = _P4(_tf4.mkdtemp())
+                    _imgs4 = []
+                    for _i4, _u4 in enumerate(_urls4[:4]):
+                        try:
+                            _f4 = _d4 / f"f{_i4}.png"
+                            _f4.write_bytes(_rq4.get(str(_u4), timeout=60).content)
+                            _imgs4.append(_f4)
+                        except Exception:
+                            continue
+                    if len(_imgs4) >= 2:
+                        _out4 = _d4 / "four.png"
+                        _four4(_imgs4, _out4)
+                        _url4 = _host4(_out4)
+                        _cur4 = list(p.get("images") or [])
+                        if str(getattr(self.cfg, "four_in_one_position", "append") or "append") == "first":
+                            p["images"] = [_url4] + _cur4
+                            _where = "第一位"
+                        else:
+                            p["images"] = _cur4 + [_url4]
+                            _where = "末尾"
+                        add_step(res, "四合一", True,
+                                 f"本地拼图（{len(_imgs4)} 张，不调 AI）→ 插入{_where}")
+                    else:
+                        add_step(res, "四合一", False, "可用主图不足 2 张，跳过")
+                else:
+                    add_step(res, "四合一", False, "主图不足 2 张，跳过")
+            except Exception as _ex4:  # noqa: BLE001
+                add_step(res, "四合一", False, str(_ex4)[:80])
 
         # ---- 图片通用编辑：两种模式二选一（对齐老软件）----
         if _general:
@@ -1558,7 +1636,7 @@ class Publisher:
             target = self.dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
             tpl = None
             if bool(getattr(self.cfg, "apply_template_on_save", True)):
-                tpl = self.dxm._get("product_detail", {"id": _tpl_pid}).get("data", {}).get("product", {})
+                tpl = _cached_template_edit(self.dxm, _tpl_pid)
         except Exception as ex:
             add_step(res, "API 直存", False, f"读取商品详情失败：{str(ex)[:80]}")
             return None
@@ -1983,8 +2061,10 @@ class Publisher:
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "水印叠加", False, str(ex)[:80])
 
-            # 营销图（基于主图生成，写进 marketImg1/marketImg2，走 API 直存）
-            if (getattr(self.cfg, "marketing_auto_generate", True)
+            # 营销图（基于主图生成，写进 marketImg1/marketImg2）
+            # 说明：营销图是可选增强，单张 AI 生成常需 40~90 秒；默认关闭。
+            # 开启时用短超时 + 单次尝试，失败立刻跳过，绝不拖住整个商品。
+            if (getattr(self.cfg, "marketing_auto_generate", False)
                     and getattr(self.cfg, "ai_image_enable", True) and p.get("images") and not dry_run):
                 try:
                     import tempfile as _tf, requests as _rq
@@ -1993,8 +2073,9 @@ class Publisher:
                     from ..api import ApiClient as _ACm
                     d_m = _Pm(_tf.mkdtemp())
                     src = d_m / "m0.png"
-                    src.write_bytes(_rq.get(str(p["images"][0]), timeout=60).content)
-                    svc = ImageService(_ACm(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
+                    src.write_bytes(_rq.get(str(p["images"][0]), timeout=30).content)
+                    _mto = int(float(getattr(self.cfg, "marketing_timeout", 45) or 45))
+                    svc = ImageService(_ACm(self.cfg.api_base, self.cfg.api_key, min(_mto, 60)), self.cfg)
                     _mk = []
                     for _i in range(2):
                         try:
@@ -2002,14 +2083,14 @@ class Publisher:
                             if _u and _u[0] not in _mk:
                                 _mk.append(_u[0])
                         except Exception:
-                            break
+                            break          # 失败不再重试，避免 2×超时
                     if _mk:
                         p["market_images"] = _mk
                         add_step(res, "营销图", True, f"{len(_mk)} 张已生成")
                     else:
-                        add_step(res, "营销图", False, "生成失败")
+                        add_step(res, "营销图", False, "生成失败（已跳过）")
                 except Exception as ex:  # noqa: BLE001
-                    add_step(res, "营销图", False, str(ex)[:80])
+                    add_step(res, "营销图", False, str(ex)[:80] + "（已跳过）")
 
             # 详情图必须在主图转详情、图片方案、营销图全部完成后组装
             if getattr(self.cfg, "write_detail_html_to_product", True) and p.get("detail_images"):

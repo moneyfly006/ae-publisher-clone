@@ -1302,9 +1302,71 @@ class App:
             self._start()
         (getattr(self, '_sync_run_button', None) or (lambda: None))()
 
-    def _start(self):
+    def _warn_conflicts_before_run(self) -> bool:
+        """启动前检查开关冲突。返回 True 表示已拦截（用户选择去修改）。"""
+        # 先做一次自动修复：开了「AI 生成主图」但提示词为空 = 误开，自动关掉
+        try:
+            if (getattr(self.cfg, "main_image_generate_enable", False)
+                    and not (getattr(self.cfg, "main_image_generate_prompt", "") or "").strip()):
+                self.cfg.set("main_image_generate_enable", False)
+                save_config(self.cfg)
+                self._log("自动修复：「AI 生成主图」开着但提示词为空，已关闭该功能", "WARN")
+        except Exception:
+            pass
+        try:
+            from ..services.image_task_plan import detect_conflicts
+            cf = detect_conflicts(self.cfg)
+        except Exception:
+            return False
+        hard = [c for c in cf if c.get("level") in ("high", "mid")]
+        if not hard:
+            # 没有冲突：明确告诉用户「没问题」
+            self._log("开关检查：未发现冲突，配置正常", "INFO")
+            self.toast("配置检查通过，没有冲突")
+            return False
+        lines = []
+        for c in hard[:6]:
+            lines.append(f"[{c['level'].upper()}] {c['title']}\n  {c['detail']}\n  → {c['fix']}")
+        text = "\n\n".join(lines)
+        self._log("启动前发现开关冲突：" + "；".join(c["title"] for c in hard[:4]), "WARN")
+
+        def go_fix(e):
+            self.dlg.open = False
+            self._safe_update()
+            self._switch(5)   # AI 图片页
+
+        def go_anyway(e):
+            self.dlg.open = False
+            self._safe_update()
+            self._log("用户选择忽略冲突继续启动", "WARN")
+            self._start(ignore_conflicts=True)
+
+        self.dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("发现可能的开关冲突"),
+            content=ft.Column([
+                ft.Text("这些开关同时开启可能互相覆盖，建议先处理：", size=12, color=TEXT),
+                ft.Text(text, size=11, color=MUTED, selectable=True),
+            ], spacing=8, width=560, scroll=ft.ScrollMode.AUTO, height=320),
+            actions=[ft.OutlinedButton("去修改（推荐）", on_click=go_fix),
+                     ft.TextButton("仍然启动", on_click=go_anyway)],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.dialog = self.dlg
+        self.dlg.open = True
+        self._safe_update()
+        return True
+
+    def _start(self, ignore_conflicts: bool = False):
         # 启动前先把当前配置全部落盘（含未失焦的输入）
         self._save_api_fields()
+        # 启动前检查图片开关冲突：有冲突先提醒，用户可强制继续
+        if not ignore_conflicts:
+            try:
+                if self._warn_conflicts_before_run():
+                    return
+            except Exception:
+                pass
         try:
             for f in self.field_refs:
                 try:
