@@ -5939,6 +5939,15 @@ class App:
 
     # ---------- 行为 ----------
     def _check_license(self):
+        if getattr(self, "_license_checking", False):
+            return
+        self._license_checking = True
+        try:
+            self._check_license_inner()
+        finally:
+            self._license_checking = False
+
+    def _check_license_inner(self):
         try:
             from ..core.updater import CURRENT as _ver
         except Exception:
