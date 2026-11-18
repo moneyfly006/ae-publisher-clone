@@ -73,6 +73,14 @@ _ATTR_SYNONYMS = {
     "warranty duration": "warranty",
 }
 _ATTR_PREFIX = ("product ", "item ", "custom ", "the ")
+# 店小秘返回的属性经常只有 id 没有名字，这里补上常见系统属性名，
+# 否则「自定义属性重名」判断会失效、系统属性也不会被提交
+_TPL_ATTR_NAMES = {
+    "2": "Brand Name",
+    "219": "Origin",
+    "400074001": "Charge Status",
+    "400000603": "High-concerned chemical",
+}
 
 
 def _norm_attr_name(name: str) -> str:
@@ -215,12 +223,15 @@ def to_submit_props(product: dict, template: dict | None = None,
     template_system: dict[str, dict] = {}
     if template is not None:
         for a in _props_of(template):
-            nm = str(a.get("attrName") or "").strip()
             nid = a.get("attrNameId")
             vid = a.get("attrValueId")
-            if nm and _valid_attr_id(nid) and _valid_attr_id(vid):
-                system_names.add(_norm_attr_name(nm))
-                template_system[_norm_attr_name(nm)] = a
+            if not (_valid_attr_id(nid) and _valid_attr_id(vid)):
+                continue
+            _nm = str(a.get("attrName") or "").strip() or _TPL_ATTR_NAMES.get(str(nid), "")
+            _key = _norm_attr_name(_nm) if _nm else f"id:{nid}"
+            template_system[_key] = a
+            if _nm:
+                system_names.add(_key)
 
     out: list[dict] = []
     seen_system: set[str] = set()
@@ -372,23 +383,6 @@ def build_save_payload(product: dict, template: dict | None = None,
         if not str(_s.get("cargoPrice") or "").strip():
             _s["cargoPrice"] = _cv
     p["aeopAeProductSKUs"] = json.dumps(_sku_list_all, ensure_ascii=False)
-
-    # 重量：商品级 grossWeight 为空（或还是默认值）时用首个 SKU 的包装重量
-    try:
-        _sk0 = _sku_list_all[0] if _sku_list_all else {}
-        _pw = str(_sk0.get("packageWeight") or "").strip()
-        if _pw and _pw not in ("0", "0.0"):
-            _cur = str(p.get("grossWeight") or "").strip()
-            if not _cur or _cur in ("0", "0.0", "10", "10.0", "1"):
-                p["grossWeight"] = _pw
-        for _k in ("packageLength", "packageWidth", "packageHeight"):
-            _v = str(_sk0.get(_k) or "").strip()
-            if _v and _v not in ("0", "0.0"):
-                _cur = str(p.get(_k) or "").strip()
-                if not _cur or _cur in ("0", "0.0", "10", "10.0", "1"):
-                    p[_k] = _v
-    except Exception:
-        pass
 
     # 无线端描述：为空或被 CSS 污染 → 从 PC 详情重新生成
     if not mobile_detail_ok(p.get("mobileDetail")):

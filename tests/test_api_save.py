@@ -428,6 +428,27 @@ def t22_market_image_ratio_order():
     assert pub._market_ok("https://x/m2.jpg", "1:1") is False, "750x1000 不是 1:1"
     print("  ✓ 尺寸/比例判定正确")
 
+def t23_nameless_system_attrs_submitted():
+    print("\n[测试23] 店小秘属性没有 attrName（只有 id）时，系统属性也必须提交")
+    # 真实情况：模板/商品的属性都是 {"attrNameId":"2","attrValueId":"201512802"} 没有 attrName
+    tpl = {"id": "9", "aeopAeProductPropertys": json.dumps([
+        {"attrNameId": "2", "attrValueId": "201512802"},
+        {"attrNameId": "219", "attrValueId": "9441741844"},
+    ])}
+    prod = {"id": "1", "categoryId": "1", "aeopAeProductPropertys": json.dumps([
+        {"attrNameId": "-1", "attrValueId": "None"},
+        {"attrName": "Place of Origin", "attrValue": "Henan, China"},
+        {"attrName": "Warranty", "attrValue": "1 Year"},
+    ])}
+    props = A.to_submit_props(prod, tpl)
+    ids = [str(p.get("attrValueId")) for p in props if "attrNameId" in p]
+    assert "201512802" in ids and "9441741844" in ids, f"系统属性必须提交: {props}"
+    names = [p.get("attrName") for p in props if "attrName" in p]
+    # 已知 id→名字映射后，Place of Origin 视为 Origin 的重复 → 删除
+    assert "Place of Origin" not in names, names
+    assert "Warranty" in names, names
+    print("  ✓ 系统属性(按id):", ids, "| 自定义:", names)
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -443,7 +464,7 @@ if __name__ == "__main__":
              t16_mobile_detail_generated, t17_publish_keeps_mobile_detail_when_ai_overrides,
              t18_detail_image_over_5mb_shrunk, t19_cargo_price_from_declared_value,
              t20_dirty_attr_value_filtered, t21_attr_id_strict_validation,
-             t22_market_image_ratio_order]
+             t22_market_image_ratio_order, t23_nameless_system_attrs_submitted]
     ok = fail = 0
     for t in tests:
         try:
