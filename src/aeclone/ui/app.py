@@ -1311,70 +1311,96 @@ class App:
     def _retry_publish_failed(self):
         """只重试「发布失败」的商品：不跑 AI、不处理图片，只重新提交发布。
 
-        清单来源 = 本地记录 ∪ 店铺里 dxmOfflineState=publishFail 的商品（含 errMsg）。
+        整个过程放到后台线程（扫描店铺可能要几十秒），点按钮立刻有反馈。
         """
+        self._log("开始扫描「发布失败」商品…（可能需要 10~30 秒）", "INFO")
         try:
-            from ..services import publish_retry as pr
-            rows = pr.items()
+            self.toast("正在扫描发布失败商品…")
         except Exception:
-            rows = []
-        # 再从店铺里扫一遍「发布失败」，这样历史失败也能重试
-        try:
-            from ..integrations.dianxiaomi import DianxiaomiClient
-            ck0 = self._cookies()
-            dxm0 = DianxiaomiClient(ck0, overrides=self.cfg.endpoint_overrides or {})
-            store_rows = dxm0.publish_failed_products(self.cfg.store_id or None)
-            have = {r["id"] for r in rows}
-            for r in store_rows:
-                if r["id"] not in have:
-                    rows.append(r)
-            if store_rows:
+            pass
+
+        def work():
+            try:
+                from ..services import publish_retry as pr
+                rows = pr.items()
+            except Exception:
+                rows = []
+            try:
+                from ..integrations.dianxiaomi import DianxiaomiClient
+                ck0 = self._cookies()
+                dxm0 = DianxiaomiClient(ck0, overrides=self.cfg.endpoint_overrides or {})
+                store_rows = dxm0.publish_failed_products(self.cfg.store_id or None)
+                have = {r["id"] for r in rows}
+                for r in store_rows:
+                    if r["id"] not in have:
+                        rows.append(r)
                 self._log(f"店铺里检测到 {len(store_rows)} 个发布失败商品", "INFO")
-        except Exception as ex:  # noqa: BLE001
-            self._log(f"扫描发布失败商品出错：{str(ex)[:80]}", "WARN")
-        if not rows:
-            self.toast("没有发布失败的商品", False)
-            return
-        self._log(f"待重试发布 {len(rows)} 个（失败原因分布："
-                  + "；".join(f"{(r.get('error') or '')[:20]}" for r in rows[:3]) + " …）", "INFO")
-        self._log(f"只重试发布：{len(rows)} 个商品（不跑 AI，不花钱）", "INFO")
-        def go():
+            except Exception as ex:  # noqa: BLE001
+                self._log(f"扫描发布失败商品出错：{str(ex)[:100]}", "WARN")
+            if not rows:
+                self._log("没有发布失败的商品", "WARN")
+                self.toast("没有发布失败的商品", False)
+                return
+
+            from collections import Counter
+            _c = Counter((r.get("error") or "未知")[:26] for r in rows)
+            self._log(f"待重试发布 {len(rows)} 个，失败原因分布：", "INFO")
+            for _k, _v in _c.most_common(5):
+                self._log(f"   {_v:4d} × {_k}", "INFO")
+
+            # 每次点击最多处理 N 个（避免一次点下去跑十几分钟没反馈）
+            try:
+                _cap = int(self.cfg.edit_sum or 0)
+            except Exception:
+                _cap = 0
+            _cap = _cap if _cap > 0 else 20
+            if len(rows) > _cap:
+                _left = len(rows) - _cap
+                self._log(f"本次先处理 {_cap} 个，剩余 {_left} 个（再点一次继续）", "INFO")
+                rows = rows[:_cap]
+
             from ..integrations.dianxiaomi import DianxiaomiClient
-            from ..services.publisher import Publisher
-            ok = fail = 0
+            from ..services.publisher import Publisher, PublishResult
             try:
                 ck = self._cookies()
-            except Exception as ex:
+            except Exception as ex:  # noqa: BLE001
                 self._log(f"读取 Cookie 失败：{ex}", "ERROR")
                 return
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
             pub = Publisher(self.cfg, dxm=dxm, ws_endpoint="")
+            ok = fail = 0
             for i, r in enumerate(rows, 1):
                 if getattr(self, "_abort_now", False):
+                    self._log("已停止重试发布", "WARN")
                     break
                 pid = r["id"]
-                from ..services.publisher import PublishResult
-                pr_res = PublishResult(product_id=pid, ok=True)
                 try:
-                    out = pub.publish_only(pid, pr_res)
-                    if out.ok:
-                        ok += 1
-                        self._log(f"[{i}/{len(rows)}] ✓ {pid} {out.message[:80]}", "INFO")
-                        pr.remove(pid)
-                    else:
-                        fail += 1
-                        self._log(f"[{i}/{len(rows)}] ✗ {pid} {out.message[:100]}", "WARN")
-                        pr.record(pid, out.message, r.get("title") or "")
+                    out = pub.publish_only(pid, PublishResult(product_id=pid, ok=True))
                 except Exception as ex:  # noqa: BLE001
+                    out = None
+                    self._log(f"[{i}/{len(rows)}] ✗ {pid} 异常：{str(ex)[:90]}", "ERROR")
+                if out is not None and out.ok:
+                    ok += 1
+                    self._log(f"[{i}/{len(rows)}] ✓ {pid} {out.message[:90]}", "INFO")
+                    try:
+                        pr.remove(pid)
+                    except Exception:
+                        pass
+                else:
                     fail += 1
-                    self._log(f"[{i}/{len(rows)}] ✗ {pid} 异常：{str(ex)[:80]}", "ERROR")
-            self._log(f"只重试发布完成：成功 {ok} / 失败 {fail}", "INFO")
-            self.toast(f"重试发布：成功 {ok} / 失败 {fail}")
+                    _msg = (out.message if out is not None else "异常")
+                    self._log(f"[{i}/{len(rows)}] ✗ {pid} {_msg[:110]}", "WARN")
+                    try:
+                        pr.record(pid, _msg, r.get("title") or "")
+                    except Exception:
+                        pass
+            self._log(f"只重试发布完成：成功 {ok} / 失败 {fail}（未调用 AI，未产生费用）", "INFO")
             try:
-                self._switch(0)
+                self.toast(f"重试发布：成功 {ok} / 失败 {fail}")
             except Exception:
                 pass
-        threading.Thread(target=go, daemon=True).start()
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _rerun_failed(self):
         """只重跑上一次批量里失败/未完成的商品（忽略已编辑记录）。"""
