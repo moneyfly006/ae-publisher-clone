@@ -3837,6 +3837,23 @@ class App:
                     sw("write_sku_codes_to_product", "SKU 名称写回")], spacing=16, wrap=True),
         ], spacing=8))
 
+        # ---- 营销图（可选增强）----
+        _mk_map = {f.key: f for _sec, fs in schema_image() for f in fs}
+        _mk_fields = [_mk_map[k] for k in ("marketing_auto_generate", "marketing_image_prompt")
+                      if k in _mk_map]
+        _mk_ctrl = []
+        if _mk_fields:
+            _mk_card, _mk_refs = section("营销图", _mk_fields, self.cfg)
+            self.field_refs.extend(_mk_refs)
+            for _f in _mk_refs:
+                self._bind_autosave(_f)
+            _mk_ctrl = [_mk_card]
+        marketing_card = card(ft.Column([
+            h1("营销图（可选）", 15),
+            muted("基于主图生成营销图，写进速卖通「营销图片」；已改用 turbo 模型，约 15 秒/张"),
+            *_mk_ctrl,
+        ], spacing=8))
+
         # ---- 简单编辑：白底 / 去水印 / 翻译（带范围）----
         simple_keys = [
             "white_background_pic_1", "white_background_pic_2", "white_bg_enable",
@@ -3897,7 +3914,7 @@ class App:
             expand=True,
         )
         return [view[0], muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
-                write_card, conflict_card, tabs, view[-1]]
+                write_card, conflict_card, marketing_card, tabs, view[-1]]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):

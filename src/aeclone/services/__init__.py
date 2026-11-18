@@ -16,6 +16,9 @@ TEXT_MODEL = "qwen-plus"
 IMAGE_MODEL = "qwen-image-3.0"
 VISION_MODEL = "qwen3-vl-plus"
 IMAGE_GEN_MODEL = "z-image-turbo"
+# 营销图是可选增强，优先速度：qwen-image-3.0 常要 60~130s，
+# turbo 版实测 ~15s 就能出图，质量足够做营销位。
+MARKETING_MODEL = "qwen-image-2.1-turbo"
 
 # 模型已固定（真机实测）：文本 qwen-plus、视觉 qwen3-vl-plus、图片生成 z-image-turbo。
 #
@@ -34,6 +37,7 @@ FIXED_MODELS = {
     "vision": VISION_MODEL,
     "image_edit": IMAGE_MODEL,
     "image_gen": IMAGE_GEN_MODEL,
+    "marketing": MARKETING_MODEL,
 }
 
 FIXED_MODEL_LABELS = {
@@ -215,8 +219,8 @@ class ImageService:
             return url
 
     def marketing(self, image: Path, prompt: str, n: int = 1) -> list[str]:
-        """基于主图生成营销场景图（走编辑模型，保留商品本体）。"""
-        m = model_of(self.cfg, "image_edit")
+        """基于主图生成营销场景图（用 turbo 模型，优先速度）。"""
+        m = MARKETING_MODEL
         with track("营销图", (prompt or "")[:24], model=m, cost=BUS.price_of(m) * max(1, n)) as t:
             url = self.client.images_edit(m, prompt, [image])
             url = self._stabilize(url)
