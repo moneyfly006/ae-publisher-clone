@@ -183,12 +183,41 @@ def t9_image_edit_fallback_on_524():
     print("  ✓ 调用序列:", svc.client.calls)
 
 
+def t10_publish_retry_no_ai():
+    print("\n[测试10] 「只重试发布」不碰 AI，只调 add.json op=2")
+    import aeclone.services.publisher as P
+
+    calls = {"count": 0, "op": None}
+
+    class FakeDxm:
+        def _get(self, ep, params):
+            return {"data": {"product": {"id": params["id"], "categoryId": "100007204",
+                                         "detail": "<p>d</p>",
+                                         "aeopAeProductSKUs": '[{"skuCode":"S1","originalBox":"1"}]'}}}
+
+        def save_product_via_api(self, payload):
+            calls["count"] += 1
+            calls["op"] = payload.get("op")
+            return {"code": 0, "data": {"msg": "ok", "productId": payload.get("id")}}
+
+    pub = object.__new__(P.Publisher)
+    pub.cfg = type("C", (), {"template_product_id": "", "declared_value": "50",
+                             "custom_attributes": []})()
+    pub.dxm = FakeDxm()
+    res = P.PublishResult(product_id="1", ok=True)
+    out = pub.publish_only("1", res)
+    assert out.ok, out
+    assert calls["count"] == 1, calls
+    assert calls["op"] == 2, calls
+    assert "只发布成功" in out.message
+    print("  ✓ 只发 1 次请求，op=2，无 AI 调用")
+
 if __name__ == "__main__":
     tests = [t1_empty_generate_prompt_does_not_block, t2_conflict_generate_vs_edit,
              t3_conflict_watermark_contradiction, t4_clean_config_no_conflict,
              t5_empty_prompt_jobs_warned, t6_four_in_one_not_ai_job,
              t7_disabled_group_not_conflict, t8_video_source_modes,
-             t9_image_edit_fallback_on_524]
+             t9_image_edit_fallback_on_524, t10_publish_retry_no_ai]
     passed = failed = 0
     for t in tests:
         try:

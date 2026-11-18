@@ -1308,6 +1308,55 @@ class App:
             self._start()
         (getattr(self, '_sync_run_button', None) or (lambda: None))()
 
+    def _retry_publish_failed(self):
+        """只重试「发布失败」的商品：不跑 AI、不处理图片，只重新提交发布。"""
+        try:
+            from ..services import publish_retry as pr
+            rows = pr.items()
+        except Exception:
+            rows = []
+        if not rows:
+            self.toast("没有发布失败的商品", False)
+            return
+        self._log(f"只重试发布：{len(rows)} 个商品（不跑 AI，不花钱）", "INFO")
+        def go():
+            from ..integrations.dianxiaomi import DianxiaomiClient
+            from ..services.publisher import Publisher
+            ok = fail = 0
+            try:
+                ck = self._cookies()
+            except Exception as ex:
+                self._log(f"读取 Cookie 失败：{ex}", "ERROR")
+                return
+            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+            pub = Publisher(self.cfg, dxm=dxm, ws_endpoint="")
+            for i, r in enumerate(rows, 1):
+                if getattr(self, "_abort_now", False):
+                    break
+                pid = r["id"]
+                from ..services.publisher import PublishResult
+                pr_res = PublishResult(product_id=pid, ok=True)
+                try:
+                    out = pub.publish_only(pid, pr_res)
+                    if out.ok:
+                        ok += 1
+                        self._log(f"[{i}/{len(rows)}] ✓ {pid} {out.message[:80]}", "INFO")
+                        pr.remove(pid)
+                    else:
+                        fail += 1
+                        self._log(f"[{i}/{len(rows)}] ✗ {pid} {out.message[:100]}", "WARN")
+                        pr.record(pid, out.message, r.get("title") or "")
+                except Exception as ex:  # noqa: BLE001
+                    fail += 1
+                    self._log(f"[{i}/{len(rows)}] ✗ {pid} 异常：{str(ex)[:80]}", "ERROR")
+            self._log(f"只重试发布完成：成功 {ok} / 失败 {fail}", "INFO")
+            self.toast(f"重试发布：成功 {ok} / 失败 {fail}")
+            try:
+                self._switch(0)
+            except Exception:
+                pass
+        threading.Thread(target=go, daemon=True).start()
+
     def _rerun_failed(self):
         """只重跑上一次批量里失败/未完成的商品（忽略已编辑记录）。"""
         try:
@@ -2903,6 +2952,12 @@ class App:
             self.cfg.set("publish_action", str(self.publish_pos.value or "save_only"))
             save_config(self.cfg)
         self.publish_pos.on_change = set_pub
+        try:
+            from ..services import publish_retry as _prc
+            _pf_count = _prc.count()
+        except Exception:
+            _pf_count = 0
+
         # 视频来源：采集视频 / 模板视频 / 主图轮播生成 / 不要视频
         self.video_src_dd = ft.Dropdown(
             label="视频来源", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
@@ -2952,7 +3007,12 @@ class App:
                                                               on_click=lambda e: self._clear_edited()),
                     ft.ElevatedButton("重跑上次失败的商品", icon=ft.Icons.REPLAY,
                                       bgcolor=ACCENT_2, color="#04231C",
-                                      on_click=lambda e: self._rerun_failed())],
+                                      on_click=lambda e: self._rerun_failed()),
+                    ft.ElevatedButton(f"只重试发布失败（{_pf_count} 个·不花钱）",
+                                      icon=ft.Icons.CLOUD_UPLOAD,
+                                      bgcolor=ACCENT, color="white",
+                                      tooltip="这些商品已经编辑成功，只是发布被拒；重试只调发布接口，不跑 AI、不处理图片",
+                                      on_click=lambda e: self._retry_publish_failed())],
                    spacing=10, wrap=True),
         ], spacing=10))
 

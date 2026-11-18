@@ -172,7 +172,8 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
 def build_save_payload(product: dict, template: dict | None = None,
                        op: int = 1, action: str = "save_only",
                        overrides: dict | None = None,
-                       custom_attributes: list | None = None) -> dict:
+                       custom_attributes: list | None = None,
+                       cargo_price: str | None = None) -> dict:
     """从 edit.json 商品对象构建 add.json 的 payload。
 
     product / template 都是 edit.json 返回的 `data.product`。
@@ -214,6 +215,10 @@ def build_save_payload(product: dict, template: dict | None = None,
     # （promiseList 接口返回 templateId="0"），None 会被后端判"服务模板不能为空"
     if p.get("promiseTemplateId") in (None, ""):
         p["promiseTemplateId"] = "0"
+
+    # 货值（站点必填）：优先用传入值，其次沿用商品原值，最后默认 50
+    if not str(p.get("cargoPrice") or "").strip():
+        p["cargoPrice"] = str(cargo_price or "50").strip() or "50"
 
     # 无线端描述：为空就从 PC 详情生成，否则发布时会报「请补充无线端描述」
     if not str(p.get("mobileDetail") or "").strip():

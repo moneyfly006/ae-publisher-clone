@@ -1654,6 +1654,46 @@ class Publisher:
         add_step(res, "描述图压缩", True, f"{len(mapping)} 张超 5MB 已压缩并替换")
         return out
 
+    def publish_only(self, product_id: str, res) -> "SaveResult":
+        """只把已保存的商品重新提交发布（op=2）；不跑 AI、不处理图片、不花钱。
+
+        用于「编辑成功但发布失败」的商品重试。
+        """
+        from .api_save import build_save_payload
+
+        if self.dxm is None:
+            return SaveResult(ok=False, message="未连接店小秘")
+        pid = str(product_id)
+        try:
+            target = self.dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
+        except Exception as ex:  # noqa: BLE001
+            return SaveResult(ok=False, message=f"读取商品失败：{str(ex)[:100]}")
+        if not target:
+            return SaveResult(ok=False, message="没取到商品详情")
+        tpl = None
+        _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+        if _tid:
+            try:
+                tpl = _cached_template_edit(self.dxm, _tid)
+            except Exception:
+                tpl = None
+        try:
+            payload = build_save_payload(
+                target, tpl, action="publish",
+                custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None),
+                cargo_price=str(getattr(self.cfg, "declared_value", "") or "") or "50")
+            resp = self.dxm.save_product_via_api(payload)
+        except ValueError as ex:
+            return SaveResult(ok=False, message=str(ex)[:300])
+        except Exception as ex:  # noqa: BLE001
+            return SaveResult(ok=False, message=f"发布失败：{str(ex)[:200]}")
+        _code = resp.get("code") if isinstance(resp, dict) else None
+        if _code == 0:
+            _d = resp.get("data") if isinstance(resp.get("data"), dict) else {}
+            _m = str(_d.get("msg") or resp.get("msg") or "")
+            return SaveResult(ok=True, message=f"只发布成功（商品ID {pid}）：{_m[:110]}", published=True)
+        return SaveResult(ok=False, message=f"发布失败：{str(resp.get('msg') or '')[:200]}")
+
     def _prepare_video(self, p: dict, res, product: dict, dry_run: bool):
         """主图视频：模板视频 / 生成轮播视频 → 上传店小秘 → p["csp_video_id"]。
 
@@ -1770,7 +1810,8 @@ class Publisher:
                 add_step(res, "描述图压缩", False, str(_ex)[:80])
             payload = build_save_payload(
                 target, tpl, action=action, overrides=overrides,
-                custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None))
+                custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None),
+                cargo_price=str(getattr(self.cfg, "declared_value", "") or "") or "50")
             resp = self.dxm.save_product_via_api(payload)
         except ValueError as ex:  # 数据安全类错误（如缺类目）：明确报错，不回退
             add_step(res, "保存中止", False, str(ex)[:200])
@@ -2492,6 +2533,13 @@ class Publisher:
                     return res
                 if not r.ok:
                     _msg = str(r.message or "")
+                    # 记到「发布失败重试」清单：只影响发布，不影响已保存的内容
+                    try:
+                        if _action in ("publish", "save_to_waiting"):
+                            from . import publish_retry as _pr
+                            _pr.record(str(p.get("id", "")), _msg, p.get("title_en") or p.get("title") or "")
+                    except Exception:
+                        pass
                     # 商品正在审核：不是代码问题，也不是本商品的错，标记跳过而不是失败重试
                     if is_audit_pending(_msg):
                         add_step(res, "保存到店小秘", False,
@@ -2503,6 +2551,11 @@ class Publisher:
                     raise RuntimeError(_msg)
                 add_step(res, "保存到店小秘", True,
                          f"[{p.get('id', '')}] " + r.message[:185])
+                try:
+                    from . import publish_retry as _pr2
+                    _pr2.remove(str(p.get("id", "")))
+                except Exception:
+                    pass
                 if _sched_at:
                     _ok_sched = False
                     _err = ""
