@@ -215,6 +215,10 @@ def build_save_payload(product: dict, template: dict | None = None,
     if p.get("promiseTemplateId") in (None, ""):
         p["promiseTemplateId"] = "0"
 
+    # 无线端描述：为空就从 PC 详情生成，否则发布时会报「请补充无线端描述」
+    if not str(p.get("mobileDetail") or "").strip():
+        p["mobileDetail"] = build_mobile_detail(p.get("detail") or "")
+
     # ★ 数据安全：类目 ID 为空时保存会把商品类目清掉（历史事故），直接拒绝
     if p.get("categoryId") in (None, "", 0, "0"):
         raise ValueError(
@@ -228,6 +232,66 @@ def build_save_payload(product: dict, template: dict | None = None,
     if overrides:
         p.update(overrides)
     return p
+
+
+# ---------------- 无线端（手机）描述 ----------------
+# 店小秘/速卖通的 mobileDetail 是结构化 JSON：
+#   {"moduleList":[{"type":"text","texts":[{...}]},{"type":"image","images":[{...}]}], "version": ...}
+# 商品缺这个字段时，发布会报「请补充无线端描述后重新发布」。
+_TEXT_STYLE = {"fontSize": 13, "color": "#434649", "fontWeight": "normal", "align": "left"}
+
+
+def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
+    """把 PC 端详情 HTML 转成无线端 moduleList JSON。
+
+    - 文字段 → text 模块（去掉标签、压缩空白）
+    - 连续图片 → 合并成一个 image 模块（与店小秘一致）
+    """
+    import re as _re
+
+    html = str(detail_html or "")
+    modules: list[dict] = []
+    if not html.strip():
+        modules.append({"type": "text", "texts": [{"class": "body",
+                                                   "content": "", "style": dict(_TEXT_STYLE)}]})
+        return json.dumps({"moduleList": modules, "version": "2"}, ensure_ascii=False)
+
+    # 按 <img ...> 切分
+    parts = _re.split(r"(<img[^>]*>)", html, flags=_re.I)
+    pending_imgs: list[dict] = []
+
+    def _flush_imgs():
+        nonlocal pending_imgs
+        if pending_imgs:
+            modules.append({"type": "image", "images": pending_imgs[:max_images]})
+            pending_imgs = []
+
+    for part in parts:
+        if not part:
+            continue
+        if _re.match(r"<img", part, _re.I):
+            m = _re.search(r'src=["\']([^"\']+)["\']', part, _re.I)
+            if m and m.group(1).startswith("http"):
+                pending_imgs.append({"url": m.group(1),
+                                     "style": {"height": "500", "width": "800", "hasMargin": True}})
+            continue
+        # 文字：去标签 → 压缩空白
+        txt = _re.sub(r"<br\s*/?>", "\n", part, flags=_re.I)
+        txt = _re.sub(r"</p>", "\n", txt, flags=_re.I)
+        txt = _re.sub(r"<[^>]+>", "", txt)
+        txt = _re.sub(r"[ \t]+", " ", txt)
+        txt = _re.sub(r"\n{3,}", "\n\n", txt).strip()
+        if txt:
+            _flush_imgs()
+            modules.append({"type": "text",
+                            "texts": [{"class": "body", "content": txt[:4000],
+                                       "style": dict(_TEXT_STYLE)}]})
+    _flush_imgs()
+
+    if not modules:
+        modules.append({"type": "text", "texts": [{"class": "body", "content": "",
+                                                   "style": dict(_TEXT_STYLE)}]})
+    return json.dumps({"moduleList": modules, "version": "2"}, ensure_ascii=False)
 
 
 def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | None = None,
@@ -245,9 +309,10 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     if p.get("title_en"):
         overrides["subject"] = p["title_en"]
 
-    # 详情（PC 端 HTML）
+    # 详情（PC 端 HTML）+ 同步生成无线端描述
     if p.get("detail_html"):
         overrides["detail"] = p["detail_html"]
+        overrides["mobileDetail"] = build_mobile_detail(p["detail_html"])
     elif p.get("detail_local_images_html"):
         # 没开 AI 详情时：把本地详情图追加到商品原有详情上
         _base = "" if getattr(cfg, "delete_detail_text", False) else str(product_edit.get("detail") or "")

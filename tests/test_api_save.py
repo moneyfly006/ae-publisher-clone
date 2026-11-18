@@ -272,6 +272,41 @@ def t15_override_keeps_sku_required_fields():
     print("  ✓ SKU:", sk[0].get("skuCode"), "/", sk[0].get("originalBox"),
           "| 商品级:", pay.get("originalBox"))
 
+def t16_mobile_detail_generated():
+    print("\n[测试16] 无线端描述（mobileDetail）自动生成，避免发布报错")
+    html = ('<p>Our HDD machine is built for tough jobs.</p>'
+            '<p><img src="https://x/a.jpg"/></p>'
+            '<p><img src="https://x/b.jpg"/></p>'
+            '<p>Key specs: 100m depth.</p>')
+    md = A.build_mobile_detail(html)
+    d = json.loads(md)
+    assert d.get("moduleList"), "moduleList 不能为空"
+    types = [m["type"] for m in d["moduleList"]]
+    assert "text" in types and "image" in types, types
+    # 连续两张图应合并成一个 image 模块
+    img_mod = next(m for m in d["moduleList"] if m["type"] == "image")
+    assert len(img_mod["images"]) == 2, img_mod
+    # payload 里 mobileDetail 不能是空
+    p = A.build_save_payload({"id": "1", "categoryId": "1", "detail": html},
+                             None, action="save_only")
+    assert str(p.get("mobileDetail") or "").strip(), "payload 缺 mobileDetail"
+    print("  ✓ 模块:", types, "| 图片合并:", len(img_mod["images"]))
+
+
+def t17_publish_keeps_mobile_detail_when_ai_overrides():
+    print("\n[测试17] AI 改详情后，mobileDetail 跟着重建")
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(stock_quantity="999", write_sku_codes_to_product=True,
+                          wholesale_enable=False, regional_quote_enable=False,
+                          detail_local_image_position="tail")
+    ov = A.build_ai_overrides({"id": "1", "categoryId": "1"}, 
+                              {"detail_html": "<p>New AI detail</p>"}, cfg, images=None)
+    assert "mobileDetail" in ov, ov.keys()
+    d = json.loads(ov["mobileDetail"])
+    assert any("New AI detail" in t["texts"][0]["content"]
+               for t in d["moduleList"] if t["type"] == "text")
+    print("  ✓ mobileDetail 与 detail 同步")
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_62_keys_and_promise_zero,
@@ -283,7 +318,8 @@ if __name__ == "__main__":
              t10_duplicate_generic_not_only_brand,
              t11_missing_category_blocked, t12_category_from_template,
              t13_original_box_product_level, t14_empty_sku_gets_default,
-             t15_override_keeps_sku_required_fields]
+             t15_override_keeps_sku_required_fields,
+             t16_mobile_detail_generated, t17_publish_keeps_mobile_detail_when_ai_overrides]
     ok = fail = 0
     for t in tests:
         try:
