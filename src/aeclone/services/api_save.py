@@ -30,6 +30,7 @@ _DIRECT_KEYS = [
     "productMinPrice", "productMaxPrice", "aeopAeProductSKUs",
     "cspVideoId", "aeopAEMultimedia", "installVideoId", "productManual",
     "bulkOrder", "bulkDiscount", "dropshipDiscount", "productUnit", "packageType", "lotNum",
+    "originalBox",
     "deliveryTime", "wsValidNum", "reduceStrategy", "ladderPriceListJson",
     "aeopNationalQuoteConfiguration", "sizeChartIdListJson", "sizechartId",
     "detail", "mobileDetail", "grossWeight", "packageLength", "packageWidth",
@@ -148,6 +149,23 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
                 if s.get(k) in (None, "") and tpl_skus.get(k) not in (None, ""):
                     s[k] = tpl_skus[k]
         out.append(s)
+
+    # 商品没有 SKU（采集草稿常见）时，用模板首个 SKU 当骨架，否则站点会报
+    # 「是否原箱不能为空」「请完善填写 SKU 编码」。
+    if not out:
+        _base = dict(tpl_skus) if tpl_skus else {}
+        _base.setdefault("skuCode", "SKU-1")
+        _base.setdefault("skuPrice", str(_base.get("skuPrice") or "0"))
+        _base.setdefault("ipmSkuStock", str(_base.get("ipmSkuStock") or "999"))
+        _base.setdefault("originalBox", "1")
+        out = [_base]
+
+    # 补齐站点必填：是否原箱 / SKU 编码
+    for s in out:
+        if s.get("originalBox") in (None, ""):
+            s["originalBox"] = "1"
+        if not str(s.get("skuCode") or "").strip():
+            s["skuCode"] = str(s.get("sku") or "SKU-1")
     return out
 
 
@@ -177,7 +195,14 @@ def build_save_payload(product: dict, template: dict | None = None,
         if not p.get(k) and template is not None and template.get(k) not in (None, "", 0, "0"):
             p[k] = template.get(k)
 
-    p["aeopAeProductSKUs"] = json.dumps(merge_skus(product, template), ensure_ascii=False)
+    _sku_list = merge_skus(product, template)
+    p["aeopAeProductSKUs"] = json.dumps(_sku_list, ensure_ascii=False)
+    # 站点要求商品级「是否原箱」不能为空；取第一个 SKU 的值（与店小秘前端一致）
+    if p.get("originalBox") in (None, ""):
+        try:
+            p["originalBox"] = str((_sku_list[0] or {}).get("originalBox") or "1")
+        except Exception:
+            p["originalBox"] = "1"
 
     p["aeopAeProductPropertys"] = json.dumps(
         to_submit_props(product, template, custom_attributes=custom_attributes),
@@ -278,6 +303,14 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
                     sku["aeopSKUProperty"] = prop
                 sku["mobileModelSkuImage"] = str(img)
 
+    # ★ 关键：这些 SKU 会覆盖 build_save_payload 里 merge_skus 的结果，
+    # 所以必须把站点必填字段（originalBox / skuCode）补齐，否则会报
+    # 「是否原箱不能为空」「请完善填写 SKU 编码」
+    for _s in skus:
+        if _s.get("originalBox") in (None, ""):
+            _s["originalBox"] = "1"
+        if not str(_s.get("skuCode") or "").strip():
+            _s["skuCode"] = str(_s.get("sku") or "SKU-1")
     if skus and (price > 0 or stock or ai_skus):
         overrides["aeopAeProductSKUs"] = _j.dumps(skus, ensure_ascii=False)
 

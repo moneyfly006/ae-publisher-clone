@@ -234,8 +234,9 @@ class Publisher:
         if self._img_svc is None:
             from ..api import ApiClient
             from . import ImageService
-            # 图片接口超时最多 100 秒：超过基本就是 524，早点失败好降级到 turbo
-            _to = min(float(self.cfg.timeout or 100), 100.0)
+            # 图片接口超时最多 60 秒：turbo 正常 14 秒，超过基本就是卡死/网关超时，
+            # 早点放弃、保留原图，别让一个商品堵 100 秒
+            _to = min(float(self.cfg.timeout or 60), 60.0)
             self._img_svc = ImageService(
                 ApiClient(self.cfg.api_base, self.cfg.api_key, _to), self.cfg)
         return self._img_svc
@@ -1701,14 +1702,22 @@ class Publisher:
             add_step(res, "保存中止", False, str(ex)[:200])
             return SaveResult(ok=False, message=str(ex)[:300])
         except Exception as ex:  # noqa: BLE001
-            add_step(res, "API 直存", False, f"保存失败：{str(ex)[:120]}")
-            return None
+            _msg = str(ex)[:300] or type(ex).__name__
+            add_step(res, "API 直存", False, f"保存失败：{_msg[:200]}")
+            return SaveResult(ok=False, message=f"保存失败：{_msg}")
 
         _code = resp.get("code") if isinstance(resp, dict) else None
         if _code == 0:
             _msg = ((resp.get("data") or {}).get("msg") if isinstance(resp.get("data"), dict)
                     else str(resp.get("msg") or ""))
-            return SaveResult(ok=True, message=f"API 直存成功：{_msg[:120]}",
+            _pid2 = ""
+            try:
+                _d = resp.get("data") if isinstance(resp.get("data"), dict) else {}
+                _pid2 = str(_d.get("productId") or _d.get("id") or str(p.get("id", "")))
+            except Exception:
+                _pid2 = pid
+            return SaveResult(ok=True,
+                              message=f"API 直存成功（商品ID {_pid2}）：{_msg[:110]}",
                               published=(action in ("publish", "save_to_waiting")))
         _msg = str(resp.get("msg") or "") or "保存失败"
         return SaveResult(ok=False, message=f"API 直存：{_msg[:200]}")
@@ -2396,8 +2405,13 @@ class Publisher:
                 # API 直存（唯一保存路径，无 DOM 模拟、支持并发）
                 r = self._save_via_api(p, res, _action, _ship, _img_for_save)
                 if r is None:
-                    raise RuntimeError(
-                        "API 直存不可用：请先在设置里选择「产品模板」并确认 Cookie 有效")
+                    # 只有「没模板 / 没客户端」才会走到这里，提示要准确
+                    _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+                    if not _tid:
+                        raise RuntimeError("未选择产品模板：请到「商品设置 → 模板」选一个模板商品")
+                    if self.dxm is None:
+                        raise RuntimeError("未连接店小秘：请先到「店铺设置」读取 Cookie")
+                    raise RuntimeError("保存前置条件不满足（模板或 Cookie 不可用）")
                 if not r.ok and getattr(r, "skipped_no_sku", False):
                     add_step(res, "跳过", True, f"{r.message[:90]}（不算失败）")
                     res.ok = True
@@ -2413,7 +2427,8 @@ class Publisher:
                         res.skipped_auditing = True
                         return res
                     raise RuntimeError(_msg)
-                add_step(res, "保存到店小秘", True, r.message[:200])
+                add_step(res, "保存到店小秘", True,
+                         f"[{p.get('id', '')}] " + r.message[:185])
                 if _sched_at:
                     _ok_sched = False
                     _err = ""

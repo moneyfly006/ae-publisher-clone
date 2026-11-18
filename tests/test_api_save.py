@@ -93,10 +93,10 @@ def t3_op_mapping():
     print("  ✓ op 映射正确")
 
 
-def t4_payload_has_61_keys_and_promise_zero():
+def t4_payload_has_62_keys_and_promise_zero():
     print("\n[测试4] payload 键完整、promiseTemplateId 默认 0")
     p = A.build_save_payload(_product(), _template(), action="save_only")
-    assert len(p) == 61, len(p)
+    assert len(p) == 62, len(p)
     assert p["promiseTemplateId"] == "0", p["promiseTemplateId"]
     assert p["aeopAeProductPropertys"].startswith("["), "属性应为 JSON 字符串"
     print(f"  ✓ {len(p)} 键，promiseTemplateId=0")
@@ -230,16 +230,60 @@ def t12_category_from_template():
     assert p["categoryId"] == "100007204", p["categoryId"]
     print("  ✓ 从模板补类目 100007204")
 
+def t13_original_box_product_level():
+    print("\n[测试13] 商品级 originalBox 不能为空（取自首个 SKU）")
+    p = A.build_save_payload({"id": "1", "categoryId": "1",
+                              "aeopAeProductSKUs": '[{"skuCode":"X","originalBox":"2"}]'},
+                             None, action="save_only")
+    assert p.get("originalBox") == "2", p.get("originalBox")
+    # 商品完全没有 SKU 时也要有默认值
+    p2 = A.build_save_payload({"id": "1", "categoryId": "1"}, None, action="save_only")
+    assert p2.get("originalBox") in ("1", "2"), p2.get("originalBox")
+    print("  ✓ originalBox =", p.get("originalBox"), "/ 兜底", p2.get("originalBox"))
+
+
+def t14_empty_sku_gets_default():
+    print("\n[测试14] 商品 0 个 SKU → 用模板骨架造 1 个（带 skuCode/originalBox）")
+    tpl = _template()
+    tpl["aeopAeProductSKUs"] = '[{"skuCode":"TPL-1","skuPrice":"10","ipmSkuStock":"5","originalBox":"1"}]'
+    p = A.build_save_payload(_product(), tpl, action="save_only")
+    skus = json.loads(p["aeopAeProductSKUs"])
+    assert skus, "不应为空"
+    assert skus[0].get("skuCode"), skus[0]
+    assert skus[0].get("originalBox"), skus[0]
+    print("  ✓ 兜底 SKU:", skus[0].get("skuCode"), "/", skus[0].get("originalBox"))
+
+def t15_override_keeps_sku_required_fields():
+    print("\n[测试15] AI overrides 覆盖 SKU 后，originalBox/skuCode 不能丢")
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(stock_quantity="999", write_sku_codes_to_product=True,
+                          wholesale_enable=False, regional_quote_enable=False,
+                          detail_local_image_position="tail")
+    prod = {"id": "1", "categoryId": "1",
+            "aeopAeProductSKUs": '[{"skuCode":"","skuPrice":"1","originalBox":null}]'}
+    p = {"skus": [{"optimized_name": "NEW-1"}],
+         "price_result": SimpleNamespace(final=10.0), "images": []}
+    ov = A.build_ai_overrides(prod, p, cfg, images=None)
+    pay = A.build_save_payload(prod, None, action="publish", overrides=ov)
+    sk = json.loads(pay["aeopAeProductSKUs"])
+    assert sk[0].get("originalBox") == "1", sk[0]
+    assert sk[0].get("skuCode") == "NEW-1", sk[0]
+    assert pay.get("originalBox") == "1", pay.get("originalBox")
+    print("  ✓ SKU:", sk[0].get("skuCode"), "/", sk[0].get("originalBox"),
+          "| 商品级:", pay.get("originalBox"))
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
-             t3_op_mapping, t4_payload_has_61_keys_and_promise_zero,
+             t3_op_mapping, t4_payload_has_62_keys_and_promise_zero,
              t5_template_fallback_for_missing_fields,
              t6_ai_overrides_map_title_detail_sku_images,
              t7_ai_overrides_serialized_as_string_in_payload,
              t8_ship_and_price_synced,
              t9_duplicate_custom_attr_removed,
              t10_duplicate_generic_not_only_brand,
-             t11_missing_category_blocked, t12_category_from_template]
+             t11_missing_category_blocked, t12_category_from_template,
+             t13_original_box_product_level, t14_empty_sku_gets_default,
+             t15_override_keeps_sku_required_fields]
     ok = fail = 0
     for t in tests:
         try:
