@@ -300,11 +300,17 @@ DEFAULTS: dict = {
     "default_express_price": "0",
     "adjust_price_template_id": "",
     "adjust_price_template_name": "",
+    "marketing_source": "local",   # local=本地裁切(店小秘同款,免费) | ai=AI生成场景图(花钱)
     "marketing_timeout": "45",
     "marketing_image_prompt": (
-        "Create a marketing lifestyle image for this product: place the product in a clean modern "
-        "usage scene matching its purpose, natural lighting, shallow depth of field, product remains "
-        "the focus and unchanged in shape/color; no text, no logo, no watermark, 1:1 composition."
+        "生成一张专业的产品营销场景图，用于速卖通营销位：\n"
+        "1. 把商品放在符合其用途的真实作业场景中（工程机械类：施工现场/工地/矿山/道路工程）\n"
+        "2. 商品本体形状、颜色、结构、标识完全不变，只替换背景与光影\n"
+        "3. 自然光或柔和环境光，画面干净、有质感、有纵深感\n"
+        "4. 商品清晰为视觉主体，占画面 55~70%\n"
+        "5. 不要添加任何文字、水印、Logo、促销标签\n"
+        "6. 不要出现人脸特写、不要卡通化、不要过度特效\n"
+        "7. 1:1 正方形构图，适合营销位展示"
     ),
     # ---- 批发 / 区域调价（店小秘风格，直接对应平台字段）----
     "wholesale_enable": False,           # 启用批发（wholeSale）
@@ -405,7 +411,15 @@ class AppConfig:
         for old, new in ALIASES.items():
             if old in src and new not in src:
                 src[new] = src[old]
-        object.__setattr__(self, "_d", {**DEFAULTS, **src})
+        d = {**DEFAULTS, **src}
+        # 旧版英文营销图提示词 → 迁移成机械类目中文提示词
+        _mp = str(d.get("marketing_image_prompt") or "")
+        if _mp.strip().lower().startswith("create a marketing lifestyle image"):
+            d["marketing_image_prompt"] = DEFAULTS["marketing_image_prompt"]
+        # 营销图来源：老配置没有该键 → 默认本地（免费）
+        if "marketing_source" not in src:
+            d["marketing_source"] = "local"
+        object.__setattr__(self, "_d", d)
 
     def __getattr__(self, name):
         d = object.__getattribute__(self, "_d")

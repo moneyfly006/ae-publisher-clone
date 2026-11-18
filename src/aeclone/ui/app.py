@@ -44,6 +44,12 @@ REGIONS = [("US", "美国"), ("RU", "俄罗斯"), ("BR", "巴西"), ("ES", "西�
 
 # AI图片编辑提示词预设
 IMAGE_PROMPT_PRESETS = {
+    "marketing": {
+        "工地作业场景": """生成专业的产品营销场景图（工程机械类）：\n1. 商品置于真实施工现场：土方工地/矿山/道路工程\n2. 商品结构、颜色、标识完全不变，只换背景与光影\n3. 自然日光，画面干净有纵深感\n4. 商品占画面 55~70%，为视觉主体\n5. 不要文字、水印、Logo、促销标签\n6. 1:1 构图""",
+        "白底棚拍": """生成专业白底棚拍营销图：\n1. 纯白背景（#FFFFFF），无渐变\n2. 商品居中，占画面 60~70%\n3. 柔和棚拍光 + 自然接触阴影\n4. 保持商品原有颜色与细节\n5. 不要文字、水印、Logo\n6. 1:1 构图""",
+        "展会/交付场景": """生成商务展示场景图：\n1. 商品置于展会现场或客户交付场景\n2. 环境整洁、专业、有商务感\n3. 商品为视觉主体，比例 55~70%\n4. 光线柔和自然，无过曝\n5. 不要文字、水印、Logo\n6. 1:1 构图""",
+        "户外实拍": """生成户外实拍风格营销图：\n1. 商品置于开阔户外环境（山地/工地/道路）\n2. 天空、地面层次自然，有空间感\n3. 商品结构比例不变，仅换环境\n4. 不要人物正脸，不要文字水印\n5. 1:1 构图""",
+    },
     "main": {
         "专业电商主图": """基于上传的图片融合生成专业电商主图。
 生成要求：
@@ -3866,21 +3872,64 @@ class App:
         ], spacing=8))
 
         # ---- 营销图（可选增强）----
-        _mk_map = {f.key: f for _sec, fs in schema_image() for f in fs}
-        _mk_fields = [_mk_map[k] for k in ("marketing_auto_generate", "marketing_image_prompt")
-                      if k in _mk_map]
-        _mk_ctrl = []
-        if _mk_fields:
-            _mk_card, _mk_refs = section("营销图", _mk_fields, self.cfg)
-            self.field_refs.extend(_mk_refs)
-            for _f in _mk_refs:
-                self._bind_autosave(_f)
-            _mk_ctrl = [_mk_card]
+        _mk_on = ft.Switch(label="生成营销图（写进营销图片 1:1 / 3:4）",
+                           value=bool(getattr(self.cfg, "marketing_auto_generate", False)),
+                           active_color=ACCENT)
+
+        def _on_mk_on(e):
+            self.cfg.set("marketing_auto_generate", bool(_mk_on.value))
+            save_config(self.cfg)
+
+        _mk_on.on_change = _on_mk_on
+
+        self.mk_src_dd = ft.Dropdown(
+            label="营销图来源", width=300, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "marketing_source", "local") or "local"),
+            options=[ft.dropdown.Option("local", "本地裁切（店小秘同款·免费·秒出）"),
+                     ft.dropdown.Option("ai", "AI 生成场景图（花钱·约15秒/张）")])
+
+        def _on_mk_src(e):
+            self.cfg.set("marketing_source", str(self.mk_src_dd.value or "local"))
+            save_config(self.cfg)
+            self._log(f"营销图来源：{self.mk_src_dd.value}")
+
+        self.mk_src_dd.on_change = _on_mk_src
+
+        _mk_presets = list(IMAGE_PROMPT_PRESETS.get("marketing", {}).keys())
+        self.mk_preset_dd = ft.Dropdown(
+            label="AI 提示词预设（机械类目）", width=260, bgcolor=CARD_2, border_color=CARD_2,
+            color=TEXT, value=_mk_presets[0] if _mk_presets else None,
+            options=[ft.dropdown.Option(k) for k in _mk_presets])
+
+        self.mk_prompt = ft.TextField(
+            label="营销图提示词", multiline=True, min_lines=5, max_lines=9,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "marketing_image_prompt", "") or ""))
+
+        def _on_mk_preset(e):
+            _k = self.mk_preset_dd.value
+            _txt = IMAGE_PROMPT_PRESETS.get("marketing", {}).get(_k)
+            if _txt:
+                self.mk_prompt.value = _txt
+                self.cfg.set("marketing_image_prompt", _txt)
+                save_config(self.cfg)
+                self._safe_update()
+
+        self.mk_preset_dd.on_change = _on_mk_preset
+
+        def _on_mk_prompt(e):
+            self.cfg.set("marketing_image_prompt", str(e.control.value or ""))
+            save_config(self.cfg)
+
+        self.mk_prompt.on_change = _on_mk_prompt
+
         marketing_card = card(ft.Column([
             h1("营销图（可选）", 15),
-            muted("基于主图生成营销图，写进速卖通「营销图片」；已改用 turbo 模型，约 15 秒/张"),
-            *_mk_ctrl,
-        ], spacing=8))
+            muted("本地裁切=店小秘「一键生成」同款，免费秒出；AI 场景图=按提示词生成，约15秒/张"),
+            _mk_on,
+            ft.Row([self.mk_src_dd, self.mk_preset_dd], spacing=12, wrap=True),
+            self.mk_prompt,
+        ], spacing=10))
 
         # ---- 简单编辑：白底 / 去水印 / 翻译（带范围）----
         simple_keys = [

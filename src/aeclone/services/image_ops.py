@@ -67,3 +67,25 @@ def four_in_one(paths: list[Path], out: Path, size: int = 1200, gap: int = 8,
         canvas.paste(img, (x, y))
     canvas.save(out, quality=92)
     return out
+
+
+def make_marketing(src: Path, out: Path, size: tuple[int, int] = (800, 800),
+                   bg=(255, 255, 255), mode: str = "contain") -> Path:
+    """把主图做成营销图（店小秘「一键生成」同款，纯本地处理，不花钱）。
+
+    店小秘前端就是 canvas 按比例 resize：
+      1:1 → 800×800；3:4 → 750×1000
+    mode="contain" 完整保留商品（白底补边），"cover" 铺满裁切。
+    """
+    img = ensure_rgb(Image.open(src))
+    tw, th = int(size[0]), int(size[1])
+    if mode == "cover":
+        scale = max(tw / img.width, th / img.height)
+    else:
+        scale = min(tw / img.width, th / img.height)
+    nw, nh = max(1, int(img.width * scale)), max(1, int(img.height * scale))
+    img = img.resize((nw, nh), Image.LANCZOS)
+    canvas = Image.new("RGB", (tw, th), bg)
+    canvas.paste(img, ((tw - nw) // 2, (th - nh) // 2))
+    canvas.save(out, quality=92)
+    return out

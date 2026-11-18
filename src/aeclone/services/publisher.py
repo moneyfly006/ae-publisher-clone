@@ -2132,29 +2132,47 @@ class Publisher:
             # 开启时用短超时 + 单次尝试，失败立刻跳过，绝不拖住整个商品。
             if (getattr(self.cfg, "marketing_auto_generate", False)
                     and getattr(self.cfg, "ai_image_enable", True) and p.get("images") and not dry_run):
+                _msrc = str(getattr(self.cfg, "marketing_source", "local") or "local").lower()
                 try:
                     import tempfile as _tf, requests as _rq
                     from pathlib import Path as _Pm
-                    from . import ImageService
-                    from ..api import ApiClient as _ACm
                     d_m = _Pm(_tf.mkdtemp())
                     src = d_m / "m0.png"
                     src.write_bytes(_rq.get(str(p["images"][0]), timeout=30).content)
-                    _mto = int(float(getattr(self.cfg, "marketing_timeout", 45) or 45))
-                    svc = ImageService(_ACm(self.cfg.api_base, self.cfg.api_key, min(_mto, 60)), self.cfg)
-                    _mk = []
-                    for _i in range(2):
-                        try:
-                            _u = svc.marketing(src, getattr(self.cfg, "marketing_image_prompt", ""), 1)
-                            if _u and _u[0] not in _mk:
-                                _mk.append(_u[0])
-                        except Exception:
-                            break          # 失败不再重试，避免 2×超时
-                    if _mk:
-                        p["market_images"] = _mk
-                        add_step(res, "营销图", True, f"{len(_mk)} 张已生成")
+
+                    if _msrc == "local":
+                        # 店小秘「一键生成」同款：本地裁切/补白，免费、秒出
+                        from .image_ops import make_marketing
+                        from .hosting import upload as _host_m
+                        _mk = []
+                        for _i, _sz in enumerate(((800, 800), (750, 1000))):
+                            _out = d_m / f"mk{_i}.jpg"
+                            make_marketing(src, _out, _sz)
+                            _mk.append(_host_m(_out))
+                        if _mk:
+                            p["market_images"] = _mk
+                            add_step(res, "营销图", True,
+                                     f"{len(_mk)} 张已生成（本地裁切，店小秘同款，免费）")
+                        else:
+                            add_step(res, "营销图", False, "本地裁切失败（已跳过）")
                     else:
-                        add_step(res, "营销图", False, "生成失败（已跳过）")
+                        from . import ImageService
+                        from ..api import ApiClient as _ACm
+                        _mto = int(float(getattr(self.cfg, "marketing_timeout", 45) or 45))
+                        svc = ImageService(_ACm(self.cfg.api_base, self.cfg.api_key, min(_mto, 60)), self.cfg)
+                        _mk = []
+                        for _i in range(2):
+                            try:
+                                _u = svc.marketing(src, getattr(self.cfg, "marketing_image_prompt", ""), 1)
+                                if _u and _u[0] not in _mk:
+                                    _mk.append(_u[0])
+                            except Exception:
+                                break          # 失败不再重试，避免 2×超时
+                        if _mk:
+                            p["market_images"] = _mk
+                            add_step(res, "营销图", True, f"{len(_mk)} 张已生成（AI 场景图）")
+                        else:
+                            add_step(res, "营销图", False, "AI 生成失败（已跳过，可改用本地裁切）")
                 except Exception as ex:  # noqa: BLE001
                     add_step(res, "营销图", False, str(ex)[:80] + "（已跳过）")
 
