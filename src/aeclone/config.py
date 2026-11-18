@@ -338,6 +338,8 @@ DEFAULTS: dict = {
     "img_sku_white_bg": True,
     "img_sku_remove_wm": False,
     "img_sku_edit": False,
+    "white_background_sku_pic_indices": "1-20",   # SKU 图序号（白底/去水印/编辑共用）
+    "img_sku_edit_prompt": "",                    # SKU 图精细编辑提示词
     "img_single_mode": "simple",
     # ---- 规格 / 商品属性 ----
     # ---- 审查数量 ----

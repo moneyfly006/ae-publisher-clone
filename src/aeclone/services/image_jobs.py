@@ -199,7 +199,10 @@ def migrate(cfg, with_global: bool = False) -> tuple[str, str]:
             if getattr(cfg, "img_sku_remove_wm", False):
                 ops.append("watermark")
             if ops:
-                rules.append({"group": "sku", "range": "1-20", "ops": ops})
+                rules.append({"group": "sku",
+                              "range": str(getattr(cfg, "white_background_sku_pic_indices", "")
+                                           or "1-20"),
+                              "ops": ops})
     except Exception:
         pass
     

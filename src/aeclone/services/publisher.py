@@ -1080,14 +1080,20 @@ class Publisher:
                     img = repl[name]
                 if not img:
                     return None
+                _skp = (getattr(self.cfg, "img_sku_edit_prompt", "") or "").strip() or None
                 return self._run_ops(
                     str(img),
                     white_bg=getattr(self.cfg, "img_sku_white_bg", True),
                     remove_wm=getattr(self.cfg, "img_sku_remove_wm", False),
-                    edit=getattr(self.cfg, "img_sku_edit", False))
+                    edit=getattr(self.cfg, "img_sku_edit", False),
+                    prompt=_skp)
 
-            _sv = self._pmap(_one_sku, skus[:12])
-            for sku, _u in zip(skus[:12], _sv):
+            from .image_index import parse_indices as _pidx
+            _sel_idx = _pidx(str(getattr(self.cfg, "white_background_sku_pic_indices", "") or "1-20"),
+                             len(skus))
+            _sel = [skus[i - 1] for i in _sel_idx]
+            _sv = self._pmap(_one_sku, _sel)
+            for sku, _u in zip(_sel, _sv):
                 if _u:
                     sku["processed_image"] = str(_u)
                     done += 1
@@ -1097,7 +1103,12 @@ class Publisher:
         # SKU 图文字翻译
         if getattr(self.cfg, "translate_sku_pic", False):
             _tp = (getattr(self.cfg, "translate_prompt", "") or "").strip()
-            _skus = (p.get("skus") or [])[:6]
+            _all_skus = (p.get("skus") or [])
+            from .image_index import parse_indices as _pidx2
+            _t_idx = _pidx2(str(getattr(self.cfg, "translate_sku_pic_indices", "") or
+                                getattr(self.cfg, "white_background_sku_pic_indices", "") or "1-20"),
+                            len(_all_skus))
+            _skus = [_all_skus[i - 1] for i in _t_idx]
             def _tr_sku(sku):
                 img = sku.get("processed_image") or sku.get("image")
                 if not img:

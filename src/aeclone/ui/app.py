@@ -209,53 +209,6 @@ def schema_store():
     ]
 
 
-def schema_advanced():
-    return [
-        ("基础", [Field("edit_sum", "编辑产品数量"), Field("watermark", "水印图片路径")]),
-        ("上传", [Field("upload_full_cid", "店小秘相册分类 ID（可留空 = 未分类）")]),
-        ("定时发布", [Field("schedule_publish", "启用定时发布", "bool"),
-                      Field("schedule_time", "发布时间（如 2026-11-12 09:00）")]),
-        ("套装", [Field("combo_enable", "生成套装 SKU", "bool"),
-                  Field("combo_prefix", "套装前缀"), Field("combo_multiplier", "套装倍率")]),
-        ("水印叠加", [Field("overlay_watermark_enable", "叠加水印到主图", "bool"),
-                      Field("overlay_position", "位置（bottom-right/center…）"),
-                      Field("overlay_opacity", "透明度 0-1")]),
-        ("SKU", [Field("max_sku_count", "SKU 数量上限"),
-                 Field("custom_sku_prefix", "SKU 前缀"),
-                 Field("sku_split_char", "SKU 分隔符"),
-                 Field("auto_generate_sku_code", "自动生成 SKU 编码", "bool"),
-                 Field("modify_stock_999", "库存改为 999", "bool"),
-                 Field("stock_quantity", "库存数量"),
-                 Field("only_sku_prefix_checkbox", "只检查前缀不重排", "bool"),
-                 Field("copy_sku_to_detail", "SKU 写入详情", "bool"),
-                 Field("pack_weight", "包装重量")]),
-        ("规格", [Field("spec_weight", "重量"), Field("spec_length", "长"),
-                  Field("spec_width", "宽"), Field("spec_height", "高"),
-                  Field("product_type", "商品类型"), Field("declared_value", "申报价值")]),
-        ("详情文字", [Field("detail_text_info", "详情文字（头部）", "multiline"),
-                      Field("detail_text_info_tail", "详情文字（尾部）", "multiline"),
-                      Field("detail_text_position", "插入位置（head/tail/both）"),
-                      Field("move_detail_text", "详情文字并入头部", "bool")]),
-        ("类目属性默认值（模板读不到时用）", [
-            Field("high_concerned_chemical", "高关注化学品", "select", ["否", "是"]),
-            Field("charge_status", "是否带电", "select", ["否", "是"])]),
-        ("运行", [Field("auto_save_products", "自动保存到店小秘（关闭=只试跑）", "bool"),
-                  Field("publish_action", "保存后去向", "select",
-                        ["save_only", "save_to_waiting", "publish"],
-                        hint="save_only=留在采集箱 / save_to_waiting=移入待发布 / publish=直接发布"),
-                  Field("eu_qualification", "是否提交欧盟资质", "select", ["否", "是"],
-                        hint="选「是」必须先填下面的欧盟责任人资料，否则保存会被站点拦截"),
-]),
-        # 选「是」时站点要求填写欧盟责任人，否则只能选否（ISSUES #4）
-        ("欧盟资质 · 责任人资料（选「是」时必填）", [
-            Field("eu_responsible_name", "欧盟责任人名称"),
-            Field("eu_responsible_address", "欧盟责任人地址"),
-            Field("eu_responsible_email", "电子邮箱"),
-            Field("eu_responsible_phone", "联系电话"),
-        ]),
-    ]
-
-
 def schema_ai():
     return [
         ("标题", [Field("enable_ai_title", "启用 AI 标题", "bool"),
@@ -319,20 +272,20 @@ def schema_image():
             Field("img_detail_edit", "描述图精细编辑", "bool"),
             Field("translate_detail_pic_enable", "描述图文字翻译", "bool"),
             Field("translate_detail_pic_indices", "翻译序号"),
-            Field("detail_review_first_count", "审查前 N 张"),
-            Field("detail_review_last_count", "审查后 N 张"),
         ]),
         ("SKU 图", [
+            Field("white_background_sku_pic_indices", "SKU 图序号（白底/去水印/编辑共用）",
+                  hint="支持 1-3,5 这种写法；留空=全部"),
             Field("white_background_sku_pic", "处理 SKU 图", "bool"),
             Field("img_sku_white_bg", "SKU 图白底", "bool"),
             Field("img_sku_remove_wm", "SKU 图去水印", "bool"),
             Field("img_sku_edit", "SKU 图精细编辑", "bool"),
+            Field("img_sku_edit_prompt", "SKU 图编辑提示词", "multiline"),
             Field("translate_sku_pic", "SKU 图文字翻译", "bool"),
         ]),
-        ("营销与批发", [
+        ("营销", [
             Field("marketing_auto_generate", "生成营销图（写进营销图片 1:1 / 3:4）", "bool"),
             Field("marketing_image_prompt", "营销图提示词", "multiline"),
-            Field("wholesale_enable", "启用批发价", "bool"),
         ]),
         ("通用", [
             Field("overlay_watermark_enable", "主图叠加水印（发布时）", "bool"),
@@ -481,10 +434,14 @@ class App:
         self.nav_buttons = []
         groups = [
             ("", [("概览", ft.Icons.DASHBOARD_OUTLINED, 0)]),
-            ("店铺与上架", [("店铺设置", ft.Icons.STORE_OUTLINED, 1), ("基础设置", ft.Icons.TUNE, 2)]),
-            ("AI 设置", [("AI图片设置", ft.Icons.AUTO_AWESOME, 3)]),
-            ("图片", [("图片工作台", ft.Icons.GRID_VIEW, 9)]),
-            ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6), ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
+            ("上架准备", [("店铺设置", ft.Icons.STORE_OUTLINED, 1),
+                          ("商品设置", ft.Icons.TUNE, 2)]),
+            ("AI 处理", [("AI 文案", ft.Icons.EDIT_NOTE, 3),
+                         ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4),
+                         ("AI 图片", ft.Icons.AUTO_AWESOME, 5)]),
+            ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6),
+                            ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
+            ("工具", [("图片工作台", ft.Icons.GRID_VIEW, 9)]),
             ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8),
                       ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
         ]
@@ -501,6 +458,15 @@ class App:
                     on_click=lambda e, idx=page_idx: self._switch(idx), ink=True)
                 self.nav_buttons.append((page_idx, b))
                 col.controls.append(b)
+        # 启动/停止 切换按钮（运行时变红并显示「停止」）
+        self.btn_run_icon = ft.Icon(ft.Icons.ROCKET_LAUNCH, size=13, color="#0B0D12")
+        self.btn_run_text = ft.Text("启动", size=12, weight=ft.FontWeight.BOLD, color="#0B0D12")
+        self.btn_run = ft.Container(
+            content=ft.Row([self.btn_run_icon, self.btn_run_text],
+                           spacing=4, tight=True, alignment=ft.MainAxisAlignment.CENTER),
+            bgcolor=ACCENT, border_radius=7,
+            padding=ft.padding.symmetric(vertical=4, horizontal=12),
+            on_click=self._toggle_run, ink=True)
         self.license_text = ft.Text("检测中…", color=MUTED, size=12, weight=ft.FontWeight.BOLD)
         # 侧栏导航可滚动：1514×945 及更小的窗口也能点到「提示词 / 任务与日志」
         nav_scroll = ft.Column([col], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO)
@@ -510,14 +476,7 @@ class App:
                     ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
                                muted(f"极光上架 v{VERSION}")], spacing=0)], spacing=10),
             ft.Container(height=10),
-            ft.Row([ft.Container(
-                content=ft.Row([ft.Icon(ft.Icons.ROCKET_LAUNCH, size=13, color="#0B0D12"),
-                                ft.Text("启动", size=12, weight=ft.FontWeight.BOLD, color="#0B0D12")],
-                               spacing=4, tight=True, alignment=ft.MainAxisAlignment.CENTER),
-                bgcolor=ACCENT, border_radius=7,
-                padding=ft.padding.symmetric(vertical=4, horizontal=12),
-                on_click=lambda e: self._start(), ink=True)],
-                alignment=ft.MainAxisAlignment.START),
+            ft.Row([self.btn_run], alignment=ft.MainAxisAlignment.START),
             ft.Container(height=8),
             nav_scroll,
             ft.Container(height=6),
@@ -980,13 +939,9 @@ class App:
                         auth_card,
                         stat("图片服务", ft.Text("~15 秒/张", color=ACCENT_2, size=12), ft.Icons.BOLT_OUTLINED, "#FFB020")],
                        spacing=12),
-                card(ft.Column([h1("快速开始", 15),
-                                muted("三步完成上架：读 Cookie → 选店铺与模板 → 启动"),
-                                self._run_mode_row(),
-                                ft.Row([ft.ElevatedButton("启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color="white",
-                                                          on_click=lambda e: self._start()),
-                                        ft.OutlinedButton("去设置", icon=ft.Icons.SETTINGS,
-                                                          on_click=lambda e: self._switch(8))], spacing=10)], spacing=10))]
+                card(ft.Column([h1("运行模式", 15),
+                                muted("正式运行前先确认这里是「真实写入」；点左上角「启动」开始"),
+                                self._run_mode_row()], spacing=10))]
 
     # ---------- 概览的状态刷新（ISSUES #8 / #9）----------
     def _diff_card(self):
@@ -1286,6 +1241,35 @@ class App:
             pass
         return errs
 
+    def _sync_run_button(self):
+        """根据运行状态切换「启动/停止」按钮外观。"""
+        try:
+            running = bool(getattr(self, "_running", False))
+            stopping = bool(getattr(self, "_stop_requested", False))
+            if running or stopping:
+                self.btn_run_icon.name = ft.Icons.STOP_CIRCLE
+                self.btn_run_icon.color = "white"
+                self.btn_run_text.value = "停止中…" if stopping else "停止"
+                self.btn_run_text.color = "white"
+                self.btn_run.bgcolor = "#D9534F"
+            else:
+                self.btn_run_icon.name = ft.Icons.ROCKET_LAUNCH
+                self.btn_run_icon.color = "#0B0D12"
+                self.btn_run_text.value = "启动"
+                self.btn_run_text.color = "#0B0D12"
+                self.btn_run.bgcolor = ACCENT
+            self._safe_update()
+        except Exception:
+            pass
+
+    def _toggle_run(self, e=None):
+        """一个按钮两种状态：运行中→停止，空闲→启动。"""
+        if bool(getattr(self, "_running", False)) or bool(getattr(self, "_stop_requested", False)):
+            self._request_stop()
+        else:
+            self._start()
+        (getattr(self, '_sync_run_button', None) or (lambda: None))()
+
     def _start(self):
         # 启动前先把当前配置全部落盘（含未失焦的输入）
         self._save_api_fields()
@@ -1445,6 +1429,7 @@ class App:
         except Exception:
             pass
         self._log("已请求停止：当前产品/任务结束后停止", "WARN")
+        (getattr(self, '_sync_run_button', None) or (lambda: None))()
         self.toast("已请求停止")
         self._safe_update()
 
@@ -1477,6 +1462,7 @@ class App:
             self._log("已有任务在运行，忽略本次启动", "WARN")
             return
         self._running = True
+        (getattr(self, '_sync_run_button', None) or (lambda: None))()
         self._stop_requested = False
         hb_stop = threading.Event()
         self._hb_stop = hb_stop
@@ -1485,6 +1471,7 @@ class App:
 
         def finish(msg: str = ""):
             self._running = False
+            (getattr(self, '_sync_run_button', None) or (lambda: None))()
             hb_stop.set()
             try:
                 if getattr(self, "run_status", None) is not None:
@@ -1659,6 +1646,7 @@ class App:
             finish("运行异常")
         finally:
             self._running = False
+            (getattr(self, '_sync_run_button', None) or (lambda: None))()
             hb_stop.set()
 
     def _self_test(self):
@@ -2789,12 +2777,7 @@ class App:
         extra_card = card(ft.Column([
             h1("额外选项", 15),
             muted("这些开关都会实际影响保存/发布流程"),
-            ft.Row([sw("four_in_one", "四合一主图"),
-                    sw("main_as_detail", "启用主图作为详情图"),
-                    sw("pad_main_images_from_extra", "主图不足6张时用额外图片补齐"),
-                    sw("keep_main_images_local", "保留主图及AI生成图片至本地")], spacing=14, wrap=True),
-            ft.Row([sw("custom_detail_text_enable", "添加自定义详情文本或图片"),
-                    sw("copy_sku_to_detail", "复制SKU至详情")], spacing=14, wrap=True),
+            ft.Row([sw("four_in_one", "四合一主图")], spacing=14, wrap=True),
             ft.Row([sw("check_banned_word", "违禁词检查")], spacing=14, wrap=True),
             ft.Row([sw("use_template_video", "使用模板产品视频"),
                     sw("generate_main_video", "生成主图轮播视频")], spacing=14, wrap=True),
@@ -2882,7 +2865,7 @@ class App:
             self.dl_list, self.dl_status,
         ], spacing=8))
 
-        return [h1("基础设置"), top_card, img_card, detail_card, base_card,
+        return [h1("商品设置"), top_card, img_card, detail_card, base_card,
                 attr_default_card, attr_card, sku_map_card, eu_card,
                 detail_img_card, self._combo_card()]
 
@@ -3659,10 +3642,7 @@ class App:
                 general.append((name, fs))
 
         cards = [
-            add_section("AI 智能填写", schema_ai(), expanded=True),
-            add_section("内容审查", schema_review(), expanded=False),
-            add_section("图片简单编辑", simple, expanded=True),
-            add_section("图片通用编辑", general, expanded=False, extra=self._image_jobs_ui()),
+            add_section("AI 文案（标题 / 详情 / SKU / 估重）", schema_ai(), expanded=True),
         ]
         fast_card = card(ft.Column([
             h1("速度 / 功能开关", 15),
@@ -3680,8 +3660,8 @@ class App:
                                           allow_multiple=True, allowed_extensions=["png", "jpg", "jpeg", "webp"]))],
                    spacing=10, wrap=True),
         ], spacing=8))
-        return [h1("AI图片设置"),
-                muted("API Key 仍在「设置」页填写；这里放 AI 文案、审查、图片处理的开关与范围"),
+        return [h1("AI 文案"),
+                muted("标题 / 详情 / SKU / 估重的提示词与开关；图片处理见「AI 图片」，审查见「内容审查」"),
                 *cards, fast_card, batch,
                 ft.Row([self._autosave_status,
                         ft.OutlinedButton("恢复默认", icon=ft.Icons.RESTART_ALT, on_click=lambda e: self._reset())],
@@ -3708,6 +3688,16 @@ class App:
         def start(e):
             threading.Thread(target=self._run_review, daemon=True).start()
 
+        # 审查设置（从 AI 页移过来）
+        self.field_refs = []
+        rev_sections = []
+        for name, fields in schema_review():
+            c, refs = section(name, fields, self.cfg)
+            self.field_refs.extend(refs)
+            for f in refs:
+                self._bind_autosave(f)
+            rev_sections.append(c)
+
         card_rev = card(ft.Column([
             h1("审查结果", 15),
             muted("拉取店铺产品，逐条跑文本审查 + 主图审查；不合规会标红（发布时可按设置拦截）"),
@@ -3716,7 +3706,7 @@ class App:
                     self.rev_status], spacing=10, wrap=True),
             self.rev_table,
         ], spacing=8))
-        return [view[0], card_rev] + view[1:]
+        return [view[0], *rev_sections, card_rev] + view[1:]
 
     def _run_review(self):
         try:
@@ -3778,7 +3768,49 @@ class App:
 
     def _p_image(self):
         self._current = 5
-        view = self._render("AI图片处理", schema_image())
+        view = self._render("AI 图片", schema_image())
+
+        # 图片步骤：简单编辑 / 通用编辑（从 AI 文案页移过来）
+        self.field_refs = []
+        img_map = {f.key: f for _sec, fs in schema_image() for f in fs}
+        simple_keys = [
+            "white_bg_enable", "white_background_pic_1", "white_background_pic_2",
+            "watermark_enable", "remove_watermark_pic_1", "remove_watermark_pic_2",
+            "translate_main_pic_enable", "translate_main_pic_indices",
+            "white_background_detail_pic_indices", "img_detail_white_bg", "img_detail_remove_wm",
+            "translate_detail_pic_enable", "translate_detail_pic_indices",
+            "white_background_sku_pic_indices", "white_background_sku_pic",
+            "img_sku_white_bg", "img_sku_remove_wm", "img_sku_edit", "img_sku_edit_prompt",
+            "translate_sku_pic", "translate_image_understanding",
+        ]
+        general_keys = ["image_concurrency"]
+        simple, general = [], []
+        for name, fields in schema_image():
+            fs = [f for f in fields if f.key in simple_keys]
+            if fs:
+                simple.append((name, fs))
+        for name, fields in schema_image():
+            fs = [f for f in fields if f.key in general_keys]
+            if fs:
+                general.append((name, fs))
+
+        def add_section(title: str, schemas, expanded: bool = False, extra=None):
+            controls = []
+            for name, fields in schemas:
+                c, refs = section(name, fields, self.cfg)
+                self.field_refs.extend(refs)
+                for f in refs:
+                    self._bind_autosave(f)
+                controls.append(c)
+            if extra is not None:
+                controls.append(extra)
+            return ft.ExpansionTile(title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=TEXT),
+                                    controls=controls, initially_expanded=expanded,
+                                    icon_color=ACCENT, collapsed_icon_color=MUTED)
+        img_sections = [
+            add_section("图片简单编辑", simple, expanded=True),
+            add_section("图片通用编辑", general, expanded=False, extra=self._image_jobs_ui()),
+        ]
         self.img_status = ft.Text("未选择图片", color=MUTED, size=12)
         self.img_results = ft.Column(spacing=6)
         self.img_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
@@ -3809,17 +3841,7 @@ class App:
                     self.img_busy], spacing=10, wrap=True),
             self.img_quick_prompt,
             self.img_status, self.img_results], spacing=10))
-        def fast_mode(e):
-            self._fast_image_mode(e)
-
-        self.img_fast_btn = ft.ElevatedButton("一键快速模式（推荐）", icon=ft.Icons.BOLT,
-                                              bgcolor=ACCENT_2, color="#04231C", on_click=fast_mode)
-        fast_card = card(ft.Column([
-            h1("速度 / 功能开关", 15),
-            muted("每个 AI 步骤都有独立开关；关掉即跳过。快速模式会关闭审查/估重/营销/翻译/视频等耗时项，只保留白底、去水印、SKU白底与标题/详情。"),
-            ft.Row([self.img_fast_btn], spacing=8, wrap=True),
-        ], spacing=8))
-        return [view[0], fast_card, tool, self._image_jobs_ui()] + view[1:]
+        return [view[0], *img_sections, tool] + view[1:]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):
@@ -4659,6 +4681,7 @@ class App:
             self.toast("已有任务在运行", False)
             return
         self._running = True
+        (getattr(self, '_sync_run_button', None) or (lambda: None))()
         self._stop_requested = False
         # This entry point is always an offline preview, regardless of save settings.
         by_id = {str(p.get("id")): p for p in (self.products or [])}
@@ -4666,6 +4689,7 @@ class App:
         items = self.q.pending()
         if not items:
             self._running = False
+            (getattr(self, '_sync_run_button', None) or (lambda: None))()
             self.toast("队列为空", False)
             return
         workers = max(1, min(int(getattr(self.cfg, "concurrency", 3) or 3), 8, len(items)))
@@ -4714,6 +4738,7 @@ class App:
                 list(ex.map(work, items))
         finally:
             self._running = False
+            (getattr(self, '_sync_run_button', None) or (lambda: None))()
         ok, fail = counts["ok"], counts["fail"]
         history.record("queue:preview", ok, fail)
         self._log(f"队列预览完成（未保存商品）：成功 {ok} / 失败 {fail}" + ("（已按请求停止）" if self._stop_requested else ""))
