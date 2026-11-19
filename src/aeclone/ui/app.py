@@ -3214,8 +3214,11 @@ class App:
                                    active_color=ACCENT, on_change=toggle_wm)
         self.wm_pos = ft.Dropdown(label="水印位置", width=160, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                   value=str(getattr(self.cfg, "overlay_position", "bottom-right") or "bottom-right"),
-                                  options=[ft.dropdown.Option(x, x) for x in
-                                           ("bottom-right", "bottom-left", "top-right", "top-left", "center")])
+                                  options=[ft.dropdown.Option("bottom-right", "右下"),
+                                           ft.dropdown.Option("bottom-left", "左下"),
+                                           ft.dropdown.Option("top-right", "右上"),
+                                           ft.dropdown.Option("top-left", "左上"),
+                                           ft.dropdown.Option("center", "居中")])
         self.wm_opacity = ft.TextField(label="透明度 0-1", width=120,
                                        value=str(getattr(self.cfg, "overlay_opacity", "0.7") or "0.7"),
                                        bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
@@ -3262,24 +3265,53 @@ class App:
             pass
 
     def _test_watermark(self):
-        """用一张纯白测试图叠加水印，确认路径/位置/透明度真的生效。"""
+        """用真实商品主图（取不到才用灰底）叠加水印，预览位置/透明度效果。"""
         wm = str(self.cfg.watermark or "").strip()
         if not wm:
-            self.toast("请先设置水印文件", False); return
+            self.toast("请先设置水印文件", False)
+            return
         try:
             from PIL import Image as _Img
+            import requests as _rq
             from ..services.image_ops import add_watermark
+
             d = Path(tempfile.mkdtemp())
             base = d / "base.png"
-            _Img.new("RGB", (800, 800), (235, 235, 235)).save(base)
+            src_url = ""
+            # ① 当前列表第一个商品的主图
+            for pr in (getattr(self, "products", None) or []):
+                imgs = pr.get("images") or []
+                if imgs:
+                    src_url = str(imgs[0])
+                    break
+            # ② 模板快照里如果有图也用
+            if not src_url:
+                try:
+                    import json as _j
+                    snap = _j.loads(self.cfg.template_snapshot or "{}")
+                    imgs = snap.get("images") or []
+                    if imgs:
+                        src_url = str(imgs[0])
+                except Exception:
+                    pass
+            made = False
+            if src_url.startswith("http"):
+                try:
+                    base.write_bytes(_rq.get(src_url, timeout=30).content)
+                    made = True
+                except Exception:
+                    made = False
+            if not made:
+                _Img.new("RGB", (800, 800), (235, 235, 235)).save(base)
             out = add_watermark(base, wm, d / "wm_out.png",
                                 position=str(self.cfg.overlay_position or "bottom-right"),
                                 opacity=float(self.cfg.overlay_opacity or 0.7))
             self.wm_preview.src = str(out)
             self.wm_preview.visible = True
-            self.wm_status.value = f"测试成功：{out}"
+            self.wm_status.value = (("预览（真实主图）：" if made else "预览（灰底测试图）：")
+                                    + str(out))
             self.wm_status.color = ACCENT_2
-            self._log(f"水印测试成功：{out}")
+            self._log(f"水印预览：{out}")
         except Exception as ex:
             self.wm_status.value = f"测试失败：{str(ex)[:100]}"
             self.wm_status.color = "#FF6B6B"
