@@ -156,6 +156,23 @@ def muted(t, s=12):
     return ft.Text(t, size=s, color=MUTED)
 
 
+# 下拉选项的中文显示（配置里仍存英文 key，旧配置不受影响）
+OPTION_LABELS = {
+    "multiplier": "倍率：成本×倍率+固定加价",
+    "free_shipping": "包邮：成本+运费，再乘利润",
+    "commission": "含佣金：倒扣佣金+利润",
+    "append": "追加到末尾",
+    "first": "插入到开头",
+}
+
+# 价格模式说明（界面上鼠标悬停/阅读用）
+PRICE_MODE_HINTS = {
+    "multiplier": "售价 = 成本 × 倍率 + 固定加价",
+    "free_shipping": "售价 = (成本 + 默认运费) × (1 + 期望利润%)",
+    "commission": "售价 = (成本+加价) × 倍率 × (1+利润%) ÷ (1-佣金%)",
+}
+
+
 class Field:
     """把配置项渲染成控件。"""
 
@@ -168,8 +185,10 @@ class Field:
         if self.kind == "bool":
             self.ctrl = ft.Switch(label=self.label, value=bool(val), active_color=ACCENT)
         elif self.kind == "select":
+            # 存英文 key，界面显示中文，避免「multiplier 是什么」的困惑
             self.ctrl = ft.Dropdown(label=self.label, value=str(val) if val not in ("", None) else None,
-                                    options=[ft.dropdown.Option(o) for o in self.options], width=240,
+                                    options=[ft.dropdown.Option(o, OPTION_LABELS.get(o, o))
+                                             for o in self.options], width=280,
                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         elif self.kind == "multiline":
             self.ctrl = ft.TextField(label=self.label, value=str(val), multiline=True, min_lines=2, max_lines=6,
