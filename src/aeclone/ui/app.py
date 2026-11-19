@@ -1011,6 +1011,8 @@ class App:
                 ft.ElevatedButton("应用范围", icon=ft.Icons.FILTER_ALT, bgcolor=CARD_2, color=TEXT,
                                   on_click=lambda e: self._apply_search()),
                 ft.TextButton("清空", icon=ft.Icons.CLEAR, on_click=lambda e: self._clear_search()),
+                ft.OutlinedButton("搜索全部商品", icon=ft.Icons.SEARCH,
+                                  on_click=lambda e: self._global_search_dialog()),
             ], spacing=10, wrap=True),
             self.search_hint,
         ], spacing=8))
@@ -1876,6 +1878,100 @@ class App:
         except Exception as ex:  # noqa: BLE001
             self._log(f"类目学习失败：{str(ex)[:150]}", "ERROR")
             self.toast(f"类目学习失败：{str(ex)[:80]}", False)
+
+    def _global_search_dialog(self):
+        """全局搜商品：关键词 + 状态，结果带缩略图与分页。"""
+        PAGE = 12
+        kw = ft.TextField(hint_text="标题关键词（留空=该状态全部）", width=300, dense=True,
+                          bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        st = ft.Dropdown(width=160, dense=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                         value="draft",
+                         options=[ft.dropdown.Option("draft", "采集箱"),
+                                  ft.dropdown.Option("editingRequired", "待发布"),
+                                  ft.dropdown.Option("publishFail", "发布失败"),
+                                  ft.dropdown.Option("onSelling", "在线"),
+                                  ft.dropdown.Option("auditing", "审核中")])
+        info = ft.Text("输入关键词后点搜索", size=11, color=MUTED)
+        col = ft.Column(spacing=2, height=380, scroll=ft.ScrollMode.AUTO)
+        state = {"rows": [], "page": 1}
+        pager = ft.Text("", size=11, color=MUTED)
+        prev_btn = ft.OutlinedButton("上一页")
+        next_btn = ft.OutlinedButton("下一页")
+
+        def render():
+            total = max(1, (len(state["rows"]) + PAGE - 1) // PAGE)
+            state["page"] = min(max(1, state["page"]), total)
+            lo = (state["page"] - 1) * PAGE
+            rows = []
+            for it in state["rows"][lo:lo + PAGE]:
+                pid = str(it.get("id") or "")
+                imgs = it.get("images") or []
+                rows.append(ft.ListTile(
+                    leading=self._zoom_img(imgs[0] if imgs else "", 42, 42, "主图", gallery=imgs),
+                    title=ft.Text((it.get("title") or pid)[:70], size=12, color=TEXT, max_lines=2),
+                    subtitle=ft.Text(f"{pid} · {it.get('status_type') or ''}", size=10, color=MUTED),
+                    dense=True))
+            col.controls = rows or [muted("没有匹配的商品", 11)]
+            pager.value = f"第 {state['page']}/{total} 页 · 共 {len(state['rows'])} 个"
+            prev_btn.disabled = state["page"] <= 1
+            next_btn.disabled = state["page"] >= total
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def go(delta):
+            state["page"] += delta
+            render()
+
+        prev_btn.on_click = lambda e: go(-1)
+        next_btn.on_click = lambda e: go(1)
+
+        def do_search(e=None):
+            info.value = "搜索中…"
+            info.color = MUTED
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def work():
+                try:
+                    from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+                    dxm = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                    k = (kw.value or "").strip()
+                    if k:
+                        rows = dxm.search_products(k, self.cfg.store_id or None, st.value, 200)
+                    else:
+                        rows, _m = dxm.product_page(1, 200, self.cfg.store_id or None, st.value)
+                    state["rows"] = rows or []
+                    state["page"] = 1
+                    info.value = f"找到 {len(state['rows'])} 个"
+                    info.color = ACCENT_2
+                    render()
+                except Exception as ex:  # noqa: BLE001
+                    info.value = f"搜索失败：{str(ex)[:100]}"
+                    info.color = "#FF6B6B"
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+            threading.Thread(target=work, daemon=True).start()
+
+        kw.on_submit = do_search
+        dlg = ft.AlertDialog(
+            title=ft.Text("搜索商品"),
+            content=ft.Column([ft.Row([kw, st,
+                                       ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH,
+                                                         bgcolor=ACCENT, color="white",
+                                                         on_click=do_search)],
+                                      spacing=8, wrap=True),
+                               info, col,
+                               ft.Row([prev_btn, next_btn, pager], spacing=10)], spacing=8, width=680),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+        )
+        self._show_dlg(dlg)
+        do_search()
 
     def _publish_list_dialog(self, offline_state: str, label: str):
         """查看「待发布 / 发布失败」的具体商品（前 100 条）。"""
