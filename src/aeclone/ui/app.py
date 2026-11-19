@@ -2152,6 +2152,12 @@ class App:
                             fail_n += 0 if res.ok else 1
                         if res.ok:
                             history.record("publish", 1, 0, prod["id"])
+                            self._log(f"✓ 编辑成功：{prod['id']} "
+                                      f"{(prod.get('title') or '')[:44]}", "INFO")
+                        else:
+                            self._log(f"✗ 编辑失败：{prod['id']} "
+                                      f"{(prod.get('title') or '')[:44]} · "
+                                      f"{str(res.error or '')[:80]}", "WARN")
                 except Exception as ex:  # noqa: BLE001
                     with lock:
                         fail_n += 1

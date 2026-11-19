@@ -92,7 +92,8 @@ def _cached_template_edit(dxm, tpl_pid: str) -> dict:
 def add_step(res, name, ok, detail=""):
     """记录步骤结果，同时实时上报到进度总线。"""
     res.steps.append(Step(name, bool(ok), str(detail)))
-    emit(str(name), "", str(detail)[:140], "OK" if ok else "ERROR")
+    emit(str(name), "", str(detail)[:140], "OK" if ok else "ERROR",
+         product=str(getattr(res, "product_id", "") or ""))
     if ok:
         BUS.done_stage()
 
@@ -1583,7 +1584,9 @@ class Publisher:
 
         # 回传店小秘相册：水印图先进图片库
         album_ok = 0
-        if self.cfg.watermark and self.dxm is not None and getattr(self.cfg, "watermark_upload_album", True):
+        if (self.cfg.watermark and self.dxm is not None
+                and getattr(self.cfg, "watermark_upload_album", True)
+                and getattr(self.cfg, "prefer_dianxiaomi_album", False)):
             full_cid = getattr(self.cfg, "upload_full_cid", "") or ""
             for img_url in original_images[:8]:  # 只上传前8张
                 if img_url != p.get("images", [])[original_images.index(img_url) if img_url in (p.get("images", [])) else -1]:

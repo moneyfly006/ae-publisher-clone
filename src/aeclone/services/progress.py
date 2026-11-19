@@ -28,6 +28,8 @@ class Event:
     def text(self) -> str:
         parts = []
         head = f"[{self.stage}]"
+        if self.product:
+            head = f"[{self.product}] " + head
         if self.action:
             head += f" {self.action}"
         parts.append(head)
