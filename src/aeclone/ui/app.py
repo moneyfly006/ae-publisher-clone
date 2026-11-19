@@ -2948,14 +2948,14 @@ class App:
             ft.Row([
                 sw("custom_sku_prefix_enable", "启用自定义SKU前缀",
                    tooltip_text="为SKU编码添加自定义前缀"),
-                sw("modify_stock_999", "库存改为999",
-                   tooltip_text="将所有SKU的库存统一设为999"),
                 sw("auto_generate_sku_code", "自动生成SKU编码",
                    tooltip_text="自动为SKU生成唯一编码"),
                 sw("original_box", "是否原箱",
                    tooltip_text="商品是否以原箱发货"),
             ], spacing=12, wrap=True),
             ft.Row([
+                tf("stock_quantity", "库存数量", width=120,
+                   tooltip_text="所有 SKU 统一使用这个库存数（默认 999）"),
                 tf("spec_weight", "重量(kg)", width=120, tooltip_text="默认包装重量（优先使用采集到的重量，未采集时用此值）"),
                 tf("spec_length", "长(cm)", width=100),
                 tf("spec_width", "宽(cm)", width=100),

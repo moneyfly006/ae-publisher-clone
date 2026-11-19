@@ -187,7 +187,6 @@ DEFAULTS: dict = {
     "four_in_one_position": "append",
 
     # 库存 / SKU
-    "modify_stock_999": False,
     "stock_quantity": "999",
     "custom_sku_prefix": "",
     "sku_split_char": "-",

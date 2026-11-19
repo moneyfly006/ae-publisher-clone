@@ -20,7 +20,7 @@ def expand(skus: list[dict], prefix: str = "套装", factor: float = 2.0,
 
     - 名称：`{prefix}-{原SKU名}`；原 SKU 名为空时用序号
     - 价格：原 SKU 价 × factor；没有价格时用 fallback_price × factor（仍无则不带价格）
-    - 库存：沿用原 SKU（`modify_stock_999` 等已在 _normalize 里处理）
+    - 库存：沿用原 SKU（`stock_quantity` 已在 _normalize 里统一设置）
     """
     base_list: list[dict] = []
     combos: list[dict] = []

@@ -146,9 +146,7 @@ class Publisher:
             if getattr(self.cfg, "auto_generate_sku_code", False):
                 name = f"{prefix}{split_ch}{i:03d}" if prefix else f"SKU{split_ch}{i:03d}"
             sku["sku"] = name
-            if getattr(self.cfg, "modify_stock_999", False):
-                sku["stock"] = 999
-            elif stock:
+            if stock:
                 sku["stock"] = stock
         if getattr(self.cfg, "combo_enable", False):
             from .combo import expand as _combo_expand

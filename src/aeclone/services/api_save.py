@@ -610,9 +610,7 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
 
     # 速卖通零售价上限 999999（超过会报 isv.13CHK_BASIC_MAXVALUE）
     _MAX_RETAIL = 999999.0
-    _price_capped = False
     if price and price > _MAX_RETAIL:
-        _price_capped = True
         price = _MAX_RETAIL
 
     stock = str(getattr(cfg, "stock_quantity", "") or "").strip()
@@ -642,6 +640,17 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
                     sku["aeopSKUProperty"] = prop
                 sku["mobileModelSkuImage"] = str(img)
 
+    # ★ 价格上限：不管本次是否重算价格，继承来的 skuPrice 也可能超过 999999
+    # （速卖通报 isv.13CHK_BASIC_MAXVALUE: Retail price can't exceed 999999）
+    _MAX_RETAIL_SKU = 999999.0
+    for _s in skus:
+        try:
+            _v = float(str(_s.get("skuPrice") or "0"))
+        except Exception:
+            continue
+        if _v > _MAX_RETAIL_SKU:
+            _s["skuPrice"] = f"{_MAX_RETAIL_SKU:.2f}"
+
     # ★ 关键：这些 SKU 会覆盖 build_save_payload 里 merge_skus 的结果，
     # 所以必须把站点必填字段补齐，否则依次会报
     # 「是否原箱不能为空」「请完善填写 SKU 编码」「货值不能为空」「物流属性不能为空」
@@ -666,6 +675,18 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     if price > 0 and getattr(cfg, "write_price_to_product", True):
         overrides["productMinPrice"] = f"{price:.2f}"
         overrides["productMaxPrice"] = f"{price:.2f}"
+    elif skus:
+        # 没重算价格时，min/max 从 SKU 价格推导（速卖通要求三者一致）
+        _vals = []
+        for _s in skus:
+            try:
+                _vals.append(float(str(_s.get("skuPrice") or "0")))
+            except Exception:
+                continue
+        _vals = [v for v in _vals if v > 0]
+        if _vals:
+            overrides["productMinPrice"] = f"{min(_vals):.2f}"
+            overrides["productMaxPrice"] = f"{max(_vals):.2f}"
 
     # 批发（店小秘风格：购买 N 件减免 X% + 一件代发折扣）
     if getattr(cfg, "wholesale_enable", False):
