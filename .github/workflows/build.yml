@@ -36,6 +36,16 @@ jobs:
         run: Compress-Archive -Path dist/AuroraList/* -DestinationPath dist/AuroraList-windows.zip -Force
         shell: pwsh
 
+      - name: Sync installer version from tag
+        shell: bash
+        run: |
+          V="${{ github.ref_name }}"
+          V="${V#v}"
+          if [ -n "$V" ]; then
+            sed -i "s/MyAppVersion \"[^\"]*\"/MyAppVersion \"$V\"/" installer.iss
+          fi
+          grep MyAppVersion installer.iss
+
       - name: Build installer (Inno Setup)
         run: |
           choco install innosetup -y --no-progress
