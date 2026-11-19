@@ -7006,6 +7006,24 @@ class App:
 
         self.host_url.on_change = lambda e: save_host()
         self.host_key.on_change = lambda e: save_host()
+        def reset_host(e=None):
+            from ..config import DEFAULTS as _D
+            self.cfg.set("image_host_url", str(_D.get("image_host_url", "") or ""))
+            self.cfg.set("image_host_key", str(_D.get("image_host_key", "") or ""))
+            try:
+                self.host_url.value = self.cfg.image_host_url
+                self.host_key.value = self.cfg.image_host_key
+            except Exception:
+                pass
+            save_config(self.cfg)
+            self.host_status.value = f"已恢复推荐图床：{self.cfg.image_host_url}"
+            self.host_status.color = ACCENT_2
+            self.toast("已恢复推荐图床", True)
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
         host_card = card(ft.Column([
             h1("图床", 15),
             muted("图片上传失败、或想换成自己的图床时改这里（默认 image.moneyfly.club）", 11),
@@ -7016,7 +7034,9 @@ class App:
                    spacing=8, wrap=True),
             ft.Row([ft.ElevatedButton("保存", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white",
                                       on_click=save_host),
-                    ft.OutlinedButton("测试上传", icon=ft.Icons.CLOUD_UPLOAD, on_click=test_host)],
+                    ft.OutlinedButton("测试上传", icon=ft.Icons.CLOUD_UPLOAD, on_click=test_host),
+                    ft.TextButton("恢复推荐图床", icon=ft.Icons.RESTORE,
+                                  on_click=lambda e: reset_host())],
                    spacing=8, wrap=True),
             self.host_status,
             muted("支持 Cloudflare-ImgBed（POST /rest/upload）和老自建服务（POST /upload），自动识别。"),
