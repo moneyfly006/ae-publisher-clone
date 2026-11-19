@@ -148,7 +148,7 @@ def card(content, padding=20, expand=False):
                         expand=expand, border=ft.border.all(1, CARD_2))
 
 
-def h1(t, s=20):
+def h1(t, s=22):
     return ft.Text(t, size=s, weight=ft.FontWeight.BOLD, color=TEXT)
 
 
@@ -1870,6 +1870,23 @@ class App:
         except Exception as ex:  # noqa: BLE001
             self._log(f"类目学习失败：{str(ex)[:150]}", "ERROR")
             self.toast(f"类目学习失败：{str(ex)[:80]}", False)
+
+    def _confirm(self, title: str, body: str, on_yes):
+        """通用二次确认（批量发布这类会影响线上商品的动作）。"""
+        def yes(e):
+            self._close_dlg(dlg)
+            try:
+                on_yes()
+            except Exception as ex:  # noqa: BLE001
+                self.toast(f"执行失败：{ex}", False)
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(title),
+            content=ft.Text(body, size=12, color=TEXT),
+            actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
+                     ft.ElevatedButton("确认执行", bgcolor=ACCENT, color="white", on_click=yes)],
+        )
+        self._show_dlg(dlg)
 
     def _batch_publish(self, offline_state: str, label: str):
         """批量发布：按 dxmOfflineState 取商品 -> batchPublish -> 汇总。"""
@@ -5205,12 +5222,19 @@ class App:
                                   on_click=lambda e: refresh_counts()),
                 ft.ElevatedButton("批量发布「待发布」", icon=ft.Icons.PUBLISH,
                                   bgcolor="#6EC6FF", color="#04231C",
-                                  on_click=lambda e: threading.Thread(
-                                      target=self._batch_publish_waiting, daemon=True).start()),
+                                  on_click=lambda e: self._confirm(
+                                      "批量发布「待发布」商品？",
+                                      "会把店小秘「待发布」里的商品全部提交发布，"
+                                      "提交后进入「发布中 → 审核中」，短时间内不可撤销。",
+                                      lambda: threading.Thread(
+                                          target=self._batch_publish_waiting, daemon=True).start())),
                 ft.ElevatedButton("重试「发布失败」", icon=ft.Icons.REPLAY,
                                   bgcolor="#FFB020", color="#1A1200",
-                                  on_click=lambda e: threading.Thread(
-                                      target=self._batch_publish_failed, daemon=True).start()),
+                                  on_click=lambda e: self._confirm(
+                                      "重试「发布失败」的商品？",
+                                      "会重新提交店小秘里发布失败的商品；不调用 AI，不产生费用。",
+                                      lambda: threading.Thread(
+                                          target=self._batch_publish_failed, daemon=True).start())),
             ], spacing=10, wrap=True),
         ], spacing=10))
 
