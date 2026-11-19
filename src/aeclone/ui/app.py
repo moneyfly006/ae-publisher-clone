@@ -492,7 +492,8 @@ class App:
                     content=ft.Row([ft.Icon(icon, size=15, color=MUTED), ft.Text(label, color=MUTED, size=12.5)],
                                    spacing=8),
                     padding=ft.padding.symmetric(horizontal=8, vertical=7), border_radius=8,
-                    on_click=lambda e, idx=page_idx: self._switch(idx), ink=True)
+                    on_click=lambda e, idx=page_idx: self._switch(idx), ink=True,
+                    tooltip=f"{group} · {label}" if group else label)
                 self.nav_buttons.append((page_idx, b))
                 col.controls.append(b)
         # 启动/停止 切换按钮（运行时变红并显示「停止」）
@@ -6505,7 +6506,7 @@ class App:
             ft.DataRow(cells=[
                 ft.DataCell(ft.Text(t, size=11, color=MUTED)),
                 ft.DataCell(ft.Text(x, size=11, color=ACCENT_2 if x == "INFO" else ("#FFB020" if x == "WARN" else "#FF6B6B"))),
-                ft.DataCell(ft.Text(m, size=11, color=TEXT)),
+                ft.DataCell(ft.Text(m, size=11, color=TEXT, width=560, selectable=True)),
             ]) for t, x, m in shown[-300:]
         ]
         try:
