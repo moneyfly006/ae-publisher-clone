@@ -366,6 +366,11 @@ class App:
         self._cookie_ts = 0.0
 
         page.title = f"AuroraList · 极光上架 v{VERSION}"
+        # 窗口左上角图标（打包后 assets 在 _internal/assets，flet 会按 assets_dir 解析）
+        try:
+            page.window.icon = "icon_1024.png"
+        except Exception:
+            pass
         page.bgcolor = BG
         page.padding = 0
         page.theme_mode = ft.ThemeMode.DARK
@@ -479,7 +484,9 @@ class App:
         nav_scroll = ft.Column([col], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO)
         sidebar = ft.Container(width=168, bgcolor=CARD, padding=10, content=ft.Column([
             ft.Row([ft.Container(width=32, height=32, border_radius=10, bgcolor=ACCENT,
-                                 content=ft.Text("A", size=15, weight=ft.FontWeight.BOLD, color="#0B0D12")),
+                                 clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                                 content=ft.Image(src="icon_1024.png", width=32, height=32,
+                                                  fit=ft.ImageFit.COVER)),
                     ft.Column([ft.Text("AuroraList", weight=ft.FontWeight.BOLD, color=TEXT, size=14),
                                muted(f"极光上架 v{VERSION}")], spacing=0)], spacing=10),
             ft.Container(height=10),
@@ -494,7 +501,8 @@ class App:
                 on_click=lambda e: self._open_log_panel(), ink=True),
             ft.Row([ft.Icon(ft.Icons.VERIFIED_USER, size=14, color=ACCENT_2), self.license_text], spacing=6),
         ], spacing=0, expand=True), tooltip="菜单可滚动")
-        self.content = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14)
+        self.content = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=14,
+                                  horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
         self.page.add(ft.Row([sidebar, ft.Container(expand=True, content=self.content,
                                                     padding=ft.padding.only(left=24, right=24, top=18, bottom=18))],
                              expand=True, spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH))
@@ -2135,6 +2143,7 @@ class App:
         render()
 
     def _sku_replace_dialog(self):
+        """SKU 图替换：从模板商品读取真实 SKU 名 + 图片缩略图预览。"""
         import json as _j
         try:
             mapping = _j.loads(self.cfg.sku_image_replace or "{}")
@@ -2142,17 +2151,75 @@ class App:
             mapping = {}
         if not isinstance(mapping, dict):
             mapping = {}
-        rows = ft.Column(spacing=4, height=300, scroll=ft.ScrollMode.AUTO)
-        state = {"map": dict(mapping)}
+
+        rows = ft.Column(spacing=6, height=320, scroll=ft.ScrollMode.AUTO)
+        pairs: list[tuple] = []
 
         def add(sku="", url=""):
-            a = ft.TextField(value=sku, hint_text="SKU 名", width=180, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            b = ft.TextField(value=url, hint_text="新图片 URL", expand=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            rows.controls.append(ft.Row([a, b], spacing=8))
-            self._safe_update()
-            return a, b
+            a = ft.TextField(value=sku, hint_text="SKU 名（点「读取模板 SKU」自动填）",
+                             width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            b = ft.TextField(value=url, hint_text="新图片 URL", expand=True,
+                             bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            thumb = ft.Image(src=(url or "").strip(), width=40, height=40,
+                             fit=ft.ImageFit.COVER, border_radius=6,
+                             visible=bool((url or "").strip()))
 
-        pairs = [add(k, v) for k, v in mapping.items()]
+            def on_url(e, _t=thumb):
+                u = (e.control.value or "").strip()
+                _t.src = u
+                _t.visible = bool(u)
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            b.on_change = on_url
+            rows.controls.append(ft.Row([a, b, thumb], spacing=8,
+                                        vertical_alignment=ft.CrossAxisAlignment.CENTER))
+            pairs.append((a, b))
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        for k, v in mapping.items():
+            add(k, v)
+
+        def load_from_template(e):
+            """拉模板商品的真实 SKU 名，避免手打拼错导致替换不生效。"""
+            try:
+                ck = self._cookies()
+                if not ck:
+                    self.toast("请先在「店铺设置」读取 Cookie", False)
+                    return
+                from ..integrations.dianxiaomi import DianxiaomiClient
+                dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
+                pid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+                if not pid:
+                    self.toast("请先在「店铺设置」选模板商品", False)
+                    return
+                d = dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
+                skus = _j.loads(d.get("aeopAeProductSKUs") or "[]")
+                have = {(x[0].value or "").strip() for x in pairs}
+                added = 0
+                for it in skus:
+                    nm = str(it.get("skuCode") or it.get("sku") or "").strip()
+                    if nm and nm not in have:
+                        add(nm, "")
+                        have.add(nm)
+                        added += 1
+                self.toast(f"已从模板读取 {added} 个 SKU" if added else "模板商品没有可用的 SKU 名",
+                           bool(added))
+            except Exception as ex:  # noqa: BLE001
+                self.toast(f"读取失败：{str(ex)[:80]}", False)
+
+        def clear_all(e):
+            rows.controls = []
+            pairs.clear()
+            try:
+                self._safe_update()
+            except Exception:
+                pass
 
         def save(e):
             out = {}
@@ -2166,15 +2233,27 @@ class App:
             self._safe_update()
 
         dlg = ft.AlertDialog(
-            title=ft.Text("SKU 图批量替换"),
-            content=ft.Column([ft.Text("SKU 名 → 新图片 URL，保存后发布时生效", size=11, color=MUTED),
-                               rows,
-                               ft.ElevatedButton("新增一行", icon=ft.Icons.ADD,
-                                                 on_click=lambda e: add())], spacing=8, width=620),
+            title=ft.Text("SKU 图替换"),
+            content=ft.Column([
+                ft.Text("这里是「按 SKU 名精确匹配」的覆盖表：只影响名字完全一致的 SKU。"
+                        "建议先点「读取模板 SKU」再填图，避免拼错。",
+                        size=11, color=MUTED),
+                ft.Row([
+                    ft.ElevatedButton("读取模板 SKU", icon=ft.Icons.DOWNLOAD,
+                                      bgcolor=ACCENT_2, color="#04231C",
+                                      on_click=load_from_template),
+                    ft.ElevatedButton("新增一行", icon=ft.Icons.ADD,
+                                      bgcolor=CARD_2, color=TEXT, on_click=lambda e: add()),
+                    ft.TextButton("清空", icon=ft.Icons.CLEAR_ALL, on_click=clear_all),
+                ], spacing=8, wrap=True),
+                rows,
+            ], spacing=10, width=680),
             actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
                      ft.ElevatedButton("保存", bgcolor=ACCENT, color="white", on_click=save)],
         )
-        self.page.dialog = dlg; dlg.open = True; self._safe_update()
+        self.page.dialog = dlg
+        dlg.open = True
+        self._safe_update()
 
     def _paste_cookie(self):
         field = ft.TextField(label="Cookie", multiline=True, min_lines=4, bgcolor=CARD_2,
@@ -3154,7 +3233,6 @@ class App:
         self.wm_opacity.on_change = save_wm_opacity
         refresh_status()
         return card(ft.Column([
-            h1("水印", 15),
             muted("「叠加水印到主图」用的就是这张图（发布时逐张叠加，可同时回传店小秘相册）"),
             self.wm_enable,
             ft.Row([self.wm_pos, self.wm_opacity], spacing=10, wrap=True),

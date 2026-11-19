@@ -77,3 +77,21 @@ coll = COLLECT(
     upx_exclude=[],
     name="AuroraList",
 )
+
+# ---------- macOS：打成 .app，双击不弹终端、Dock/Finder 显示图标 ----------
+if sys.platform == "darwin":
+    app = BUNDLE(
+        coll,
+        name="AuroraList.app",
+        icon="assets/icon.icns",
+        bundle_identifier="com.auroralist.app",
+        info_plist={
+            "CFBundleName": "AuroraList",
+            "CFBundleDisplayName": "AuroraList",
+            "CFBundleShortVersionString": "1.0.0",
+            "CFBundleVersion": "1.0.0",
+            "NSHighResolutionCapable": True,
+            "LSApplicationCategoryType": "public.app-category.productivity",
+            "LSMinimumSystemVersion": "11.0",
+        },
+    )
