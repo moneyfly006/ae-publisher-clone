@@ -410,6 +410,11 @@ class App:
         page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
         self._build_shell()
         self._switch(self._start_page_index())
+        # 无论从哪一页启动，都拉一次各状态数量（概览/发布队列都要用）
+        try:
+            self._refresh_store_counts()
+        except Exception:
+            pass
         page.update()
         # 启动即自动检测一次 API / 图片空间（ISSUES #9）
         self._probe_api_async()
@@ -965,8 +970,6 @@ class App:
                 pass
 
         threading.Thread(target=_refresh_ready, daemon=True).start()
-        # 启动时顺便拉一次店铺各状态数量，避免三个数字一直是「—」
-        self._refresh_store_counts()
 
         # 状态数字：5 个等宽块（采集箱 / 待发布 / 发布失败 / 在线 / 审核中）
         _sc = getattr(self, "store_counts", {}) or {}
@@ -4599,8 +4602,9 @@ class App:
                   ft.Tab(text="精细化编辑", content=refined_tab)],
             expand=True,
         )
+        # 主操作（两个 Tab）放前面；营销图与图片合成设置放后面
         return [view[0], muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
-                conflict_card, marketing_card, self._card_img(), tabs, view[-1]]
+                tabs, conflict_card, marketing_card, self._card_img(), view[-1]]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):
@@ -5202,6 +5206,7 @@ class App:
             ], spacing=10, wrap=True),
         ], spacing=10))
 
+        refresh_counts()
         return [h1("发布队列"),
                 muted("查看还差什么才能发出去，并在这里一键发布 / 重试"),
                 queue_card,
