@@ -5634,16 +5634,26 @@ class App:
         img_card = card(ft.Column([
             h1("3 · 图片处理", 15),
             muted("简单处理：白底 / 去水印 / 翻译 / 四合一；精细处理：填提示词后点「编辑」"),
-            ft.Row([ft.ElevatedButton("白底", bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
-                    ft.ElevatedButton("加水印", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("add_watermark")),
-                    ft.ElevatedButton("去水印", bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
-                    ft.ElevatedButton("翻译成英文", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("translate")),
-                    ft.ElevatedButton("编辑", bgcolor=CARD_2, color=TEXT, on_click=lambda e: run("edit")),
-                    ft.OutlinedButton("四合一拼图", icon=ft.Icons.GRID_VIEW, on_click=four_in_one),
-                    ft.OutlinedButton("生成视频", icon=ft.Icons.MOVIE, on_click=make_video),
-                    ft.OutlinedButton("上传结果到相册", icon=ft.Icons.CLOUD_UPLOAD, on_click=upload),
-                    ft.OutlinedButton("清理旧图 / 空间", icon=ft.Icons.DELETE_SWEEP, on_click=cleanup),
+            muted("① 单张处理（只对勾选的图生效）", 10.5),
+            ft.Row([ft.ElevatedButton("白底", icon=ft.Icons.WB_SUNNY_OUTLINED,
+                                      bgcolor=ACCENT, color="white", on_click=lambda e: run("white")),
+                    ft.ElevatedButton("去水印", icon=ft.Icons.AUTO_FIX_HIGH,
+                                      bgcolor=ACCENT_2, color="#04231C", on_click=lambda e: run("watermark")),
+                    ft.OutlinedButton("加水印", icon=ft.Icons.BRANDING_WATERMARK,
+                                      on_click=lambda e: run("add_watermark")),
+                    ft.OutlinedButton("翻译成英文", icon=ft.Icons.TRANSLATE,
+                                      on_click=lambda e: run("translate")),
+                    ft.OutlinedButton("按提示词编辑", icon=ft.Icons.EDIT,
+                                      on_click=lambda e: run("edit")),
                     self.wb_busy], spacing=8, wrap=True),
+            muted("② 组合与输出", 10.5),
+            ft.Row([ft.OutlinedButton("四合一拼图", icon=ft.Icons.GRID_VIEW, on_click=four_in_one),
+                    ft.OutlinedButton("生成视频", icon=ft.Icons.MOVIE, on_click=make_video),
+                    ft.OutlinedButton("上传结果到相册", icon=ft.Icons.CLOUD_UPLOAD, on_click=upload)],
+                   spacing=8, wrap=True),
+            muted("③ 维护", 10.5),
+            ft.Row([ft.OutlinedButton("清理旧图 / 空间", icon=ft.Icons.DELETE_SWEEP, on_click=cleanup)],
+                   spacing=8, wrap=True),
             ft.Row([self.wb_urls,
                     ft.OutlinedButton("加载图片", icon=ft.Icons.DOWNLOAD, on_click=lambda e: self._wb_load_urls()),
                     ft.OutlinedButton("从已拉取产品取图", icon=ft.Icons.INVENTORY_2, on_click=fill_from_products)],
@@ -6657,6 +6667,7 @@ class App:
 
         lic_card = card(ft.Column([
             h1("授权", 15),
+            muted("换电脑、重装系统或授权过期时，把机器码发给管理员登记", 11),
             muted("每台电脑的机器码都不同。把机器码发给管理员登记后，点「重新检测」即可使用"),
             ft.Row([ft.Text("机器码：", size=12, color=MUTED), self.machine_text], spacing=8, wrap=True),
             ft.Row([ft.ElevatedButton("复制机器码", icon=ft.Icons.COPY, bgcolor=ACCENT, color="white",
@@ -6747,6 +6758,7 @@ class App:
 
         api_card = card(ft.Column([
             h1("API", 15),
+            muted("第一次使用、提示 Key 无效 / 余额不足时改这里", 11),
             muted("填好 API Key 即可用；没有 Key 或额度不足时，点「购买/充值」去你的 API 后台"),
             self.api_key_field,
             ft.Row([self.cfg_concurrency, self.cfg_timeout,
@@ -6854,6 +6866,7 @@ class App:
         self.host_key.on_change = lambda e: save_host()
         host_card = card(ft.Column([
             h1("图床", 15),
+            muted("图片上传失败、或想换成自己的图床时改这里（默认 image.moneyfly.club）", 11),
             muted("AI 出图先放这里，店小秘编辑器再按 URL 取图。"
                   "AI 返回的是约 1 天过期的临时地址，不能直接写进商品。"),
             ft.Row([self.host_keep, ft.ElevatedButton("清理旧图", icon=ft.Icons.DELETE_SWEEP,
@@ -6878,6 +6891,7 @@ class App:
             ], spacing=10, wrap=True))
         model_card = card(ft.Column([
             h1("AI 模型", 15),
+            muted("想换模型或调温度/最大长度时改这里", 11),
             muted("已按实测结果固定，客户无需选择，避免选到不可用/超慢/超贵的模型"),
             *model_rows,
             self.model_status,
@@ -6918,6 +6932,7 @@ class App:
 
         inst_card = card(ft.Column([
             h1("多开 / 多任务", 15),
+            muted("同一台电脑要同时跑多个店小秘账号时才需要", 11),
             muted("每个实例独立配置、独立浏览器调试端口，可同时跑不同店铺；任务队列与定时发布也按实例隔离"),
             ft.Row([self.inst_name,
                     ft.ElevatedButton("创建实例", icon=ft.Icons.ADD, on_click=create),
@@ -6933,6 +6948,7 @@ class App:
             _cur_ver = ""
         upd = card(ft.Column([
             h1("版本更新", 15),
+            muted("有新版本时在这里检测并下载（检查 GitHub Releases）", 11),
             ft.Text(f"当前版本：v{_cur_ver}" if _cur_ver else "当前版本：-", size=12, color=TEXT),
             ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
                                       on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
