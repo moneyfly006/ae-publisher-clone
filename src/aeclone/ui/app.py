@@ -247,9 +247,6 @@ def schema_image():
         ("总开关", [
             Field("ai_image_enable", "启用 AI 图片处理（总开关）", "bool"),
             Field("image_concurrency", "单产品图片并发数（1-8，越大越快）"),
-            Field("write_main_images_to_product", "AI 主图写回商品（替换主图）", "bool"),
-            Field("write_detail_html_to_product", "AI 详情写回商品", "bool"),
-            Field("write_sku_codes_to_product", "SKU 编码写回商品", "bool"),
         ]),
         ("主图", [
             Field("main_image_generate_enable", "AI 生成主图（文生图）", "bool"),
@@ -330,7 +327,6 @@ def schema_price():
                   Field("default_express_price", "默认运费（包邮模式用）")]),
         ("阶梯", [Field("tuoguan_price_tiered_enabled", "启用阶梯倍率（按成本区间）", "bool")]),
         ("批发", [Field("wholesale_enable", "启用批发价", "bool")]),
-        ("写回", [Field("write_price_to_product", "价格写回商品（零售价）", "bool")]),
     ]
 
 
