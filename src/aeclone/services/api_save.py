@@ -325,13 +325,43 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
         tpl_skus = (tr or [])[0] if isinstance(tr, list) and tr else None
 
     out = []
+    _prod_freight = str((product or {}).get("freightTemplateId") or "").strip()
     for sku in skus:
         s = dict(sku)
+        # 脏值过滤：采集数据里常见 "<none>" 字符串，店小秘会把它当成无效 SKU id，
+        # 报 isv.13CHK_SKU_FREIGHT_TEMPLATE_NULL（"Please edit SKU's product information"）
+        for k in ("id", "skuId", "productId"):
+            v = str(s.get(k) or "").strip()
+            if v.lower() in ("<none>", "none", "null", "undefined"):
+                s.pop(k, None)
         if tpl_skus:
             for k in ("originalBox", "logisticAttrList", "specialProductTypeList"):
                 if s.get(k) in (None, "", []) and tpl_skus.get(k) not in (None, "", []):
                     s[k] = tpl_skus[k]
+        # SKU 级运费模板：缺就用商品级的（否则 CHK_SKU_FREIGHT_TEMPLATE_NULL）
+        if not str(s.get("freightTemplateId") or "").strip() and _prod_freight:
+            s["freightTemplateId"] = _prod_freight
         out.append(s)
+
+    # SKU id 修复：采集数据的 id 常是 "<none>"，店小秘不认（报
+    # CHK_SKU_FREIGHT_TEMPLATE_NULL / "Please edit SKU's product information"）。
+    # 用模板 SKU 的有效 id 按顺序补上（实测 code:0 Successful）。
+    tpl_ids = []
+    tr2 = None
+    if template is not None:
+        tr2 = template.get("aeopAeProductSKUs")
+        if isinstance(tr2, str):
+            try:
+                tr2 = json.loads(tr2)
+            except Exception:
+                tr2 = []
+    for _t in (tr2 or []) if isinstance(tr2, list) else []:
+        vid = str((_t or {}).get("id") or "").strip()
+        if vid and vid.lower() not in ("<none>", "none", "null", "undefined"):
+            tpl_ids.append(vid)
+    for i, s in enumerate(out):
+        if not str(s.get("id") or "").strip() and tpl_ids:
+            s["id"] = tpl_ids[i % len(tpl_ids)] if i < len(tpl_ids) else tpl_ids[0]
 
     # 商品没有 SKU（采集草稿常见）时，用模板首个 SKU 当骨架，否则站点会报
     # 「是否原箱不能为空」「请完善填写 SKU 编码」。
@@ -559,13 +589,20 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
         overrides["imageURLs"] = ";".join(images)
 
     # SKU：在原 SKU 结构上套用 AI 名称 + 价格 + 库存
-    raw_skus = product_edit.get("aeopAeProductSKUs")
-    if isinstance(raw_skus, str):
-        try:
-            raw_skus = _j.loads(raw_skus)
-        except Exception:
-            raw_skus = []
-    skus = raw_skus if isinstance(raw_skus, list) else []
+    # 必须走 merge_skus，它负责：过滤 "<none>" 脏 id、补 SKU 级 freightTemplateId。
+    # 直接用 product_edit["aeopAeProductSKUs"] 会把脏值带回去，导致
+    # isv.13CHK_SKU_FREIGHT_TEMPLATE_NULL。
+    try:
+        # 传真实模板，merge_skus 才能用模板 SKU 的有效 id 修复脏 id（"<none>"）
+        skus = merge_skus(product_edit, template or {})
+    except Exception:
+        raw_skus = product_edit.get("aeopAeProductSKUs")
+        if isinstance(raw_skus, str):
+            try:
+                raw_skus = _j.loads(raw_skus)
+            except Exception:
+                raw_skus = []
+        skus = raw_skus if isinstance(raw_skus, list) else []
     ai_skus = p.get("skus") or []
 
     # 模板首个 SKU：变种主题 / 物流属性 / 原箱等站点必填项都从它沿用

@@ -1377,7 +1377,14 @@ class Publisher:
             _msg = f"成功 {done} / 失败 {failed} / 跳过 {skipped}"
             if _errs:
                 _msg += " · " + "；".join(_errs[:3])
-            add_step(res, "传店小秘相册", failed == 0 and done > 0, _msg)
+            # 店小秘 getSign 接口已不可用（统一返回「上传失败，参数缺失！」）：
+            # 这不是致命错误，图片本来就已经在图床上，商品照常保存。
+            _all_param_missing = bool(_errs) and all("参数缺失" in e for e in _errs)
+            if _all_param_missing:
+                add_step(res, "传店小秘相册", True,
+                         f"{_msg}（店小秘上传接口已停用，图片沿用图床地址，不影响保存）")
+            else:
+                add_step(res, "传店小秘相册", failed == 0 and done > 0, _msg)
         return p
 
     def _publicize_images(self, p: dict, res, dry_run: bool = False) -> dict:
@@ -2083,6 +2090,24 @@ class Publisher:
             if is_audit_pending(_msg):
                 add_step(res, "API 直存", True, "商品在审核中，本次跳过保存（不是失败）")
                 return SaveResult(ok=True, message="商品在审核中，已跳过保存")
+            # 发布模式（op=2）被拒时降级为「保存」（op=1）：商品先落到待发布，
+            # 用户可在店小秘里手动发布。常见于 SKU 缺速卖通侧信息
+            # （isv.13CHK_SKU_FREIGHT_TEMPLATE_NULL）。
+            if action == "publish":
+                try:
+                    _fallback = dict(payload)
+                    _fallback["op"] = 1
+                    resp2 = self.dxm.save_product_via_api(_fallback)
+                    _c2 = resp2.get("code") if isinstance(resp2, dict) else None
+                    _m2 = str((resp2.get("data") or {}).get("msg") if isinstance(resp2.get("data"), dict)
+                              else resp2.get("msg") or "")
+                    if _c2 == 0 and not is_failure_msg(_m2):
+                        add_step(res, "API 直存", True,
+                                 f"发布被拒（{_msg[:80]}），已改为保存到「待发布」，请在店小秘手动发布")
+                        return SaveResult(ok=True, published=False,
+                                          message="已保存到待发布（发布被拒，请手动发布）")
+                except Exception:
+                    pass
             add_step(res, "API 直存", False, f"保存失败：{_msg[:200]}")
             return SaveResult(ok=False, message=f"保存失败：{_msg}")
 
