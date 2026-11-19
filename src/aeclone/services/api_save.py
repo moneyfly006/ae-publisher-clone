@@ -27,6 +27,11 @@ SYSTEM_ATTR_NAMES = {
     "Model Number": "型号",
     "Condition": "成色",
     "Certification": "认证",
+    # 店小秘把部分类目属性按英文名做重名检查（报 catProperty:Product Attr），
+    # 采集属性里的 "Weight" 会撞上系统属性 "Product Attr" 的英文名。
+    "Weight": "重量",
+    "Product Attr": "产品属性",
+    "Product Attribute": "产品属性",
 }
 
 # payload 里与 edit.json 一一对应的字段
