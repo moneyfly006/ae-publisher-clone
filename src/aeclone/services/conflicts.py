@@ -92,7 +92,9 @@ def check(cfg) -> list[Conflict]:
                 ("custom_detail_text_enable",))
 
     # ---------- SKU 前缀 ----------
-    if _b(cfg, "custom_sku_prefix_enable") and not _s(cfg, "custom_sku_prefix"):
+    # 开了「自动生成编码」时，前缀为空也会生成 SKU-001，不算冲突
+    if (_b(cfg, "custom_sku_prefix_enable") and not _s(cfg, "custom_sku_prefix")
+            and not _b(cfg, "auto_generate_sku_code")):
         add("warn", "「自定义 SKU 前缀」已开启但前缀为空",
             "custom_sku_prefix 为空，生成规则会退化成直接拼分隔符",
             "填一个前缀（如 MY-），或关掉该开关",

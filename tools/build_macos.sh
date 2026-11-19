@@ -51,6 +51,9 @@ fi
 # 4) 清理旧产物并打包
 rm -rf build/app dist/AuroraList
 echo "== 开始打包（约 3~5 分钟）"
+# 打包前把当前机器的配置固化为默认值（排除 API Key / Cookie / 店铺等）
+python tools/export_preset.py || echo "（跳过预设导出：本机还没有 config.json）"
+
 pyinstaller app.spec --noconfirm --log-level WARN
 
 # 5) 验证产物

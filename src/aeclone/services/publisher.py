@@ -149,8 +149,11 @@ class Publisher:
         stock = getattr(self.cfg, "stock_quantity", "") or ""
         for i, sku in enumerate(p.get("skus") or [], 1):
             name = str(sku.get("sku") or sku.get("name") or "").strip()
-            if prefix and not name.startswith(prefix) and not only_prefix:
-                name = f"{prefix}{split_ch}{name}" if name else f"{prefix}{split_ch}{i}"
+            if prefix and only_prefix:
+                # 「只用前缀」= 不保留原 SKU 名，直接 前缀-序号
+                name = f"{prefix}{split_ch}{i:03d}"
+            elif prefix and not name.startswith(prefix):
+                name = f"{prefix}{split_ch}{name}" if name else f"{prefix}{split_ch}{i:03d}"
             if getattr(self.cfg, "auto_generate_sku_code", False):
                 name = f"{prefix}{split_ch}{i:03d}" if prefix else f"SKU{split_ch}{i:03d}"
             sku["sku"] = name

@@ -4525,7 +4525,58 @@ class App:
     def _p_price(self):
         from ..services.pricing import compute_price, tiers_to_rows, rows_to_tiers
         self._current = 6
-        view = self._render("价格设置", schema_price())
+
+        # ---------- 计算方式（店小秘风格：先选算法，再填参数）----------
+        self.mode_formula = ft.Text("", size=11, color=ACCENT_2, selectable=True)
+
+        def _mode_hint(m: str) -> str:
+            return {
+                "multiplier": "售价 = 商品成本 × 价格倍率 + 固定加价",
+                "free_shipping": "售价 = (商品成本 + 默认运费) × (1 + 期望利润%)",
+                "commission": "售价 = (成本 + 固定加价) × 倍率 × (1+利润%) ÷ (1−平台佣金%)",
+            }.get(m, "")
+
+        def _save_mode(e):
+            self.cfg.set("price_mode", e.control.value or "multiplier")
+            save_config(self.cfg)
+            self.mode_formula.value = _mode_hint(e.control.value or "multiplier")
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        self.price_mode_dd = ft.Dropdown(
+            label="价格模式", width=330, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "price_mode", "multiplier") or "multiplier"),
+            options=[ft.dropdown.Option(k, OPTION_LABELS[k]) for k in
+                     ("multiplier", "free_shipping", "commission")],
+            on_change=_save_mode)
+        self.mode_formula.value = _mode_hint(str(getattr(self.cfg, "price_mode", "multiplier")))
+
+        def _param(key, label, width=150, hint=""):
+            ctl = ft.TextField(label=label, width=width, bgcolor=CARD_2, border_color=CARD_2,
+                               color=TEXT, value=str(getattr(self.cfg, key, "") or ""), tooltip=hint)
+            def on(e, _k=key):
+                self.cfg.set(_k, str(e.control.value or "").strip())
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
+        self.p_mult = _param("price_multiplier", "价格倍率（如 2）", 150, "成本 × 倍率")
+        self.p_add = _param("price_fixed_add", "固定加价（元）", 150, "在倍率价格上加一笔")
+        self.p_express = _param("default_express_price", "默认运费（包邮模式）", 180, "包邮模式先把运费算进成本")
+        self.p_commission = _param("platform_commission", "平台佣金 %", 140, "含佣金模式用")
+        self.p_profit = _param("sales_profit", "期望利润 %", 140, "含佣金/包邮模式用")
+        self.p_cost_default = _param("goods_cost", "默认商品成本（元）", 170, "试算默认值，可留 0")
+
+        mode_card = card(ft.Column([
+            h1("计算方式", 15),
+            muted("先选算法，再填这一算法用得到的参数；没填的参数不会影响结果"),
+            ft.Row([self.price_mode_dd, self.mode_formula], spacing=14,
+                   vertical_alignment=ft.CrossAxisAlignment.CENTER, wrap=True),
+            ft.Row([self.p_mult, self.p_add, self.p_express], spacing=12, wrap=True),
+            ft.Row([self.p_commission, self.p_profit, self.p_cost_default], spacing=12, wrap=True),
+        ], spacing=10))
 
         # ---- 试算 ----
         try:
@@ -4541,9 +4592,20 @@ class App:
             try:
                 base = float(self.base_input.value or 0)
                 r = compute_price(self.cfg, base)
+                try:
+                    _cr = float(getattr(self.cfg, "platform_commission", 0) or 0) / 100.0
+                except Exception:
+                    _cr = 0.0
+                try:
+                    _ex = float(getattr(self.cfg, "default_express_price", 0) or 0)
+                except Exception:
+                    _ex = 0.0
+                _fee = round(r.final * _cr, 2)
+                _net = round(r.final - base - _fee - _ex, 2)
                 lines = [f"成本 ¥{base:.2f} → 售价 ¥{r.final:.2f}",
                          f"模式：{r.note or r.mode}"
-                         + (f" · 阶梯倍率 {r.tier_multiplier:g}" if r.tier_multiplier else "")]
+                         + (f" · 阶梯倍率 {r.tier_multiplier:g}" if r.tier_multiplier else ""),
+                         f"平台佣金 ¥{_fee:.2f} · 运费 ¥{_ex:.2f} · 净利润 ¥{_net:.2f}"]
                 if r.regional:
                     lines.append("区域价：" + " · ".join(f"{k} {v:.2f}" for k, v in list(r.regional.items())[:6]))
                 if r.wholesale:
@@ -4563,7 +4625,13 @@ class App:
             h1("价格试算", 15),
             muted("用的就是刊登时同一套算法（模式 → 阶梯 → 区域 → 批发）"),
             ft.Row([self.base_input, ft.ElevatedButton("计算", icon=ft.Icons.CALCULATE, bgcolor=ACCENT,
-                                                       color="white", on_click=calc)], spacing=10),
+                                                       color="white", on_click=calc),
+                    ft.TextField(label="平台佣金 %（试算）", width=160, bgcolor=CARD_2,
+                                 border_color=CARD_2, color=TEXT,
+                                 value=str(getattr(self.cfg, "platform_commission", "0") or "0"),
+                                 on_change=lambda e: (self.cfg.set("platform_commission",
+                                                                   str(e.control.value or "0")), save_config(self.cfg)))],
+                   spacing=10, wrap=True),
             self.price_out, self.price_break,
         ], spacing=8))
 
@@ -4645,8 +4713,12 @@ class App:
 
         tier_render()
         tier_card = card(ft.Column([
-            h1("阶梯倍率（内部计价）", 15),
-            muted("按成本落在哪一档，就用该档倍率（成本 × 倍率 + 固定加价）；这是本地计价，不是平台阶梯价"),
+            h1("阶梯倍率（按成本区间）", 15),
+            muted("勾选后：成本落在哪一档就用该档倍率，会覆盖上面的「价格倍率」"),
+            ft.Switch(label="启用阶梯倍率", value=bool(getattr(self.cfg, "tuoguan_price_tiered_enabled", False)),
+                      active_color=ACCENT,
+                      on_change=lambda e: (self.cfg.set("tuoguan_price_tiered_enabled", bool(e.control.value)),
+                                           save_config(self.cfg), calc())),
             ft.Row([ft.ElevatedButton("添加一档", icon=ft.Icons.ADD, bgcolor=ACCENT, color="white", on_click=tier_add),
                     ft.OutlinedButton("套用示例（3 档）", icon=ft.Icons.AUTO_AWESOME, on_click=tier_template)],
                    spacing=10, wrap=True),
@@ -4850,7 +4922,7 @@ class App:
                                            ft.OutlinedButton("删除", on_click=lib_del)], spacing=10, wrap=True)],
                                  spacing=8))
 
-        return [view[0], calc_card, tier_card, reg_card, tpl_card, ws_card, lib_card] + view[1:]
+        return [h1("价格设置"), mode_card, calc_card, tier_card, ws_card, reg_card, tpl_card, lib_card]
 
     def _search_templates(self):
         try:
@@ -4895,27 +4967,107 @@ class App:
             pass
 
     def _p_variant(self):
+        """变种设置：按店小秘的方式展示——编码规则 / 库存 / 属性映射 / 价格来源。"""
         self._current = 7
-        # SKU 编码写回开关（多 SKU 时是硬约束：关了才能继续）
-        sku_write_cb = ft.Checkbox(
-            label="SKU 编码写回商品（多 SKU 商品需要先关掉才能继续）",
-            value=bool(getattr(self.cfg, "write_sku_codes_to_product", True)))
+        # 写回永远开启（不再给开关）
+        try:
+            if not bool(getattr(self.cfg, "write_sku_codes_to_product", True)):
+                self.cfg.set("write_sku_codes_to_product", True)
+                save_config(self.cfg)
+        except Exception:
+            pass
 
-        def on_sku_write(e):
-            self.cfg.set("write_sku_codes_to_product", bool(sku_write_cb.value))
-            save_config(self.cfg)
-            self._log(f"SKU 编码写回：{'开' if sku_write_cb.value else '关'}")
+        self.sku_preview = ft.Text("", size=12, color=ACCENT_2, selectable=True)
 
-        sku_write_cb.on_change = on_sku_write
-        write_card = card(ft.Column([
-            h1("SKU 写回", 15),
-            sku_write_cb,
-            muted("产品有多于 1 个 SKU 时，编辑器行身份还无法可靠匹配；"
-                  "先关掉这个开关即可继续上架（编码不写回，价格/库存照常）。"),
+        def _refresh_preview(e=None):
+            pre = str(getattr(self.cfg, "custom_sku_prefix", "") or "").strip()
+            ch = str(getattr(self.cfg, "sku_split_char", "-") or "-")
+            gen = bool(getattr(self.cfg, "auto_generate_sku_code", False))
+            only = bool(getattr(self.cfg, "only_sku_prefix_checkbox", False))
+            on = bool(getattr(self.cfg, "custom_sku_prefix_enable", True))
+            if not on or not pre:
+                sample = "SKU-001" if gen else "沿用采集到的 SKU 编码"
+            elif only:
+                sample = f"{pre}{ch}001"
+            elif gen:
+                sample = f"{pre}{ch}001"
+            else:
+                sample = f"{pre}{ch}RED-M"
+            self.sku_preview.value = f"编码示例：{sample}"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def _sw(key, label, tip=""):
+            c = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)),
+                          active_color=ACCENT, tooltip=tip or None)
+
+            def on(e, _k=key):
+                self.cfg.set(_k, bool(e.control.value))
+                save_config(self.cfg)
+                _refresh_preview()
+            c.on_change = on
+            return c
+
+        def _tf(key, label, width=200, tip=""):
+            c = ft.TextField(label=label, width=width, bgcolor=CARD_2, border_color=CARD_2,
+                             color=TEXT, value=str(getattr(self.cfg, key, "") or ""),
+                             tooltip=tip or None)
+
+            def on(e, _k=key):
+                self.cfg.set(_k, str(e.control.value or "").strip())
+                save_config(self.cfg)
+                _refresh_preview()
+            c.on_change = on
+            return c
+
+        code_card = card(ft.Column([
+            h1("SKU 编码规则", 15),
+            muted("店小秘同款：前缀 + 分隔符 + 序号/原编码；下面的示例就是最终提交的编码"),
+            ft.Row([_sw("custom_sku_prefix_enable", "启用自定义前缀"),
+                    _tf("custom_sku_prefix", "前缀", 150, "例如 MY"),
+                    _tf("sku_split_char", "分隔符", 90, "默认 -")], spacing=12, wrap=True),
+            ft.Row([_sw("auto_generate_sku_code", "自动生成编码（前缀-001）"),
+                    _sw("only_sku_prefix_checkbox", "只用前缀（丢掉原编码）")], spacing=12, wrap=True),
+            self.sku_preview,
+        ], spacing=10))
+
+        self.stock_tf = _tf("stock_quantity", "库存数量", 150, "所有 SKU 统一用这个库存")
+        self.stock_tf.keyboard_type = ft.KeyboardType.NUMBER
+        stock_card = card(ft.Column([
+            h1("库存", 15),
+            muted("所有变种统一库存；不填则保留采集到的库存"),
+            ft.Row([self.stock_tf], spacing=12, wrap=True),
         ], spacing=8))
 
-        view = self._render("变种设置", schema_variant())
-        return [view[0], write_card] + view[1:]
+        attr_card = card(ft.Column([
+            h1("变种属性", 15),
+            muted("属性来自采集数据，软件按名称自动对齐到站点的变种属性（Color / Size 等）"),
+            ft.Column([
+                ft.Text("· 名称完全一致 → 直接对齐", size=11, color=TEXT),
+                ft.Text("· 包含关系（如 “Color” ↔ “Colour”）→ 视为同一属性", size=11, color=TEXT),
+                ft.Text("· 相似度 ≥ 50% → 自动映射；低于 50% 保留原值并在日志提示", size=11, color=TEXT),
+            ], spacing=2),
+            muted("多 SKU 商品的变种会在提交时逐个校验，缺属性会在日志里点名"),
+        ], spacing=8))
+
+        try:
+            from ..services.pricing import compute_price
+            _r = compute_price(self.cfg, float(getattr(self.cfg, "goods_cost", 0) or 100) or 100)
+            _price_line = f"当前模式：{OPTION_LABELS.get(str(self.cfg.price_mode), self.cfg.price_mode)} → 成本 100 试算 ¥{_r.final:.2f}"
+        except Exception:
+            _price_line = "价格由「价格设置」统一计算"
+        price_card = card(ft.Column([
+            h1("变种价格", 15),
+            muted("所有变种共用同一套价格算法（不在这里单独定价）"),
+            ft.Text(_price_line, size=12, color=ACCENT_2, selectable=True),
+            ft.TextButton("去价格设置", icon=ft.Icons.ARROW_FORWARD,
+                          on_click=lambda e: self._switch(6)),
+        ], spacing=8))
+
+        _refresh_preview()
+        return [h1("变种设置"), code_card, stock_card, attr_card, price_card]
 
     def _p_workbench(self):
         self._current = 9

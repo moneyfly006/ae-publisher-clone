@@ -497,6 +497,45 @@ _lock = threading.Lock()
 _cache: AppConfig | None = None
 
 
+def _preset_path() -> Path | None:
+    """随包发布的默认配置（assets/preset_defaults.json）。"""
+    import sys
+    cands = []
+    mei = getattr(sys, "_MEIPASS", "")
+    if mei:
+        cands.append(Path(mei) / "assets" / "preset_defaults.json")
+    cands.append(Path(__file__).resolve().parents[2] / "assets" / "preset_defaults.json")
+    exe = getattr(sys, "executable", "")
+    if exe:
+        cands.append(Path(exe).parent / "assets" / "preset_defaults.json")
+        cands.append(Path(exe).parent.parent / "assets" / "preset_defaults.json")
+    for c in cands:
+        try:
+            if c.is_file():
+                return c
+        except Exception:
+            continue
+    return None
+
+
+def _apply_preset_defaults() -> None:
+    """把打包默认值合并进 DEFAULTS；用户自己的 config.json 仍然优先。"""
+    p = _preset_path()
+    if not p:
+        return
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if k in DEFAULTS:
+                DEFAULTS[k] = v
+
+
+_apply_preset_defaults()
+
+
 def get_config() -> AppConfig:
     global _cache
     with _lock:
