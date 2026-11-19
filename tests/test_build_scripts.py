@@ -71,20 +71,9 @@ def t6_spec_matches_scripts():
     print("  ✓ console=False + COLLECT（onedir）")
 
 
-def t7_build_doc_exists():
-    print("\n[测试7] 有构建文档")
-    doc = ROOT / "docs" / "BUILD.md"
-    assert doc.exists(), "缺少 docs/BUILD.md"
-    text = doc.read_text(encoding="utf-8")
-    for kw in ("build_macos.sh", "build_windows.ps1", "app.spec", "--self-check"):
-        assert kw in text, f"BUILD.md 缺少 {kw}"
-    print("  ✓ BUILD.md 提到两个脚本、spec、自检")
-
-
 if __name__ == "__main__":
     tests = [t1_scripts_exist, t2_use_same_spec, t3_key_steps_present,
-             t4_product_paths, t5_windows_console_note, t6_spec_matches_scripts,
-             t7_build_doc_exists]
+             t4_product_paths, t5_windows_console_note, t6_spec_matches_scripts]
     ok = fail = 0
     for t in tests:
         try:

@@ -102,6 +102,20 @@ jobs:
           name: AuroraList ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}
           draft: false
           prerelease: false
+          body: |
+            ## What's new
+
+            - **Hardened build** — core modules are compiled to native code (Nuitka); no Python bytecode for the license/publisher/payload logic.
+            - **Core-layer license enforcement** — ECDSA voucher verification happens inside `Publisher.run`, so patching UI flags no longer bypasses the license.
+            - **Fixed: publish-failed scanner** — the store list API returns stale state; the scanner now verifies each candidate through the product-detail API.
+            - **UI** — redesigned "Tasks & Logs" page (software) and a cleaner, denser admin user-detail layout (website).
+            - **Cleanup** — removed unused config keys, dead methods and unused imports.
+
+            ## Downloads
+
+            - macOS (Apple Silicon): `AuroraList-macos-arm64.zip`
+            - Windows portable: `AuroraList-windows-x64.zip`
+            - Windows installer: `AuroraList-Setup-<version>.exe`
           files: |
             artifacts/**/AuroraList-*.zip
         env:

@@ -70,4 +70,3 @@ jobs:
           files: |
             dist/AuroraList-windows.zip
             dist/AuroraList-Setup-*.exe
-          generate_release_notes: true

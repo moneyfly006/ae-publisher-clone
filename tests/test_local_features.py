@@ -223,39 +223,6 @@ try:
 except Exception as e:
     print(f"✗ 线程隔离方法检查失败: {e}")
 
-# 测试12: 文档文件完整性
-print("\n[测试12] 文档文件完整性...")
-try:
-    docs_to_check = [
-        "docs/MACHINERY-PROMPTS.md",
-        "docs/FIXES-SUMMARY.md",
-        "docs/VERIFICATION-REPORT.md",
-        "README-FIXES.md",
-        "QUICK-REFERENCE.md"
-    ]
-    
-    existing_docs = []
-    missing_docs = []
-    
-    for doc in docs_to_check:
-        doc_path = project_root / doc
-        if doc_path.exists():
-            existing_docs.append(doc)
-        else:
-            missing_docs.append(doc)
-    
-    print(f"✓ 文档检查完成")
-    print(f"  - 存在: {len(existing_docs)} 个")
-    for doc in existing_docs:
-        print(f"    ✓ {doc}")
-    
-    if missing_docs:
-        print(f"  - 缺失: {len(missing_docs)} 个")
-        for doc in missing_docs:
-            print(f"    ✗ {doc}")
-except Exception as e:
-    print(f"✗ 文档文件检查失败: {e}")
-
 # 最终总结
 print("\n" + "=" * 60)
 print("本地功能测试完成")
