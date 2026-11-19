@@ -891,22 +891,31 @@ class App:
         self.ready_conflict = ft.Text("", size=12, color=MUTED)
 
         def _ready_row(icon, label, ctrl):
-            return ft.Row([ft.Icon(icon, size=16, color=MUTED),
-                           ft.Text(label, size=13, color=TEXT),
-                           ctrl], spacing=8, expand=True)
+            # 两列网格：概览页不被这一块撑太长
+            return ft.Container(width=330, content=ft.Row(
+                [ft.Icon(icon, size=16, color=MUTED),
+                 ft.Text(label, size=13, color=TEXT),
+                 ctrl], spacing=8))
 
         ready_card = card(ft.Column([
             h1("准备状态", 15),
             muted("都变绿就能一键启动；红色项点击可直接去对应页修复"),
-            _ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie),
-            _ready_row(ft.Icons.COPY_OUTLINED, "模板商品", self.ready_tpl),
-            _ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
-            _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth),
-            ft.Row([ft.Icon(ft.Icons.RULE, size=16, color=MUTED),
-                    ft.Text("配置冲突", size=13, color=TEXT),
-                    self.ready_conflict,
-                    ft.TextButton("检查", on_click=lambda e: self._check_conflicts())],
-                   spacing=8, expand=True),
+            ft.Row([
+                _ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie),
+                _ready_row(ft.Icons.COPY_OUTLINED, "模板商品", self.ready_tpl),
+            ], spacing=16, wrap=True, run_spacing=8),
+            ft.Row([
+                _ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
+                _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth),
+            ], spacing=16, wrap=True, run_spacing=8),
+            ft.Row([
+                ft.Container(width=330, content=ft.Row(
+                    [ft.Icon(ft.Icons.RULE, size=16, color=MUTED),
+                     ft.Text("配置冲突", size=13, color=TEXT),
+                     self.ready_conflict], spacing=8)),
+                ft.TextButton("检查配置冲突", icon=ft.Icons.RULE,
+                              on_click=lambda e: self._check_conflicts()),
+            ], spacing=16, wrap=True),
         ], spacing=8))
 
         def _refresh_ready():
@@ -1007,7 +1016,6 @@ class App:
                   if c is not None]
         return [h1("概览"), muted("采集箱 → AI 处理 → 保存 / 发布，一次点击跑完"),
                 tiles_row, filter_card, ready_card,
-                *_extra,
                 card(ft.Row([
                     ft.Column([muted("今日任务", 11),
                                ft.Text(str(st["runs"]), size=18, color=TEXT,
@@ -1019,6 +1027,7 @@ class App:
                                ft.Text(str(st["failed"]), size=18, color="#FF8A8A",
                                        weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
                 ], spacing=24, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=20),
+                *_extra,
                 ft.Row([svc("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT,
                             sub="自建站点 · 按量计费"),
                         auth_card,
@@ -3594,15 +3603,6 @@ class App:
             h1("发布设置", 15),
             muted("视频来源、相册清理等与刊登相关的开关"),
             ft.Row([self.video_src_dd, self.video_path_tf], spacing=12, wrap=True),
-            ft.Row([
-                    ft.TextField(label="清理 N 天前的", width=140,
-                                 value=str(getattr(self.cfg, "album_auto_clean_days", 7)),
-                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                 on_change=lambda e: (self.cfg.set("album_auto_clean_days",
-                                                                  str(e.control.value or "7")),
-                                                      save_config(self.cfg)))],
-                   spacing=14, wrap=True),
-            muted("「自动清理」只删「N 天前上传且没有被任何商品引用」的图片，已被引用的不会动。"),
             ft.Row([self._edited_count_text(), ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
                                                               on_click=lambda e: self._clear_edited()),
                     ft.ElevatedButton("重跑上次失败的商品", icon=ft.Icons.REPLAY,
