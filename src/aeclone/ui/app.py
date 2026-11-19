@@ -882,7 +882,6 @@ class App:
         self.ready_tpl = ft.Text("检测中…", size=12, color=MUTED)
         self.ready_api = ft.Text("检测中…", size=12, color=MUTED)
         self.ready_auth = ft.Text("检测中…", size=12, color=MUTED)
-        self.ready_balance = ft.Text("", size=12, color=MUTED)
         self.ready_conflict = ft.Text("", size=12, color=MUTED)
 
         def _ready_row(icon, label, ctrl):
@@ -896,7 +895,6 @@ class App:
             _ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie),
             _ready_row(ft.Icons.COPY_OUTLINED, "模板商品", self.ready_tpl),
             _ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
-            _ready_row(ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED, "API 余额", self.ready_balance),
             _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth),
             ft.Row([ft.Icon(ft.Icons.RULE, size=16, color=MUTED),
                     ft.Text("配置冲突", size=13, color=TEXT),
@@ -1003,7 +1001,7 @@ class App:
                                                 weight=ft.FontWeight.BOLD),
                             ft.Icons.BOLT_OUTLINED, "#FFB020",
                             sub="AI 出图 · 图床托管")],
-                       spacing=12, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
+                       spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 ]
 
     # ---------- 概览的状态刷新（ISSUES #8 / #9）----------
@@ -4526,13 +4524,28 @@ class App:
             fs = [f for f in fields if f.key in simple_keys]
             if fs:
                 simple.append((name, fs))
+        def _range_tf(key, label, width=190):
+            ctl = ft.TextField(label=label, width=width, bgcolor=CARD_2, border_color=CARD_2,
+                               color=TEXT, hint_text="1-3,5（空=全部）",
+                               value=str(getattr(self.cfg, key, "") or ""))
+
+            def on(e, _k=key):
+                self.cfg.set(_k, str(e.control.value or "").strip())
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
         simple_tab = ft.Column([
             add_section("主图 / 详情图 / SKU 图：白底 · 去水印 · 翻译", simple, expanded=True),
             card(ft.Column([
                 muted("勾选后按「范围」处理；范围写法 1-3,5 或留空=全部。", 11),
                 ft.Row([sw("translate_image_understanding", "AI 判断图片是否需要翻译"),
-                        sw("img_sku_edit", "SKU 图也做精细编辑")], spacing=16, wrap=True),
-            ], spacing=6)),
+                        _range_tf("translate_main_pic_indices", "主图翻译范围")],
+                       spacing=16, wrap=True),
+                ft.Row([sw("img_sku_edit", "SKU 图也做精细编辑"),
+                        _range_tf("white_background_sku_pic_indices", "SKU 图范围")],
+                       spacing=16, wrap=True),
+            ], spacing=8)),
         ], spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
 
         # ---- 精细化编辑：主图 / 详情图 / SKU（逐条：位置+提示词+参考图）----
@@ -6592,7 +6605,8 @@ class App:
             spacing=8))
         threading.Thread(target=self._load_prices, daemon=True).start()
 
-        return [lic_card, api_card, host_card, model_card, inst_card, upd, diag_card, price_card]
+        # 版本更新放最前面，方便找
+        return [upd, lic_card, api_card, host_card, model_card, inst_card, diag_card, price_card]
 
     def _price_of(self, model: str) -> float:
         try:

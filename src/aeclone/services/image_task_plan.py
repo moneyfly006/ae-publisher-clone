@@ -228,6 +228,18 @@ def detect_conflicts(cfg) -> list[dict]:
             "fix": "确认四合一插入位置（第1张/末尾）符合预期。",
         })
 
+    # 6.5) SKU 图：简单编辑（白底/去水印/编辑）与精细化 SKU 编辑会处理同一批图
+    _sku_simple = [k for k in ("img_sku_white_bg", "img_sku_remove_wm", "img_sku_edit")
+                   if getattr(cfg, k, False)]
+    if _enabled_group.get("sku") and _sku_simple:
+        out.append({
+            "level": "mid",
+            "title": "SKU 图被两处同时处理",
+            "detail": ("简单编辑里的 " + "、".join(_sku_simple) +
+                       " 与「精细化编辑 → SKU」都会处理同一批 SKU 图，可能互相覆盖。"),
+            "fix": "二选一：要么关掉精细化编辑的 SKU 分组，要么关掉简单编辑里的 SKU 开关。",
+        })
+
     # 7) 精细化编辑里有提示词为空的条目
     empty_jobs = [x for x in _active_jobs if not (x.get("prompt") or "").strip()]
     if empty_jobs:
