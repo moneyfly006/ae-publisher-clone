@@ -124,17 +124,8 @@ def check(cfg) -> list[Conflict]:
             "至少开一个审查项，或关掉「不合规时拦截发布」",
             ("review_block_on_fail",))
 
-    # ---------- 图床/相册：接口已停用 ----------
-    if _b(cfg, "prefer_dianxiaomi_album"):
-        add("warn", "「出图直传店小秘相册」依赖的上传接口已停用",
-            "店小秘 getSign 接口对当前账号统一返回「上传失败，参数缺失！」",
-            "关掉「AI 出图直接传店小秘图片空间」，图片会走图床，不影响保存",
-            ("prefer_dianxiaomi_album",))
-    if _b(cfg, "album_auto_clean_enable"):
-        add("warn", "「刊登后自动清理相册」接口不可用",
-            "店小秘「自动清理未引用图片」接口返回「功能暂未开放」",
-            "关掉它，改用「图片工作台 → 清理旧图」手动清理",
-            ("album_auto_clean_enable",))
+    # 说明：店小秘的相册上传 / 自动清理接口已停用，程序会自动跳过，
+    # 图片统一走图床，不再对用户提示（避免每次启动一条无意义 WARN）。
 
     # ---------- 价格 ----------
     if _b(cfg, "write_price_to_product"):
