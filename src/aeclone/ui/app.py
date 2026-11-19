@@ -972,6 +972,40 @@ class App:
                 ]
 
     # ---------- 概览的状态刷新（ISSUES #8 / #9）----------
+    def _zoom_img(self, src, w: int = 70, h: int = 70, label: str = "", radius: int = 6):
+        """缩略图 + 点击放大。没有图时显示占位图标。"""
+        s0 = str(src or "").strip()
+        if not s0:
+            return ft.Container(
+                width=w, height=h, border_radius=radius, bgcolor=CARD_2,
+                alignment=ft.alignment.center,
+                content=ft.Text(label or "无图", size=9, color=MUTED))
+        img = ft.Image(src=s0, width=w, height=h, fit=ft.ImageFit.COVER,
+                       error_content=ft.Text(label or "加载失败", size=9, color=MUTED))
+
+        def open_big(e):
+            big = ft.Image(src=s0, fit=ft.ImageFit.CONTAIN, width=760, height=560)
+            dlg = ft.AlertDialog(
+                title=ft.Text(label or "图片预览"),
+                content=ft.Container(content=big, width=780, height=580,
+                                     alignment=ft.alignment.center),
+                actions=[ft.TextButton("打开原图", on_click=lambda ev: self._open_url(s0)),
+                         ft.TextButton("关闭", on_click=lambda ev: self._close_dlg(dlg))],
+            )
+            self._show_dlg(dlg)
+
+        return ft.Container(width=w, height=h, border_radius=radius, bgcolor=CARD_2,
+                            clip_behavior=ft.ClipBehavior.HARD_EDGE, content=img,
+                            on_click=open_big, ink=True,
+                            tooltip="点击放大")
+
+    def _open_url(self, url: str):
+        try:
+            import webbrowser
+            webbrowser.open(str(url))
+        except Exception:
+            self.toast("无法打开链接", False)
+
     def _diff_card(self):
         """改前后对比预览（标题 / 主图 / 详情长度）。"""
         try:
@@ -990,11 +1024,9 @@ class App:
             bi = (b.get("images") or [""])[0]
             ai = (a2.get("images") or [""])[0]
             bd, ad = len(str(b.get("detail") or "")), len(str(a2.get("detail") or ""))
-            thumbs = ft.Row([ft.Image(src=bi, width=70, height=70, fit=ft.ImageFit.COVER,
-                                      error_content=ft.Text("改前", size=9, color=MUTED)),
+            thumbs = ft.Row([self._zoom_img(bi, 70, 70, "改前"),
                              ft.Icon(ft.Icons.ARROW_FORWARD, size=14, color=MUTED),
-                             ft.Image(src=ai, width=70, height=70, fit=ft.ImageFit.COVER,
-                                      error_content=ft.Text("改后", size=9, color=MUTED))], spacing=6)
+                             self._zoom_img(ai, 70, 70, "改后")], spacing=6)
             return ft.Column([
                 ft.Text(f"{r.get('id')} · {r.get('title','')[:30]}", size=12, color=TEXT),
                 ft.Row([ft.Text("改前", size=10, color=MUTED, width=30),
@@ -2723,11 +2755,32 @@ class App:
         """先弹窗、后台拉数据，避免网络慢导致界面“卡死”。"""
         state = {"source": source if source in ("draft", "online") else "draft",
                  "kw": "", "data": {}, "totals": {}, "err": ""}
-        list_col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
+        list_col = ft.Column(spacing=2, height=380, scroll=ft.ScrollMode.AUTO)
         search = ft.TextField(hint_text="搜索标题或产品ID（在当前已加载的列表里过滤）", prefix_icon=ft.Icons.SEARCH, dense=True,
                               bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         tab_row = ft.Row(spacing=8)
         status = ft.Text("正在读取模板产品…", size=11, color=MUTED)
+        PAGE = 20
+        state.update({"sort": "new", "page": 1, "filtered": []})
+        sort_dd = ft.Dropdown(
+            value="new", width=150, dense=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            options=[ft.dropdown.Option("new", "最新优先"),
+                     ft.dropdown.Option("old", "最早优先"),
+                     ft.dropdown.Option("az", "标题 A→Z"),
+                     ft.dropdown.Option("za", "标题 Z→A")])
+        page_info = ft.Text("", size=11, color=MUTED)
+        prev_btn = ft.OutlinedButton("上一页", on_click=lambda e: _go(-1))
+        next_btn = ft.OutlinedButton("下一页", on_click=lambda e: _go(1))
+
+        def _go(delta):
+            n = max(1, (len(state.get("filtered") or []) + PAGE - 1) // PAGE)
+            state["page"] = min(max(1, state["page"] + delta), n)
+            render()
+
+        def _on_sort(e):
+            state["sort"] = e.control.value or "new"
+            state["page"] = 1
+            render()
 
         def pick(pid, title, images):
             self.cfg.template_product_id = str(pid)
@@ -2742,29 +2795,39 @@ class App:
             threading.Thread(target=self._read_template, daemon=True).start()
 
         def render():
-            items = (state["data"] or {}).get(state["source"], []) or []
-            # 按商品 ID 降序 = 新刊登的在前（店小秘 ID 单调递增）
-            try:
-                items = sorted(items, key=lambda x: int(str(x.get("id") or 0)), reverse=True)
-            except Exception:
-                pass
+            items = list((state["data"] or {}).get(state["source"], []) or [])
             kw = (state["kw"] or "").strip().lower()
             if kw:
-                items = [x for x in items if kw in (x.get("title") or "").lower() or kw in str(x.get("id"))]
+                items = [x for x in items
+                         if kw in str(x.get("title") or "").lower() or kw in str(x.get("id"))]
+            # 排序
+            mode = state.get("sort") or "new"
+            if mode in ("new", "old"):
+                try:
+                    items.sort(key=lambda x: int(str(x.get("id") or 0)), reverse=(mode == "new"))
+                except Exception:
+                    items.sort(key=lambda x: str(x.get("id") or ""), reverse=(mode == "new"))
+            elif mode in ("az", "za"):
+                items.sort(key=lambda x: str(x.get("title") or "").lower(), reverse=(mode == "za"))
+            state["filtered"] = items
+            total_pages = max(1, (len(items) + PAGE - 1) // PAGE)
+            state["page"] = min(max(1, state["page"]), total_pages)
+            start = (state["page"] - 1) * PAGE
             rows = []
-            for it in items[:120]:
+            for it in items[start:start + PAGE]:
                 imgs = it.get("images") or []
                 thumb = imgs[0] if imgs else None
                 rows.append(ft.ListTile(
-                    leading=ft.Container(width=44, height=44, border_radius=6, bgcolor=CARD_2,
-                                         clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                                         content=ft.Image(src=thumb, fit=ft.ImageFit.COVER) if thumb else
-                                         ft.Icon(ft.Icons.IMAGE_NOT_SUPPORTED, size=18, color=MUTED)),
+                    leading=self._zoom_img(thumb, 44, 44, "模板主图"),
                     title=ft.Text((it.get("title") or it["id"])[:60], size=12, color=TEXT, max_lines=2),
                     subtitle=ft.Text(f"{it['id']} · {it.get('status_type')}", size=10, color=MUTED),
                     dense=True, on_click=lambda e, x=it: pick(x["id"], x.get("title", ""), x.get("images") or []),
                 ))
             list_col.controls = rows or [ft.Text("无匹配结果" if state["data"] else "读取中…", size=12, color=MUTED)]
+            page_info.value = f"第 {state['page']}/{total_pages} 页 · 共 {len(items)} 个"
+            prev_btn.disabled = state["page"] <= 1
+            next_btn.disabled = state["page"] >= total_pages
+            sort_dd.value = mode
             data = state["data"] or {}
             totals = state["totals"] or {}
             tab_row.controls = [
@@ -2787,13 +2850,18 @@ class App:
 
         def on_search(e):
             state["kw"] = e.control.value or ""
+            state["page"] = 1
             render()
 
         search.on_change = on_search
+        sort_dd.on_change = _on_sort
 
         dlg = ft.AlertDialog(
             title=ft.Text("选择模板产品"),
-            content=ft.Column([tab_row, search, status, list_col], spacing=10, width=620),
+            content=ft.Column([tab_row, search,
+                               ft.Row([sort_dd, prev_btn, next_btn, page_info],
+                                      spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                               status, list_col], spacing=10, width=660),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
         )
         self._show_dlg(dlg)
@@ -2872,10 +2940,7 @@ class App:
             for label, val, color in chips], spacing=6, wrap=True)
         return ft.Column([
             ft.Row([
-                ft.Container(width=44, height=44, border_radius=6, bgcolor=CARD_2,
-                             clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                             content=ft.Image(src=thumb, fit=ft.ImageFit.COVER) if thumb else
-                             ft.Icon(ft.Icons.IMAGE_OUTLINED, size=16, color=MUTED)),
+                self._zoom_img(thumb, 44, 44, "模板主图"),
                 ft.Column([ft.Text(title, size=12, color=TEXT, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                            muted(f"模板产品 ID：{self.cfg.template_product_id or '-'}", 10)], spacing=2),
             ], spacing=10),
@@ -4846,6 +4911,7 @@ class App:
         self.wb_rows: list[dict] = []
         self.wb_prod_table = ft.DataTable(
             columns=[ft.DataColumn(ft.Text("选", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("图", size=11, color=MUTED)),
                      ft.DataColumn(ft.Text("产品", size=11, color=MUTED)),
                      ft.DataColumn(ft.Text("状态", size=11, color=MUTED)),
                      ft.DataColumn(ft.Text("图/SKU", size=11, color=MUTED))],
@@ -5038,8 +5104,10 @@ class App:
                     pid = str(it.get("id") or "")
                     cb = ft.Checkbox(value=pid in self.wb_selected,
                                      on_change=lambda e, _p=pid: self._wb_toggle(_p, e.control.value))
+                    _imgs = it.get("images") or []
                     rows.append(ft.DataRow(cells=[
                         ft.DataCell(cb),
+                        ft.DataCell(self._zoom_img(_imgs[0] if _imgs else "", 44, 44, "产品主图")),
                         ft.DataCell(ft.Text((it.get("title") or "")[:48] or pid, size=11, color=TEXT)),
                         ft.DataCell(ft.Text(str(it.get("status") or ""), size=10, color=MUTED)),
                         ft.DataCell(ft.Text(f"{len(it.get('images') or [])}/{len(it.get('skus') or [])}",
@@ -5478,6 +5546,13 @@ class App:
                                   on_click=lambda e: threading.Thread(
                                       target=self._batch_publish_failed, daemon=True).start()),
             ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([
+                ft.TextButton("复制全部日志", icon=ft.Icons.COPY,
+                              tooltip="把当前日志全部复制到剪贴板",
+                              on_click=lambda e: self._copy_logs()),
+                ft.TextButton("清空日志", icon=ft.Icons.CLEAR_ALL,
+                              on_click=lambda e: self._clear_logs_ui()),
+            ], spacing=8, wrap=True),
             ft.Row([self.log_level, self.log_follow], spacing=12,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
             self.log_status,
@@ -5792,6 +5867,32 @@ class App:
     def _on_log_scroll(self, e):
         if not bool(getattr(self.log_follow, "value", True)):
             self._log_scroll_pos = float(getattr(e, "pixels", 0) or 0)
+
+    def _copy_logs(self):
+        text = "\n".join(getattr(self, "logs", []) or [])
+        if not text:
+            self.toast("日志是空的", False)
+            return
+        ok = False
+        try:
+            self.page.set_clipboard(text)
+            ok = True
+        except Exception:
+            try:
+                self.page.clipboard = text   # 兼容老版本 Flet
+                ok = True
+            except Exception:
+                ok = False
+        self.toast((f"已复制 {len(text.splitlines())} 行日志" if ok else "复制失败（剪贴板不可用）"), ok)
+
+    def _clear_logs_ui(self):
+        try:
+            self.log_rows = []
+            self.logs = []
+            self._refresh_log_table()
+        except Exception:
+            pass
+        self.toast("日志已清空", True)
 
     def _refresh_log_table(self):
         # 事件很多时不要每条都重建表格（会把 UI 拖死），0.5 秒合并一次
