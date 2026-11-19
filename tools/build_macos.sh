@@ -41,6 +41,13 @@ PY
 # 3) 打包前静态体检（几秒，能挡掉大部分低级问题）
 python tests/test_packaging_spec.py
 
+# 3.5) Nuitka 加固：把核心模块编译成原生 .so（默认开启，AURORA_HARDEN=0 可关）
+if [ "${AURORA_HARDEN:-1}" = "1" ]; then
+  echo "== Nuitka 加固：编译核心模块（约 5~10 分钟）"
+  trap 'python tools/harden.py --restore >/dev/null 2>&1 || true' EXIT
+  python tools/harden.py
+fi
+
 # 4) 清理旧产物并打包
 rm -rf build/app dist/AuroraList
 echo "== 开始打包（约 3~5 分钟）"

@@ -229,35 +229,96 @@ class DianxiaomiClient:
                 "err": str(p.get("errMsg") or ""),
                 "audit_reason": str(p.get("auditFailureReason") or "")}
 
-    def publish_failed_products(self, shop_id=None, limit: int = 0) -> list[dict]:
-        """返回「发布失败」的商品（含失败原因 errMsg）。
+    def publish_failed_products(self, shop_id=None, limit: int = 0,
+                                max_check: int = 250, workers: int = 6) -> list[dict]:
+        """扫描「发布失败」商品。
 
-        店小秘列表接口里这类商品 status_type 为空，但 raw.dxmOfflineState == 'publishFail'，
-        失败原因在 raw.errMsg。
+        关键：列表接口的 dxmOfflineState 是过期的（永远 publishSuccess），
+        不能直接用它判断。做法：
+          1) 列表初筛：status 为空 / offline / 带 errMsg 的作为候选；
+          2) 逐个查 product_detail，按 productStatusType / errMsg 判定；
+          3) 只返回真正"发布失败"的。
+        候选很多时只查前 max_check 个（默认 250），并用线程池并发，避免太慢。
         """
-        rows = []
+        # 快速路径：能直接按 publishFail 过滤到，就不用逐个查详情
+        try:
+            _it, _m = self.product_page(1, 100, shop_id, "publishFail")
+            if _it:
+                out = [{
+                    "id": str(pr.get("id")),
+                    "title": str(pr.get("title") or ""),
+                    "error": str((pr.get("raw") or {}).get("errMsg") or "发布失败"),
+                    "images": pr.get("images") or [],
+                } for pr in _it]
+                return out[:limit] if limit else out
+        except Exception:
+            pass
+
+        # 1) 列表初筛
+        candidates: list[dict] = []
+        seen: set[str] = set()
         page = 1
-        while True:
+        while page <= 10:
             items, meta = self.product_page(page, 100, shop_id, None)
             if not items:
                 break
             for pr in items:
+                pid = str(pr.get("id") or "")
+                if not pid or pid in seen:
+                    continue
+                st = str(pr.get("status_type") or "")
+                if st in ("onSelling", "auditing", "published", "online"):
+                    continue
                 raw = pr.get("raw") or {}
-                if str(raw.get("dxmOfflineState") or "") == "publishFail" or \
-                        str(raw.get("dxmState") or "") == "offline":
-                    if str(raw.get("dxmState") or "") in ("offline", ""):
-                        rows.append({
-                            "id": str(pr.get("id")),
-                            "title": str(pr.get("title") or ""),
-                            "error": str(raw.get("errMsg") or raw.get("auditFailureReason") or "发布失败"),
-                            "images": pr.get("images") or [],
-                        })
+                err = str(raw.get("errMsg") or "")
+                # 待发布草稿通常是 offline；有 errMsg 的一定要看
+                if st in ("offline", "") or err:
+                    seen.add(pid)
+                    candidates.append(pr)
             total = int((meta or {}).get("total") or 0)
-            if not items or (total and page * 100 >= total):
+            if total and page * 100 >= total:
                 break
             page += 1
-            if page > 10:
-                break
+
+        if not candidates:
+            return []
+
+        todo = candidates[:max_check]
+
+        # 2) 逐个查详情确认
+        def _check(pr: dict):
+            pid = str(pr.get("id") or "")
+            try:
+                d = self._get("product_detail", {"id": pid})
+                p = (d.get("data") or {}).get("product") or {}
+                st = str(p.get("productStatusType") or "")
+                err = str(p.get("errMsg") or p.get("auditFailureReason") or "")
+                if st in ("onSelling", "auditing", "published", "online"):
+                    return None
+                if st == "publishFail" or err:
+                    return {
+                        "id": pid,
+                        "title": str(pr.get("title") or p.get("subject") or ""),
+                        "error": err or "发布失败",
+                        "images": pr.get("images") or [],
+                    }
+            except Exception:
+                return None
+            return None
+
+        rows: list[dict] = []
+        try:
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=max(1, min(workers, 10))) as ex:
+                for r in ex.map(_check, todo):
+                    if r:
+                        rows.append(r)
+        except Exception:
+            for pr in todo:
+                r = _check(pr)
+                if r:
+                    rows.append(r)
+
         if limit:
             rows = rows[:limit]
         return rows

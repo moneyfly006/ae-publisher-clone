@@ -1,4 +1,6 @@
 """Offline behavioral regressions; no customer config or network imports."""
+import os as _os
+_os.environ.setdefault("AURORA_SKIP_LICENSE", "1")
 from copy import deepcopy
 from types import SimpleNamespace
 import unittest

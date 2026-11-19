@@ -122,7 +122,7 @@ def _identity_candidates() -> list[str]:
 
 def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
            version: str = "", identity_override: str = "",
-           public_key_pem: str = "") -> dict:
+           public_key_pem: str = "", store_name: str = "") -> dict:
     """按多种设备标识格式依次校验，任一通过即算授权（向后兼容）。
 
     - identity_override：客户从老软件复制过来的旧授权 ID，优先尝试；
@@ -140,8 +140,11 @@ def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
             "machine_code": identity,
             "client_type": client_type,
             "platform": platform.system(),
+            "os_version": platform.platform(terse=True),
             "machine_name": platform.node(),
             "version": version,
+            "store_name": store_name,
+            "instance": __import__("os").environ.get("AURORA_INSTANCE", "默认") or "默认",
         }
         try:
             r = requests.post(f"{server.rstrip('/')}/api/v1/license/verify", json=payload, timeout=timeout)

@@ -214,11 +214,6 @@ def check(cfg) -> list[Issue]:
                 issues.append(Issue("warn", "主图白底范围不是数字"))
 
     # 属性去重是"删数据"的操作，开了要明确提醒
-    if _truthy(cfg, "auto_clean_dup_attributes", False):
-        issues.append(Issue("warn",
-                            "已开启「保存时清理与系统属性重名的自定义属性」——"
-                            "保存时会删掉这类属性行（默认关）"))
-
     # 多 SKU 硬约束
     try:
         sku_limit = int(_get(cfg, "max_sku_count", 256) or 256)

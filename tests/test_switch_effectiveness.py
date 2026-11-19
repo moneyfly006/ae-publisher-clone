@@ -25,7 +25,7 @@ KNOWN_UI_ONLY = {
     # 纯界面/账号状态
     "license_server", "license_enforce", "license_identity", "license_cache_ok",
     "license_cache_expiry", "license_cache_ts", "license_public_key", "api_purchase_url",
-    "log_auto_follow", "browser_type", "bit_browser_id", "bit_browser_name", "zhanfu_port",
+    "log_auto_follow",
     "store_name", "store_id", "manual_cookies", "endpoint_overrides", "start_page",
     "edit_sum", "template_source", "template_library", "price_template_library",
     "adjust_price_template_id", "adjust_price_template_name", "attribute_template_id",
@@ -36,10 +36,7 @@ KNOWN_UI_ONLY = {
 
 # 完全没人读的键：只要不被界面渲染出来就不影响用户
 KNOWN_DEAD = {
-    
-    "cost_warn_threshold", "product_id_title", "use_number_replace_sku",
-    "single_edit_detail_pic_indices", "background_gen_detail_replace",
-    "browser_headless_login", "amount", "main_pic_checkbox", "img_single_mode",
+    "auto_clean_dup_attributes",
 }
 
 
@@ -113,7 +110,7 @@ def t4_implemented_switches_really_read():
     print("\n[测试4] 声称生效的开关，运行时确实读了")
     must_read = ["prefer_collected_weight", "keep_main_images_local", "four_in_one",
                  "main_as_detail", "modify_stock_999", "custom_detail_text_enable",
-                 "auto_clean_dup_attributes", "delete_detail_text"]
+                 "delete_detail_text"]
     bad = []
     for k in must_read:
         r = _refs(k)

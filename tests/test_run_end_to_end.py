@@ -13,6 +13,8 @@
 包括单元测试发现不了的「某条分支压根没被调用」的问题
 （例如：通用编辑靠 img_general_prompt 触发，rules/jobs 是空的）。
 """
+import os as _os
+_os.environ.setdefault("AURORA_SKIP_LICENSE", "1")
 import json
 import sys
 import tempfile

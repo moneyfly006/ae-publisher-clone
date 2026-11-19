@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .pricing import calc_free_shipping, calc_multiplier, calc_with_commission
+from .pricing import calc_multiplier, calc_with_commission
 from .text_pipeline import TextPipeline
 from .image_pipeline import ImagePipeline
 from .variants import auto_map, check_consistency, limit_skus
@@ -851,9 +851,6 @@ class Publisher:
         p[key] = list(urls)
 
     # 兼容旧名（测试与老调用）
-    def _apply_edit_plans(self, p: dict, res, dry_run: bool = False) -> dict:
-        return self._apply_image_jobs(p, res, dry_run=dry_run)
-
     def _apply_template(self, p: dict, res) -> dict:
         """套用模板快照：类目/运费/属性（属性缺失时用模板的）。"""
         import json as _j
@@ -2038,6 +2035,18 @@ class Publisher:
         return SaveResult(ok=False, message=f"API 直存：{_msg[:200]}")
 
     def run(self, product: dict, dry_run: bool = True, manage_progress: bool = True) -> PublishResult:
+        # ---- 核心层授权校验：改 UI 配置绕不过（必须伪造服务端 ECDSA 签名）----
+        if not dry_run:
+            try:
+                from ..core.guard import require as _require_license
+            except Exception:
+                _require_license = None      # 导入失败不拦截（测试/异常环境）
+            if _require_license is not None:
+                try:
+                    _require_license(self.cfg)
+                except Exception as _le:
+                    return PublishResult(product_id=str(product.get("id", "")), ok=False,
+                                         error=f"授权校验未通过：{_le}")
         res = PublishResult(product_id=str(product.get("id", "")), ok=True)
         # 自动化测试/验收默认不真实保存，避免误改客户商品
         import os as _os

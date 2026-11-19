@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from ..core.proc import popen, run
+from ..core.proc import run
 import tempfile
 from pathlib import Path
 

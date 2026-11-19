@@ -24,10 +24,13 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install -r requirements.txt pyinstaller nuitka
 
       - name: Syntax check
         run: python -m compileall -q src main.py
+
+      - name: Harden (Nuitka compile core modules)
+        run: python tools/harden.py
 
       - name: Build with PyInstaller
         run: pyinstaller --noconfirm --clean app.spec

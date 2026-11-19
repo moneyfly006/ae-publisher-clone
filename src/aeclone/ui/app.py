@@ -17,11 +17,10 @@ from ..api import ApiClient, ApiError
 from ..config import AppConfig, config_dir, get_config, save_config
 from ..license import verify as verify_license
 from ..services import BatchRunner, ImageService, TextService, model_of
-from ..services.pricing import calc_multiplier, calc_free_shipping
-from ..services.variants import auto_map, parse_mapping_json
+from ..services.variants import parse_mapping_json
 from ..services.publisher import Publisher, demo_product
 from ..integrations.dianxiaomi import DianxiaomiClient, ENDPOINTS
-from ..services.video import build_slideshow, generate_carousel_video, probe as video_probe
+from ..services.video import generate_carousel_video, probe as video_probe
 from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
 from ..services import history
@@ -555,25 +554,6 @@ class App:
         if idx == 0:
             self._probe_api_async()      # 概览页用缓存或重测，展示真实状态（ISSUES #9）
 
-    def _implemented_keys(self):
-        if getattr(self, "_impl_keys", None):
-            return self._impl_keys
-        import re as _re, pathlib as _pl
-        root = _pl.Path(__file__).resolve().parents[1]
-        code = ""
-        for py in root.rglob("*.py"):
-            try:
-                code += py.read_text()
-            except Exception:
-                continue
-        from ..config import DEFAULTS
-        keys = set()
-        for k in DEFAULTS:
-            if _re.search(rf"\.{_re.escape(k)}\b", code):
-                keys.add(k)
-        self._impl_keys = keys
-        return keys
-
     def _render(self, title, schemas, extra=None):
         out = [h1(title)]
         self._autosave_status = ft.Text("修改即自动保存", size=11, color=MUTED)
@@ -701,18 +681,6 @@ class App:
         self.page.dialog = dlg
         dlg.open = True
         self._safe_update()
-
-    def _save_row(self):
-        def save(e):
-            for f in self.field_refs:
-                k, v = f.read()
-                self.cfg.set(k, v)
-            save_config(self.cfg)
-            self.toast("配置已保存")
-
-        return ft.Row([ft.ElevatedButton("保存配置", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white", on_click=save),
-                       ft.OutlinedButton("恢复默认", icon=ft.Icons.RESTART_ALT,
-                                         on_click=lambda e: self._reset())], spacing=12)
 
     def _reset(self):
         # 恢复默认前先备份，避免误点丢配置（API Key / 店铺 / 模板）
@@ -1666,6 +1634,14 @@ class App:
                     self._safe_update()
             except Exception:
                 pass
+            # 每轮结束回传日志尾部（后台，失败静默）
+            try:
+                from ..core import report as _rep
+                _rep.report_async(str(getattr(self.cfg, "license_server", "") or ""),
+                                  str(getattr(self, "_report_identity", "") or ""),
+                                  version=__import__("aeclone").__version__)
+            except Exception:
+                pass
 
         try:
             # 先把「这次会做什么」写进日志，出错时能对照
@@ -1834,67 +1810,6 @@ class App:
             self._running = False
             (getattr(self, '_sync_run_button', None) or (lambda: None))()
             hb_stop.set()
-
-    def _self_test(self):
-        from ..services.text_pipeline import TextPipeline
-        from ..services.image_pipeline import ImagePipeline
-        from ..services import ImageService
-        import requests as _rq, tempfile as _tf
-        from pathlib import Path as _P
-
-        rows = []
-        def step(name, fn):
-            t = time.time()
-            try:
-                v = fn(); ok = True; detail = str(v)[:60]
-            except Exception as ex:
-                ok = False; detail = str(ex)[:80]
-            rows.append((name, ok, round(time.time() - t, 1), detail))
-            self._log(f"自检 {name}: {'OK' if ok else 'FAIL'} ({detail})")
-            self._refresh_self_test(rows)
-
-        cfg = self.cfg
-        c = ApiClient(cfg.api_base, cfg.api_key, cfg.timeout)
-        tp = TextPipeline(cfg, c)
-        step("标题生成", lambda: tp.make_title("3 吨迷你蜘蛛吊车 20 米臂长").value[:50])
-        step("详情生成", lambda: tp.make_detail("3-Ton Mini Spider Crane").value[:40])
-        step("SKU 优化", lambda: tp.make_skus(["手机壳适用于iPhone 15 Pro Max"]).value)
-        step("文本审查", lambda: tp.review_text("厂家直销 电话13800000000 限时特惠").value[:30])
-        img = "https://sc04.alicdn.com/kf/H36d2c1e2529d4ab18cab919a38f33e25D.jpg"
-        step("读图估重", lambda: tp.estimate_weight(img, "吊车").value[:40])
-        step("图片审查", lambda: ImagePipeline(cfg, c).review(img, "main")[:40])
-        d = _P(_tf.mkdtemp()) / "a.jpg"
-        d.write_bytes(_rq.get(img, timeout=60).content)
-        svc = ImageService(c, self.cfg)
-        step("白底图", lambda: svc.white_background(d))
-        step("去水印", lambda: svc.remove_watermark(d))
-        ok_n = sum(1 for r in rows if r[1])
-        self._show_test_dialog(rows, ok_n)
-
-    def _refresh_self_test(self, rows):
-        try:
-            self._safe_update()
-        except Exception:
-            pass
-
-    def _show_test_dialog(self, rows, ok_n):
-        items = [ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE,
-                                 size=16, color=ACCENT_2 if ok else "#FF6B6B"),
-                         ft.Text(f"{name}", size=12, color=TEXT, width=90),
-                         ft.Text(f"{sec}s", size=11, color=MUTED, width=50),
-                         ft.Text(detail, size=11, color=MUTED, expand=True)], spacing=8)
-                 for name, ok, sec, detail in rows]
-        dlg = ft.AlertDialog(title=ft.Text(f"自检结果 {ok_n}/{len(rows)} 通过"),
-                             content=ft.Column(items, scroll=ft.ScrollMode.AUTO, height=380, width=620),
-                             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
-        self.page.dialog = dlg; dlg.open = True; self._safe_update()
-
-        self.ov_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
-        self.ov_progress_text = ft.Text("空闲", size=12, color=MUTED)
-        self.ov_recent = ft.Column(spacing=2)
-        prog_card = card(ft.Column([
-            h1("实时进度", 15),
-            self.ov_progress_text, self.ov_progress, self.ov_recent], spacing=8))
 
     def _p_store(self):
         self._current = 1
@@ -2647,13 +2562,6 @@ class App:
     # ---------- 图片空间 / 清理旧图（ISSUES #5）----------
     def _album_client(self):
         return DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
-
-    def _load_space_info(self):
-        from ..services import album_cleanup
-        try:
-            self._space_info = album_cleanup.space(self._album_client())
-        except Exception:
-            self._space_info = None
 
     def _open_album_page(self):
         url = "https://www.dianxiaomi.com/web/service/album"
@@ -3785,45 +3693,6 @@ class App:
             audit_status,
         ], spacing=10))
 
-    def _plan_preview(self):
-        """「这次会做什么」——把配置翻译成人话，并指出静默失效的项。"""
-        box = ft.Column(spacing=2)
-        status = ft.Text("", size=10, color=MUTED)
-
-        def refresh(e=None):
-            try:
-                from ..services.preflight import image_plan_lines, check
-                lines = image_plan_lines(self.cfg)
-                issues = [i for i in check(self.cfg) if i.level in ("error", "warn")]
-                ctrls = [ft.Row([ft.Icon(ft.Icons.PLAY_ARROW, size=14, color=ACCENT_2),
-                                 ft.Text(t, size=11, color=TEXT, selectable=True)], spacing=6)
-                         for t in lines]
-                for i in issues[:6]:
-                    color = "#FF8A8A" if i.level == "error" else "#FFB020"
-                    ctrls.append(ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, size=14, color=color),
-                                         ft.Text(i.text, size=11, color=color, selectable=True)], spacing=6))
-                box.controls = ctrls or [ft.Text("（暂无图片处理配置）", size=11, color=MUTED)]
-                status.value = "已按当前配置生成，改完上面的设置点刷新"
-                try:
-                    self._safe_update()
-                except Exception:
-                    pass
-            except Exception as ex:  # noqa: BLE001
-                box.controls = [ft.Text(f"生成预览失败：{ex}", size=11, color="#FF8A8A")]
-                try:
-                    self._safe_update()
-                except Exception:
-                    pass
-
-        refresh()
-        return ft.Container(
-            content=ft.Column([
-                ft.Row([ft.Text("这次会做什么", size=13, weight=ft.FontWeight.BOLD, color=TEXT),
-                        ft.TextButton("刷新", icon=ft.Icons.REFRESH, on_click=refresh)], spacing=8),
-                box, status,
-            ], spacing=6),
-            bgcolor="#F4F7FF", border_radius=10, padding=10)
-
     def _show_audit_dialog(self, res: dict, min_size: int):
         """展示图片尺寸体检结果（只读，不改任何商品数据）。"""
         rows = []
@@ -4575,53 +4444,6 @@ class App:
         view = self._render("变种设置", schema_variant())
         return [view[0], write_card] + view[1:]
 
-    def _image_bench(self):
-        self.aw_img = ft.TextField(label="图片 URL", bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.img_out = ft.TextField(label="处理结果", multiline=True, min_lines=6, read_only=True,
-                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.aw_busy = ft.ProgressRing(width=16, height=16, visible=False, color=ACCENT)
-
-        def run(kind):
-            self.aw_busy.visible = True
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-            threading.Thread(target=self._ai_run, args=(kind,), daemon=True).start()
-
-        return card(ft.Column([h1("图片测试台", 15),
-                               muted("贴一张图片 URL，按当前开关跑流水线或审查"),
-                               self.aw_img,
-                               ft.Row([ft.ElevatedButton("跑流水线", on_click=lambda e: run("image")),
-                                       ft.ElevatedButton("图片审查", on_click=lambda e: run("review")),
-                                       ft.ElevatedButton("读图估重", on_click=lambda e: run("weight")),
-                                       self.aw_busy], spacing=10),
-                               self.img_out], spacing=12))
-
-    def _ai_run(self, kind):
-        try:
-            if not self.cfg.api_key:
-                self.img_out.value = "请先在设置里填写 API Key"
-                return
-            if kind == "image":
-                pipe = ImagePipeline(self.cfg)
-                res = pipe.run(self.aw_img.value.strip())
-                self.img_out.value = "\n".join(
-                    f"{'✓' if s.ok else '✗'} {s.name}: {s.url or s.error}" for s in res.steps)
-            elif kind == "review":
-                self.img_out.value = ImagePipeline(self.cfg).review(self.aw_img.value.strip(), "main")
-            else:
-                r = TextPipeline(self.cfg).estimate_weight(self.aw_img.value.strip(), "")
-                self.img_out.value = r.value if r.ok else f"失败: {r.error}"
-            self._log(f"图片测试台 {kind} 完成")
-        except Exception as ex:
-            self.img_out.value = f"异常: {ex}"
-            self._log(f"图片测试台 {kind} 异常: {ex}")
-            self._maybe_quota(str(ex))
-        finally:
-            self.aw_busy.visible = False
-            self._safe_update()
-
     def _p_workbench(self):
         self._current = 9
         ok, ck_text = self._cookie_status_text()
@@ -4817,7 +4639,7 @@ class App:
 
         q_card = card(ft.Column([h1("4 · 任务队列", 15), self.q_text,
                                  ft.Row([ft.ElevatedButton("产品入队", icon=ft.Icons.ADD_TASK, on_click=enqueue),
-                                         ft.ElevatedButton("处理队列(dry-run)", icon=ft.Icons.PLAY_ARROW,
+                                         ft.ElevatedButton("处理队列", icon=ft.Icons.PLAY_ARROW,
                                                            bgcolor=ACCENT, color="white", on_click=process),
                                          ft.OutlinedButton("清理已完成",
                                                            on_click=lambda e: (self.q.clear_done(), self._refresh_queue())),
@@ -5011,7 +4833,7 @@ class App:
             pass
 
     def _process_queue(self):
-        """离线队列预览：不连接账号、不保存商品、不标记实际已编辑。"""
+        """按队列真实执行：会处理图片/文本并保存到店小秘（与主流程一致）。"""
         if getattr(self, "_running", False):
             self._log("已有任务在运行，队列稍后再处理", "WARN")
             self.toast("已有任务在运行", False)
@@ -5019,7 +4841,7 @@ class App:
         self._running = True
         (getattr(self, '_sync_run_button', None) or (lambda: None))()
         self._stop_requested = False
-        # This entry point is always an offline preview, regardless of save settings.
+        # 与主流程保持一致：永久真实写入。
         by_id = {str(p.get("id")): p for p in (self.products or [])}
         by_id.update({str(k): v for k, v in getattr(self, "_queue_products", {}).items()})
         items = self.q.pending()
@@ -5056,18 +4878,18 @@ class App:
                 self._refresh_queue()
             try:
                 pub = Publisher(self.cfg)
-                res = pub.run(prod, dry_run=True, manage_progress=False)
+                res = pub.run(prod, dry_run=False, manage_progress=False)
                 status = "done" if res.ok else "failed"
-                msg = "仅预览完成，未保存商品、未标记已编辑" if res.ok else res.error
+                msg = "处理完成，已保存到店小秘" if res.ok else res.error
             except Exception as ex:  # noqa: BLE001
                 status, msg = "failed", str(ex)[:160]
             with lock:
                 self.q.mark(item.product_id, status, msg)
                 counts["ok" if status == "done" else "fail"] += 1
                 self._refresh_queue()
-                self._log(f"队列预览 {item.product_id}: {msg if status == 'done' else '失败 ' + msg}")
+                self._log(f"队列 {item.product_id}: {msg if status == 'done' else '失败 ' + msg}")
 
-        self._log(f"队列预览开始：{len(items)} 个任务，并发 {workers}")
+        self._log(f"队列处理开始：{len(items)} 个任务，并发 {workers}")
         import concurrent.futures as _cf
         try:
             with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
@@ -5077,8 +4899,8 @@ class App:
             (getattr(self, '_sync_run_button', None) or (lambda: None))()
         ok, fail = counts["ok"], counts["fail"]
         history.record("queue:preview", ok, fail)
-        self._log(f"队列预览完成（未保存商品）：成功 {ok} / 失败 {fail}" + ("（已按请求停止）" if self._stop_requested else ""))
-        self.toast(f"队列预览完成（未保存商品）：成功 {ok} / 失败 {fail}")
+        self._log(f"队列处理完成：成功 {ok} / 失败 {fail}" + ("（已按请求停止）" if self._stop_requested else ""))
+        self.toast(f"队列处理完成：成功 {ok} / 失败 {fail}")
 
     def _images_from_products(self):
         urls: list[str] = []
@@ -5139,7 +4961,6 @@ class App:
         if not urls:
             self.toast("没有可上传的结果", False); return
         try:
-            import asyncio
             ck = self._cookies()
             client = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
             ok = 0
@@ -5153,14 +4974,6 @@ class App:
             self._log(f"图片上传完成：{ok}/{len(urls)}")
         except Exception as ex:
             self.toast(f"上传失败：{ex}", False)
-
-    def _wb_ctl(self, action):
-        r = getattr(self, "wb_runner", None)
-        if not r:
-            self.toast("当前没有运行中的任务", False); return
-        getattr(r, action)()
-        self._log(f"任务控制：{action}")
-        self.toast({"pause": "已暂停", "resume": "已继续", "cancel": "已取消"}[action])
 
     def _wb_process(self, kind):
         targets = self._wb_selected_paths()
@@ -5228,9 +5041,10 @@ class App:
         self.logs_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
         self.logs_progress_text = ft.Text("空闲", size=12, color=MUTED)
         self.run_status = ft.Text("状态：空闲", size=12, color=MUTED)
-        self.log_level = ft.Dropdown(width=120, value="全部", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                     options=[ft.dropdown.Option(x) for x in ("全部","INFO","WARN","ERROR")],
-                                     on_change=lambda e: self._refresh_log_table())
+        self.log_level = ft.Dropdown(
+            width=112, value="全部", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            options=[ft.dropdown.Option(x) for x in ("全部", "INFO", "WARN", "ERROR")],
+            on_change=lambda e: self._refresh_log_table())
         self.log_table = ft.DataTable(
             columns=[ft.DataColumn(ft.Text("时间", size=11, color=MUTED)),
                      ft.DataColumn(ft.Text("级别", size=11, color=MUTED)),
@@ -5239,11 +5053,13 @@ class App:
         )
         if not getattr(self, "log_rows", None):
             self.log_rows = []          # 表格只显示本次运行；历史见「打开日志文件」
-        self.log_follow = ft.Checkbox(label="总是跳到最新日志", value=bool(getattr(self.cfg, "log_auto_follow", True)),
-                                      on_change=self._on_log_follow_change)
+        self.log_follow = ft.Checkbox(
+            label="跟随最新", value=bool(getattr(self.cfg, "log_auto_follow", True)),
+            on_change=self._on_log_follow_change)
         self.log_scroll = ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO,
                                     auto_scroll=bool(getattr(self.cfg, "log_auto_follow", True)),
-                                    height=360, on_scroll=self._on_log_scroll)
+                                    on_scroll=self._on_log_scroll)
+        self.log_count_text = ft.Text("0 行", size=11, color=MUTED)
         self._refresh_log_table()
 
         def export(e):
@@ -5252,16 +5068,46 @@ class App:
             out.write_text("\n".join(f"{t} [{lv}] {m}" for t, lv, m in rows), encoding="utf-8")
             self.toast(f"已导出：{out}")
 
-        bar = card(ft.Row([
-            ft.ElevatedButton("停止任务", icon=ft.Icons.STOP_CIRCLE, bgcolor="#D9534F", color="white",
-                              on_click=self._request_stop),
-            ft.ElevatedButton("导出日志", icon=ft.Icons.DOWNLOAD, bgcolor=CARD_2, color=TEXT, on_click=export),
-            ft.OutlinedButton("打开日志文件", icon=ft.Icons.DESCRIPTION, on_click=lambda e: self._open_log_file()),
-            self.log_follow,
-            self.log_level,
-            ft.ElevatedButton("清空", icon=ft.Icons.DELETE_OUTLINE, bgcolor=CARD_2, color=TEXT,
-                              on_click=lambda e: (self.log_rows.clear(), self.logs.clear(), self._refresh_log_table())),
-        ], spacing=10, wrap=True))
+        def clear_logs(e):
+            self.log_rows.clear()
+            self.logs.clear()
+            if getattr(self, "log_count_text", None) is not None:
+                self.log_count_text.value = "0 行"
+            self._refresh_log_table()
+            self.toast("已清空当前日志")
+
+        # ---------- 运行状态 ----------
+        status_card = card(ft.Column([
+            ft.Row([
+                ft.Text("运行状态", size=14, weight=ft.FontWeight.BOLD, color=TEXT),
+                self.run_status,
+                ft.Container(expand=True),
+                ft.ElevatedButton("停止任务", icon=ft.Icons.STOP_CIRCLE, bgcolor="#D9534F",
+                                  color="white", on_click=self._request_stop),
+            ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            self.logs_progress,
+            self.logs_progress_text,
+        ], spacing=10))
+
+        # ---------- 操作栏 ----------
+        self.log_status = ft.Text("", size=11, color=MUTED)
+        toolbar = card(ft.Column([
+            ft.Row([
+                ft.ElevatedButton("上报运行日志", icon=ft.Icons.CLOUD_UPLOAD, bgcolor=ACCENT,
+                                  color="white", on_click=self._report_logs_now),
+                ft.OutlinedButton("导出日志", icon=ft.Icons.DOWNLOAD, on_click=export),
+                ft.OutlinedButton("打开日志文件", icon=ft.Icons.DESCRIPTION,
+                                  on_click=lambda e: self._open_log_file()),
+                ft.TextButton("清空", icon=ft.Icons.DELETE_OUTLINE, on_click=clear_logs),
+            ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([self.log_level, self.log_follow], spacing=12,
+                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            self.log_status,
+            muted("「上报运行日志」会把最近 800 行日志和错误类型发到授权后台，管理员在「用户数据」里查看；"
+                  "授权成功时与每轮任务结束后也会自动上报。"),
+        ], spacing=8))
+
+        # ---------- 定时发布队列 ----------
         try:
             jobs = self.scheduler.pending_jobs() if hasattr(self, "scheduler") else []
         except Exception:
@@ -5288,7 +5134,8 @@ class App:
             remain = max(0, int(j.run_at - time.time()))
             sched_rows.append(ft.Row([
                 ft.Text(str(j.product_id), size=11, color=TEXT, width=110),
-                ft.Text(time.strftime("%m-%d %H:%M", time.localtime(j.run_at)), size=11, color="#6EC6FF", width=96),
+                ft.Text(time.strftime("%m-%d %H:%M", time.localtime(j.run_at)), size=11,
+                        color="#6EC6FF", width=96),
                 ft.Text(f"{remain // 60} 分钟后" if remain >= 60 else ("即将执行" if remain else "待执行"),
                         size=10, color=MUTED, width=76),
                 ft.Text((j.title or "")[:24], size=11, color=MUTED, expand=True),
@@ -5296,17 +5143,71 @@ class App:
                 ft.TextButton("取消", on_click=lambda e, _j=j: cancel_job(e, _j)),
             ], spacing=6))
         sched_card = card(ft.Column([
-            ft.Row([h1("定时发布队列", 14),
+            ft.Row([ft.Text("定时发布队列", size=14, weight=ft.FontWeight.BOLD, color=TEXT),
                     ft.Text(f"{len(jobs)} 条待执行", size=11, color=MUTED),
-                    ft.TextButton("刷新", icon=ft.Icons.REFRESH, on_click=lambda e: self._switch(10))], spacing=10),
+                    ft.Container(expand=True),
+                    ft.TextButton("刷新", icon=ft.Icons.REFRESH, on_click=lambda e: self._switch(10))],
+                   spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             muted("到点后自动在「待发布」列表里批量发布；商品本身在保存阶段已写入店小秘"),
             muted("注意：定时任务需要软件保持运行；关闭软件后不会执行。"),
             *(sched_rows or [ft.Text("暂无定时任务", size=11, color=MUTED)]),
         ], spacing=6))
-        prog_card_logs = card(ft.Column([ft.Row([h1("实时进度", 15), self.run_status], spacing=12),
-                                         self.logs_progress_text, self.logs_progress], spacing=8))
-        return [prog_card_logs, h1("任务与日志"), bar, sched_card,
-                card(self.log_scroll)]
+
+        # ---------- 日志表 ----------
+        log_card = card(ft.Column([
+            ft.Row([ft.Text("运行日志", size=14, weight=ft.FontWeight.BOLD, color=TEXT),
+                    self.log_count_text], spacing=10),
+            ft.Container(content=self.log_scroll, height=300, bgcolor=BG,
+                         border_radius=8, padding=4),
+        ], spacing=8))
+
+        return [h1("任务与日志"), status_card, toolbar, sched_card, log_card]
+
+    def _report_logs_now(self, e=None):
+        """手动上报当前日志到授权后台（异步）。"""
+        try:
+            if getattr(self, "log_status", None) is not None:
+                self.log_status.value = "正在上报…"
+                self.log_status.color = MUTED
+                self._safe_update()
+        except Exception:
+            pass
+
+        def _run():
+            try:
+                from ..core import report as _rep
+                from ..core.updater import CURRENT as _ver
+                ident = str(getattr(self, "_report_identity", "") or "")
+                if not ident:
+                    try:
+                        from ..license import machine_code
+                        ident = machine_code()
+                    except Exception:
+                        ident = ""
+                r = _rep.upload(str(getattr(self.cfg, "license_server", "") or ""), ident,
+                                _rep.tail_log(), version=_ver,
+                                instance=__import__("os").environ.get("AURORA_INSTANCE", "默认") or "默认")
+                if r.get("ok"):
+                    self.toast("已上报，管理员后台「用户数据」里可见")
+                    if getattr(self, "log_status", None) is not None:
+                        self.log_status.value = "已上报 ✓"
+                        self.log_status.color = ACCENT_2
+                else:
+                    self.toast(f"上报失败：{r.get('error') or r.get('status')}", False)
+                    if getattr(self, "log_status", None) is not None:
+                        self.log_status.value = f"上报失败：{r.get('error') or r.get('status')}"
+                        self.log_status.color = "#FF6B6B"
+            except Exception as ex:  # noqa: BLE001
+                self.toast(f"上报失败：{str(ex)[:80]}", False)
+                if getattr(self, "log_status", None) is not None:
+                    self.log_status.value = f"上报失败：{str(ex)[:80]}"
+                    self.log_status.color = "#FF6B6B"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def _subscribe_progress(self):
         try:
@@ -5462,25 +5363,6 @@ class App:
         p.parent.mkdir(parents=True, exist_ok=True)
         return p
 
-    def _read_log_tail(self, limit: int = 300):
-        """启动时把上次日志读回来，运行出错后不用再猜。"""
-        try:
-            lines = self._log_file().read_text(encoding="utf-8", errors="ignore").splitlines()
-        except Exception:
-            return []
-        out = []
-        for line in lines[-limit:]:
-            try:
-                # 2026-11-17 23:00:00 [INFO] xxx
-                date, tm, rest = line.split(" ", 2)
-                if not rest.startswith("["):
-                    continue
-                lv, msg = rest[1:].split("] ", 1)
-                out.append((tm, lv, msg))
-            except Exception:
-                continue
-        return out
-
     def _write_log_file(self, ts: str, level: str, msg: str):
         try:
             p = self._log_file()
@@ -5558,6 +5440,11 @@ class App:
                 ft.DataCell(ft.Text(m, size=11, color=TEXT)),
             ]) for t, x, m in shown[-300:]
         ]
+        try:
+            if getattr(self, "log_count_text", None) is not None:
+                self.log_count_text.value = f"{len(shown)} 行"
+        except Exception:
+            pass
         try:
             self._safe_update()
         except Exception:
@@ -5658,6 +5545,7 @@ class App:
                    spacing=8, wrap=True),
             self.legacy_id_field,
             self.lic_status, self.lic_detail,
+            muted("日志上报在「任务与日志」页操作；授权成功时、每轮任务结束后也会自动回传日志。"),
         ], spacing=8))
         self.lic_status.value = (self.license_state or {}).get("message") or "未检测"
         if (self.license_state or {}).get("ok"):
@@ -5956,119 +5844,6 @@ class App:
         except Exception:
             return 0.0
 
-    def _test_image_model(self):
-        try:
-            import tempfile as _tf
-            from pathlib import Path as _P
-            from PIL import Image as _Img
-            self.model_status.value = "测试中…（调用一次生成模型）"
-            self._safe_update()
-            d = _P(_tf.mkdtemp())
-            probe_img = d / "probe.png"
-            _Img.new("RGB", (512, 512), (240, 240, 240)).save(probe_img)
-            svc = ImageService(ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout), self.cfg)
-            url = svc.edit(probe_img, "return the same simple image, no changes")
-            self.model_status.value = f"图片模型可用：{model_of(None, 'image_edit')} → {str(url)[:70]}"
-            self.toast("图片模型测试通过")
-        except Exception as ex:
-            self.model_status.value = f"图片模型不可用：{str(ex)[:120]}"
-            self.toast(str(ex), False)
-        try:
-            self._safe_update()
-        except Exception:
-            pass
-
-    def _smoke_confirm(self):
-        def go(e):
-            self._close_dialog()
-            threading.Thread(target=self._run_smoke, daemon=True).start()
-        self.dlg = ft.AlertDialog(
-            title=ft.Text("全接口冒烟测试"),
-            content=ft.Text("将真实调用：模型列表 / 价格 / 文本 / 视觉 / 文生图 / 图像编辑。\n"
-                            "其中文生图+编辑各一次，约花费 ¥0.4（按当前价格）。\n是否继续？"),
-            actions=[ft.TextButton("取消", on_click=lambda e: self._close_dialog()),
-                     ft.ElevatedButton("开始", bgcolor=ACCENT, color="white", on_click=go)])
-        self.page.dialog = self.dlg
-        self.dlg.open = True
-        self._safe_update()
-
-    def _run_smoke(self):
-        import time as _t
-        import tempfile as _tf
-        from pathlib import Path as _P
-        from PIL import Image as _Img
-        from ..api import ApiClient
-        from ..services import ImageService, model_of
-
-        rows = []
-
-        def add(name, ok, msg=""):
-            color = ACCENT_2 if ok else "#FF6B6B"
-            icon = ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE
-            rows.append(ft.Row([ft.Icon(icon, size=15, color=color),
-                                ft.Text(name, size=12, color=TEXT, width=150),
-                                ft.Text(msg, size=11, color=MUTED, expand=True)], spacing=8))
-            self.diag_list.controls = list(rows)
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-
-        client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout,
-                           proxy=self.cfg.proxy_url if getattr(self.cfg, "proxy_enabled", False) else "")
-        # 1 模型列表
-        t0 = _t.time()
-        try:
-            ms = client.models()
-            add("模型列表", True, f"{len(ms)} 个 · {_t.time()-t0:.1f}s")
-        except Exception as ex:
-            add("模型列表", False, str(ex)[:90])
-        # 2 价格
-        t0 = _t.time()
-        try:
-            pr = client.pricing()
-            add("价格接口", bool(pr), f"{len(pr)} 个 · {_t.time()-t0:.1f}s")
-        except Exception as ex:
-            add("价格接口", False, str(ex)[:90])
-        # 3 文本
-        t0 = _t.time()
-        try:
-            out = client.chat(model_of(self.cfg, 'text'), [{"role": "user", "content": "回复 OK"}], max_tokens=8)
-            add("文本对话", bool(out), f"{model_of(self.cfg, 'text')} · {_t.time()-t0:.1f}s")
-        except Exception as ex:
-            add("文本对话", False, str(ex)[:90])
-        # 4 视觉
-        t0 = _t.time()
-        try:
-            out = client.chat(model_of(self.cfg, 'vision'), [{"role": "user", "content": [
-                {"type": "text", "text": "图里是什么颜色？两个字"},
-                {"type": "image_url", "image_url": {"url": "https://sc04.alicdn.com/kf/H36d2c1e2529d4ab18cab919a38f33e25D.jpg"}}]}],
-                max_tokens=12)
-            add("视觉读图", bool(out), f"{model_of(self.cfg, 'vision')} · {_t.time()-t0:.1f}s")
-        except Exception as ex:
-            add("视觉读图", False, str(ex)[:90])
-        # 5 文生图
-        t0 = _t.time()
-        try:
-            url = client.images_generate(model_of(self.cfg, 'image_gen'), "a simple white cube on gray background", "1024x1024", 1)
-            add("文生图", bool(url), f"{model_of(self.cfg, 'image_gen')} · {_t.time()-t0:.1f}s")
-        except Exception as ex:
-            add("文生图", False, str(ex)[:90])
-        # 6 图像编辑
-        t0 = _t.time()
-        try:
-            d = _P(_tf.mkdtemp())
-            probe = d / "p.png"
-            _Img.new("RGB", (512, 512), (230, 230, 230)).save(probe)
-            svc = ImageService(client, self.cfg)
-            url = svc.edit(probe, "keep the image unchanged")
-            add("图像编辑", bool(url), f"{model_of(self.cfg, 'image_edit')} · {_t.time()-t0:.1f}s")
-        except Exception as ex:
-            add("图像编辑", False, str(ex)[:90])
-
-        ok_n = sum(1 for r in rows if any(getattr(c, "color", "") == ACCENT_2 for c in r.controls))
-        self._log(f"全接口冒烟：{ok_n}/{len(rows)} 通过")
-
     def _run_diag(self):
         rows = []
 
@@ -6263,12 +6038,28 @@ class App:
             pass
         res = verify_license(self.cfg.license_server, version=_ver,
                              identity_override=str(getattr(self.cfg, "license_identity", "") or ""),
-                             public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""))
+                             public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""),
+                             store_name=str(getattr(self.cfg, "store_name", "") or ""))
         try:
             self._log(f"授权结果：{res.get('message')} / tried {res.get('tried')}")
         except Exception:
             pass
         self.license_state = res
+        self._report_identity = str(res.get("identity") or "")
+        if res.get("ok"):
+            try:
+                from ..core import guard as _guard
+                _guard.store(self.cfg, res)
+                save_config(self.cfg)
+            except Exception:
+                pass
+            # 启动即回传一次日志（后台线程，失败静默）
+            try:
+                from ..core import report as _rep
+                _rep.report_async(str(getattr(self.cfg, "license_server", "") or ""),
+                                  str(res.get("identity") or ""), version=_ver)
+            except Exception:
+                pass
         try:
             if res.get("ok"):
                 self.cfg.set("license_cache_ok", True)
@@ -6302,21 +6093,6 @@ class App:
             self._safe_update()
         except Exception:
             pass
-
-    def _test(self):
-        t0 = time.time()
-        try:
-            models = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout).models()
-            self.api_state = {"ok": True, "detail": f"{len(models)} 个模型",
-                              "lat": round(time.time() - t0, 1), "ts": time.time()}
-            self._apply_api_state()
-            self.toast("连接成功")
-        except Exception as e:
-            self.api_state = {"ok": False, "detail": str(e)[:70],
-                              "lat": round(time.time() - t0, 1), "ts": time.time()}
-            self._apply_api_state()
-            self.toast(str(e), False)
-        self._safe_update()
 
     def _on_files(self, e):
         if e.files:

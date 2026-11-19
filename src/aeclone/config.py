@@ -11,7 +11,6 @@ APP_NAME = "AuroraList"
 DEFAULTS: dict = {
     # ---- 基础 / API ----
     # 模型已固定（见 services/__init__.py FIXED_MODELS），这里不再提供 model_* 配置项
-    "cost_warn_threshold": 5.0,
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "license_server": "https://license.moneyfly.club",
@@ -21,6 +20,11 @@ DEFAULTS: dict = {
     "license_cache_expiry": "",
     "license_cache_ts": 0,
     "license_public_key": "",                             # 可选：服务端换公钥时覆盖内置公钥
+    "license_voucher": "",                                # 服务端签发的 ECDSA 凭证（核心层验签用）
+    "license_signature": "",
+    "license_expiry": "",
+    "license_voucher_ts": 0,
+    "license_client_type": "local",
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
     "log_auto_follow": True,                              # 日志总是跳到最新
     "ai_image_enable": True,                              # AI 图片处理总开关
@@ -47,7 +51,6 @@ DEFAULTS: dict = {
     "store_id": "",
     "product_template_id": "",
     "product_template_name": "",
-    "product_id_title": "",
     # ---- 高级设置 ----
     "edit_sum": "3",
     "watermark": "",
@@ -189,16 +192,13 @@ DEFAULTS: dict = {
     "custom_sku_prefix": "",
     "sku_split_char": "-",
     "auto_generate_sku_code": False,
-    "use_number_replace_sku": False,
     # 图片范围扩展
     "remove_watermark_pic_1": "1",
     "remove_watermark_pic_2": "5",
     "single_edit_main_pic_indices": "",
-    "single_edit_detail_pic_indices": "",
     # 背景生成
     "background_gen_rules": "[]",
     "background_gen_sku_prompt": "把背景换成干净的摄影棚背景（纯白或极浅的中性灰），商品本体的形状、颜色、材质和比例保持不变，加一层自然的接触阴影，光线均匀，不要文字、不要道具。",
-    "background_gen_detail_replace": False,
     # 上传 / 视频
     "upload_full_cid": "",
     "video_slot_seconds": 2.5,
@@ -213,7 +213,6 @@ DEFAULTS: dict = {
     "eu_responsible_address": "",
     "eu_responsible_email": "",
     "eu_responsible_phone": "",
-    "browser_headless_login": False, # 首次登录保持可见
     "proxy_enabled": False,
     "proxy_url": "",
     # 视频来源：collected=用采集的产品视频（默认）｜template=模板视频｜generated=主图轮播生成｜none=不要视频
@@ -229,7 +228,6 @@ DEFAULTS: dict = {
     "move_detail_text": False,
     "declared_value": "50",
     "product_type": "普货",
-    "amount": "",
     "spec_weight": "",
     "spec_length": "",
     "spec_width": "",
@@ -252,7 +250,6 @@ DEFAULTS: dict = {
     "pack_weight": "",
     # 素材补齐
     "pad_main_images_from_extra": False,
-    "main_pic_checkbox": False,
     "main_pic_count": "6",
     # 定时发布
     "schedule_publish": False,
@@ -348,7 +345,6 @@ DEFAULTS: dict = {
     "img_sku_edit": False,
     "white_background_sku_pic_indices": "1-20",   # SKU 图序号（白底/去水印/编辑共用）
     "img_sku_edit_prompt": "",                    # SKU 图精细编辑提示词
-    "img_single_mode": "simple",
     # ---- 规格 / 商品属性 ----
     # ---- 审查数量 ----
     # ---- 价格扩展 ----
