@@ -2995,6 +2995,16 @@ class App:
             self._watermark_card(),
         ], spacing=10))
 
+        # ---------- 类目 ----------
+        cat_card = card(ft.Column([
+            h1("类目", 15),
+            muted("商品自带类目 vs 模板类目：采集时店小秘通常已经分好类，建议保留"),
+            ft.Row([
+                sw("auto_detect_category", "自动识别类目（用商品自带的类目）",
+                   tooltip_text="勾选：用商品自身的 categoryId；不勾选：统一用模板商品的类目"),
+            ], spacing=12, wrap=True),
+        ], spacing=8))
+
         # ---------- 详情设置 ----------
         detail_card = card(ft.Column([
             h1("详情设置", 15),
@@ -3157,7 +3167,7 @@ class App:
                    spacing=10, wrap=True),
         ], spacing=10))
 
-        return [h1("商品设置"), top_card, img_card, detail_card, base_card,
+        return [h1("商品设置"), top_card, cat_card, img_card, detail_card, base_card,
                 attr_default_card, attr_card, sku_map_card, eu_card,
                 extra_card, self._combo_card()]
 

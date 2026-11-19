@@ -386,7 +386,8 @@ def build_save_payload(product: dict, template: dict | None = None,
                        op: int = 1, action: str = "save_only",
                        overrides: dict | None = None,
                        custom_attributes: list | None = None,
-                       cargo_price: str | None = None) -> dict:
+                       cargo_price: str | None = None,
+                       cfg=None) -> dict:
     """从 edit.json 商品对象构建 add.json 的 payload。
 
     product / template 都是 edit.json 返回的 `data.product`。
@@ -398,6 +399,19 @@ def build_save_payload(product: dict, template: dict | None = None,
         p[k] = product.get(k)
 
     # 缺失的必填字段从模板补
+    # 自动识别类目：勾选后优先用商品自带 categoryId（采集时就已分好类），
+    # 没有才回退模板。否则模板类目会强行覆盖商品原本正确的类目。
+    if cfg is None:
+        try:
+            from ..config import get_config
+            cfg = get_config()
+        except Exception:
+            cfg = None
+    _auto_cat = bool(getattr(cfg, "auto_detect_category", True)) if cfg is not None else True
+    if _auto_cat and str(p.get("categoryId") or "").strip() not in ("", "0"):
+        pass  # 保留商品自带类目
+    else:
+        p.pop("categoryId", None)  # 让下面的模板补齐逻辑接管
     for k in ("categoryId", "productType", "taxType", "sizechartId",
               "grossWeight", "packageLength", "packageWidth", "packageHeight",
               "productManual", "freightTemplateId", "promiseTemplateId",

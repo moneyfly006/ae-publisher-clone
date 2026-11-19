@@ -116,6 +116,7 @@ DEFAULTS: dict = {
     "template_snapshot": "",
     "template_values": "",
     "template_library": "{}",
+    "auto_detect_category": True,                        # 自动识别类目：优先用商品自带 categoryId
     "apply_template_on_save": True,
     # AI 主图生成 / 指定图片编辑
     "main_image_generate_enable": False,

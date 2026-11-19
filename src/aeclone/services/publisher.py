@@ -1898,7 +1898,8 @@ class Publisher:
             payload = build_save_payload(
                 target, tpl, action="publish",
                 custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None),
-                cargo_price=str(getattr(self.cfg, "declared_value", "") or "") or "50")
+                cargo_price=str(getattr(self.cfg, "declared_value", "") or "") or "50",
+                cfg=self.cfg)
             resp = self.dxm.save_product_via_api(payload)
         except ValueError as ex:
             return SaveResult(ok=False, message=str(ex)[:300])
@@ -2078,7 +2079,8 @@ class Publisher:
             payload = build_save_payload(
                 target, tpl, action=action, overrides=overrides,
                 custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None),
-                cargo_price=str(getattr(self.cfg, "declared_value", "") or "") or "50")
+                cargo_price=str(getattr(self.cfg, "declared_value", "") or "") or "50",
+                cfg=self.cfg)
             resp = self.dxm.save_product_via_api(payload)
         except ValueError as ex:  # 数据安全类错误（如缺类目）：明确报错，不回退
             add_step(res, "保存中止", False, str(ex)[:200])
