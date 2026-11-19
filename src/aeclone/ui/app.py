@@ -1189,6 +1189,7 @@ class App:
         prev_btn = ft.OutlinedButton("上一页", icon=ft.Icons.CHEVRON_LEFT)
         next_btn = ft.OutlinedButton("下一页", icon=ft.Icons.CHEVRON_RIGHT)
         only_today = ft.Checkbox(label="只看今天", value=False)
+        only_failed = ft.Checkbox(label="只看失败", value=False)
         kw = ft.TextField(hint_text="搜产品 ID / 标题", width=200, dense=True,
                           bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
 
@@ -1198,6 +1199,8 @@ class App:
             if only_today.value:
                 start = _t.mktime(_t.localtime()[:3] + (0, 0, 0, 0, 0, -1))
                 cur = [r for r in cur if int(r.get("ts") or 0) >= start]
+            if only_failed.value:
+                cur = [r for r in cur if str(r.get("status") or "") == "failed"]
             k = (kw.value or "").strip().lower()
             if k:
                 cur = [r for r in cur
@@ -1232,11 +1235,12 @@ class App:
             _render()
 
         only_today.on_change = _reset
+        only_failed.on_change = _reset
         kw.on_change = _reset
         _render()
         return card(ft.Column([h1("改前后对比", 15),
                                muted("最近处理的商品：标题 / 详情 / 主图变化", 11),
-                               ft.Row([only_today, kw], spacing=12,
+                               ft.Row([only_today, only_failed, kw], spacing=12,
                                       vertical_alignment=ft.CrossAxisAlignment.CENTER),
                                list_col,
                                ft.Row([prev_btn, next_btn, info], spacing=10,
@@ -2078,9 +2082,48 @@ class App:
         picked: set[str] = set()
         sel_text = ft.Text("已选 0 个", size=11, color=MUTED)
 
+        sort_dd = ft.Dropdown(
+            label="排序", width=170, dense=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value="default",
+            options=[ft.dropdown.Option("default", "默认（最新在前）"),
+                     ft.dropdown.Option("img_desc", "图多 → 少"),
+                     ft.dropdown.Option("img_asc", "图少 → 多")])
+        state = {"items": []}
+
         def _toggle(pid, on):
             (picked.add(pid) if on else picked.discard(pid))
             sel_text.value = f"已选 {len(picked)} 个"
+
+        def _render(e=None):
+            items = list(state["items"])
+            mode = str(getattr(sort_dd, "value", "default") or "default")
+            if mode == "img_desc":
+                items.sort(key=lambda x: len(str(x.get("imageURLs") or "").split(";")) if x.get("imageURLs") else 0, reverse=True)
+            elif mode == "img_asc":
+                items.sort(key=lambda x: len(str(x.get("imageURLs") or "").split(";")) if x.get("imageURLs") else 0)
+            rows = []
+            for it in items:
+                pid = str(it.get("id") or "")
+                title = str(it.get("subject") or it.get("productName") or "")[:70]
+                rows.append(ft.ListTile(
+                    leading=ft.Row([
+                        ft.Checkbox(value=pid in picked,
+                                    on_change=lambda e, _p=pid: _toggle(_p, e.control.value)),
+                        self._zoom_img((it.get("imageURLs") or "").split(";")[0]
+                                       if it.get("imageURLs") else "", 40, 40, "主图")],
+                        spacing=2, tight=True),
+                    title=ft.Text(title or pid, size=12, color=TEXT, max_lines=2),
+                    subtitle=ft.Text(pid, size=10, color=MUTED),
+                    trailing=ft.TextButton("发布", icon=ft.Icons.SEND,
+                                           on_click=lambda e, _p=pid: self._publish_one(_p)),
+                    dense=True))
+            col.controls = rows or [empty_state("这一栏没有商品")]
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        sort_dd.on_change = _render
 
         def _publish_picked(e=None):
             if not picked:
@@ -2103,7 +2146,8 @@ class App:
 
         dlg = ft.AlertDialog(
             title=ft.Text(label),
-            content=ft.Column([status, col,
+            content=ft.Column([ft.Row([status, ft.Container(expand=True), sort_dd],
+                                      vertical_alignment=ft.CrossAxisAlignment.CENTER), col,
                                ft.Row([sel_text,
                                        ft.ElevatedButton("发布所选的商品", icon=ft.Icons.SEND,
                                                          bgcolor=ACCENT, color="white",
@@ -2124,22 +2168,8 @@ class App:
                     "dxmState": "offline", "dxmOfflineState": offline_state})
                 po = ((raw.get("data") or {}).get("page") or {})
                 items = po.get("list") or []
-                rows = []
-                for it in items:
-                    pid = str(it.get("id") or "")
-                    title = str(it.get("subject") or it.get("productName") or "")[:70]
-                    rows.append(ft.ListTile(
-                        leading=ft.Row([
-                            ft.Checkbox(on_change=lambda e, _p=pid: _toggle(_p, e.control.value)),
-                            self._zoom_img((it.get("imageURLs") or "").split(";")[0]
-                                           if it.get("imageURLs") else "", 40, 40, "主图")],
-                            spacing=2, tight=True),
-                        title=ft.Text(title or pid, size=12, color=TEXT, max_lines=2),
-                        subtitle=ft.Text(pid, size=10, color=MUTED),
-                        trailing=ft.TextButton("发布", icon=ft.Icons.SEND,
-                                               on_click=lambda e, _p=pid: self._publish_one(_p)),
-                        dense=True))
-                col.controls = rows or [empty_state("这一栏没有商品")]
+                state["items"] = items
+                _render()
                 status.value = f"共 {po.get('totalSize') or len(items)} 个（显示前 {len(items)} 个）"
                 status.color = ACCENT_2
             except Exception as ex:  # noqa: BLE001
@@ -4771,14 +4801,26 @@ class App:
             "off": {},
         }
         on = presets.get(kind, {})
-        for k in _main_keys:
-            self.cfg.set(k, bool(on.get(k, False)))
-        save_config(self.cfg)
         label = {"white": "只做主图白底", "watermark": "只做主图去水印",
                  "translate": "只做主图翻译", "off": "关闭全部主图处理"}.get(kind, kind)
-        self._log(f"图片预设：{label}", "INFO")
-        self.toast(f"已应用：{label}", True)
-        self._switch(5)
+        _names = {"main_image_generate_enable": "AI 生成主图", "white_bg_enable": "主图白底",
+                  "watermark_enable": "主图去水印", "translate_main_pic_enable": "主图翻译",
+                  "img_main_edit": "主图精细编辑", "designated_edit_enable": "主图指定编辑"}
+        _on = [f"✓ {_names[k]}" for k in _main_keys if on.get(k)]
+        _off = [f"· {_names[k]}（关闭）" for k in _main_keys if not on.get(k)]
+        body = ("将开启：\n" + ("\n".join(_on) if _on else "（无）") +
+                "\n\n将关闭：\n" + "\n".join(_off) +
+                "\n\n只影响主图相关开关；描述图 / SKU 图不变。")
+
+        def apply_now():
+            for k in _main_keys:
+                self.cfg.set(k, bool(on.get(k, False)))
+            save_config(self.cfg)
+            self._log(f"图片预设：{label}", "INFO")
+            self.toast(f"已应用：{label}", True)
+            self._switch(5)
+
+        self._confirm(f"应用预设：{label}？", body, apply_now)
 
     def _p_image(self):
         """AI 图片：只保留两大块 —— 简单编辑 / 精细化编辑。"""
@@ -6254,13 +6296,26 @@ class App:
                 self.wb_busy.visible = False
                 self._safe_update()
                 return
+        _t0 = time.time()
         results = runner.run(list(targets), job, done)
+        _el = time.time() - _t0
         ok = sum(1 for r in results if r.ok)
         try:
             history.record("workbench:" + kind, ok, len(results) - ok)
         except Exception:
             pass
-        self.wb_status.value = f"处理完成：成功 {ok} / {len(results)}"
+        _label = {"white": "白底", "watermark": "去水印", "translate": "翻译",
+                  "edit": "编辑", "add_watermark": "加水印"}.get(kind, kind)
+        self.wb_status.value = f"处理完成：成功 {ok}/{len(results)} · {_label} · 用时 {_el:.1f}s"
+        self.wb_status.color = ACCENT_2 if ok else "#FF6B6B"
+        self._log(f"图片处理（{_label}）：成功 {ok}/{len(results)} · 用时 {_el:.1f}s",
+                  "INFO" if ok else "WARN")
+        # 处理完刷新图片墙与缩略图计数
+        try:
+            self._wb_render_wall()
+            self._wb_preview_selected()
+        except Exception:
+            pass
         self.wb_busy.visible = False
         self._safe_update()
 
@@ -6343,7 +6398,9 @@ class App:
                               tooltip="把当前日志全部复制到剪贴板",
                               on_click=lambda e: self._copy_logs()),
                 ft.TextButton("导出筛选结果", icon=ft.Icons.FILE_DOWNLOAD,
-                              on_click=lambda e: self._export_logs_filtered()),
+                              on_click=lambda e: self._export_logs_filtered("txt")),
+                ft.TextButton("导出 CSV", icon=ft.Icons.TABLE_VIEW,
+                              on_click=lambda e: self._export_logs_filtered("csv")),
                 ft.TextButton("清空日志", icon=ft.Icons.CLEAR_ALL,
                               on_click=lambda e: self._confirm(
                                   "清空当前日志？",
@@ -6686,7 +6743,7 @@ class App:
         if not bool(getattr(self.log_follow, "value", True)):
             self._log_scroll_pos = float(getattr(e, "pixels", 0) or 0)
 
-    def _export_logs_filtered(self):
+    def _export_logs_filtered(self, fmt: str = "txt"):
         """把当前筛选结果导出成 txt（默认到配置目录 logs/）。"""
         rows = getattr(self, "log_rows", []) or []
         lv = getattr(self, "log_level", None)
@@ -6701,9 +6758,18 @@ class App:
             from ..config import config_dir
             outdir = config_dir() / "logs"
             outdir.mkdir(parents=True, exist_ok=True)
-            fn = outdir / f"export-{time.strftime('%Y%m%d-%H%M%S')}.txt"
-            text = "\n".join(f"{t} [{x}] {m}" for t, x, m in shown)
-            fn.write_text(text, encoding="utf-8")
+            if fmt == "csv":
+                import csv as _csv
+                fn = outdir / f"export-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+                with open(fn, "w", encoding="utf-8-sig", newline="") as fh:
+                    w = _csv.writer(fh)
+                    w.writerow(["时间", "级别", "内容"])
+                    for t, x, m in shown:
+                        w.writerow([t, x, m])
+            else:
+                fn = outdir / f"export-{time.strftime('%Y%m%d-%H%M%S')}.txt"
+                text = "\n".join(f"{t} [{x}] {m}" for t, x, m in shown)
+                fn.write_text(text, encoding="utf-8")
             self._log(f"已导出 {len(shown)} 行日志 → {fn}", "INFO")
             self.toast(f"已导出 {len(shown)} 行：{fn.name}", True)
             try:
