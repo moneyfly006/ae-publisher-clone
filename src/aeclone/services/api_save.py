@@ -579,18 +579,26 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
                 _tr = []
         _tpl_sku0 = (_tr or [])[0] if isinstance(_tr, list) and _tr else None
 
-    # ★ 变种主题（平台新规）：采集来的 aeopSKUProperty 常是非标准格式
-    # （如 [{"Model Number": "..."}]），没有 skuPropertyId，平台会报
-    # isv.7CHK_PLUG_SALE_PROP_REQUIRED_CHECK: Voltage/plug type required。
-    # 非标准时沿用模板的标准变种（含 plug_parent_property_id 电压/插头变种）。
+    # ★ 变种主题（平台新规）：平台要求变种里必须有 Voltage/plug type 主题，
+    # 否则报 isv.7CHK_PLUG_SALE_PROP_REQUIRED_CHECK: Voltage/plug type required。
+    # 两种情况都要沿用模板的变种：
+    #   ① 非标准格式（如 [{"Model Number": "..."}]，没有 skuPropertyId）
+    #   ② 格式标准、但缺少 plug 变种（无 plug_parent_property_id / parentPropertyId）
+    #      —— 线上真实案例：单变种 Model Number(skuPropertyId=200007763) 照样失败
     if _tpl_sku0:
         _tpl_props = _tpl_sku0.get("aeopSKUProperty")
         if isinstance(_tpl_props, list) and _tpl_props:
+            _tpl_has_plug = any(
+                isinstance(x, dict) and (x.get("plug_parent_property_id") or x.get("parentPropertyId"))
+                for x in _tpl_props)
             for sku in skus:
                 _p0 = sku.get("aeopSKUProperty")
                 _std = isinstance(_p0, list) and any(
                     isinstance(x, dict) and "skuPropertyId" in x for x in _p0)
-                if not _std:
+                _has_plug = isinstance(_p0, list) and any(
+                    isinstance(x, dict) and (x.get("plug_parent_property_id") or x.get("parentPropertyId"))
+                    for x in _p0)
+                if (not _std) or (_tpl_has_plug and not _has_plug):
                     sku["aeopSKUProperty"] = [dict(x) for x in _tpl_props if isinstance(x, dict)]
 
     price = None

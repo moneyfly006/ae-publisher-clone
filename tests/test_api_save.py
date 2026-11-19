@@ -599,6 +599,35 @@ def t29_sku_variation_theme_from_template():
     print("  ✓ 已沿用模板变种:", [(x.get("skuPropertyId"), x.get("propertyValueId")) for x in props])
 
 
+def t30_standard_but_missing_plug_variant():
+    print("\n[测试30] 标准变种但缺 plug → 沿用模板（Voltage/plug type required）")
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(stock_quantity="999", write_sku_codes_to_product=True,
+                          wholesale_enable=False, regional_quote_enable=False,
+                          detail_local_image_position="tail", declared_value="50")
+    # 线上真实形态：标准格式、单变种 Model Number，但没有 plug 父属性
+    prod = {"id": "1", "categoryId": "1",
+            "aeopAeProductSKUs": json.dumps([{
+                "skuCode": "S1", "skuPrice": "10", "originalBox": "1", "cargoPrice": "50",
+                "aeopSKUProperty": [{"skuPropertyId": "200007763", "propertyValueId": 5580,
+                                     "propertyValueDefinitionName": "YG-GS150"}],
+            }])}
+    tpl = {"aeopAeProductSKUs": json.dumps([{
+        "logisticAttrList": [{"value": "1", "text": "普货"}],
+        "aeopSKUProperty": [
+            {"skuPropertyId": 14, "propertyValueId": 350686},
+            {"skuPropertyId": 400079803, "propertyValueId": 1983474624,
+             "plug_parent_property_id": 400081003, "plug_parent_value_id": 24681606136},
+        ]}])}
+    p = {"skus": [{"optimized_name": "NEW-1"}],
+         "price_result": SimpleNamespace(final=10.0), "images": []}
+    ov = A.build_ai_overrides(prod, p, cfg, images=None, template=tpl)
+    sk = json.loads(ov["aeopAeProductSKUs"])
+    props = sk[0].get("aeopSKUProperty")
+    assert any(x.get("plug_parent_property_id") for x in props), props
+    print("  ✓ 已补上 plug 变种:", [(x.get("skuPropertyId"), x.get("propertyValueId")) for x in props])
+
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -619,7 +648,8 @@ if __name__ == "__main__":
              t25_product_own_nameless_system_attr_submitted,
              t26_market_image_mapping_order,
              t27_sku_cargo_price_filled, t28_sku_logistic_attr_from_template,
-             t29_sku_variation_theme_from_template]
+             t29_sku_variation_theme_from_template,
+             t30_standard_but_missing_plug_variant]
     ok = fail = 0
     for t in tests:
         try:
