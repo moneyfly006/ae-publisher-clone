@@ -459,16 +459,17 @@ class App:
         self.nav_buttons = []
         groups = [
             ("", [("概览", ft.Icons.DASHBOARD_OUTLINED, 0)]),
-            ("上架准备", [("店铺设置", ft.Icons.STORE_OUTLINED, 1),
-                          ("商品设置", ft.Icons.TUNE, 2)]),
-            ("AI 处理", [("AI 文案", ft.Icons.EDIT_NOTE, 3),
-                         ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4),
-                         ("AI 图片", ft.Icons.AUTO_AWESOME, 5)]),
-            ("价格与变种", [("价格设置", ft.Icons.SELL_OUTLINED, 6),
-                            ("变种设置", ft.Icons.ACCOUNT_TREE_OUTLINED, 7)]),
+            ("准备", [("店铺与模板", ft.Icons.STORE_OUTLINED, 1),
+                      ("类目与属性", ft.Icons.CATEGORY_OUTLINED, 2)]),
+            ("内容", [("AI 文案", ft.Icons.EDIT_NOTE, 3),
+                      ("内容审查", ft.Icons.FACT_CHECK_OUTLINED, 4),
+                      ("AI 图片", ft.Icons.AUTO_AWESOME, 5)]),
+            ("刊登", [("价格", ft.Icons.SELL_OUTLINED, 6),
+                      ("变种与库存", ft.Icons.ACCOUNT_TREE_OUTLINED, 7),
+                      ("发布队列", ft.Icons.CLOUD_UPLOAD_OUTLINED, 8)]),
             ("工具", [("图片工作台", ft.Icons.GRID_VIEW, 9)]),
-            ("系统", [("设置", ft.Icons.SETTINGS_OUTLINED, 8),
-                      ("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10)]),
+            ("运行", [("任务与日志", ft.Icons.RECEIPT_LONG_OUTLINED, 10),
+                      ("设置", ft.Icons.SETTINGS_OUTLINED, 11)]),
         ]
         col = ft.Column(spacing=3)
         for group, items in groups:
@@ -562,8 +563,8 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
-                 self._p_image, self._p_price, self._p_variant, self._p_settings, self._p_workbench,
-                 self._p_logs]
+                 self._p_image, self._p_price, self._p_variant, self._p_publish,
+                 self._p_workbench, self._p_logs, self._p_settings]
         idx = idx % len(pages)
         self._page_idx = idx
         self._building_page = True
@@ -696,7 +697,7 @@ class App:
 
         dlg = ft.AlertDialog(
             title=ft.Text("提交欧盟资质 → 需要欧盟责任人资料"),
-            content=ft.Column([muted("填一次长期复用；也可以在「高级设置 → 欧盟资质」里随时修改。"),
+            content=ft.Column([muted("填一次长期复用；也可以在「类目与属性 → 欧盟资质」里随时修改。"),
                                *fields.values(), status], spacing=10, width=520),
             actions=[ft.TextButton("改为「否」", on_click=to_no),
                      ft.ElevatedButton("保存并提交", bgcolor=ACCENT, color="white", on_click=save)])
@@ -967,21 +968,42 @@ class App:
         # 启动时顺便拉一次店铺各状态数量，避免三个数字一直是「—」
         self._refresh_store_counts()
 
+        # 状态数字：5 个等宽块（采集箱 / 待发布 / 发布失败 / 在线 / 审核中）
+        _sc = getattr(self, "store_counts", {}) or {}
+        self.ov_tiles = {}
+        def _tile(key, label, hint, color):
+            num = ft.Text(str(_sc.get(key, "—")), size=22, weight=ft.FontWeight.BOLD, color=color)
+            self.ov_tiles[key] = num
+            return card(ft.Column([muted(label, 10.5),
+                                   ft.Container(content=num, height=30,
+                                                alignment=ft.alignment.center_left),
+                                   muted(hint, 10)], spacing=2), padding=14, expand=True)
+        tiles_row = ft.Row([
+            _tile("draft", "采集箱", "待处理", TEXT),
+            _tile("editingRequired", "待发布", "可直接发布", "#6EC6FF"),
+            _tile("publishFail", "发布失败", "可重试", "#FF6B6B"),
+            _tile("onSelling", "在线", "已上架", ACCENT_2),
+            _tile("auditing", "审核中", "等待平台", "#FFB020"),
+        ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
         filter_card = card(ft.Column([
-            h1("处理范围", 15),
-            muted("按标题关键词只处理部分采集箱商品；留空表示处理全部"),
-            ft.Row([self.search_kw,
-                    ft.ElevatedButton("应用", icon=ft.Icons.FILTER_ALT, bgcolor=CARD_2, color=TEXT,
-                                      on_click=lambda e: self._apply_search()),
-                    ft.TextButton("清空", icon=ft.Icons.CLEAR, on_click=lambda e: self._clear_search())],
-                   spacing=8, wrap=True),
+            h1("开始一次任务", 15),
+            muted("选范围 → 填关键词（可选）→ 启动；默认只处理采集箱商品"),
+            ft.Row([
+                ft.ElevatedButton("启动", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white",
+                                  on_click=lambda e: self._toggle_run()),
+                self.search_kw,
+                ft.ElevatedButton("应用范围", icon=ft.Icons.FILTER_ALT, bgcolor=CARD_2, color=TEXT,
+                                  on_click=lambda e: self._apply_search()),
+                ft.TextButton("清空", icon=ft.Icons.CLEAR, on_click=lambda e: self._clear_search()),
+            ], spacing=10, wrap=True),
             self.search_hint,
         ], spacing=8))
 
         _extra = [c for c in (self._cost_card(), self._resume_card(), self._diff_card())
                   if c is not None]
-        return [h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
-                ready_card, filter_card,
+        return [h1("概览"), muted("采集箱 → AI 处理 → 保存 / 发布，一次点击跑完"),
+                tiles_row, filter_card, ready_card,
                 *_extra,
                 card(ft.Row([
                     ft.Column([muted("今日任务", 11),
@@ -2392,6 +2414,11 @@ class App:
                 if not cnt:
                     return
                 self.store_counts = cnt
+                for _k, _t in (getattr(self, "ov_tiles", {}) or {}).items():
+                    try:
+                        _t.value = str(cnt.get(_k, "—"))
+                    except Exception:
+                        pass
                 try:
                     self.chip_online.value = str(cnt.get("onSelling", 0))
                     self.chip_wait.value = str(cnt.get("editingRequired", 0))
@@ -3322,97 +3349,6 @@ class App:
     def _p_advanced(self):
         self._current = 2
 
-        def sw(key, label, tooltip_text=""):
-            ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)),
-                            active_color=ACCENT, tooltip=tooltip_text or None)
-            def on(e, _k=key):
-                self.cfg.set(_k, bool(e.control.value))
-                save_config(self.cfg)
-            ctl.on_change = on
-            return ctl
-
-        def tf(key, label, width=200, tooltip_text=""):
-            ctl = ft.TextField(label=label, value=str(getattr(self.cfg, key, "") or ""),
-                               width=width, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                               tooltip=tooltip_text or None)
-            def on(e, _k=key):
-                self.cfg.set(_k, str(e.control.value or ""))
-                save_config(self.cfg)
-            ctl.on_change = on
-            return ctl
-
-        def dd(key, label, options, width=220, tooltip_text=""):
-            ctl = ft.Dropdown(label=label, value=str(getattr(self.cfg, key, options[0][0]) or options[0][0]),
-                              options=[ft.dropdown.Option(k, v) for k, v in options],
-                              width=width, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                              tooltip=tooltip_text or None)
-            def on(e, _k=key):
-                self.cfg.set(_k, str(e.control.value or ""))
-                save_config(self.cfg)
-            ctl.on_change = on
-            return ctl
-
-        # ---------- 顶部：最常用的两个设置 ----------
-        top_card = card(ft.Column([
-            h1("运行设置", 15),
-            ft.Row([
-                tf("edit_sum", "处理产品数量", width=140,
-                   tooltip_text="每次运行处理多少个产品（1=只跑1个，0或空=全部）"),
-                dd("publish_action", "编辑完成后去向", [
-                    ("save_only", "留在采集箱"),
-                    ("save_to_waiting", "移入待发布"),
-                    ("publish", "直接发布"),
-                ], width=200, tooltip_text="产品保存后放在哪个位置"),
-                sw("check_banned_word", "违禁词检查",
-                   tooltip_text="发布前检查标题/详情是否有违禁词"),
-            ], spacing=16, wrap=True),
-        ], spacing=10))
-
-        # ---------- 图片设置 ----------
-        four_in_one_on = bool(getattr(self.cfg, "four_in_one", False))
-        four_warn = ft.Container(
-            content=ft.Text(
-                "⚠ 四合一开启后会将主图1-4合成插入第一位，与「AI精细化编辑·主图1」冲突。\n"
-                "建议：关闭「AI精细化编辑·主图1」，或把四合一插入位置改为「末尾」。",
-                size=10, color="#FFB020"),
-            bgcolor="#FFF7E6", border_radius=8, padding=8,
-            visible=four_in_one_on)
-
-        four_sw = ft.Switch(label="四合一主图（将主图1-4合成一张）",
-                            value=four_in_one_on, active_color=ACCENT)
-
-        def on_four(e):
-            self.cfg.set("four_in_one", bool(four_sw.value))
-            save_config(self.cfg)
-            four_warn.visible = bool(four_sw.value)
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-
-        four_sw.on_change = on_four
-
-        img_card = card(ft.Column([
-            h1("图片设置", 15),
-            ft.Row([four_sw,
-                    dd("four_in_one_position", "四合一位置",
-                       [("first", "插入第一位"), ("append", "追加末尾")], width=180,
-                       tooltip_text="四合一图片插入的位置（建议「末尾」，避免与AI精细编辑冲突）")],
-                   spacing=12, wrap=True),
-            four_warn,
-            ft.Row([
-                sw("main_as_detail", "主图同时作为详情图",
-                   tooltip_text="把所有主图也追加到详情图里"),
-                sw("pad_main_images_from_extra", "主图不足时从详情图补齐",
-                   tooltip_text="主图张数不足时，从详情图中取图补充到指定数量"),
-                sw("keep_main_images_local", "保留主图到本地",
-                   tooltip_text="将处理后的主图额外保存到本地文件夹"),
-            ], spacing=12, wrap=True),
-            ft.Divider(height=1, color=CARD_2),
-            h1("水印设置", 13),
-            self._watermark_card(),
-        ], spacing=10))
-
         # ---------- 类目 ----------
         _auto_cat_on = bool(getattr(self.cfg, "auto_detect_category", True))
         cat_card = card(ft.Column([
@@ -3427,32 +3363,21 @@ class App:
             ], spacing=10, wrap=True),
         ], spacing=8))
 
-        # ---------- 详情设置 ----------
-        detail_card = card(ft.Column([
-            h1("详情设置", 15),
-            ft.Row([
-                sw("copy_sku_to_detail", "复制SKU到详情",
-                   tooltip_text="把SKU名称列表追加到详情页"),
-                sw("delete_detail_text", "删除详情原有文本",
-                   tooltip_text="开启后，AI 详情/自定义文本会替换原有详情，而不是叠加"),
-            ], spacing=12, wrap=True),
-        ], spacing=10))
-
         # ---------- 基础设置 ----------
         base_card = card(ft.Column([
             h1("规格与库存", 15),
             ft.Row([
-                sw("original_box", "是否原箱",
+                self._sw("original_box", "是否原箱",
                    tooltip_text="商品是否以原箱发货"),
             ], spacing=12, wrap=True),
             ft.Row([
-                tf("spec_weight", "重量(kg)", width=120, tooltip_text="默认包装重量（优先使用采集到的重量，未采集时用此值）"),
-                tf("spec_length", "长(cm)", width=100),
-                tf("spec_width", "宽(cm)", width=100),
-                tf("spec_height", "高(cm)", width=100),
+                self._tf("spec_weight", "重量(kg)", width=120, tooltip_text="默认包装重量（优先使用采集到的重量，未采集时用此值）"),
+                self._tf("spec_length", "长(cm)", width=100),
+                self._tf("spec_width", "宽(cm)", width=100),
+                self._tf("spec_height", "高(cm)", width=100),
             ], spacing=8, wrap=True),
             ft.Row([
-                tf("declared_value", "货值默认值", width=160,
+                self._tf("declared_value", "货值默认值", width=160,
                    tooltip_text="申报货值（速卖通草稿必填，建议填实际货值），未填则默认 100"),
             ], spacing=12, wrap=True),
         ], spacing=10))
@@ -3462,9 +3387,9 @@ class App:
             h1("类目属性默认值", 15),
             muted("模板读不到时使用的兜底值"),
             ft.Row([
-                dd("high_concerned_chemical", "高关注化学品",
+                self._dd("high_concerned_chemical", "高关注化学品",
                    [("否", "否"), ("是", "是")], width=160),
-                dd("charge_status", "是否带电",
+                self._dd("charge_status", "是否带电",
                    [("否", "否"), ("是", "是")], width=160),
             ], spacing=12, wrap=True),
         ], spacing=10))
@@ -3499,30 +3424,136 @@ class App:
             h1("欧盟资质（需要时才填）", 15),
             muted("选「是」时速卖通要求填写，否则保存会被拦截"),
             ft.Row([
-                dd("eu_qualification", "是否提交欧盟资质",
+                self._dd("eu_qualification", "是否提交欧盟资质",
                    [("否", "否"), ("是", "是")], width=180),
             ], spacing=12),
             ft.Row([
-                tf("eu_responsible_name", "欧盟责任人名称", width=240),
-                tf("eu_responsible_address", "责任人地址", width=240),
+                self._tf("eu_responsible_name", "欧盟责任人名称", width=240),
+                self._tf("eu_responsible_address", "责任人地址", width=240),
             ], spacing=12, wrap=True),
             ft.Row([
-                tf("eu_responsible_email", "电子邮箱", width=240),
-                tf("eu_responsible_phone", "联系电话", width=180),
+                self._tf("eu_responsible_email", "电子邮箱", width=240),
+                self._tf("eu_responsible_phone", "联系电话", width=180),
             ], spacing=12, wrap=True),
         ], spacing=10))
 
         self._bind_eu_guard()
 
-        # ---------------- 额外选项（老软件「设置」页） ----------------
-        def sw(key, label):
-            ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)), active_color=ACCENT)
-            def on(e, _k=key):
-                self.cfg.set(_k, bool(e.control.value))
-                save_config(self.cfg)
-            ctl.on_change = on
-            return ctl
+        return [h1("类目与属性"), muted("商品默认值：类目、规格、属性模板、欧盟资质；图片见「AI 图片」，发布见「发布队列」"),
+                cat_card, base_card, attr_default_card, attr_card, sku_map_card,
+                eu_card, self._combo_card()]
 
+    # ---------- 可复用设置卡（拆分自原「商品设置」）----------
+    def _sw(self, key, label, tooltip_text=""):
+        ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)),
+                        active_color=ACCENT, tooltip=tooltip_text or None)
+        def on(e, _k=key):
+            self.cfg.set(_k, bool(e.control.value))
+            save_config(self.cfg)
+        ctl.on_change = on
+        return ctl
+
+    def _tf(self, key, label, width=200, tooltip_text=""):
+        ctl = ft.TextField(label=label, value=str(getattr(self.cfg, key, "") or ""),
+                           width=width, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                           tooltip=tooltip_text or None)
+        def on(e, _k=key):
+            self.cfg.set(_k, str(e.control.value or ""))
+            save_config(self.cfg)
+        ctl.on_change = on
+        return ctl
+
+    def _dd(self, key, label, options, width=220, tooltip_text=""):
+        ctl = ft.Dropdown(label=label, value=str(getattr(self.cfg, key, options[0][0]) or options[0][0]),
+                          options=[ft.dropdown.Option(k, v) for k, v in options],
+                          width=width, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                          tooltip=tooltip_text or None)
+        def on(e, _k=key):
+            self.cfg.set(_k, str(e.control.value or ""))
+            save_config(self.cfg)
+        ctl.on_change = on
+        return ctl
+
+    def _card_run(self):
+        top_card = card(ft.Column([
+            h1("运行设置", 15),
+            ft.Row([
+                self._tf("edit_sum", "处理产品数量", width=140,
+                   tooltip_text="每次运行处理多少个产品（1=只跑1个，0或空=全部）"),
+                self._dd("publish_action", "编辑完成后去向", [
+                    ("save_only", "留在采集箱"),
+                    ("save_to_waiting", "移入待发布"),
+                    ("publish", "直接发布"),
+                ], width=200, tooltip_text="产品保存后放在哪个位置"),
+                self._sw("check_banned_word", "违禁词检查",
+                   tooltip_text="发布前检查标题/详情是否有违禁词"),
+            ], spacing=16, wrap=True),
+        ], spacing=10))
+
+        return top_card
+
+    def _card_img(self):
+        four_in_one_on = bool(getattr(self.cfg, "four_in_one", False))
+        four_warn = ft.Container(
+            content=ft.Text(
+                "⚠ 四合一开启后会将主图1-4合成插入第一位，与「AI精细化编辑·主图1」冲突。\n"
+                "建议：关闭「AI精细化编辑·主图1」，或把四合一插入位置改为「末尾」。",
+                size=10, color="#FFB020"),
+            bgcolor="#FFF7E6", border_radius=8, padding=8,
+            visible=four_in_one_on)
+
+        four_sw = ft.Switch(label="四合一主图（将主图1-4合成一张）",
+                            value=four_in_one_on, active_color=ACCENT)
+
+        def on_four(e):
+            self.cfg.set("four_in_one", bool(four_sw.value))
+            save_config(self.cfg)
+            four_warn.visible = bool(four_sw.value)
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        four_sw.on_change = on_four
+
+        img_card = card(ft.Column([
+            h1("图片设置", 15),
+            ft.Row([four_sw,
+                    self._dd("four_in_one_position", "四合一位置",
+                       [("first", "插入第一位"), ("append", "追加末尾")], width=180,
+                       tooltip_text="四合一图片插入的位置（建议「末尾」，避免与AI精细编辑冲突）")],
+                   spacing=12, wrap=True),
+            four_warn,
+            ft.Row([
+                self._sw("main_as_detail", "主图同时作为详情图",
+                   tooltip_text="把所有主图也追加到详情图里"),
+                self._sw("pad_main_images_from_extra", "主图不足时从详情图补齐",
+                   tooltip_text="主图张数不足时，从详情图中取图补充到指定数量"),
+                self._sw("keep_main_images_local", "保留主图到本地",
+                   tooltip_text="将处理后的主图额外保存到本地文件夹"),
+            ], spacing=12, wrap=True),
+            ft.Divider(height=1, color=CARD_2),
+            h1("水印设置", 13),
+            self._watermark_card(),
+        ], spacing=10))
+
+        return img_card
+
+    def _card_detail(self):
+        detail_card = card(ft.Column([
+            h1("详情设置", 15),
+            ft.Row([
+                self._sw("copy_sku_to_detail", "复制SKU到详情",
+                   tooltip_text="把SKU名称列表追加到详情页"),
+                self._sw("delete_detail_text", "删除详情原有文本",
+                   tooltip_text="开启后，AI 详情/自定义文本会替换原有详情，而不是叠加"),
+            ], spacing=12, wrap=True),
+        ], spacing=10))
+
+        return detail_card
+
+    def _card_publish(self):
+        # ---------------- 额外选项（老软件「设置」页） ----------------
         try:
             from ..services import publish_retry as _prc
             _pf_count = _prc.count()
@@ -3582,9 +3613,7 @@ class App:
                    spacing=10, wrap=True),
         ], spacing=10))
 
-        return [h1("商品设置"), top_card, cat_card, img_card, detail_card, base_card,
-                attr_default_card, attr_card, sku_map_card, eu_card,
-                extra_card, self._combo_card()]
+        return extra_card
 
     # ---------- 水印文件（可选文件 + 预览 + 状态）----------
     def _watermark_card(self):
@@ -4394,6 +4423,7 @@ class App:
         cards = [
             add_section("AI 文案（标题 / 详情 / SKU / 估重）", schema_ai(), expanded=True),
             _build_detail_extra(),
+            self._card_detail(),
         ]
         return [h1("AI 文案"),
                 muted("标题 / 详情 / SKU / 估重的提示词与开关；图片处理见「AI 图片」，审查见「内容审查」"),
@@ -4570,7 +4600,7 @@ class App:
             expand=True,
         )
         return [view[0], muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
-                conflict_card, marketing_card, tabs, view[-1]]
+                conflict_card, marketing_card, self._card_img(), tabs, view[-1]]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):
@@ -4973,7 +5003,7 @@ class App:
                                            ft.OutlinedButton("删除", on_click=lib_del)], spacing=10, wrap=True)],
                                  spacing=8))
 
-        return [h1("价格设置"), mode_card, calc_card, tier_card, ws_card, reg_card, tpl_card, lib_card]
+        return [h1("价格"), mode_card, calc_card, tier_card, ws_card, reg_card, tpl_card, lib_card]
 
     def _search_templates(self):
         try:
@@ -5018,7 +5048,7 @@ class App:
             pass
 
     def _p_variant(self):
-        """变种设置：按店小秘的方式展示——编码规则 / 库存 / 属性映射 / 价格来源。"""
+        """变种与库存：按店小秘的方式展示——编码规则 / 库存 / 属性映射 / 价格来源。"""
         self._current = 7
         # 写回永远开启（不再给开关）
         try:
@@ -5108,17 +5138,75 @@ class App:
             _r = compute_price(self.cfg, float(getattr(self.cfg, "goods_cost", 0) or 100) or 100)
             _price_line = f"当前模式：{OPTION_LABELS.get(str(self.cfg.price_mode), self.cfg.price_mode)} → 成本 100 试算 ¥{_r.final:.2f}"
         except Exception:
-            _price_line = "价格由「价格设置」统一计算"
+            _price_line = "价格由「价格」页统一计算"
         price_card = card(ft.Column([
             h1("变种价格", 15),
             muted("所有变种共用同一套价格算法（不在这里单独定价）"),
             ft.Text(_price_line, size=12, color=ACCENT_2, selectable=True),
-            ft.TextButton("去价格设置", icon=ft.Icons.ARROW_FORWARD,
+            ft.TextButton("去价格页", icon=ft.Icons.ARROW_FORWARD,
                           on_click=lambda e: self._switch(6)),
         ], spacing=8))
 
         _refresh_preview()
-        return [h1("变种设置"), code_card, stock_card, attr_card, price_card]
+        return [h1("变种与库存"), code_card, stock_card, attr_card, price_card]
+
+    def _p_publish(self):
+        """发布队列：待发布 / 发布失败 / 重发动作，以及发布相关设置。"""
+        self._current = 8
+        cnt = getattr(self, "store_counts", {}) or {}
+        self.pub_wait_txt = ft.Text(str(cnt.get("editingRequired", "—")), size=22,
+                                    weight=ft.FontWeight.BOLD, color="#6EC6FF")
+        self.pub_fail_txt = ft.Text(str(cnt.get("publishFail", "—")), size=22,
+                                    weight=ft.FontWeight.BOLD, color="#FF6B6B")
+        self.pub_publishing_txt = ft.Text(str(cnt.get("publishing", "—")), size=22,
+                                          weight=ft.FontWeight.BOLD, color=ACCENT_2)
+
+        def _kpi(label, ctrl, hint):
+            return ft.Column([muted(label, 11),
+                              ft.Container(content=ctrl, height=30, alignment=ft.alignment.center_left),
+                              muted(hint, 10.5)], spacing=2, expand=True)
+
+        def refresh_counts():
+            def go():
+                try:
+                    from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+                    c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                    c2 = c.counts(self.cfg.store_id or None, ttl=30)
+                    self.store_counts = c2 or {}
+                    self.pub_wait_txt.value = str((c2 or {}).get("editingRequired", 0))
+                    self.pub_fail_txt.value = str((c2 or {}).get("publishFail", 0))
+                    self.pub_publishing_txt.value = str((c2 or {}).get("publishing", 0))
+                    self._safe_update()
+                except Exception:
+                    pass
+            threading.Thread(target=go, daemon=True).start()
+
+        queue_card = card(ft.Column([
+            h1("队列", 15),
+            muted("商品保存后会进入「待发布」，提交发布后进入「发布中 → 审核中」"),
+            ft.Row([_kpi("待发布（可直接发布）", self.pub_wait_txt, "店小秘「待发布」"),
+                    _kpi("发布失败（可重试）", self.pub_fail_txt, "多数是类目/属性问题"),
+                    _kpi("发布中", self.pub_publishing_txt, "等待平台审核")],
+                   spacing=20, vertical_alignment=ft.CrossAxisAlignment.START),
+            ft.Row([
+                ft.ElevatedButton("刷新数量", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
+                                  on_click=lambda e: refresh_counts()),
+                ft.ElevatedButton("批量发布「待发布」", icon=ft.Icons.PUBLISH,
+                                  bgcolor="#6EC6FF", color="#04231C",
+                                  on_click=lambda e: threading.Thread(
+                                      target=self._batch_publish_waiting, daemon=True).start()),
+                ft.ElevatedButton("重试「发布失败」", icon=ft.Icons.REPLAY,
+                                  bgcolor="#FFB020", color="#1A1200",
+                                  on_click=lambda e: threading.Thread(
+                                      target=self._batch_publish_failed, daemon=True).start()),
+            ], spacing=10, wrap=True),
+        ], spacing=10))
+
+        return [h1("发布队列"),
+                muted("查看还差什么才能发出去，并在这里一键发布 / 重试"),
+                queue_card,
+                self._card_run(),
+                self._card_publish()]
 
     def _p_workbench(self):
         self._current = 9
@@ -5816,18 +5904,6 @@ class App:
                               on_click=lambda e: self._clear_edited()),
             ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Row([
-                ft.ElevatedButton("批量发布「待发布」商品", icon=ft.Icons.PUBLISH,
-                                  bgcolor="#6EC6FF", color="#04231C",
-                                  tooltip="把店小秘「待发布」里的商品全部提交发布",
-                                  on_click=lambda e: threading.Thread(
-                                      target=self._batch_publish_waiting, daemon=True).start()),
-                ft.ElevatedButton("重试「发布失败」商品", icon=ft.Icons.REPLAY,
-                                  bgcolor="#FFB020", color="#1A1200",
-                                  tooltip="重新提交那些发布失败的商品",
-                                  on_click=lambda e: threading.Thread(
-                                      target=self._batch_publish_failed, daemon=True).start()),
-            ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            ft.Row([
                 ft.TextButton("复制全部日志", icon=ft.Icons.COPY,
                               tooltip="把当前日志全部复制到剪贴板",
                               on_click=lambda e: self._copy_logs()),
@@ -6236,7 +6312,7 @@ class App:
             try:
                 n = edited.clear()
                 self.toast(f"已清空 {n} 条已编辑记录；这些产品下次会被重新处理")
-                self._switch(8)
+                self._switch(11)
             except Exception as ex:
                 self.toast(f"清空失败：{ex}", False)
             finally:
@@ -6257,7 +6333,7 @@ class App:
         self.update()
 
     def _p_settings(self):
-        self._current = 8
+        self._current = 11
 
         # ---------------- 授权 ----------------
         from ..license import machine_code as _mcode

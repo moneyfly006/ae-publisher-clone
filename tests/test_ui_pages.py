@@ -28,7 +28,7 @@ a.field_refs = []
 
 PAGES = [("_p_overview", "概览"), ("_p_store", "店铺设置"), ("_p_advanced", "商品设置"),
          ("_p_ai", "AI 文案"), ("_p_review", "内容审查"), ("_p_image", "AI 图片"),
-         ("_p_price", "价格设置"), ("_p_variant", "变种设置"), ("_p_settings", "设置"),
+         ("_p_price", "价格设置"), ("_p_variant", "变种设置"), ("_p_publish", "发布队列"), ("_p_settings", "设置"),
          ("_p_workbench", "图片工作台"), ("_p_logs", "任务与日志")]
 
 ok = fail = 0
