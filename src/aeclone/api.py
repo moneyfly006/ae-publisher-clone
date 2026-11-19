@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable
 
 import requests
 
@@ -158,32 +158,6 @@ class ApiClient:
         data = r.json()
         return (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
 
-    def chat_stream(self, model: str, messages: list[dict]) -> Iterator[str]:
-        payload = {"model": model, "messages": messages, "stream": True}
-        with self.session.post(
-            self._url("/v1/chat/completions"),
-            headers=self._headers({"Content-Type": "application/json"}),
-            data=json.dumps(payload).encode(),
-            stream=True,
-            timeout=self.timeout,
-        ) as r:
-            if r.status_code >= 400:
-                raise ApiError(self._extract_error(r), r.status_code, r.text[:500])
-            for line in r.iter_lines():
-                if not line or not line.startswith(b"data:"):
-                    continue
-                chunk = line[5:].strip()
-                if chunk == b"[DONE]":
-                    break
-                try:
-                    obj = json.loads(chunk)
-                except Exception:
-                    continue
-                delta = (obj.get("choices") or [{}])[0].get("delta", {})
-                if delta.get("content"):
-                    yield delta["content"]
-
-    # ---------- 价格 ----------
     def pricing(self, force: bool = False) -> list[dict]:
         """公开价格表（无需鉴权，缓存 5 分钟）。"""
         key = f"pricing:{self.base}"

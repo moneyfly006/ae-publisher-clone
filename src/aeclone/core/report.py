@@ -26,29 +26,6 @@ def _os_desc() -> str:
         return platform.system()
 
 
-def classify_error(msg: str) -> str:
-    """把常见平台报错归类，方便后台按类型统计。"""
-    m = str(msg or "")
-    low = m.lower()
-    if "货值" in m or "cargo" in low:
-        return "cargo"
-    if "物流属性" in m or "logisticattr" in low:
-        return "logistic"
-    if "marketimages" in low or "marketing image" in low or "营销图" in m:
-        return "market_image"
-    if "chk_plug" in low or "voltage" in low or "插头" in m or "电压" in m:
-        return "variation"
-    if "attr_value_id" in low or ("属性" in m and "重复" in m):
-        return "attribute"
-    if "tls ca" in low or "certificate bundle" in low:
-        return "tls"
-    if "100x100" in low or ("image" in low and "too small" in low):
-        return "image_size"
-    if "audit" in low or "审核" in m:
-        return "audit"
-    return "other"
-
-
 def tail_log(lines: int = 800) -> str:
     """读本机 app.log 尾部（最近 N 行）。"""
     try:

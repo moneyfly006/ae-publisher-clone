@@ -25,8 +25,6 @@ from ..core.instances import list_instances, create_instance, launch_instance
 from ..services import history
 from ..services.queue import TaskQueue
 from ..services.scheduler import Scheduler
-from ..services.text_pipeline import TextPipeline
-from ..services.image_pipeline import ImagePipeline
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
@@ -1076,7 +1074,7 @@ class App:
         threading.Thread(target=run, daemon=True).start()
 
     # 需要 AI 的开关（任意一个开就要预检）
-    _AI_GATES = ("ai_title_enable", "ai_desc_enable", "enable_ai_sku", "review_enable",
+    _AI_GATES = ("enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_enable",
                  "estimate_weight_enable", "ai_image_enable", "translate_main_pic_enable",
                  "translate_detail_pic_enable", "translate_sku_pic")
 
@@ -1086,7 +1084,7 @@ class App:
         只拦「Key 无效 / 额度不足」这类一定跑不通的情况；
         网络抖动只记 WARN，不阻断（可能只是瞬时）。
         """
-        gates = ("ai_title_enable", "ai_desc_enable", "enable_ai_sku", "review_enable",
+        gates = ("enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_enable",
                  "estimate_weight_enable", "ai_image_enable", "translate_main_pic_enable",
                  "translate_detail_pic_enable", "translate_sku_pic")
         try:
@@ -1361,6 +1359,14 @@ class App:
                 pass
 
         threading.Thread(target=work, daemon=True).start()
+
+    def _publish_failed_count(self) -> int:
+        """发布失败列表里的商品数（用于「只重试发布失败」按钮上的数字）。"""
+        try:
+            from ..services import publish_retry as _prc
+            return int(_prc.count())
+        except Exception:
+            return 0
 
     def _rerun_failed(self):
         """只重跑上一次批量里失败/未完成的商品（忽略已编辑记录）。"""
@@ -3087,74 +3093,9 @@ class App:
                    spacing=10, wrap=True),
         ], spacing=10))
 
-        # ---------- 详情本地图 ----------
-        def _dl_load():
-            import json as _jd
-            raw = getattr(self.cfg, "detail_local_images", "[]")
-            try:
-                return [str(x) for x in (_jd.loads(raw) if isinstance(raw, str) else raw) if str(x)]
-            except Exception:
-                return []
-
-        self.dl_paths = _dl_load()
-        self.dl_list = ft.Column(spacing=3)
-        self.dl_status = ft.Text("", size=11, color=MUTED)
-
-        def _dl_refresh():
-            import json as _jd
-            self.cfg.set("detail_local_images", _jd.dumps(self.dl_paths, ensure_ascii=False))
-            save_config(self.cfg)
-            self.dl_list.controls = [
-                ft.Row([ft.Icon(ft.Icons.IMAGE_OUTLINED, size=14, color=MUTED),
-                        ft.Text(str(x)[-60:], size=11, color=TEXT, expand=True),
-                        ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=14, icon_color="#FF8A8A",
-                                      tooltip="移除",
-                                      on_click=lambda e, _x=x: (self.dl_paths.remove(_x), _dl_refresh()))],
-                       spacing=6)
-                for x in self.dl_paths
-            ] or [ft.Text("未选择本地详情图", size=11, color=MUTED)]
-            self.dl_status.value = f"已选 {len(self.dl_paths)} 张，刊登时上传图床后插入详情"
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-
-        def _dl_pick(e):
-            self._dl_picker.pick_files(allow_multiple=True, allowed_extensions=["png", "jpg", "jpeg", "webp"])
-
-        def _dl_on_result(e):
-            if e.files:
-                for f in e.files:
-                    if f.path and f.path not in self.dl_paths:
-                        self.dl_paths.append(f.path)
-                _dl_refresh()
-
-        self._dl_picker = ft.FilePicker(on_result=_dl_on_result)
-        try:
-            self.page.overlay.append(self._dl_picker)
-        except Exception:
-            pass
-        _dl_refresh()
-        detail_img_card = card(ft.Column([
-            h1("详情本地图", 15),
-            muted("从电脑选图片，刊登时上传图床并插入商品详情（头/尾可选）"),
-            ft.Row([ft.ElevatedButton("选择图片", icon=ft.Icons.ADD_PHOTO_ALTERNATE, bgcolor=ACCENT,
-                                      color="white", on_click=_dl_pick),
-                    ft.OutlinedButton("清空", icon=ft.Icons.DELETE_SWEEP,
-                                      on_click=lambda e: (self.dl_paths.clear(), _dl_refresh())),
-                    ft.Dropdown(width=150, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                value=str(getattr(self.cfg, "detail_local_image_position", "tail") or "tail"),
-                                options=[ft.dropdown.Option("head", "插到开头"),
-                                         ft.dropdown.Option("tail", "插到结尾"),
-                                         ft.dropdown.Option("both", "头尾都插")],
-                                on_change=lambda e: (self.cfg.set("detail_local_image_position", e.control.value),
-                                                     save_config(self.cfg)))], spacing=10, wrap=True),
-            self.dl_list, self.dl_status,
-        ], spacing=8))
-
         return [h1("商品设置"), top_card, img_card, detail_card, base_card,
                 attr_default_card, attr_card, sku_map_card, eu_card,
-                detail_img_card, extra_card, self._combo_card()]
+                extra_card, self._combo_card()]
 
     # ---------- 水印文件（可选文件 + 预览 + 状态）----------
     def _watermark_card(self):
@@ -3856,8 +3797,114 @@ class App:
                                     controls=controls, initially_expanded=expanded,
                                     icon_color=ACCENT, collapsed_icon_color=MUTED)
 
+        # ---------- 详情增强：自定义文字/图片 + 插入位置 ----------
+        def _build_detail_extra():
+            def sw2(key, label, tip=""):
+                ctl = ft.Switch(label=label, value=bool(getattr(self.cfg, key, False)),
+                                active_color=ACCENT, tooltip=tip or None)
+                def on(e, _k=key):
+                    self.cfg.set(_k, bool(e.control.value))
+                    save_config(self.cfg)
+                ctl.on_change = on
+                return ctl
+
+            def tf2(key, label, width=380, tip=""):
+                ctl = ft.TextField(label=label, width=width, bgcolor=CARD_2, border_color=CARD_2,
+                                   color=TEXT, value=str(getattr(self.cfg, key, "") or ""),
+                                   tooltip=tip or None, multiline=False)
+                def on(e, _k=key):
+                    self.cfg.set(_k, str(e.control.value or ""))
+                    save_config(self.cfg)
+                ctl.on_change = on
+                return ctl
+
+            def dd2(key, label, options, width=180, tip=""):
+                ctl = ft.Dropdown(width=width, label=label, bgcolor=CARD_2, border_color=CARD_2,
+                                  color=TEXT, value=str(getattr(self.cfg, key, "") or ""),
+                                  tooltip=tip or None,
+                                  options=[ft.dropdown.Option(v, t) for v, t in options])
+                def on(e, _k=key):
+                    self.cfg.set(_k, str(e.control.value or ""))
+                    save_config(self.cfg)
+                ctl.on_change = on
+                return ctl
+
+            # 详情本地图
+            import json as _jd2
+            raw = getattr(self.cfg, "detail_local_images", "[]")
+            try:
+                self.dl_paths = [str(x) for x in (_jd2.loads(raw) if isinstance(raw, str) else raw) if str(x)]
+            except Exception:
+                self.dl_paths = []
+            self.dl_list = ft.Column(spacing=3)
+            self.dl_status = ft.Text("", size=11, color=MUTED)
+
+            def _dl_refresh():
+                self.cfg.set("detail_local_images", _jd2.dumps(self.dl_paths, ensure_ascii=False))
+                save_config(self.cfg)
+                self.dl_list.controls = [
+                    ft.Row([ft.Icon(ft.Icons.IMAGE_OUTLINED, size=14, color=MUTED),
+                            ft.Text(str(x)[-60:], size=11, color=TEXT, expand=True),
+                            ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_size=14, icon_color="#FF8A8A",
+                                          tooltip="移除",
+                                          on_click=lambda e, _x=x: (self.dl_paths.remove(_x), _dl_refresh()))],
+                           spacing=6)
+                    for x in self.dl_paths
+                ] or [ft.Text("未选择本地详情图", size=11, color=MUTED)]
+                self.dl_status.value = f"已选 {len(self.dl_paths)} 张，刊登时上传图床后插入详情"
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            def _dl_pick(e):
+                self._dl_picker.pick_files(allow_multiple=True,
+                                           allowed_extensions=["png", "jpg", "jpeg", "webp"])
+
+            def _dl_on_result(e):
+                if e.files:
+                    for f in e.files:
+                        if f.path and f.path not in self.dl_paths:
+                            self.dl_paths.append(f.path)
+                    _dl_refresh()
+
+            self._dl_picker = ft.FilePicker(on_result=_dl_on_result)
+            try:
+                self.page.overlay.append(self._dl_picker)
+            except Exception:
+                pass
+            _dl_refresh()
+
+            return card(ft.Column([
+                h1("详情内容增强（文字 / 图片）", 15),
+                muted("AI 详情生成后，把下面填的文字和选的图片插到描述的开头或结尾"),
+                ft.Row([
+                    sw2("custom_detail_text_enable", "启用（总开关）",
+                        "关闭后，下面的文字和图片都不会插入详情"),
+                    dd2("detail_text_position", "文字插入位置",
+                        [("head", "开头"), ("tail", "结尾"), ("both", "头尾都加")],
+                        tip="自定义文字插到哪里"),
+                    dd2("detail_local_image_position", "图片插入位置",
+                        [("head", "开头"), ("tail", "结尾"), ("both", "头尾都加")],
+                        tip="本地详情图插到哪里"),
+                ], spacing=12, wrap=True),
+                ft.Row([
+                    tf2("detail_text_info", "开头文字（可留空）", 380, "插到详情最前面的文字"),
+                    tf2("detail_text_info_tail", "结尾文字（可留空）", 380, "插到详情最后面的文字"),
+                ], spacing=12, wrap=True),
+                ft.Divider(height=1, color=CARD_2),
+                h1("详情本地图", 13),
+                ft.Row([ft.ElevatedButton("选择图片", icon=ft.Icons.ADD_PHOTO_ALTERNATE,
+                                          bgcolor=ACCENT, color="white", on_click=_dl_pick),
+                        ft.OutlinedButton("清空", icon=ft.Icons.DELETE_SWEEP,
+                                          on_click=lambda e: (self.dl_paths.clear(), _dl_refresh()))],
+                       spacing=10, wrap=True),
+                self.dl_list, self.dl_status,
+            ], spacing=8))
+
         cards = [
             add_section("AI 文案（标题 / 详情 / SKU / 估重）", schema_ai(), expanded=True),
+            _build_detail_extra(),
         ]
         return [h1("AI 文案"),
                 muted("标题 / 详情 / SKU / 估重的提示词与开关；图片处理见「AI 图片」，审查见「内容审查」"),
@@ -3870,24 +3917,7 @@ class App:
         self._current = 4
         view = self._render("内容审查", schema_review())
 
-        self.rev_status = ft.Text("未开始", size=12, color=MUTED)
-        self.rev_table = ft.DataTable(
-            columns=[ft.DataColumn(ft.Text("产品", size=11, color=MUTED)),
-                     ft.DataColumn(ft.Text("文本", size=11, color=MUTED)),
-                     ft.DataColumn(ft.Text("主图", size=11, color=MUTED)),
-                     ft.DataColumn(ft.Text("结论", size=11, color=MUTED))],
-            rows=[], column_spacing=14, heading_row_height=28, data_row_min_height=26)
-        self.rev_scope = ft.Dropdown(value="editingRequired", width=140, bgcolor=CARD_2, color=TEXT,
-                                     border_color=CARD_2,
-                                     options=[ft.dropdown.Option("editingRequired", "草稿"),
-                                              ft.dropdown.Option("onSelling", "在线")])
-        self.rev_limit = ft.TextField(label="审查数量", value="10", width=110,
-                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-
-        def start(e):
-            threading.Thread(target=self._run_review, daemon=True).start()
-
-        # 审查设置（从 AI 页移过来）
+        # 审查在发布时自动执行（publisher._review_content），这里只保留设置
         self.field_refs = []
         rev_sections = []
         for name, fields in schema_review():
@@ -3897,74 +3927,7 @@ class App:
                 self._bind_autosave(f)
             rev_sections.append(c)
 
-        card_rev = card(ft.Column([
-            h1("审查结果", 15),
-            muted("拉取店铺产品，逐条跑文本审查 + 主图审查；不合规会标红（发布时可按设置拦截）"),
-            ft.Row([self.rev_scope, self.rev_limit,
-                    ft.ElevatedButton("开始审查", icon=ft.Icons.FACT_CHECK, bgcolor=ACCENT, color="white", on_click=start),
-                    self.rev_status], spacing=10, wrap=True),
-            self.rev_table,
-        ], spacing=8))
-        return [view[0], *rev_sections, card_rev] + view[1:]
-
-    def _run_review(self):
-        try:
-            limit = int(self.rev_limit.value or 10)
-        except Exception:
-            limit = 10
-        try:
-            ck = self._cookies()
-            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            items = dxm.iter_products((getattr(self.cfg, 'shop_id', '') or self.cfg.store_id or None), self.rev_scope.value or None, limit, 3)
-        except Exception as ex:
-            self.toast(f"拉取产品失败：{ex}", False); return
-        tp = TextPipeline(self.cfg)
-        ip = ImagePipeline(self.cfg)
-        self.rev_status.value = f"审查中… 0/{len(items)}"
-        rows = []
-        bad = 0
-        for i, it in enumerate(items, 1):
-            title = str(it.get("title") or "")
-            text_verdict = "跳过"
-            if self.cfg.review_text_enable and title:
-                r = tp.review_text(title)
-                _rv = (r.value or "").upper()
-                _bad = ("FAIL" in _rv) or any(k in (r.value or "") for k in ("不符合", "违规", "建议删除"))
-                text_verdict = "不合规" if (r.ok and _bad) else ("通过" if r.ok else "失败")
-            img_verdict = "跳过"
-            imgs = it.get("images") or []
-            if self.cfg.review_main_img_enable and imgs:
-                try:
-                    v = ip.review(str(imgs[0]), "main")
-                    _iv = (v or "").upper()
-                    _ibad = ("FAIL" in _iv) or any(k in (v or "") for k in ("不符合", "违规", "建议删除", "含联系方式"))
-                    img_verdict = "不合规" if _ibad else "通过"
-                except Exception:
-                    img_verdict = "失败"
-            ok = "不合规" not in (text_verdict, img_verdict) and "失败" not in (text_verdict, img_verdict)
-            bad += 0 if ok else 1
-            color = ACCENT_2 if ok else "#FF6B6B"
-            rows.append(ft.DataRow(cells=[
-                ft.DataCell(ft.Text(title[:44], size=11, color=TEXT)),
-                ft.DataCell(ft.Text(text_verdict, size=11, color=MUTED)),
-                ft.DataCell(ft.Text(img_verdict, size=11, color=MUTED)),
-                ft.DataCell(ft.Text("通过" if ok else "需处理", size=11, color=color)),
-            ]))
-            self.rev_table.rows = list(rows)
-            self.rev_status.value = f"审查中… {i}/{len(items)}"
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-        self.rev_status.value = f"完成：{len(items)} 个产品，{bad} 个需处理"
-        self.rev_status.color = "#FF6B6B" if bad else ACCENT_2
-        self._log(f"内容审查完成：{len(items)} 个，{bad} 个需处理")
-        try:
-            self._safe_update()
-        except Exception:
-            pass
-
-
+        return [view[0], *rev_sections] + view[1:]
     def _p_image(self):
         """AI 图片：只保留两大块 —— 简单编辑 / 精细化编辑。"""
         self._current = 5
@@ -5176,6 +5139,19 @@ class App:
                                   on_click=lambda e: self._open_log_file()),
                 ft.TextButton("清空", icon=ft.Icons.DELETE_OUTLINE, on_click=clear_logs),
             ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([
+                self._edited_count_text(),
+                ft.ElevatedButton("重跑上次失败的商品", icon=ft.Icons.REPLAY,
+                                  bgcolor=ACCENT_2, color="#04231C",
+                                  on_click=lambda e: self._rerun_failed()),
+                ft.ElevatedButton(f"只重试发布失败（{self._publish_failed_count()} 个·不花钱）",
+                                  icon=ft.Icons.CLOUD_UPLOAD,
+                                  bgcolor=ACCENT, color="white",
+                                  tooltip="这些商品已经编辑成功，只是发布被拒；重试只调发布接口，不跑 AI、不处理图片",
+                                  on_click=lambda e: self._retry_publish_failed()),
+                ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
+                              on_click=lambda e: self._clear_edited()),
+            ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Row([self.log_level, self.log_follow], spacing=12,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
             self.log_status,
@@ -5713,12 +5689,13 @@ class App:
         ], spacing=8))
 
         # ---------------- 图床 ----------------
+        # 图床地址/密钥不再展示给用户（留着控件让保存逻辑沿用原值）
         self.host_url = ft.TextField(
-            label="图床地址", width=340,
+            label="图床地址", width=340, visible=False,
             value=str(getattr(self.cfg, "image_host_url", "") or ""),
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.host_key = ft.TextField(
-            label="图床密钥", width=220, password=True, can_reveal_password=True,
+            label="图床密钥", width=220, password=True, can_reveal_password=True, visible=False,
             value=str(getattr(self.cfg, "image_host_key", "") or ""),
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.host_status = ft.Text("", size=11, color=MUTED)
@@ -5809,7 +5786,6 @@ class App:
             h1("图床", 15),
             muted("AI 出图先放这里，店小秘编辑器再按 URL 取图。"
                   "AI 返回的是约 1 天过期的临时地址，不能直接写进商品。"),
-            ft.Row([self.host_url, self.host_key], spacing=10, wrap=True),
             ft.Row([self.host_keep, ft.ElevatedButton("清理旧图", icon=ft.Icons.DELETE_SWEEP,
                                                      on_click=lambda e: clean_host())],
                    spacing=8, wrap=True),
