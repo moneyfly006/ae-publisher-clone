@@ -28,6 +28,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Windows CI 控制台默认 cp1252/GBK，打印中文会 UnicodeEncodeError
+if sys.platform == "win32":
+    for _s in (sys.stdout, sys.stderr):
+        try:
+            _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src" / "aeclone"
 BACKUP = ROOT / "build" / "harden_backup"
