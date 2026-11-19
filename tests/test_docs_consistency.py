@@ -54,7 +54,7 @@ def t4_doc_counts_match():
         "tests/test_preflight_config.py": 12,
         "tests/test_config_robustness.py": 8,
         "tests/test_switch_effectiveness.py": 4,
-        "tests/test_api_save.py": 23,
+        "tests/test_api_save.py": 29,
     }
     for rel, expected in checks.items():
         src = (ROOT / rel).read_text(encoding="utf-8")

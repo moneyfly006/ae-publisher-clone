@@ -1645,7 +1645,10 @@ class Publisher:
         return w >= 800 and h >= 800 and abs(w / max(h, 1) - 1.0) <= 0.05
 
     def _fix_market_images(self, cur1: str, cur2: str, base_img: str, res=None) -> list[str]:
-        """已有营销图不合规（尺寸/比例不对）就重新生成，返回 [m1, m2]（可能为空）。"""
+        """已有营销图不合规（尺寸/比例不对）就重新生成，返回 [m1, m2]（可能为空）。
+
+        m1 = marketImg1 = 3:4 场景图；m2 = marketImg2 = 1:1 白底图。
+        """
         if self._market_ok(cur1, "3:4") and self._market_ok(cur2, "1:1"):
             return []
         out = self._market_images_for(base_img, res)
@@ -1674,7 +1677,7 @@ class Publisher:
             src.write_bytes(_rq.get(str(image_url), timeout=40).content)
             # 顺序很重要！店小秘/速卖通规定：
             #   marketImg1 = 场景图，必须 ≥750x1000 且 3:4
-            #   marketImg2 = 白底图，800x800 (1:1)
+            #   marketImg2 = 白底图，必须 ≥800x800 且 1:1
             out = []
             for i, size in enumerate(((750, 1000), (800, 800))):
                 fp = d / f"mk{i}.jpg"
@@ -1687,6 +1690,49 @@ class Publisher:
             if res is not None:
                 add_step(res, "营销图", False, str(ex)[:70])
             return []
+
+    def _ensure_min_image_size(self, images: list[str], res=None) -> list[str]:
+        """平台硬性要求：主图宽高不能小于 100，太小会报 isv.134000000002。
+
+        采集来的长条图常见 202x66，这里本地放大到 800x800（白底补边）再上传替换；
+        下载/放大失败则保留原图（不阻断保存）。
+        """
+        import io as _io
+        import tempfile as _tf
+        import requests as _rq
+        from pathlib import Path as _P
+        out: list[str] = []
+        for u in images:
+            s = str(u or "")
+            if not s.startswith("http"):
+                out.append(s)
+                continue
+            try:
+                raw = _rq.get(s, timeout=30).content
+                from PIL import Image as _Img
+                w, h = _Img.open(_io.BytesIO(raw)).size
+            except Exception:
+                out.append(s)
+                continue
+            if w >= 100 and h >= 100:
+                out.append(s)
+                continue
+            try:
+                from .image_ops import make_marketing
+                from .hosting import upload as _up
+                d = _P(_tf.mkdtemp())
+                sp = d / "src.png"
+                sp.write_bytes(raw)
+                op = d / "out.jpg"
+                make_marketing(sp, op, (800, 800))
+                out.append(_up(op))
+                if res is not None:
+                    add_step(res, "图片尺寸", True, f"{w}x{h} 过小 → 已放大 800x800")
+            except Exception as ex:  # noqa: BLE001
+                if res is not None:
+                    add_step(res, "图片尺寸", False, f"{w}x{h} 放大失败：{str(ex)[:40]}")
+                out.append(s)
+        return out
 
     def _shrink_detail_images(self, html: str, res, max_mb: float = 4.5) -> str:
         """描述图 > 5MB 会被站点拒绝，这里统一检测并压缩重传。
@@ -1920,7 +1966,11 @@ class Publisher:
             _cap = int(getattr(self.cfg, "editor_main_images_max", 6) or 6)
             if _imgs and _cap > 0:
                 _imgs = list(_imgs)[:_cap]
-            overrides = build_ai_overrides(target, p, self.cfg, images=_imgs, ship=ship)
+            # 平台硬性要求：主图宽高 ≥100，太小会报 isv.134000000002
+            if _imgs:
+                _imgs = self._ensure_min_image_size(list(_imgs), res)
+            overrides = build_ai_overrides(target, p, self.cfg, images=_imgs, ship=ship,
+                                           template=tpl)
 
             # 营销图是发布必填项：没有就本地裁切补上（免费，不做会报「请补充营销图」）
             try:
@@ -1963,6 +2013,11 @@ class Publisher:
             return SaveResult(ok=False, message=str(ex)[:300])
         except Exception as ex:  # noqa: BLE001
             _msg = str(ex)[:300] or type(ex).__name__
+            # 商品在速卖通审核中：平台不允许再次编辑保存。这不是失败，日志不要打 ✗，
+            # 否则用户会以为商品保存坏了。
+            if is_audit_pending(_msg):
+                add_step(res, "API 直存", True, "商品在审核中，本次跳过保存（不是失败）")
+                return SaveResult(ok=True, message="商品在审核中，已跳过保存")
             add_step(res, "API 直存", False, f"保存失败：{_msg[:200]}")
             return SaveResult(ok=False, message=f"保存失败：{_msg}")
 

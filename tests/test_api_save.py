@@ -402,7 +402,7 @@ def t21_attr_id_strict_validation():
 
 
 def t22_market_image_ratio_order():
-    print("\n[测试22] 营销图顺序：marketImg1=3:4场景图(≥750x1000)，marketImg2=1:1白底图")
+    print("\n[测试22] 营销图尺寸判定：1:1≥800x800 / 3:4≥750x1000 各自合格")
     import aeclone.services.publisher as P
     from PIL import Image as _Img
     import io as _io
@@ -449,6 +449,156 @@ def t23_nameless_system_attrs_submitted():
     assert "Warranty" in names, names
     print("  ✓ 系统属性(按id):", ids, "| 自定义:", names)
 
+def t24_type_condition_custom_dup_removed():
+    print("\n[测试24] 自定义 Type/Condition/Model Number 与系统属性重名 → 自动删除")
+    import json as _j
+    # 目标有 系统 Type（有效 id）+ 自定义 Type（无 id，重名 → 删）
+    # 自定义 Condition / Model Number 现在也视为系统属性 → 删（与老软件对齐）
+    product = _product()
+    product["aeopAeProductPropertys"] = _j.dumps([
+        {"attrName": "Type", "attrNameId": "9001", "attrValueId": "1001", "attrValue": "Phone Case"},
+        {"attrName": "Type", "attrValue": "Back Cover"},
+        {"attrName": "Condition", "attrValue": "New"},
+        {"attrName": "Model Number", "attrValue": "X99"},
+        {"attrName": "Color", "attrValue": "Black"},
+        {"attrName": "Certificate", "attrValue": "CE"},
+        {"attrName": "Certificate", "attrValue": "RoHS"},   # 同名自定义属性 → 只留第一个
+        {"attrName": "Certification", "attrValue": "CE,ISO"},  # 与系统属性 Certification 重名 → 删
+    ])
+    props = A.to_submit_props(product, None)
+    names = [p.get("attrName") for p in props if "attrName" in p]
+    ids = [(p.get("attrNameId"), p.get("attrValueId")) for p in props if "attrNameId" in p]
+    assert "Type" not in names, f"自定义 Type 应删除: {props}"
+    assert "Condition" not in names, f"自定义 Condition 应删除: {props}"
+    assert "Model Number" not in names, f"自定义 Model Number 应删除: {props}"
+    assert "Color" in names, "Color 应保留"
+    assert names.count("Certificate") == 1, f"同名自定义属性应只留 1 个: {props}"
+    assert "Certification" not in names, f"自定义 Certification 应删除: {props}"
+    assert ("9001", "1001") in ids, "系统 Type(id) 应保留"
+    print("  ✓ 自定义 Type/Condition/Model Number 已删，同名 Certificate 只留 1 个，系统 Type 保留")
+
+
+def t25_product_own_nameless_system_attr_submitted():
+    print("\n[测试25] 商品自己的系统属性没有 attrName（只有 id）时也必须提交")
+    import json as _j
+    product = _product()
+    product["aeopAeProductPropertys"] = _j.dumps([
+        {"attrNameId": "2", "attrValueId": "201512802"},   # Brand Name（无名字）
+        {"attrName": "Brand Name", "attrValue": "yugong"},  # 自定义重名 → 删
+        {"attrName": "Warranty", "attrValue": "1 Year"},
+    ])
+    props = A.to_submit_props(product, None)
+    ids = [str(p.get("attrValueId")) for p in props if "attrNameId" in p]
+    names = [p.get("attrName") for p in props if "attrName" in p]
+    assert "201512802" in ids, f"商品自己的 id-only 系统属性必须提交: {props}"
+    assert "Brand Name" not in names, f"自定义 Brand Name 应删除: {props}"
+    assert "Warranty" in names
+    print("  ✓ 商品自己的系统属性(按id)已提交，自定义重名已删")
+
+
+def t26_market_image_mapping_order():
+    # 线上实测结论（02:02 保存通过 / 02:27 保存报 020051 too small）：
+    #   marketImg1 = 3:4 场景图（≥750x1000）
+    #   marketImg2 = 1:1 白底图（≥800x800）
+    print("\n[测试26] 营销图映射：marketImg1=3:4场景图，marketImg2=1:1白底图")
+    import aeclone.services.publisher as P
+    from types import SimpleNamespace
+
+    pub = object.__new__(P.Publisher)
+    pub._market_images_for = lambda base, res=None: ["https://cdn/scene.jpg", "https://cdn/white.jpg"]
+
+    # 合规：m1=3:4, m2=1:1 → 不重生成
+    pub._market_ok = lambda url, ratio: (
+        (url == "m1" and ratio == "3:4") or (url == "m2" and ratio == "1:1"))
+    out = pub._fix_market_images("m1", "m2", "base", None)
+    assert out == [], f"合规时不应重生成: {out}"
+
+    # 顺序反了：m1=1:1, m2=3:4 → 判定不合规，重生成
+    pub._market_ok = lambda url, ratio: (
+        (url == "m1" and ratio == "1:1") or (url == "m2" and ratio == "3:4"))
+    out = pub._fix_market_images("m1", "m2", "base", None)
+    assert out == ["https://cdn/scene.jpg", "https://cdn/white.jpg"], out
+
+    # build_ai_overrides：_mk=[场景, 白底] → marketImg1=场景, marketImg2=白底
+    cfg = SimpleNamespace()
+    p = {"market_images": ["https://cdn/scene.jpg", "https://cdn/white.jpg"]}
+    ov = A.build_ai_overrides({"id": "1", "categoryId": "1"}, p, cfg)
+    assert ov["marketImg1"] == "https://cdn/scene.jpg", ov
+    assert ov["marketImg2"] == "https://cdn/white.jpg", ov
+    print("  ✓ 合规不重生成；反序会重生成；marketImg1=场景3:4 / marketImg2=白底1:1")
+
+
+def t27_sku_cargo_price_filled():
+    print("\n[测试27] 每个 SKU 必须带 cargoPrice（否则发布报「货值不能为空」）")
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(stock_quantity="999", write_sku_codes_to_product=True,
+                          wholesale_enable=False, regional_quote_enable=False,
+                          detail_local_image_position="tail", declared_value="")
+    # 商品 SKU 没有 cargoPrice（线上失败商品的真实形态）
+    prod = {"id": "1", "categoryId": "1",
+            "aeopAeProductSKUs": '[{"skuCode":"","skuPrice":"10","originalBox":null}]'}
+    p = {"skus": [{"optimized_name": "NEW-1"}],
+         "price_result": SimpleNamespace(final=10.0), "images": []}
+    ov = A.build_ai_overrides(prod, p, cfg, images=None)
+    sk = json.loads(ov["aeopAeProductSKUs"])
+    assert str(sk[0].get("cargoPrice") or "").strip() == "50", sk[0]
+    pay = A.build_save_payload(prod, None, action="publish", overrides=ov)
+    sk2 = json.loads(pay["aeopAeProductSKUs"])
+    assert str(sk2[0].get("cargoPrice") or "").strip(), sk2[0]
+    print("  ✓ overrides 与最终 payload 的 SKU 都带 cargoPrice =", sk2[0].get("cargoPrice"))
+
+
+def t28_sku_logistic_attr_from_template():
+    print("\n[测试28] SKU 缺物流属性（普货）时从模板补，否则「物流属性不能为空」")
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(stock_quantity="999", write_sku_codes_to_product=True,
+                          wholesale_enable=False, regional_quote_enable=False,
+                          detail_local_image_position="tail", declared_value="50")
+    prod = {"id": "1", "categoryId": "1",
+            "aeopAeProductSKUs": '[{"skuCode":"S1","skuPrice":"10","originalBox":"1","cargoPrice":"50"}]'}
+    tpl = {"aeopAeProductSKUs": json.dumps([
+        {"logisticAttrList": [{"value": "1", "text": "普货"}],
+         "specialProductTypeList": [], "originalBox": "1"}])}
+    p = {"skus": [{"optimized_name": "NEW-1"}],
+         "price_result": SimpleNamespace(final=10.0), "images": []}
+    ov = A.build_ai_overrides(prod, p, cfg, images=None, template=tpl)
+    sk = json.loads(ov["aeopAeProductSKUs"])
+    assert sk[0].get("logisticAttrList"), sk[0]
+    pay = A.build_save_payload(prod, tpl, action="publish", overrides=ov)
+    sk2 = json.loads(pay["aeopAeProductSKUs"])
+    assert sk2[0].get("logisticAttrList"), sk2[0]
+    print("  ✓ SKU 已补 logisticAttrList:", sk2[0].get("logisticAttrList"))
+
+
+def t29_sku_variation_theme_from_template():
+    print("\n[测试29] 非标准 aeopSKUProperty 沿用模板变种（Voltage/plug type 必填）")
+    from types import SimpleNamespace
+    cfg = SimpleNamespace(stock_quantity="999", write_sku_codes_to_product=True,
+                          wholesale_enable=False, regional_quote_enable=False,
+                          detail_local_image_position="tail", declared_value="50")
+    prod = {"id": "1", "categoryId": "1",
+            "aeopAeProductSKUs": json.dumps([{
+                "skuCode": "S1", "skuPrice": "10", "originalBox": "1", "cargoPrice": "50",
+                "aeopSKUProperty": [{"Model Number": "YGD1000", "Power (W)": "356"}],
+            }])}
+    tpl = {"aeopAeProductSKUs": json.dumps([{
+        "logisticAttrList": [{"value": "1", "text": "普货"}],
+        "aeopSKUProperty": [
+            {"skuPropertyId": 14, "propertyValueId": 350686},
+            {"skuPropertyId": 400079803, "propertyValueId": 1983474624,
+             "plug_parent_property_id": 400081003, "plug_parent_value_id": 24681606136},
+        ]}])}
+    p = {"skus": [{"optimized_name": "NEW-1"}],
+         "price_result": SimpleNamespace(final=10.0), "images": []}
+    ov = A.build_ai_overrides(prod, p, cfg, images=None, template=tpl)
+    sk = json.loads(ov["aeopAeProductSKUs"])
+    props = sk[0].get("aeopSKUProperty")
+    assert isinstance(props, list) and len(props) == 2, props
+    assert all("skuPropertyId" in x for x in props), props
+    assert any(x.get("plug_parent_property_id") for x in props), props
+    print("  ✓ 已沿用模板变种:", [(x.get("skuPropertyId"), x.get("propertyValueId")) for x in props])
+
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -464,7 +614,12 @@ if __name__ == "__main__":
              t16_mobile_detail_generated, t17_publish_keeps_mobile_detail_when_ai_overrides,
              t18_detail_image_over_5mb_shrunk, t19_cargo_price_from_declared_value,
              t20_dirty_attr_value_filtered, t21_attr_id_strict_validation,
-             t22_market_image_ratio_order, t23_nameless_system_attrs_submitted]
+             t22_market_image_ratio_order, t23_nameless_system_attrs_submitted,
+             t24_type_condition_custom_dup_removed,
+             t25_product_own_nameless_system_attr_submitted,
+             t26_market_image_mapping_order,
+             t27_sku_cargo_price_filled, t28_sku_logistic_attr_from_template,
+             t29_sku_variation_theme_from_template]
     ok = fail = 0
     for t in tests:
         try:

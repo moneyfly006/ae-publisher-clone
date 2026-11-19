@@ -1,6 +1,6 @@
 # AuroraList · 极光上架
 
-当前版本：**1.0.0**（macOS / Windows）
+当前版本：**1.0.1**（macOS / Windows）
 
 速卖通上架工具 · 重构版
 

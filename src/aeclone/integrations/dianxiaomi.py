@@ -12,6 +12,24 @@ import requests
 
 BASE = "https://www.dianxiaomi.com"
 
+# 打包版 certifi 路径在 app 被移动/重建后可能失效（"Could not find a suitable
+# TLS CA certificate bundle"），此时退回系统 CA 再试，避免整批商品读取失败。
+_CA_FALLBACKS = (
+    "/etc/ssl/cert.pem",
+    "/usr/local/etc/openssl/cert.pem",
+    "/opt/homebrew/etc/openssl@3/cert.pem",
+    "/opt/homebrew/etc/ca-certificates/cert.pem",
+    r"C:\Windows\system32\certmgr.msc",
+)
+
+
+def _find_ca() -> str:
+    import os
+    for _p in _CA_FALLBACKS:
+        if os.path.exists(_p):
+            return _p
+    return ""
+
 ENDPOINTS = {
     # ---- 已实测（2026-11-11）----
     "user_info": "/api/userIn.json",
@@ -65,36 +83,51 @@ class DianxiaomiClient:
     def _url(self, key: str) -> str:
         return self.base + self.endpoints.get(key, ENDPOINTS.get(key, "/"))
 
+    def _request(self, method: str, url: str, **kw) -> requests.Response:
+        """发请求；certifi 路径失效（TLS CA 报错）时退回系统 CA 再试一次。"""
+        try:
+            return getattr(self.session, method)(url, **kw)
+        except Exception as ex:
+            _m = str(ex).lower()
+            if "tls ca certificate" not in _m and "certificate bundle" not in _m \
+                    and "ssl" not in _m:
+                raise
+            _ca = _find_ca()
+            if not _ca:
+                raise
+            self.session.verify = _ca
+            return getattr(self.session, method)(url, **kw)
+
     def _get(self, key: str, params: dict | None = None) -> Any:
         headers = None
         if key == "product_detail" and params and params.get("id"):
             headers = {"Referer": f"https://www.dianxiaomi.com/web/smt/edit?id={params['id']}"}
-        r = self.session.get(self._url(key), params=params, timeout=self.timeout, headers=headers)
+        r = self._request("get", self._url(key), params=params, timeout=self.timeout, headers=headers)
         data = self._parse(r)
         if isinstance(data, dict) and str(data.get("code")) == "2005":
             import time as _t
             _t.sleep(2.5)
-            r = self.session.get(self._url(key), params=params, timeout=self.timeout)
+            r = self._request("get", self._url(key), params=params, timeout=self.timeout)
             data = self._parse(r)
         return data
 
     def _post(self, key: str, payload: dict | None = None) -> Any:
-        r = self.session.post(self._url(key), data=payload or {}, timeout=self.timeout)
+        r = self._request("post", self._url(key), data=payload or {}, timeout=self.timeout)
         data = self._parse(r)
         if isinstance(data, dict) and str(data.get("code")) == "2005":
             import time as _t
             _t.sleep(2.5)
-            r = self.session.post(self._url(key), data=payload or {}, timeout=self.timeout)
+            r = self._request("post", self._url(key), data=payload or {}, timeout=self.timeout)
             data = self._parse(r)
         return data
 
     def _post_json(self, key: str, payload: dict | None = None) -> Any:
-        r = self.session.post(self._url(key), json=payload or {}, timeout=self.timeout)
+        r = self._request("post", self._url(key), json=payload or {}, timeout=self.timeout)
         data = self._parse(r)
         if isinstance(data, dict) and str(data.get("code")) == "2005":
             import time as _t
             _t.sleep(2.5)
-            r = self.session.post(self._url(key), json=payload or {}, timeout=self.timeout)
+            r = self._request("post", self._url(key), json=payload or {}, timeout=self.timeout)
             data = self._parse(r)
         return data
 
@@ -475,7 +508,8 @@ class DianxiaomiClient:
         with _zf.ZipFile(buf, "w", _zf.ZIP_DEFLATED) as zf:
             zf.writestr("smtEditSave.txt", txt)
         files = {"file": ("blob", buf.getvalue(), "application/zip")}
-        r = self.session.post(self._url("product_save"), files=files, timeout=self.timeout * 3)
+        r = self._request("post", self._url("product_save"), files=files,
+                          timeout=self.timeout * 3)
         return self._parse(r)
 
     def upload_image_from_url(self, image_url: str, full_cid: str = "") -> dict:

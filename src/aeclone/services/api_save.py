@@ -21,6 +21,12 @@ SYSTEM_ATTR_NAMES = {
     "Origin": "产地",
     "Charge Status": "是否带电",
     "High-concerned chemical": "高关注化学品",
+    # 与老软件对齐：type / model / condition 也是站点系统属性，
+    # 自定义属性里出现同名（含同义词）要删除，否则与系统属性重复导致保存失败
+    "Type": "类型",
+    "Model Number": "型号",
+    "Condition": "成色",
+    "Certification": "认证",
 }
 
 # payload 里与 edit.json 一一对应的字段
@@ -212,9 +218,6 @@ def to_submit_props(product: dict, template: dict | None = None,
     - 自动删除：自定义属性里与系统属性重名的项
     - 自动过滤：id 为 -1/None/"None"/null 的脏属性
     """
-    def _lower(name: str) -> str:
-        return (name or "").strip().lower()
-
     def _bad_value(v: str) -> bool:
         return str(v or "").strip().upper() in ("", "NONE", "NULL")
 
@@ -235,7 +238,20 @@ def to_submit_props(product: dict, template: dict | None = None,
 
     out: list[dict] = []
     seen_system: set[str] = set()
+    seen_custom: set[str] = set()        # 自定义属性名（归一化）→ 同名去重
     have_names: set[str] = set()
+
+    # 预扫目标自己的系统属性（有效 id）：把名字（含 id→名称兜底）加入 system_names，
+    # 这样后面处理自定义属性时，凡与目标系统属性重名（含同义词）都会被删除。
+    # 否则自定义 "Type" / "Model Number" 等会和系统属性重复，导致保存失败。
+    for a in _props_of(product):
+        _nid = a.get("attrNameId")
+        _vid = a.get("attrValueId")
+        if not (_valid_attr_id(_nid) and _valid_attr_id(_vid)):
+            continue
+        _nm = str(a.get("attrName") or "").strip() or _TPL_ATTR_NAMES.get(str(_nid), "")
+        if _nm:
+            system_names.add(_norm_attr_name(_nm))
 
     # 目标自己的属性
     for a in _props_of(product):
@@ -244,18 +260,25 @@ def to_submit_props(product: dict, template: dict | None = None,
         value_id = a.get("attrValueId")
         value = str(a.get("attrValue") or "").strip()
 
-        # ① id 都有效 → 系统属性
-        if name and _valid_attr_id(name_id) and _valid_attr_id(value_id):
-            if _norm_attr_name(name) not in seen_system:
+        # ① id 都有效 → 系统属性（即使没有 attrName 也按 id 提交，不再丢弃）
+        if _valid_attr_id(name_id) and _valid_attr_id(value_id):
+            _nm = name or _TPL_ATTR_NAMES.get(str(name_id), "")
+            _key = _norm_attr_name(_nm) if _nm else f"id:{name_id}"
+            if _key not in seen_system:
                 out.append({"attrNameId": str(name_id), "attrValueId": str(value_id)})
-                seen_system.add(_norm_attr_name(name))
-            have_names.add(name)
+                seen_system.add(_key)
+            if name:
+                have_names.add(name)
             continue
         # ② 无有效 id → 自定义属性（名字叫 "None"/空 的丢弃）
         if _bad_value(name) or _bad_value(value):
             continue
-        if _norm_attr_name(name) in system_names:
+        _ck = _norm_attr_name(name)
+        if _ck in system_names:
             continue                      # 与系统属性重名（含同义词）→ 删除
+        if _ck in seen_custom:
+            continue                      # 两个自定义属性同名 → 只保留第一个（CHK_CUSTOM_PROP_NAME）
+        seen_custom.add(_ck)
         out.append({"attrName": name, "attrValue": value})
         have_names.add(name)
 
@@ -272,9 +295,12 @@ def to_submit_props(product: dict, template: dict | None = None,
         if isinstance(c, str) and "=" in c:
             _n, _v = c.split("=", 1)
             _n, _v = _n.strip(), _v.strip()
-            if _n and _v and _n not in have_names and _lower(_n) not in system_names:
+            _ck = _norm_attr_name(_n) if _n else ""
+            if (_n and _v and _ck and _ck not in seen_custom
+                    and _ck not in system_names and _n not in have_names):
                 out.append({"attrName": _n, "attrValue": _v})
                 have_names.add(_n)
+                seen_custom.add(_ck)
     return out
 
 
@@ -303,7 +329,7 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
         s = dict(sku)
         if tpl_skus:
             for k in ("originalBox", "logisticAttrList", "specialProductTypeList"):
-                if s.get(k) in (None, "") and tpl_skus.get(k) not in (None, ""):
+                if s.get(k) in (None, "", []) and tpl_skus.get(k) not in (None, "", []):
                     s[k] = tpl_skus[k]
         out.append(s)
 
@@ -400,6 +426,28 @@ def build_save_payload(product: dict, template: dict | None = None,
     p["dxmScheduleTimeStr"] = ""
     if overrides:
         p.update(overrides)
+        # overrides 可能整体重建了 SKU：再按模板补一次站点必填，防止
+        # 「物流属性不能为空 / 货值不能为空 / 是否原箱不能为空」这类整单失败
+        try:
+            _sk = json.loads(p.get("aeopAeProductSKUs") or "[]")
+            _t0 = None
+            if template is not None:
+                _tt = template.get("aeopAeProductSKUs")
+                if isinstance(_tt, str):
+                    _tt = json.loads(_tt)
+                _t0 = (_tt or [])[0] if isinstance(_tt, list) and _tt else None
+            if isinstance(_sk, list):
+                _cv2 = str(p.get("cargoPrice") or "50")
+                for _s in _sk:
+                    if not str(_s.get("cargoPrice") or "").strip():
+                        _s["cargoPrice"] = _cv2
+                    if _t0:
+                        for _k in ("logisticAttrList", "specialProductTypeList", "originalBox"):
+                            if _s.get(_k) in (None, "", []) and _t0.get(_k) not in (None, "", []):
+                                _s[_k] = _t0[_k]
+                p["aeopAeProductSKUs"] = json.dumps(_sk, ensure_ascii=False)
+        except Exception:
+            pass
     return p
 
 
@@ -481,7 +529,7 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
 
 
 def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | None = None,
-                       ship: tuple | None = None) -> dict:
+                       ship: tuple | None = None, template: dict | None = None) -> dict:
     """把 AI 产物（标题/描述/SKU/图片）转成 payload 的 overrides。
 
     product_edit: 目标商品的 edit.json product（有原始 aeopAeProductSKUs 结构）
@@ -520,6 +568,31 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     skus = raw_skus if isinstance(raw_skus, list) else []
     ai_skus = p.get("skus") or []
 
+    # 模板首个 SKU：变种主题 / 物流属性 / 原箱等站点必填项都从它沿用
+    _tpl_sku0 = None
+    if template:
+        _tr = template.get("aeopAeProductSKUs")
+        if isinstance(_tr, str):
+            try:
+                _tr = _j.loads(_tr)
+            except Exception:
+                _tr = []
+        _tpl_sku0 = (_tr or [])[0] if isinstance(_tr, list) and _tr else None
+
+    # ★ 变种主题（平台新规）：采集来的 aeopSKUProperty 常是非标准格式
+    # （如 [{"Model Number": "..."}]），没有 skuPropertyId，平台会报
+    # isv.7CHK_PLUG_SALE_PROP_REQUIRED_CHECK: Voltage/plug type required。
+    # 非标准时沿用模板的标准变种（含 plug_parent_property_id 电压/插头变种）。
+    if _tpl_sku0:
+        _tpl_props = _tpl_sku0.get("aeopSKUProperty")
+        if isinstance(_tpl_props, list) and _tpl_props:
+            for sku in skus:
+                _p0 = sku.get("aeopSKUProperty")
+                _std = isinstance(_p0, list) and any(
+                    isinstance(x, dict) and "skuPropertyId" in x for x in _p0)
+                if not _std:
+                    sku["aeopSKUProperty"] = [dict(x) for x in _tpl_props if isinstance(x, dict)]
+
     price = None
     try:
         pr = p.get("price_result")
@@ -555,13 +628,22 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
                 sku["mobileModelSkuImage"] = str(img)
 
     # ★ 关键：这些 SKU 会覆盖 build_save_payload 里 merge_skus 的结果，
-    # 所以必须把站点必填字段（originalBox / skuCode）补齐，否则会报
-    # 「是否原箱不能为空」「请完善填写 SKU 编码」
+    # 所以必须把站点必填字段补齐，否则依次会报
+    # 「是否原箱不能为空」「请完善填写 SKU 编码」「货值不能为空」「物流属性不能为空」
+    _cv_sku = str(getattr(cfg, "declared_value", "") or "").strip() or "50"
     for _s in skus:
-        if _s.get("originalBox") in (None, ""):
+        if _s.get("originalBox") in (None, "", []):
             _s["originalBox"] = "1"
         if not str(_s.get("skuCode") or "").strip():
             _s["skuCode"] = str(_s.get("sku") or "SKU-1")
+        # 货值：站点按 SKU 逐个校验，缺一个就整单「货值不能为空」
+        if not str(_s.get("cargoPrice") or "").strip():
+            _s["cargoPrice"] = _cv_sku
+        # 物流属性 / 特殊品类 / 原箱：缺就沿用模板 SKU，否则「物流属性不能为空」
+        if _tpl_sku0:
+            for _k in ("logisticAttrList", "specialProductTypeList", "originalBox"):
+                if _s.get(_k) in (None, "", []) and _tpl_sku0.get(_k) not in (None, "", []):
+                    _s[_k] = _tpl_sku0[_k]
     if skus and (price > 0 or stock or ai_skus):
         overrides["aeopAeProductSKUs"] = _j.dumps(skus, ensure_ascii=False)
 
@@ -629,7 +711,10 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     if p.get("csp_video_id"):
         overrides["cspVideoId"] = str(p["csp_video_id"])
 
-    # 营销图：marketImg1（1:1）/ marketImg2（3:4）
+    # 营销图（线上实测：02:02 通过 / 反序时 020051 too small）：
+    #   marketImg1 = 3:4 场景图（≥750x1000）
+    #   marketImg2 = 1:1 白底图（≥800x800）
+    # _mk 由 run()/ _market_images_for 按 [场景3:4, 白底1:1] 顺序返回
     if p.get("market_images"):
         _mk = p["market_images"]
         if len(_mk) >= 1:
