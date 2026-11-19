@@ -1293,13 +1293,47 @@ class App:
                                 ft.Text(f"¥{v['cost']:.3f}", size=12, color=ACCENT_2)], spacing=8))
         if not rows:
             rows = [empty_state("今天还没有 AI 调用记录")]
+
+        # 近 7 天按天趋势（纯容器柱状图，不依赖图表库）
+        try:
+            import time as _t
+            day_cost = {}
+            for r in history.recent(5000):
+                if r.get("kind") != "cost":
+                    continue
+                ts = float(r.get("ts") or 0)
+                if ts < _t.time() - 7 * 86400:
+                    continue
+                key = _t.strftime("%m-%d", _t.localtime(ts))
+                day_cost[key] = day_cost.get(key, 0.0) + float(r.get("cost") or 0)
+            days = []
+            for i in range(6, -1, -1):
+                ts = _t.time() - i * 86400
+                days.append((_t.strftime("%m-%d", _t.localtime(ts)),
+                             _t.strftime("%a", _t.localtime(ts))[:1]))
+            mx = max([day_cost.get(k, 0.0) for k, _ in days] + [0.001])
+            bars = []
+            for k, wd in days:
+                v = day_cost.get(k, 0.0)
+                h = max(4, int(44 * v / mx))
+                bars.append(ft.Column([
+                    ft.Container(width=18, height=h, bgcolor=ACCENT if v else CARD_2,
+                                 border_radius=4,
+                                 tooltip=f"{k} ¥{v:.3f}"),
+                    ft.Text(wd, size=9, color=MUTED),
+                ], spacing=2, horizontal_alignment=ft.CrossAxisAlignment.CENTER))
+            trend = ft.Row(bars, spacing=8, vertical_alignment=ft.CrossAxisAlignment.END)
+        except Exception:
+            trend = ft.Container()
+
         return card(ft.Column([
-            h1("成本 / 用量", 15),
+            h1i(ft.Icons.INSIGHTS, "成本 / 用量"),
             ft.Row([ft.Text(f"今日 ¥{d1['total']:.3f}", size=13, color=ACCENT_2),
                     ft.Text(f"（{d1['calls']} 次调用）", size=11, color=MUTED),
                     ft.Text(f"近 7 天 ¥{d7['total']:.3f}", size=13, color=TEXT),
                     ft.Text(f"（{d7['calls']} 次）", size=11, color=MUTED)], spacing=18),
-            ft.Column(rows, spacing=3),
+            ft.Row([trend, ft.Column(rows, spacing=3, expand=True)], spacing=18,
+                   vertical_alignment=ft.CrossAxisAlignment.START),
         ], spacing=8))
 
     def _apply_api_state(self):
@@ -2115,6 +2149,15 @@ class App:
                     continue
             return ""
 
+        def _after(pid):
+            """单条发布成功后：从列表移除并刷新，状态栏给反馈。"""
+            state["items"] = [x for x in state["items"] if str(x.get("id")) != str(pid)]
+            picked.discard(str(pid))
+            sel_text.value = f"已选 {len(picked)} 个"
+            status.value = f"已提交发布：{pid}（已从列表移除）"
+            status.color = ACCENT_2
+            _render()
+
         def _render(e=None):
             items = list(state["items"])
             mode = str(getattr(sort_dd, "value", "default") or "default")
@@ -2138,7 +2181,8 @@ class App:
                         pid + " · " + _img_cnt(it) + _upd_time(it),
                         size=10, color=MUTED),
                     trailing=ft.TextButton("发布", icon=ft.Icons.SEND,
-                                           on_click=lambda e, _p=pid: self._publish_one(_p)),
+                                           on_click=lambda e, _p=pid:
+                                           self._publish_one(_p, on_done=lambda: _after(_p))),
                     dense=True))
             col.controls = rows or [empty_state("这一栏没有商品")]
             try:
@@ -3777,7 +3821,7 @@ class App:
         # ---------- 属性模板 / SKU替换 ----------
         self.attr_kw = ft.TextField(label="属性模板关键词", width=200, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.attr_status = ft.Text("", size=12, color=MUTED)
-        self.attr_list = ft.Column(spacing=4)
+        self.attr_list = ft.Column(spacing=4, height=220, scroll=ft.ScrollMode.AUTO)
 
         def attr_search(e):
             self.attr_status.value = "搜索中…"
@@ -5883,7 +5927,8 @@ class App:
                 self.toast("队列为空", False); return
             threading.Thread(target=self._process_queue, daemon=True).start()
 
-        q_card = card(ft.Column([h1("4 · 任务队列", 15), self.q_text,
+        self.q_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
+        q_card = card(ft.Column([h1("4 · 任务队列", 15), self.q_text, self.q_progress,
                                  ft.Row([ft.ElevatedButton("产品入队", icon=ft.Icons.ADD_TASK, on_click=enqueue),
                                          ft.ElevatedButton("处理队列", icon=ft.Icons.PLAY_ARROW,
                                                            bgcolor=ACCENT, color="white", on_click=process),
@@ -6115,7 +6160,13 @@ class App:
 
     def _refresh_queue(self):
         st = self.q.stats()
-        self.q_text.value = f"待处理 {st['pending']} · 处理中 {st['running']} · 完成 {st['done']} · 失败 {st['failed']}"
+        self.q_text.value = (f"待处理 {st['pending']} · 处理中 {st['running']} · "
+                             f"完成 {st['done']} · 失败 {st['failed']}")
+        try:
+            total = int(st["pending"]) + int(st["running"]) + int(st["done"]) + int(st["failed"])
+            self.q_progress.value = (float(st["done"] + st["failed"]) / total) if total else 0
+        except Exception:
+            pass
         try:
             self._safe_update()
         except Exception:
