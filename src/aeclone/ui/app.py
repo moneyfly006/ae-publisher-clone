@@ -845,11 +845,18 @@ class App:
             h1("实时进度", 15),
             self.ov_progress_text, self.ov_progress, self.ov_recent], spacing=8))
 
-        def stat(label, ctrl, icon, color, extra=None):
-            col = [ft.Row([ft.Icon(icon, size=17, color=color), muted(label)], spacing=8), ctrl]
-            if extra is not None:
-                col.append(extra)
-            return card(ft.Column(col, spacing=8), padding=16, expand=True)
+        def svc(label, ctrl, icon, color, sub="", action=None):
+            """概览底部服务卡：三张卡等宽等高、结构一致（标题/值/说明/操作）。"""
+            sub_ctrl = sub if isinstance(sub, ft.Control) else muted(sub, 11)
+            head = ft.Row([ft.Icon(icon, size=17, color=color),
+                           ft.Text(label, size=12, color=TEXT, weight=ft.FontWeight.BOLD),
+                           ft.Container(expand=True),
+                           action or ft.Container()], spacing=6)
+            return card(ft.Container(height=112, content=ft.Column([
+                head,
+                ft.Container(content=ctrl, height=26, alignment=ft.alignment.center_left),
+                ft.Container(content=sub_ctrl, height=18),
+            ], spacing=8)), padding=20, expand=True)
 
         st = {"runs": 0, "ok": 0, "failed": 0}
         try:
@@ -866,9 +873,9 @@ class App:
                 pass
             threading.Thread(target=self._check_license, daemon=True).start()
 
-        auth_card = stat("授权状态", self.stat_auth, ft.Icons.VERIFIED_OUTLINED, ACCENT_2,
-                         extra=ft.Row([self.stat_auth_detail,
-                                       ft.TextButton("重新检测", on_click=recheck_auth)], spacing=4))
+        auth_card = svc("授权状态", self.stat_auth, ft.Icons.VERIFIED_OUTLINED, ACCENT_2,
+                        sub=self.stat_auth_detail,
+                        action=ft.TextButton("重新检测", on_click=recheck_auth))
         self._apply_license_state()
         self._apply_api_state()
         self._apply_balance_state()
@@ -978,16 +985,28 @@ class App:
 
         return [prog_card, h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
                 ready_card, filter_card,
-                card(ft.Row([ft.Text(f"今日任务 {st['runs']}", color=TEXT, size=13),
-                             ft.Text(f"成功 {st['ok']}", color=ACCENT_2, size=13),
-                             ft.Text(f"失败 {st['failed']}", color="#FF8A8A", size=13)], spacing=24)),
+                card(ft.Row([
+                    ft.Column([muted("今日任务", 11),
+                               ft.Text(str(st["runs"]), size=18, color=TEXT,
+                                       weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
+                    ft.Column([muted("成功", 11),
+                               ft.Text(str(st["ok"]), size=18, color=ACCENT_2,
+                                       weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
+                    ft.Column([muted("失败", 11),
+                               ft.Text(str(st["failed"]), size=18, color="#FF8A8A",
+                                       weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
+                ], spacing=24, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=20),
                 self._cost_card(),
                 self._resume_card(),
                 self._diff_card(),
-                ft.Row([stat("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT),
+                ft.Row([svc("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT,
+                            sub="自建站点 · 按量计费"),
                         auth_card,
-                        stat("图片服务", ft.Text("~15 秒/张", color=ACCENT_2, size=12), ft.Icons.BOLT_OUTLINED, "#FFB020")],
-                       spacing=12),
+                        svc("图片服务", ft.Text("约 15 秒/张", color="#FFB020", size=12,
+                                                weight=ft.FontWeight.BOLD),
+                            ft.Icons.BOLT_OUTLINED, "#FFB020",
+                            sub="AI 出图 · 图床托管")],
+                       spacing=12, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
                 ]
 
     # ---------- 概览的状态刷新（ISSUES #8 / #9）----------
