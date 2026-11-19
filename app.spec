@@ -93,5 +93,8 @@ if sys.platform == "darwin":
             "NSHighResolutionCapable": True,
             "LSApplicationCategoryType": "public.app-category.productivity",
             "LSMinimumSystemVersion": "11.0",
+            # 让 AuroraList 显示 Dock（用户设计的图标 + 正确名字）。
+            # Flet.app 会在启动时被设成 LSUIElement，不再单独出现一个图标。
+            "LSUIElement": False,
         },
     )

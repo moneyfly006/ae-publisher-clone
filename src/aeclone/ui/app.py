@@ -6306,6 +6306,21 @@ def _patch_flet_dock_icon():
         if not bak.exists():
             _sh.copy2(dst, bak)
         _sh.copy2(src, dst)
+        # Flet.app 不显示 Dock（主进程 AuroraList 负责显示图标），避免两个图标
+        try:
+            app = dst.parent.parent.parent   # .../Flet.app
+            pl = app / "Contents" / "Info.plist"
+            if pl.exists():
+                import plistlib as _pl2
+                _d = _pl2.loads(pl.read_bytes())
+                if _d.get("LSUIElement") is not True:
+                    _d["LSUIElement"] = True
+                    pl.write_bytes(_pl2.dumps(_d))
+                    import subprocess as _sp2
+                    _sp2.run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", str(app)],
+                             capture_output=True, text=True)
+        except Exception:
+            pass
         # 让 Finder/Dock 重新读图标
         try:
             import subprocess as _sp
