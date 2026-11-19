@@ -46,6 +46,18 @@ class ApiError(RuntimeError):
         self.body = body
 
 
+_BALANCE_RE = __import__("re").compile(r"[¥￥]\s*([0-9]+(?:\.[0-9]+)?)\s*remaining")
+
+
+def parse_balance(ex_or_msg) -> float | None:
+    """从 'Not enough quota ... ¥0.075036 remaining' 里解析剩余余额。"""
+    m = _BALANCE_RE.search(str(ex_or_msg))
+    try:
+        return float(m.group(1)) if m else None
+    except Exception:
+        return None
+
+
 def classify_api_error(ex: Exception) -> str:
     """把 API 异常归成三类，供启动前预检决定是否阻断。
 

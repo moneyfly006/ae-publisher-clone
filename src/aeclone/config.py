@@ -13,6 +13,7 @@ DEFAULTS: dict = {
     # 模型已固定（见 services/__init__.py FIXED_MODELS），这里不再提供 model_* 配置项
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
+    "api_balance": -1.0,                                  # 最近一次已知余额（-1=未知）
     "license_server": "https://license.moneyfly.club",
     "license_enforce": True,                              # 未授权时禁止开始上架
     "license_identity": "",                               # 可选：从老软件复制过来的旧授权 ID

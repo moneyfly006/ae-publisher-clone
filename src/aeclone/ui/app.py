@@ -858,12 +858,14 @@ class App:
                                        ft.TextButton("重新检测", on_click=recheck_auth)], spacing=4))
         self._apply_license_state()
         self._apply_api_state()
+        self._apply_balance_state()
 
         # 准备状态：4 项关键就绪度，自动检测
         self.ready_cookie = ft.Text("检测中…", size=12, color=MUTED)
         self.ready_tpl = ft.Text("检测中…", size=12, color=MUTED)
         self.ready_api = ft.Text("检测中…", size=12, color=MUTED)
         self.ready_auth = ft.Text("检测中…", size=12, color=MUTED)
+        self.ready_balance = ft.Text("", size=12, color=MUTED)
 
         def _ready_row(icon, label, ctrl):
             return ft.Row([ft.Icon(icon, size=16, color=MUTED),
@@ -876,6 +878,7 @@ class App:
             _ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie),
             _ready_row(ft.Icons.COPY_OUTLINED, "模板商品", self.ready_tpl),
             _ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
+            _ready_row(ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED, "API 余额", self.ready_balance),
             _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth),
         ], spacing=8))
 
@@ -1109,6 +1112,16 @@ class App:
             client = ApiClient(self.cfg.api_base, key, min(float(self.cfg.timeout or 60), 15))
             models = client.models()
             self._log(f"API 预检通过：{len(models)} 个模型可用", "INFO")
+            # 余额：已知不足就提醒（不阻断，允许只跑免费步骤）
+            try:
+                _bal = float(getattr(self.cfg, "api_balance", -1) or -1)
+                self._apply_balance_state()
+                if 0 <= _bal < 0.2:
+                    self._log(f"API 余额不足：剩 ¥{_bal:.3f}（AI 图片编辑约 ¥0.2/次），本次会跳过付费步骤；"
+                              f"请到「设置 → API」充值", "WARN")
+                    self.toast(f"API 余额不足（剩 ¥{_bal:.3f}），AI 图片编辑会被跳过，建议先充值", False)
+            except Exception:
+                pass
             return ""
         except ApiError as ex:
             from ..api import classify_api_error
@@ -1124,6 +1137,29 @@ class App:
         except Exception as ex:  # noqa: BLE001
             self._log(f"API 预检网络异常（不阻断）：{str(ex)[:80]}", "WARN")
             return ""
+
+    def _apply_balance_state(self):
+        """把最近一次已知余额刷到概览页（-1=未知）。"""
+        try:
+            bal = float(getattr(self.cfg, "api_balance", -1) or -1)
+        except Exception:
+            bal = -1
+        ctrl = getattr(self, "ready_balance", None)
+        if ctrl is None:
+            return
+        try:
+            if bal < 0:
+                ctrl.value = "未知（跑一次后显示）"
+                ctrl.color = MUTED
+            elif bal < 0.2:
+                ctrl.value = f"¥{bal:.3f} 不足（AI 图片编辑约 ¥0.2/次）→ 去「设置」充值"
+                ctrl.color = "#FF6B6B"
+            else:
+                ctrl.value = f"¥{bal:.3f}"
+                ctrl.color = ACCENT_2
+            self._safe_update()
+        except Exception:
+            pass
 
     def _apply_license_state(self):
         st = getattr(self, "license_state", None) or {}
@@ -1533,6 +1569,40 @@ class App:
         except Exception:
             pass
 
+    def _show_balance_low(self, bal: float, on_continue=None):
+        """余额不足弹窗：说明会被跳过的步骤，并给「去充值 / 继续」两个选择。"""
+        dlg = ft.AlertDialog(
+            title=ft.Text("API 余额不足"),
+            content=ft.Column([
+                ft.Text(f"当前余额：¥{bal:.3f}", size=13, color="#FF6B6B",
+                        weight=ft.FontWeight.BOLD),
+                ft.Text("AI 图片编辑约 ¥0.2 / 次，余额不足时这一步会被自动跳过"
+                        "（白底/去水印等本地免费步骤不受影响）。", size=12, color=TEXT),
+                ft.Text("充值后重新运行即可恢复正常出图。", size=11, color=MUTED),
+            ], spacing=8, width=440),
+            actions=[
+                ft.TextButton("继续（跳过 AI 出图）", on_click=lambda e: self._close_dlg(dlg)),
+                ft.ElevatedButton("去充值", bgcolor="#F0A020", color="#1A1200",
+                                  on_click=lambda e: self._open_recharge(dlg)),
+            ],
+        )
+        self.page.dialog = dlg
+        dlg.open = True
+        self._safe_update()
+
+    def _open_recharge(self, dlg=None):
+        try:
+            if dlg is not None:
+                dlg.open = False
+                self._safe_update()
+        except Exception:
+            pass
+        url = str(getattr(self.cfg, "api_purchase_url", "") or "https://api.moneyfly.club")
+        try:
+            self.page.launch_url(url)
+        except Exception:
+            self.toast(f"请在浏览器打开 {url}", False)
+
     def _show_license_block(self, message: str = ""):
         from ..license import machine_code as _mc
         code = _mc()
@@ -1612,6 +1682,15 @@ class App:
         self._running = True
         (getattr(self, '_sync_run_button', None) or (lambda: None))()
         self._stop_requested = False
+        # 余额不足：跑之前先提示一次（不阻断，免费步骤照常）
+        try:
+            _bal = float(getattr(self.cfg, "api_balance", -1) or -1)
+            if 0 <= _bal < 0.2 and not getattr(self, "_balance_warned", False):
+                self._balance_warned = True
+                self._log(f"API 余额不足：剩 ¥{_bal:.3f}，AI 图片编辑会被跳过", "WARN")
+                self._show_balance_low(_bal)
+        except Exception:
+            pass
         hb_stop = threading.Event()
         self._hb_stop = hb_stop
         self._abort_now = False
@@ -1632,6 +1711,10 @@ class App:
                     self.ov_progress.value = 1
                     self.ov_progress_text.value = msg or "空闲"
                     self._safe_update()
+            except Exception:
+                pass
+            try:
+                self._apply_balance_state()
             except Exception:
                 pass
             # 每轮结束回传日志尾部（后台，失败静默）

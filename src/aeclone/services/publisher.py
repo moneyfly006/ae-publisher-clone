@@ -702,6 +702,21 @@ class Publisher:
                 if not made:
                     raise RuntimeError("接口未返回图片")
             except Exception as ex:  # noqa: BLE001
+                try:
+                    from ..api import parse_balance as _pb
+                    _bal = _pb(ex)
+                except Exception:
+                    _bal = None
+                if _bal is not None:
+                    # 余额不足：不算失败，跳过 AI 编辑并记下余额，供 UI 提示充值
+                    try:
+                        self.cfg.set("api_balance", _bal)
+                    except Exception:
+                        pass
+                    self._quota_low = _bal
+                    add_step(res, f"精细任务{n}", True,
+                             f"余额不足（剩 ¥{_bal:.3f}），本次跳过 AI 图片编辑")
+                    continue
                 add_step(res, f"精细任务{n}", False, str(ex)[:100])
                 continue
             # 尺寸校验：不合格的产出直接不要（replace 时保留原图）
