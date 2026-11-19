@@ -892,7 +892,7 @@ class App:
 
         def _ready_row(icon, label, ctrl):
             # 两列网格：概览页不被这一块撑太长
-            return ft.Container(width=330, content=ft.Row(
+            return ft.Container(width=292, content=ft.Row(
                 [ft.Icon(icon, size=16, color=MUTED),
                  ft.Text(label, size=13, color=TEXT),
                  ctrl], spacing=8))
@@ -909,7 +909,7 @@ class App:
                 _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth),
             ], spacing=16, wrap=True, run_spacing=8),
             ft.Row([
-                ft.Container(width=330, content=ft.Row(
+                ft.Container(width=292, content=ft.Row(
                     [ft.Icon(ft.Icons.RULE, size=16, color=MUTED),
                      ft.Text("配置冲突", size=13, color=TEXT),
                      self.ready_conflict], spacing=8)),
@@ -5897,14 +5897,6 @@ class App:
             ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Row([
                 self._edited_count_text(),
-                ft.ElevatedButton("重跑上次失败的商品", icon=ft.Icons.REPLAY,
-                                  bgcolor=ACCENT_2, color="#04231C",
-                                  on_click=lambda e: self._rerun_failed()),
-                ft.ElevatedButton(f"只重试发布失败（{self._publish_failed_count()} 个·不花钱）",
-                                  icon=ft.Icons.CLOUD_UPLOAD,
-                                  bgcolor=ACCENT, color="white",
-                                  tooltip="这些商品已经编辑成功，只是发布被拒；重试只调发布接口，不跑 AI、不处理图片",
-                                  on_click=lambda e: self._retry_publish_failed()),
                 ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
                               on_click=lambda e: self._clear_edited()),
             ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
