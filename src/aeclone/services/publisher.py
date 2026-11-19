@@ -2878,9 +2878,20 @@ class Publisher:
                         res.error = "商品在审核中，已跳过"
                         res.skipped_auditing = True
                         return res
+                    try:
+                        from . import preview as _pvF
+                        _pvF.mark(str(p.get("id", "")), "failed")
+                    except Exception:
+                        pass
                     raise RuntimeError(_msg)
                 add_step(res, "保存到店小秘", True,
                          f"[{p.get('id', '')}] " + r.message[:185])
+                try:
+                    from . import preview as _pvm
+                    _pvm.mark(str(p.get("id", "")),
+                              "published" if getattr(r, "published", False) else "saved")
+                except Exception:
+                    pass
                 try:
                     from . import publish_retry as _pr2
                     _pr2.remove(str(p.get("id", "")))

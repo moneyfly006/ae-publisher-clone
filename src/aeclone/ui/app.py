@@ -1157,6 +1157,18 @@ class App:
                              self._zoom_img(ai, 52, 52, "改后", gallery=_gal)], spacing=5)
             _title_now = str(r.get("title") or "")[:46]
             _new_title = at if at and at != "-" and at != bt else ""
+            _st = str(r.get("status") or "")
+            _badge = {
+                "published": ("已发布", "#0F7A45", "#E8F6EE"),
+                "saved": ("已保存", "#4A3B8C", "#EDE9FF"),
+                "failed": ("失败", "#B3261E", "#FDECEB"),
+            }.get(_st)
+            _badge_ctrl = (ft.Container(
+                content=ft.Text(_badge[0], size=10, color=_badge[1],
+                                weight=ft.FontWeight.BOLD),
+                bgcolor=_badge[2], border_radius=999,
+                padding=ft.padding.symmetric(horizontal=8, vertical=2))
+                if _badge else ft.Text("", size=1))
             return ft.Row([
                 thumbs,
                 ft.Column([
@@ -1167,6 +1179,7 @@ class App:
                             size=10.5, color=MUTED, max_lines=1,
                             overflow=ft.TextOverflow.ELLIPSIS),
                 ], spacing=2, expand=True),
+                _badge_ctrl,
             ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
         PER = 5
@@ -4747,6 +4760,26 @@ class App:
         # 审查在发布时自动执行（publisher._review_content），这里只放设置。
         # 注意：只渲染一次——以前 _render + 再循环一遍会把每个开关画两遍。
         return self._render("内容审查", schema_review())
+    def _apply_image_preset(self, kind: str):
+        """AI 图片常用预设：一键把主图相关的几个开关设成固定组合。"""
+        _main_keys = ("main_image_generate_enable", "white_bg_enable", "watermark_enable",
+                      "translate_main_pic_enable", "img_main_edit", "designated_edit_enable")
+        presets = {
+            "white": {"white_bg_enable": True},
+            "watermark": {"watermark_enable": True},
+            "translate": {"translate_main_pic_enable": True},
+            "off": {},
+        }
+        on = presets.get(kind, {})
+        for k in _main_keys:
+            self.cfg.set(k, bool(on.get(k, False)))
+        save_config(self.cfg)
+        label = {"white": "只做主图白底", "watermark": "只做主图去水印",
+                 "translate": "只做主图翻译", "off": "关闭全部主图处理"}.get(kind, kind)
+        self._log(f"图片预设：{label}", "INFO")
+        self.toast(f"已应用：{label}", True)
+        self._switch(5)
+
     def _p_image(self):
         """AI 图片：只保留两大块 —— 简单编辑 / 精细化编辑。"""
         self._current = 5
@@ -4862,7 +4895,18 @@ class App:
             ctl.on_change = on
             return ctl
 
+        def _preset_btn(label, kind, icon):
+            return ft.TextButton(label, icon=icon,
+                                 tooltip="只改主图相关开关，描述图/SKU 图不受影响",
+                                 on_click=lambda e, _k=kind: self._apply_image_preset(_k))
+
         simple_tab = ft.Column([
+            ft.Row([muted("常用预设：", 11),
+                    _preset_btn("只做白底", "white", ft.Icons.WB_SUNNY_OUTLINED),
+                    _preset_btn("只去水印", "watermark", ft.Icons.AUTO_FIX_HIGH),
+                    _preset_btn("只做翻译", "translate", ft.Icons.TRANSLATE),
+                    _preset_btn("全部关闭", "off", ft.Icons.POWER_SETTINGS_NEW)],
+                   spacing=6, wrap=True),
             add_section("主图 / 详情图 / SKU 图：白底 · 去水印 · 翻译", simple, expanded=True),
             card(ft.Column([
                 muted("勾选后按「范围」处理；范围写法 1-3,5 或留空=全部。", 11),
@@ -5602,6 +5646,12 @@ class App:
                      ft.dropdown.Option("offline", "已下架"),
                      ft.dropdown.Option("", "全部")])
         self.wb_kw = ft.TextField(label="搜索标题", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.wb_sort_dd = ft.Dropdown(
+            label="本页排序", width=160, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self, "wb_sort", "default") or "default"),
+            options=[ft.dropdown.Option("default", "默认（最新在前）"),
+                     ft.dropdown.Option("img_desc", "图多 → 少"),
+                     ft.dropdown.Option("img_asc", "图少 → 多")])
         self.wb_page_no = 1
         self.wb_page_info = ft.Text("", size=12, color=MUTED)
         self.wb_sel_text = ft.Text("已选 0 个产品 / 0 张图", size=12, color=MUTED)
@@ -5650,7 +5700,8 @@ class App:
                     ft.ElevatedButton("加载", icon=ft.Icons.SEARCH, bgcolor=ACCENT, color="white",
                                       on_click=load_products),
                     ft.Checkbox(label="只看有图", value=bool(getattr(self, "wb_only_img", False)),
-                                on_change=lambda e: self._wb_toggle_only_img(e.control.value))],
+                                on_change=lambda e: self._wb_toggle_only_img(e.control.value)),
+                    self.wb_sort_dd],
                    spacing=8, wrap=True),
             ft.Row([ft.OutlinedButton("上一页", on_click=prev_page),
                     ft.OutlinedButton("下一页", on_click=next_page),
@@ -5821,7 +5872,13 @@ class App:
                 kw = (self.wb_kw.value or "").strip() or None
                 sid = getattr(self.cfg, "shop_id", "") or self.cfg.store_id or None
                 items, meta = dxm.product_page(page, 30, sid, status, kw)
-                self.wb_rows = items or []
+                items = items or []
+                self.wb_sort = str(getattr(self.wb_sort_dd, "value", "default") or "default")
+                if self.wb_sort == "img_desc":
+                    items.sort(key=lambda x: len(x.get("images") or []), reverse=True)
+                elif self.wb_sort == "img_asc":
+                    items.sort(key=lambda x: len(x.get("images") or []))
+                self.wb_rows = items
                 rows = []
                 for it in self.wb_rows:
                     if getattr(self, "wb_only_img", False) and not (it.get("images") or []):
@@ -6728,9 +6785,10 @@ class App:
                  if (want == "全部" or x == want) and (not kw or kw in str(m).lower())]
         self.log_table.rows = [
             ft.DataRow(cells=[
-                ft.DataCell(ft.Text(t, size=11, color=MUTED)),
-                ft.DataCell(ft.Text(x, size=11, color=ACCENT_2 if x == "INFO" else ("#FFB020" if x == "WARN" else "#FF6B6B"))),
-                ft.DataCell(ft.Text(m, size=11, color=TEXT, width=520, selectable=True)),
+                ft.DataCell(ft.Text(t, size=10.5, color=MUTED, width=62)),
+                ft.DataCell(ft.Text(x, size=10.5, width=40,
+                                    color=ACCENT_2 if x == "INFO" else ("#FFB020" if x == "WARN" else "#FF6B6B"))),
+                ft.DataCell(ft.Text(m, size=11, color=TEXT, width=600, selectable=True)),
                 ft.DataCell(self._filter_cell(m)),
             ]) for t, x, m in shown[-300:]
         ]
