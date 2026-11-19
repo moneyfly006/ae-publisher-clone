@@ -363,6 +363,13 @@ class App:
             page.on_keyboard_event = self._on_key
         except Exception:
             pass
+        try:
+            _ws = str(getattr(self.cfg, "window_size", "") or "1280x800")
+            _w, _h = _ws.lower().split("x")
+            page.window.width = int(_w)
+            page.window.height = int(_h)
+        except Exception:
+            pass
         self._ui_lock = threading.RLock()
         self._building_page = False
         self._update_err_ts = 0.0
@@ -7032,11 +7039,37 @@ class App:
             spacing=8))
         threading.Thread(target=self._load_prices, daemon=True).start()
 
+        _PAGES = [("0", "概览"), ("1", "店铺与模板"), ("2", "类目与属性"), ("3", "AI 文案"),
+                  ("4", "内容审查"), ("5", "AI 图片"), ("6", "价格"), ("7", "变种与库存"),
+                  ("8", "发布队列"), ("9", "图片工作台"), ("10", "任务与日志"), ("11", "设置")]
+        start_dd = ft.Dropdown(label="启动时打开", width=200, bgcolor=CARD_2, border_color=CARD_2,
+                               color=TEXT, options=[ft.dropdown.Option(k, v) for k, v in _PAGES],
+                               value=str(getattr(self.cfg, "start_page", 0) or 0))
+        size_dd = ft.Dropdown(label="窗口大小", width=200, bgcolor=CARD_2, border_color=CARD_2,
+                              color=TEXT, value=str(getattr(self.cfg, "window_size", "1280x800")),
+                              options=[ft.dropdown.Option("1100x760", "小 1100×760"),
+                                       ft.dropdown.Option("1280x800", "中 1280×800"),
+                                       ft.dropdown.Option("1512x945", "大 1512×945"),
+                                       ft.dropdown.Option("1680x1050", "超大 1680×1050")])
+
+        def _save_ui(e=None):
+            self.cfg.set("start_page", int(start_dd.value or 0))
+            self.cfg.set("window_size", str(size_dd.value or "1280x800"))
+            save_config(self.cfg)
+            self.toast("界面设置已保存（下次启动生效）", True)
+        start_dd.on_change = _save_ui
+        size_dd.on_change = _save_ui
+        ui_card = card(ft.Column([
+            h1("界面", 15),
+            muted("启动页面与窗口大小，保存后下次启动生效", 11),
+            ft.Row([start_dd, size_dd], spacing=12, wrap=True),
+        ], spacing=8))
+
         # 分组：版本更新 → 账号与授权 → 服务与价格 → 运行与诊断
         return [upd,
                 h1("账号与授权", 13), lic_card, api_card,
                 h1("服务与价格", 13), host_card, model_card, price_card,
-                h1("运行与诊断", 13), inst_card, diag_card]
+                h1("界面与运行", 13), ui_card, inst_card, diag_card]
 
     def _price_of(self, model: str) -> float:
         try:
