@@ -895,31 +895,25 @@ class App:
         self.ready_conflict = ft.Text("", size=12, color=MUTED)
 
         def _ready_row(icon, label, ctrl):
-            # 两列网格：概览页不被这一块撑太长
-            return ft.Container(width=292, content=ft.Row(
+            # 两列网格：用 expand 保证一定并排（窗口窄也不会变一列）
+            return ft.Container(expand=True, content=ft.Row(
                 [ft.Icon(icon, size=16, color=MUTED),
-                 ft.Text(label, size=13, color=TEXT),
-                 ctrl], spacing=8))
+                 ft.Text(label, size=13, color=TEXT, no_wrap=True),
+                 ctrl], spacing=8, tight=False))
 
         ready_card = card(ft.Column([
             h1("准备状态", 15),
             muted("都变绿就能一键启动；红色项点击可直接去对应页修复"),
-            ft.Row([
-                _ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie),
-                _ready_row(ft.Icons.COPY_OUTLINED, "模板商品", self.ready_tpl),
-            ], spacing=16, wrap=True, run_spacing=8),
-            ft.Row([
-                _ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
-                _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth),
-            ], spacing=16, wrap=True, run_spacing=8),
-            ft.Row([
-                ft.Container(width=292, content=ft.Row(
-                    [ft.Icon(ft.Icons.RULE, size=16, color=MUTED),
-                     ft.Text("配置冲突", size=13, color=TEXT),
-                     self.ready_conflict], spacing=8)),
-                ft.TextButton("检查配置冲突", icon=ft.Icons.RULE,
-                              on_click=lambda e: self._check_conflicts()),
-            ], spacing=16, wrap=True),
+            ft.Row([_ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie),
+                    _ready_row(ft.Icons.COPY_OUTLINED, "模板商品", self.ready_tpl)], spacing=16),
+            ft.Row([_ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
+                    _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth)], spacing=16),
+            ft.Row([ft.Container(expand=True, content=ft.Row(
+                        [ft.Icon(ft.Icons.RULE, size=16, color=MUTED),
+                         ft.Text("配置冲突", size=13, color=TEXT, no_wrap=True),
+                         self.ready_conflict], spacing=8)),
+                    ft.TextButton("检查配置冲突", icon=ft.Icons.RULE,
+                                  on_click=lambda e: self._check_conflicts())], spacing=16),
         ], spacing=8))
 
         def _refresh_ready():
