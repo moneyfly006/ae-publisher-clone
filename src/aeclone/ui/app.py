@@ -439,6 +439,11 @@ class App:
             self._refresh_store_counts()
         except Exception:
             pass
+        # 启动强制版本检查：有新版必须更新后才能继续使用
+        try:
+            self._startup_update_gate()
+        except Exception:
+            pass
         page.update()
         # 启动即自动检测一次 API / 图片空间（ISSUES #9）
         self._probe_api_async()
@@ -7594,6 +7599,126 @@ class App:
                 ft.Text(str(i.get("path") or "")[:60], size=10, color=MUTED, expand=True),
             ], spacing=8))
         self.inst_list.controls = rows or [ft.Text("暂无实例", size=11, color=MUTED)]
+
+    def _startup_update_gate(self):
+        """启动时检查版本：有更新则阻断使用，后台自动下载并给出安装按钮。"""
+        import os as _os
+        if str(_os.environ.get("AURORA_SKIP_UPDATE", "") or "") == "1":
+            return
+
+        def go():
+            from ..core import updater as _up
+            info = _up.check(self.cfg.license_server, timeout=8)
+            if not info.get("ok"):
+                self._log(f"版本检查失败（不阻断启动）：{info.get('error')}", "WARN")
+                return
+            if not info.get("has_update"):
+                self._log(f"版本检查：已是最新 v{_up.CURRENT}", "INFO")
+                return
+            self._log(f"发现新版本 v{info.get('latest')}（当前 v{_up.CURRENT}），需更新后使用", "WARN")
+            self._show_update_gate(info)
+
+        threading.Thread(target=go, daemon=True).start()
+
+    def _show_update_gate(self, info: dict):
+        """阻断式更新弹窗：自动下载 → 立即安装（自动关软件并替换）。"""
+        from ..core import updater as _up
+        latest = str(info.get("latest") or "")
+        url = str(info.get("url") or "").strip()
+        notes = str(info.get("notes") or "").strip()
+
+        self.upd_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
+        self.upd_status = ft.Text("准备下载…", size=11, color=MUTED)
+        self.upd_install_btn = ft.ElevatedButton(
+            "立即安装并重启", icon=ft.Icons.SYSTEM_UPDATE_ALT, bgcolor=ACCENT, color="white",
+            disabled=True)
+
+        def quit_app(e=None):
+            try:
+                self.page.window.close()
+            except Exception:
+                pass
+            import os as _o
+            threading.Timer(0.3, lambda: _o._exit(0)).start()
+
+        def install(e=None):
+            path = getattr(self, "_upd_path", None)
+            if not path:
+                return
+            self.upd_status.value = "正在安装，软件会自动关闭并重启…"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+            ok = _up.install_update(Path(path))
+            if not ok:
+                self.toast("安装失败，请手动下载安装包", False)
+                return
+            self._log("更新安装器已启动，软件即将退出", "INFO")
+            quit_app()
+
+        self.upd_install_btn.on_click = install
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f"需要更新到 v{latest}"),
+            content=ft.Column([
+                ft.Text(f"当前版本 v{_up.CURRENT} · 最新 v{latest}", size=12, color=TEXT),
+                ft.Text("检测到新版本，更新完成后才能继续使用；下载会在后台自动进行。",
+                        size=11, color="#FFB020"),
+                (ft.Container(content=ft.Text(notes[:500], size=11, color=MUTED, selectable=True),
+                              height=120, bgcolor=CARD_2, border_radius=8, padding=8)
+                 if notes else ft.Container()),
+                self.upd_progress, self.upd_status,
+            ], spacing=8, width=520),
+            actions=[ft.TextButton("退出软件", on_click=quit_app),
+                     self.upd_install_btn],
+        )
+        if not url:
+            self.upd_status.value = "服务器没有提供安装包地址，请联系管理员。"
+            self.upd_status.color = "#FF6B6B"
+        self._show_dlg(dlg)
+
+        if not url:
+            return
+
+        def work():
+            try:
+                self.upd_status.value = "开始下载…"
+                self._safe_update()
+                dest = Path(tempfile.gettempdir()) / f"aurora-update-{latest}.zip"
+
+                def prog(frac):
+                    try:
+                        if frac is not None and frac >= 0:
+                            self.upd_progress.value = max(0.0, min(1.0, frac))
+                            self.upd_status.value = f"下载中… {int(frac * 100)}%"
+                        else:
+                            self.upd_status.value = "下载中…"
+                        self._safe_update()
+                    except Exception:
+                        pass
+
+                path = _up.download_with_progress(url, dest, on_progress=prog)
+                want = str(info.get("sha256") or "").lower()
+                if want and _up.sha256(path).lower() != want:
+                    raise RuntimeError("安装包校验失败（SHA256 不一致）")
+                self._upd_path = path
+                self.upd_progress.value = 1
+                self.upd_status.value = f"下载完成（{path.name}），点「立即安装并重启」"
+                self.upd_status.color = ACCENT_2
+                self.upd_install_btn.disabled = False
+                self._log(f"更新包已下载：{path}", "INFO")
+                self._safe_update()
+            except Exception as ex:  # noqa: BLE001
+                self.upd_status.value = f"下载失败：{str(ex)[:90]}（可退出后重试）"
+                self.upd_status.color = "#FF6B6B"
+                self._log(f"更新下载失败：{ex}", "ERROR")
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _check_update(self):
         r = updater.check(self.cfg.license_server)

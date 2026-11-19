@@ -122,6 +122,76 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def download_with_progress(url: str, dest: Path | None = None,
+                           on_progress=None, timeout: int = 30) -> Path:
+    """边下边回报进度（0~1，总大小未知时回调 -1）。"""
+    dest = dest or (Path(tempfile.gettempdir()) / Path(url).name)
+    with requests.get(url, stream=True, timeout=timeout) as r:
+        r.raise_for_status()
+        total = int(r.headers.get("Content-Length") or 0)
+        done = 0
+        with open(dest, "wb") as f:
+            for chunk in r.iter_content(256 * 1024):
+                if not chunk:
+                    continue
+                f.write(chunk)
+                done += len(chunk)
+                if on_progress:
+                    try:
+                        on_progress(done / total if total else -1.0)
+                    except Exception:
+                        pass
+    return dest
+
+
+def install_update(path: Path, app_dir: str = "/Applications/AuroraList.app") -> bool:
+    """安装更新并重启。
+
+    macOS：解压 zip → 等本进程退出 → 替换 /Applications 下的 app → 重新打开。
+    Windows：直接运行安装包（NSIS 会处理替换）。
+    返回 True 表示已交给后台安装器（调用方随后应退出）。
+    """
+    path = Path(path)
+    if os.name == "nt":
+        try:
+            os.startfile(str(path))  # type: ignore[attr-defined]
+            return True
+        except Exception:
+            return False
+    if sys.platform != "darwin":
+        return False
+    import subprocess
+    import shutil
+    tmp = Path(tempfile.mkdtemp(prefix="aurora-upd-"))
+    try:
+        subprocess.run(["/usr/bin/ditto", "-x", "-k", str(path), str(tmp)],
+                       check=True, timeout=300)
+    except Exception:
+        try:
+            shutil.unpack_archive(str(path), str(tmp))
+        except Exception:
+            return False
+    apps = list(tmp.glob("*.app")) or list(tmp.glob("*/*.app"))
+    if not apps:
+        return False
+    new_app = apps[0]
+    script = tmp / "install.sh"
+    script.write_text(
+        "#!/bin/bash\n"
+        f"sleep 2\n"
+        f"rm -rf '{app_dir}'\n"
+        f"cp -R '{new_app}' '{app_dir}'\n"
+        f"xattr -dr com.apple.quarantine '{app_dir}' 2>/dev/null || true\n"
+        f"open '{app_dir}'\n", encoding="utf-8")
+    script.chmod(0o755)
+    try:
+        subprocess.Popen(["/bin/bash", str(script)], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except Exception:
+        return False
+
+
 def launch_installer(path: Path) -> None:
     if os.name == "nt":
         os.startfile(str(path))  # type: ignore[attr-defined]
