@@ -2393,7 +2393,7 @@ class App:
         if not getattr(self, "_store_autosynced", False):
             self._store_autosynced = True
             threading.Thread(target=self._sync_shops, daemon=True).start()
-        return [h1("店铺设置"), muted("三步：读 Cookie → 选店铺 → 选模板"), connect_card, shop_card, tpl_card]
+        return [h1("店铺与模板"), muted("三步：读 Cookie → 选店铺 → 选模板；类目来源也在这里选"), connect_card, shop_card, tpl_card]
 
     def _apply_search(self):
         kw = str(getattr(self.search_kw, "value", "") or "").strip()
@@ -5421,7 +5421,7 @@ class App:
                                          ft.OutlinedButton("重试失败", icon=ft.Icons.REPLAY,
                                                            on_click=lambda e: self._retry_failed_queue())],
                                         spacing=10, wrap=True)], spacing=8))
-        return [h1("图片工作台"), muted("加载产品 → 取图 → 白底/去水印/翻译/编辑/四合一 → 上传或合成视频"),
+        return [h1("图片工作台"), muted("单商品手动调试：加载产品 → 取图 → 白底/去水印/翻译/编辑 → 上传或合成视频"),
                 conn_card, prod_card, img_card, q_card]
 
     # ---------- 工作台内部 ----------
@@ -5833,6 +5833,10 @@ class App:
 
     def _p_logs(self):
         self._current = 10
+        self.log_filter = ft.TextField(
+            hint_text="搜索日志（产品 ID / 关键词）", width=260, dense=True,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            on_change=lambda e: self._refresh_log_table())
         self.logs_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
         self.logs_progress_text = ft.Text("空闲", size=12, color=MUTED)
         self.run_status = ft.Text("状态：空闲", size=12, color=MUTED)
@@ -5907,7 +5911,7 @@ class App:
                 ft.TextButton("清空日志", icon=ft.Icons.CLEAR_ALL,
                               on_click=lambda e: self._clear_logs_ui()),
             ], spacing=8, wrap=True),
-            ft.Row([self.log_level, self.log_follow], spacing=12,
+            ft.Row([self.log_level, self.log_filter, self.log_follow], spacing=12,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
             self.log_status,
             muted("「上报运行日志」会把最近 800 行日志和错误类型发到授权后台，管理员在「用户数据」里查看；"
@@ -6263,7 +6267,9 @@ class App:
         rows = getattr(self, "log_rows", [])
         lv = getattr(self, "log_level", None)
         want = lv.value if lv is not None else "全部"
-        shown = [(t, x, m) for t, x, m in rows if want == "全部" or x == want]
+        kw = str(getattr(self, "log_filter", None).value if getattr(self, "log_filter", None) else "").strip().lower()
+        shown = [(t, x, m) for t, x, m in rows
+                 if (want == "全部" or x == want) and (not kw or kw in str(m).lower())]
         self.log_table.rows = [
             ft.DataRow(cells=[
                 ft.DataCell(ft.Text(t, size=11, color=MUTED)),
@@ -6665,8 +6671,11 @@ class App:
             spacing=8))
         threading.Thread(target=self._load_prices, daemon=True).start()
 
-        # 版本更新放最前面，方便找
-        return [upd, lic_card, api_card, host_card, model_card, inst_card, diag_card, price_card]
+        # 分组：版本更新 → 账号与授权 → 服务与价格 → 运行与诊断
+        return [upd,
+                h1("账号与授权", 13), lic_card, api_card,
+                h1("服务与价格", 13), host_card, model_card, price_card,
+                h1("运行与诊断", 13), inst_card, diag_card]
 
     def _price_of(self, model: str) -> float:
         try:
