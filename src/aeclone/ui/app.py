@@ -2652,7 +2652,10 @@ class App:
                     _ck2 = self._cookies()
                     _cli = DianxiaomiClient(_ck2, overrides=self.cfg.endpoint_overrides or {})
                     _r = maybe_auto_clean(self.cfg, _cli)
-                    self._log(f"相册清理：{_r.get('message', '')}", "INFO" if _r.get("ok") else "WARN")
+                    # 未开启/已跳过属于正常情况，不要打 WARN 吓人
+                    _skipped = bool(_r.get("skipped")) or "未开启" in str(_r.get("message") or "")
+                    self._log(f"相册清理：{_r.get('message', '')}",
+                              "INFO" if (_r.get("ok") or _skipped) else "WARN")
                 except Exception as _ex:  # noqa: BLE001
                     self._log(f"相册清理失败：{str(_ex)[:80]}", "WARN")
 
