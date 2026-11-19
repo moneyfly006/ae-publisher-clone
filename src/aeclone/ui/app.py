@@ -3414,13 +3414,17 @@ class App:
         ], spacing=10))
 
         # ---------- 类目 ----------
+        _auto_cat_on = bool(getattr(self.cfg, "auto_detect_category", True))
         cat_card = card(ft.Column([
             h1("类目", 15),
-            muted("商品自带类目 vs 模板类目：采集时店小秘通常已经分好类，建议保留"),
+            muted("类目来源在「店铺设置 → 选择模板」里切换，这里只显示当前生效方式"),
             ft.Row([
-                sw("auto_detect_category", "自动识别类目（用商品自带的类目）",
-                   tooltip_text="勾选：用商品自身的 categoryId；不勾选：统一用模板商品的类目"),
-            ], spacing=12, wrap=True),
+                ft.Text("当前：" + ("自动分类（商品自带类目 → 关键词 → 模板兜底）"
+                                   if _auto_cat_on else "统一使用模板类目"),
+                        size=12, color=ACCENT_2),
+                ft.TextButton("去店铺设置切换", icon=ft.Icons.ARROW_FORWARD,
+                              on_click=lambda e: self._switch(1)),
+            ], spacing=10, wrap=True),
         ], spacing=8))
 
         # ---------- 详情设置 ----------
@@ -3438,16 +3442,10 @@ class App:
         base_card = card(ft.Column([
             h1("规格与库存", 15),
             ft.Row([
-                sw("custom_sku_prefix_enable", "启用自定义SKU前缀",
-                   tooltip_text="为SKU编码添加自定义前缀"),
-                sw("auto_generate_sku_code", "自动生成SKU编码",
-                   tooltip_text="自动为SKU生成唯一编码"),
                 sw("original_box", "是否原箱",
                    tooltip_text="商品是否以原箱发货"),
             ], spacing=12, wrap=True),
             ft.Row([
-                tf("stock_quantity", "库存数量", width=120,
-                   tooltip_text="所有 SKU 统一使用这个库存数（默认 999）"),
                 tf("spec_weight", "重量(kg)", width=120, tooltip_text="默认包装重量（优先使用采集到的重量，未采集时用此值）"),
                 tf("spec_length", "长(cm)", width=100),
                 tf("spec_width", "宽(cm)", width=100),
@@ -3562,8 +3560,7 @@ class App:
             h1("发布设置", 15),
             muted("视频来源、相册清理等与刊登相关的开关"),
             ft.Row([self.video_src_dd, self.video_path_tf], spacing=12, wrap=True),
-            ft.Row([sw("prefer_dianxiaomi_album", "AI 出图直接传店小秘图片空间（不用图床）"),
-                    sw("album_auto_clean_enable", "刊登完成后自动清理相册未引用图片"),
+            ft.Row([
                     ft.TextField(label="清理 N 天前的", width=140,
                                  value=str(getattr(self.cfg, "album_auto_clean_days", 7)),
                                  bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
@@ -4407,19 +4404,9 @@ class App:
 
     def _p_review(self):
         self._current = 4
-        view = self._render("内容审查", schema_review())
-
-        # 审查在发布时自动执行（publisher._review_content），这里只保留设置
-        self.field_refs = []
-        rev_sections = []
-        for name, fields in schema_review():
-            c, refs = section(name, fields, self.cfg)
-            self.field_refs.extend(refs)
-            for f in refs:
-                self._bind_autosave(f)
-            rev_sections.append(c)
-
-        return [view[0], *rev_sections] + view[1:]
+        # 审查在发布时自动执行（publisher._review_content），这里只放设置。
+        # 注意：只渲染一次——以前 _render + 再循环一遍会把每个开关画两遍。
+        return self._render("内容审查", schema_review())
     def _p_image(self):
         """AI 图片：只保留两大块 —— 简单编辑 / 精细化编辑。"""
         self._current = 5

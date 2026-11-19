@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<title>AuroraList 概览 · 设计稿 v2</title>
+<style>
+  :root{
+    --bg:#0B0D12; --card:#141824; --card2:#1B2030; --line:#232A3B;
+    --text:#E8EAF2; --muted:#8B92A8; --accent:#7C5CFF; --teal:#00D2A8;
+    --amber:#FFB020; --red:#FF6B6B; --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:13px/1.5 -apple-system,"SF Pro Text","PingFang SC",Inter,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .app{display:grid;grid-template-columns:212px 1fr;min-height:100vh}
+
+  /* ---------- 侧栏 ---------- */
+  .side{background:#0E1119;border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:4px}
+  .brand{display:flex;gap:10px;align-items:center;padding:4px 6px 16px}
+  .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#FFC53D,#FF8A00);
+        display:grid;place-items:center;color:#1A1200;font-weight:800;font-size:17px}
+  .brand b{font-size:14px;display:block}
+  .brand span{font-size:10.5px;color:var(--muted)}
+  .runbtn{background:linear-gradient(135deg,#8E74FF,#6B4BFF);color:#fff;border-radius:10px;padding:9px 12px;
+          font-weight:600;text-align:center;font-size:12.5px;margin-bottom:10px;box-shadow:0 6px 18px -8px #7C5CFF}
+  .grp{font-size:9.5px;letter-spacing:.08em;color:#5D6478;font-weight:700;padding:10px 8px 4px}
+  .nav{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:9px;color:var(--muted);font-size:12.5px}
+  .nav.on{background:var(--card2);color:var(--text);box-shadow:inset 2px 0 0 var(--accent)}
+  .nav i{width:16px;height:16px;border-radius:5px;background:#2A3146;display:inline-block}
+  .nav.on i{background:var(--accent)}
+  .side .foot{margin-top:auto;font-size:10.5px;color:var(--muted);display:flex;gap:6px;align-items:center;padding:8px}
+
+  /* ---------- 主区 ---------- */
+  main{padding:20px 26px 40px;display:flex;flex-direction:column;gap:14px;max-width:1240px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:16px}
+  h1{font-size:22px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:11.5px;margin-top:3px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);
+        border-radius:999px;padding:5px 10px;font-size:11px;color:var(--muted)}
+  .dot{width:6px;height:6px;border-radius:50%}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+  .card h2{font-size:14px;margin-bottom:2px}
+  .card .hint{color:var(--muted);font-size:11px;margin-bottom:12px}
+
+  /* KPI 行 */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .kpi .lab{font-size:10.5px;color:var(--muted);margin-bottom:6px}
+  .kpi .num{font-size:24px;font-weight:700;letter-spacing:-.02em}
+  .kpi .tag{font-size:10px;color:var(--muted);margin-top:4px}
+
+  /* 开始任务 + 服务 */
+  .two{display:grid;grid-template-columns:1.9fr 1fr;gap:14px;align-items:stretch}
+  .scope{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+  .pick{background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:6px 11px;font-size:11.5px;color:var(--muted)}
+  .pick.on{background:#241E45;border-color:#4B3C93;color:#CFC4FF}
+  .field{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+  .input{flex:1;background:#0F131D;border:1px solid var(--line);border-radius:9px;padding:9px 12px;color:var(--muted);font-size:12px}
+  .primary{background:linear-gradient(135deg,#8E74FF,#6B4BFF);color:#fff;border:0;border-radius:10px;
+           padding:10px 20px;font-weight:600;font-size:12.5px}
+  .ghost{background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 14px;font-size:12px}
+  .svc{display:flex;flex-direction:column;gap:10px}
+  .row{display:flex;align-items:center;gap:10px;justify-content:space-between;
+       background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+  .row .l{display:flex;align-items:center;gap:9px;font-size:12px}
+  .badge{font-size:10.5px;padding:2px 8px;border-radius:999px;border:1px solid}
+  .ok{color:#0F7A45;background:#E8F6EE;border-color:#C9E9D6}
+  .warn{color:#9A5B00;background:#FDF3E0;border-color:#F3DFB8}
+  .mut{color:var(--muted);background:#EEF0F5;border-color:#DFE3EC}
+
+  /* 今日 */
+  .today{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .t{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .t .lab{font-size:10.5px;color:var(--muted)}
+  .t .n{font-size:20px;font-weight:700;margin-top:4px}
+
+  /* 最近处理 */
+  .list{display:flex;flex-direction:column}
+  .item{display:grid;grid-template-columns:52px 1fr 96px 84px;gap:14px;align-items:center;
+        padding:11px 0;border-top:1px solid var(--line)}
+  .item:first-of-type{border-top:0}
+  .thumb{width:52px;height:52px;border-radius:10px;background:linear-gradient(135deg,#26304A,#1A2236);
+         border:1px solid var(--line)}
+  .it b{font-size:12.5px;font-weight:600;display:block}
+  .it span{font-size:10.5px;color:var(--muted)}
+  .pager{display:flex;align-items:center;gap:10px;margin-top:12px;color:var(--muted);font-size:11px}
+</style></head>
+<body>
+<div class="app">
+  <!-- 侧栏：5 组，8 入口 -->
+  <aside class="side">
+    <div class="brand"><div class="logo">A</div><div><b>AuroraList</b><span>极光上架 v1.0.0</span></div></div>
+    <div class="runbtn">▶ 开始任务</div>
+
+    <div class="nav on"><i></i>概览</div>
+
+    <div class="grp">准备</div>
+    <div class="nav"><i></i>店铺与模板</div>
+    <div class="nav"><i></i>类目与属性</div>
+
+    <div class="grp">内容</div>
+    <div class="nav"><i></i>AI 文案</div>
+    <div class="nav"><i></i>AI 图片</div>
+    <div class="nav"><i></i>内容审查</div>
+
+    <div class="grp">刊登</div>
+    <div class="nav"><i></i>价格</div>
+    <div class="nav"><i></i>变种与库存</div>
+    <div class="nav"><i></i>发布队列</div>
+
+    <div class="grp">运行</div>
+    <div class="nav"><i></i>任务与日志</div>
+    <div class="nav"><i></i>设置</div>
+
+    <div class="foot"><span class="dot" style="background:var(--teal)"></span>已授权 · 机器码 D611…</div>
+  </aside>
+
+  <main>
+    <!-- 顶部 -->
+    <div class="top">
+      <div>
+        <h1>概览</h1>
+        <div class="sub">采集箱 → AI 处理 → 保存 / 发布，一次点击跑完</div>
+      </div>
+      <div class="chips">
+        <span class="chip"><span class="dot" style="background:var(--teal)"></span>Cookie 正常</span>
+        <span class="chip"><span class="dot" style="background:var(--teal)"></span>模板已选</span>
+        <span class="chip"><span class="dot" style="background:var(--amber)"></span>API 未填</span>
+        <span class="chip">店铺 cn1115497303qqqae</span>
+      </div>
+    </div>
+
+    <!-- 状态数字：5 个等宽 -->
+    <section class="kpis">
+      <div class="kpi"><div class="lab">采集箱</div><div class="num">256</div><div class="tag">待处理</div></div>
+      <div class="kpi"><div class="lab">待发布</div><div class="num">89</div><div class="tag">可批量发布</div></div>
+      <div class="kpi"><div class="lab">发布失败</div><div class="num" style="color:var(--red)">73</div><div class="tag">可重试</div></div>
+      <div class="kpi"><div class="lab">在线</div><div class="num">666</div><div class="tag">已上架</div></div>
+      <div class="kpi"><div class="lab">审核中</div><div class="num" style="color:var(--amber)">23</div><div class="tag">等待平台</div></div>
+    </section>
+
+    <!-- 开始任务 + 服务状态 -->
+    <section class="two">
+      <div class="card">
+        <h2>开始一次任务</h2>
+        <div class="hint">选范围 → 填关键词（可选）→ 启动。默认只处理采集箱商品。</div>
+        <div class="scope">
+          <span class="pick on">采集箱 256</span>
+          <span class="pick">待发布 89</span>
+          <span class="pick">发布失败 73</span>
+        </div>
+        <div class="field">
+          <div class="input">只处理标题包含…（留空 = 全部）</div>
+          <span class="pick">数量 3</span>
+          <span class="pick">保存到待发布 ▾</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="primary">▶ 启动</button>
+          <button class="ghost">预览前 3 个</button>
+          <span class="hint" style="margin:0">上次中断：剩余 12 个 · <u>继续</u></span>
+        </div>
+      </div>
+
+      <div class="card svc">
+        <h2>服务状态</h2>
+        <div class="hint">绿色=可用，黄色=需要处理</div>
+        <div class="row"><span class="l">◆ API 服务</span><span class="badge warn">未填 Key</span></div>
+        <div class="row"><span class="l">◆ 授权</span><span class="badge ok">有效</span></div>
+        <div class="row"><span class="l">◆ 图床</span><span class="badge ok">image.moneyfly.club</span></div>
+      </div>
+    </section>
+
+    <!-- 今日 -->
+    <section class="today">
+      <div class="t"><div class="lab">今日任务</div><div class="n">3</div></div>
+      <div class="t"><div class="lab">成功</div><div class="n" style="color:var(--teal)">3</div></div>
+      <div class="t"><div class="lab">失败</div><div class="n" style="color:var(--red)">0</div></div>
+      <div class="t"><div class="lab">今日花费</div><div class="n">¥0.42</div></div>
+    </section>
+
+    <!-- 最近处理 + 分页 -->
+    <section class="card">
+      <h2>最近处理</h2>
+      <div class="hint">改前 / 改后对比，点缩略图放大，可左右切换</div>
+      <div class="list">
+        <div class="item">
+          <div class="thumb"></div>
+          <div class="it"><b>220114600917618202 · 20m Rotary Drilling Rig</b><span>售价 ¥200.00 · 主图 6 张 · 标题已换</span></div>
+          <span class="badge ok">已提交发布</span><span class="hint" style="margin:0">12:31</span>
+        </div>
+        <div class="item">
+          <div class="thumb"></div>
+          <div class="it"><b>220114600917618200 · Concrete Kerb Making Machine</b><span>售价 ¥144.00 · 详情 14.6k 字符</span></div>
+          <span class="badge ok">已保存待发布</span><span class="hint" style="margin:0">12:30</span>
+        </div>
+        <div class="item">
+          <div class="thumb"></div>
+          <div class="it"><b>220114600917618198 · Hydraulic Rock Splitter</b><span>isv.13CHK_BASIC_MAXVALUE</span></div>
+          <span class="badge mut" style="color:#B3261E;background:#FDECEB;border-color:#F6CDCA">失败</span><span class="hint" style="margin:0">12:28</span>
+        </div>
+      </div>
+      <div class="pager"><button class="ghost">上一页</button><button class="ghost">下一页</button><span>第 1/12 页 · 共 57 条</span></div>
+    </section>
+  </main>
+</div>
+</body></html>
