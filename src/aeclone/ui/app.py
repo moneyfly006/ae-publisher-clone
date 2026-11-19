@@ -841,9 +841,6 @@ class App:
         self.ov_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
         self.ov_progress_text = ft.Text("空闲", size=12, color=MUTED)
         self.ov_recent = ft.Column(spacing=2)
-        prog_card = card(ft.Column([
-            h1("实时进度", 15),
-            self.ov_progress_text, self.ov_progress, self.ov_recent], spacing=8))
 
         def svc(label, ctrl, icon, color, sub="", action=None):
             """概览底部服务卡：三张卡等宽等高、结构一致（标题/值/说明/操作）。"""
@@ -983,8 +980,11 @@ class App:
             self.search_hint,
         ], spacing=8))
 
-        return [prog_card, h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
+        _extra = [c for c in (self._cost_card(), self._resume_card(), self._diff_card())
+                  if c is not None]
+        return [h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
                 ready_card, filter_card,
+                *_extra,
                 card(ft.Row([
                     ft.Column([muted("今日任务", 11),
                                ft.Text(str(st["runs"]), size=18, color=TEXT,
@@ -996,9 +996,6 @@ class App:
                                ft.Text(str(st["failed"]), size=18, color="#FF8A8A",
                                        weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
                 ], spacing=24, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=20),
-                self._cost_card(),
-                self._resume_card(),
-                self._diff_card(),
                 ft.Row([svc("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT,
                             sub="自建站点 · 按量计费"),
                         auth_card,
@@ -1070,7 +1067,7 @@ class App:
         """改前后对比预览（标题 / 主图 / 详情长度）。"""
         try:
             from ..services import preview as pv
-            rows = pv.latest(5)
+            rows = pv.latest(200)
         except Exception:
             rows = []
         if not rows:
@@ -1097,9 +1094,39 @@ class App:
                 ft.Row([ft.Text(f"详情 {bd}→{ad} 字符", size=10, color=MUTED), thumbs], spacing=12),
             ], spacing=3)
 
+        PER = 5
+        page = {"i": 0}
+        list_col = ft.Column(spacing=10)
+        info = ft.Text("", size=11, color=MUTED)
+        prev_btn = ft.OutlinedButton("上一页", icon=ft.Icons.CHEVRON_LEFT)
+        next_btn = ft.OutlinedButton("下一页", icon=ft.Icons.CHEVRON_RIGHT)
+
+        def _render(ev=None):
+            total = max(1, (len(rows) + PER - 1) // PER)
+            page["i"] = min(max(0, page["i"]), total - 1)
+            lo = page["i"] * PER
+            list_col.controls = [_item(r) for r in rows[lo:lo + PER]]
+            info.value = f"第 {page['i'] + 1}/{total} 页 · 共 {len(rows)} 条"
+            prev_btn.disabled = page["i"] <= 0
+            next_btn.disabled = page["i"] >= total - 1
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def _go(delta):
+            page["i"] += delta
+            _render()
+
+        prev_btn.on_click = lambda e: _go(-1)
+        next_btn.on_click = lambda e: _go(1)
+        _render()
         return card(ft.Column([h1("改前后对比", 15),
-                               muted("最近处理的商品：标题 / 详情 / 主图变化", 11)]
-                              + [_item(r) for r in rows], spacing=10))
+                               muted("最近处理的商品：标题 / 详情 / 主图变化", 11),
+                               list_col,
+                               ft.Row([prev_btn, next_btn, info], spacing=10,
+                                      vertical_alignment=ft.CrossAxisAlignment.CENTER)],
+                              spacing=10))
 
     def _resume_card(self):
         """断点续传：显示上次批量剩余/失败，提供「继续」。"""
@@ -1111,8 +1138,7 @@ class App:
         rem = len(info.get("remaining") or [])
         fail = len(info.get("failed") or [])
         if not rem and not fail:
-            return card(ft.Column([h1("断点续传", 15),
-                                   muted("没有未完成的批量；启动一次批量后会自动记录进度", 11)], spacing=6))
+            return None   # 没有断点就不占位置
         txt = (f"上次批量：完成 {info.get('done', 0)}/{info.get('total', 0)}"
                f"，剩余 {rem} 个" + (f"，失败 {fail} 个" if fail else ""))
         return card(ft.Column([
