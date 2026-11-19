@@ -4873,11 +4873,10 @@ class App:
                         _range_tf("white_background_sku_pic_indices", "SKU 图范围")],
                        spacing=16, wrap=True),
             ], spacing=8)),
-        ], spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
+        ], spacing=10)
 
         # ---- 精细化编辑：主图 / 详情图 / SKU（逐条：位置+提示词+参考图）----
-        refined_tab = ft.Column([self._image_jobs_ui()], spacing=10,
-                                scroll=ft.ScrollMode.AUTO, expand=True)
+        refined_tab = ft.Column([self._image_jobs_ui()], spacing=10)
 
         # ---- 开关冲突提示（自动检测）----
         try:
@@ -4907,7 +4906,6 @@ class App:
             animation_duration=150,
             tabs=[ft.Tab(text="简单编辑", content=simple_tab),
                   ft.Tab(text="精细化编辑", content=refined_tab)],
-            expand=True,
         )
         # 主操作（两个 Tab）放前面；营销图与图片合成设置放后面
         return [view[0], muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
@@ -6234,7 +6232,7 @@ class App:
         self.log_follow = ft.Checkbox(
             label="跟随最新", value=bool(getattr(self.cfg, "log_auto_follow", True)),
             on_change=self._on_log_follow_change)
-        self.log_scroll = ft.Column([self.log_table], scroll=ft.ScrollMode.AUTO,
+        self.log_scroll = ft.Column([self.log_table], height=460, scroll=ft.ScrollMode.AUTO,
                                     auto_scroll=bool(getattr(self.cfg, "log_auto_follow", True)),
                                     on_scroll=self._on_log_scroll)
         self.log_count_text = ft.Text("0 行", size=11, color=MUTED)
