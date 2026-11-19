@@ -365,11 +365,15 @@ class App:
         self._cookie_ts = 0.0
 
         page.title = f"AuroraList · 极光上架 v{VERSION}"
-        # 窗口左上角图标（打包后 assets 在 _internal/assets，flet 会按 assets_dir 解析）
+        # 窗口/任务栏图标：Windows 用 .ico（任务栏识别更好），其它平台用 PNG
         try:
-            page.window.icon = "icon_1024.png"
+            _icon = "icon.ico" if sys.platform == "win32" else "icon_1024.png"
+            page.window.icon = _icon
         except Exception:
-            pass
+            try:
+                page.window.icon = "icon_1024.png"
+            except Exception:
+                pass
         page.bgcolor = BG
         page.padding = 0
         page.theme_mode = ft.ThemeMode.DARK
