@@ -4936,11 +4936,11 @@ class App:
             calc()
 
         def tier_row(row: dict):
-            lo = ft.TextField(label="成本下限", value=f"{row.get('min', 0):g}", width=110,
+            lo = ft.TextField(label="成本下限", value=f"{row.get('min', 0):g}", width=110, dense=True,
                               bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            hi = ft.TextField(label="成本上限", value=f"{row.get('max', 0):g}", width=110,
+            hi = ft.TextField(label="成本上限", value=f"{row.get('max', 0):g}", width=110, dense=True,
                               bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-            mult = ft.TextField(label="倍率", value=f"{row.get('multiplier', 1):g}", width=90,
+            mult = ft.TextField(label="倍率", value=f"{row.get('multiplier', 1):g}", width=90, dense=True,
                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
             out = ft.Text("", size=11, color=ACCENT_2, width=110)
 
