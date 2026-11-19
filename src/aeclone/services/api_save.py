@@ -608,6 +608,13 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     except Exception:
         price = 0
 
+    # 速卖通零售价上限 999999（超过会报 isv.13CHK_BASIC_MAXVALUE）
+    _MAX_RETAIL = 999999.0
+    _price_capped = False
+    if price and price > _MAX_RETAIL:
+        _price_capped = True
+        price = _MAX_RETAIL
+
     stock = str(getattr(cfg, "stock_quantity", "") or "").strip()
     if not stock and skus:
         stock = str(skus[0].get("ipmSkuStock") or "")

@@ -1330,6 +1330,7 @@ class Publisher:
         skip_hosts = ("alicdn.com", "dianxiaomi.com", "dxm.com")
         full_cid = str(getattr(self.cfg, "upload_full_cid", "") or "")
         done = failed = skipped = 0
+        _errs: list[str] = []
         for key in ("images", "detail_images"):
             urls = p.get(key) or []
             for i, u in enumerate(urls):
@@ -1367,12 +1368,18 @@ class Publisher:
                         done += 1
                     else:
                         failed += 1
-                except Exception:
+                except Exception as _ex:
                     failed += 1
+                    try:
+                        _errs.append(f"第{i + 1}张 {type(_ex).__name__}: {str(_ex)[:90]}")
+                    except Exception:
+                        pass
             p[key] = urls
         if res is not None:
-            add_step(res, "传店小秘相册", failed == 0 and done > 0,
-                     f"成功 {done} / 失败 {failed} / 跳过 {skipped}")
+            _msg = f"成功 {done} / 失败 {failed} / 跳过 {skipped}"
+            if _errs:
+                _msg += " · " + "；".join(_errs[:3])
+            add_step(res, "传店小秘相册", failed == 0 and done > 0, _msg)
         return p
 
     def _publicize_images(self, p: dict, res, dry_run: bool = False) -> dict:
@@ -2021,6 +2028,14 @@ class Publisher:
             # 平台硬性要求：主图宽高 ≥100，太小会报 isv.134000000002
             if _imgs:
                 _imgs = self._ensure_min_image_size(list(_imgs), res)
+            _pr = p.get("price_result")
+            try:
+                _pf = float(getattr(_pr, "final", 0) or 0)
+            except Exception:
+                _pf = 0
+            if _pf > 999999:
+                add_step(res, "价格上限", True,
+                         f"计算价 ¥{_pf:.2f} 超过速卖通上限 999999，已截断为 999999")
             overrides = build_ai_overrides(target, p, self.cfg, images=_imgs, ship=ship,
                                            template=tpl)
 
