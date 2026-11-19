@@ -853,6 +853,7 @@ class App:
         self.ready_api = ft.Text("检测中…", size=12, color=MUTED)
         self.ready_auth = ft.Text("检测中…", size=12, color=MUTED)
         self.ready_balance = ft.Text("", size=12, color=MUTED)
+        self.ready_conflict = ft.Text("", size=12, color=MUTED)
 
         def _ready_row(icon, label, ctrl):
             return ft.Row([ft.Icon(icon, size=16, color=MUTED),
@@ -867,6 +868,11 @@ class App:
             _ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
             _ready_row(ft.Icons.ACCOUNT_BALANCE_WALLET_OUTLINED, "API 余额", self.ready_balance),
             _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth),
+            ft.Row([ft.Icon(ft.Icons.RULE, size=16, color=MUTED),
+                    ft.Text("配置冲突", size=13, color=TEXT),
+                    self.ready_conflict,
+                    ft.TextButton("检查", on_click=lambda e: self._check_conflicts())],
+                   spacing=8, expand=True),
         ], spacing=8))
 
         def _refresh_ready():
@@ -1602,6 +1608,50 @@ class App:
         except Exception:
             self.toast(f"请在浏览器打开 {url}", False)
 
+    def _check_conflicts(self, silent: bool = False):
+        """检查所有开关的互斥/依赖/无效组合，弹窗列出并给出改法。"""
+        try:
+            from ..services.conflicts import check as _cc
+            items = _cc(self.cfg)
+        except Exception as ex:
+            self.toast(f"冲突检查失败：{ex}", False)
+            return
+        errs = [c for c in items if c.level == "error"]
+        warns = [c for c in items if c.level != "error"]
+        try:
+            self.ready_conflict.value = (f"✗ {len(errs)} 个阻断 / {len(warns)} 个提示"
+                                         if errs else
+                                         (f"⚠ {len(warns)} 个提示" if warns else "✓ 无冲突"))
+            self.ready_conflict.color = "#FF6B6B" if errs else ("#FFB020" if warns else ACCENT_2)
+            self._safe_update()
+        except Exception:
+            pass
+        for c in items:
+            self._log("配置" + ("冲突" if c.level == "error" else "提示") + "：" + c.title + " -> " + c.fix,
+                      "ERROR" if c.level == "error" else "WARN")
+        if silent:
+            return
+        if not items:
+            self.toast("没有发现配置冲突")
+            return
+        rows = []
+        for c in items:
+            color = "#FF6B6B" if c.level == "error" else "#FFB020"
+            head = ("[阻断] " if c.level == "error" else "[提示] ") + c.title
+            rows.append(ft.Container(
+                content=ft.Column([
+                    ft.Text(head, size=12, weight=ft.FontWeight.BOLD, color=color),
+                    ft.Text("原因：" + c.detail, size=11, color=MUTED),
+                    ft.Text("怎么改：" + c.fix, size=11, color=TEXT, selectable=True),
+                ], spacing=2),
+                padding=8, bgcolor=CARD_2, border_radius=6, margin=ft.margin.only(bottom=6)))
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"配置检查：{len(errs)} 个阻断 / {len(warns)} 个提示"),
+            content=ft.Column(rows, spacing=2, width=620, height=420, scroll=ft.ScrollMode.AUTO),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+        )
+        self._show_dlg(dlg)
+
     def _show_license_block(self, message: str = ""):
         from ..license import machine_code as _mc
         code = _mc()
@@ -1731,6 +1781,22 @@ class App:
                     self._log(_ln, "INFO")
             except Exception:
                 pass
+            # 启动前冲突检查：把互斥/依赖/无效的组合找出来，ERROR 直接阻断
+            try:
+                from ..services.conflicts import check as _conf_check, blocking as _conf_block
+                _cs = _conf_check(self.cfg)
+                _errs = _conf_block(_cs)
+                _warns = [c for c in _cs if c.level != "error"]
+                for _c in _warns:
+                    self._log(f"配置提示：{_c.title} — {_c.fix}", "WARN")
+                if _errs:
+                    _lines = "\n".join(f"• {c.title}\n  原因：{c.detail}\n  怎么改：{c.fix}" for c in _errs)
+                    self._log("配置冲突，已停止启动：\n" + _lines, "ERROR")
+                    finish("配置冲突，请先按提示修改")
+                    return
+            except Exception as _ce:
+                self._log(f"冲突检查跳过（{_ce}）", "WARN")
+
             # 启动前 API 预检：Key 无效/额度不足时直接停，不要整批任务全崩在 "Invalid token"
             why = self._preflight_api()
             if why:
