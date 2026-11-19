@@ -2051,11 +2051,43 @@ class App:
 
     def _publish_list_dialog(self, offline_state: str, label: str):
         """查看「待发布 / 发布失败」的具体商品（前 100 条）。"""
-        col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
+        col = ft.Column(spacing=2, height=380, scroll=ft.ScrollMode.AUTO)
         status = ft.Text("读取中…", size=11, color=MUTED)
+        picked: set[str] = set()
+        sel_text = ft.Text("已选 0 个", size=11, color=MUTED)
+
+        def _toggle(pid, on):
+            (picked.add(pid) if on else picked.discard(pid))
+            sel_text.value = f"已选 {len(picked)} 个"
+
+        def _publish_picked(e=None):
+            if not picked:
+                self.toast("先勾选要发布的商品", False)
+                return
+            ids = list(picked)
+            self.toast(f"提交发布 {len(ids)} 个…", True)
+
+            def work():
+                try:
+                    from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+                    c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                    r = c.batch_publish(ids)
+                    ok, bad = len(r.get("success") or []), len(r.get("failed") or [])
+                    self._log(f"批量发布（已选）：成功 {ok} / 失败 {bad}", "INFO" if not bad else "WARN")
+                    self.toast(f"发布完成：成功 {ok} / 失败 {bad}", not bad)
+                except Exception as ex:  # noqa: BLE001
+                    self.toast(f"发布失败：{str(ex)[:60]}", False)
+            threading.Thread(target=work, daemon=True).start()
+
         dlg = ft.AlertDialog(
             title=ft.Text(label),
-            content=ft.Column([status, col], spacing=8, width=640),
+            content=ft.Column([status, col,
+                               ft.Row([sel_text,
+                                       ft.ElevatedButton("发布所选的商品", icon=ft.Icons.SEND,
+                                                         bgcolor=ACCENT, color="white",
+                                                         on_click=_publish_picked)],
+                                      spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER)],
+                              spacing=8, width=660),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
         )
         self._show_dlg(dlg)
@@ -2075,8 +2107,11 @@ class App:
                     pid = str(it.get("id") or "")
                     title = str(it.get("subject") or it.get("productName") or "")[:70]
                     rows.append(ft.ListTile(
-                        leading=self._zoom_img((it.get("imageURLs") or "").split(";")[0]
-                                               if it.get("imageURLs") else "", 40, 40, "主图"),
+                        leading=ft.Row([
+                            ft.Checkbox(on_change=lambda e, _p=pid: _toggle(_p, e.control.value)),
+                            self._zoom_img((it.get("imageURLs") or "").split(";")[0]
+                                           if it.get("imageURLs") else "", 40, 40, "主图")],
+                            spacing=2, tight=True),
                         title=ft.Text(title or pid, size=12, color=TEXT, max_lines=2),
                         subtitle=ft.Text(pid, size=10, color=MUTED),
                         trailing=ft.TextButton("发布", icon=ft.Icons.SEND,
@@ -5568,6 +5603,7 @@ class App:
                      ft.DataColumn(ft.Text("状态", size=11, color=MUTED)),
                      ft.DataColumn(ft.Text("图/SKU", size=11, color=MUTED))],
             rows=[], column_spacing=16, heading_row_height=28, data_row_min_height=32)
+        self.wb_prod_preview = ft.Row(spacing=6, wrap=True)
         self.wb_prod_box = ft.Column([self.wb_prod_table], scroll=ft.ScrollMode.AUTO, height=300)
 
         def load_products(e=None):
@@ -5612,6 +5648,8 @@ class App:
                     ft.ElevatedButton("取选中图片", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=ACCENT_2,
                                       color="#04231C", on_click=pick_images)], spacing=10, wrap=True),
             self.wb_prod_box,
+            muted("选中产品的图片预览（点图放大）", 10.5),
+            self.wb_prod_preview,
         ], spacing=8))
 
         # ---- 图片处理 ----
@@ -5904,6 +5942,22 @@ class App:
         else:
             self.wb_selected.discard(pid)
         self._wb_sel_refresh()
+        self._wb_preview_selected()
+
+    def _wb_preview_selected(self):
+        """把已勾选产品的图片铺成一行缩略图（最多 10 张）。"""
+        try:
+            imgs = []
+            for it in (getattr(self, "wb_rows", None) or []):
+                if str(it.get("id")) in getattr(self, "wb_selected", set()):
+                    imgs.extend([u for u in (it.get("images") or []) if u])
+            imgs = imgs[:10]
+            self.wb_prod_preview.controls = (
+                [self._zoom_img(u, 56, 56, "预览", gallery=imgs) for u in imgs]
+                or [muted("尚未勾选产品", 10.5)])
+            self._safe_update()
+        except Exception:
+            pass
 
     def _wb_sel_refresh(self):
         n_img = 0
@@ -6158,7 +6212,8 @@ class App:
         self.log_table = ft.DataTable(
             columns=[ft.DataColumn(ft.Text("时间", size=11, color=MUTED)),
                      ft.DataColumn(ft.Text("级别", size=11, color=MUTED)),
-                     ft.DataColumn(ft.Text("内容", size=11, color=MUTED))],
+                     ft.DataColumn(ft.Text("内容", size=11, color=MUTED)),
+                     ft.DataColumn(ft.Text("按产品筛选", size=11, color=MUTED))],
             rows=[], column_spacing=14, heading_row_height=28, data_row_min_height=24,
         )
         if not getattr(self, "log_rows", None):
@@ -6614,6 +6669,23 @@ class App:
             pass
         self.toast("日志已清空", True)
 
+    def _log_filter_by(self, pid: str):
+        try:
+            if getattr(self, "log_filter", None) is not None:
+                self.log_filter.value = str(pid)
+            self._refresh_log_table()
+        except Exception:
+            pass
+
+    def _filter_cell(self, msg: str):
+        import re as _re
+        m = _re.search(r"\b(\d{9,})\b", str(msg or ""))
+        if not m:
+            return ft.Text("", size=11)
+        pid = m.group(1)
+        return ft.IconButton(ft.Icons.FILTER_ALT, icon_size=14, tooltip=f"只看 {pid}",
+                             on_click=lambda e, _p=pid: self._log_filter_by(_p))
+
     def _refresh_log_table(self):
         # 事件很多时不要每条都重建表格（会把 UI 拖死），0.5 秒合并一次
         now = time.time()
@@ -6636,7 +6708,8 @@ class App:
             ft.DataRow(cells=[
                 ft.DataCell(ft.Text(t, size=11, color=MUTED)),
                 ft.DataCell(ft.Text(x, size=11, color=ACCENT_2 if x == "INFO" else ("#FFB020" if x == "WARN" else "#FF6B6B"))),
-                ft.DataCell(ft.Text(m, size=11, color=TEXT, width=560, selectable=True)),
+                ft.DataCell(ft.Text(m, size=11, color=TEXT, width=520, selectable=True)),
+                ft.DataCell(self._filter_cell(m)),
             ]) for t, x, m in shown[-300:]
         ]
         try:
