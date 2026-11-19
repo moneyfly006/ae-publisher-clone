@@ -5450,15 +5450,14 @@ class App:
                 ft.OutlinedButton("看发布失败列表", icon=ft.Icons.LIST_ALT,
                                   on_click=lambda e: self._publish_list_dialog("publishFail", "发布失败商品")),
                 ft.ElevatedButton("批量发布「待发布」", icon=ft.Icons.PUBLISH,
-                                  bgcolor="#6EC6FF", color="#04231C",
+                                  bgcolor=ACCENT, color="white",
                                   on_click=lambda e: self._confirm(
                                       "批量发布「待发布」商品？",
                                       "会把店小秘「待发布」里的商品全部提交发布，"
                                       "提交后进入「发布中 → 审核中」，短时间内不可撤销。",
                                       lambda: threading.Thread(
                                           target=self._batch_publish_waiting, daemon=True).start())),
-                ft.ElevatedButton("重试「发布失败」", icon=ft.Icons.REPLAY,
-                                  bgcolor="#FFB020", color="#1A1200",
+                ft.OutlinedButton("重试「发布失败」", icon=ft.Icons.REPLAY,
                                   on_click=lambda e: self._confirm(
                                       "重试「发布失败」的商品？",
                                       "会重新提交店小秘里发布失败的商品；不调用 AI，不产生费用。",
