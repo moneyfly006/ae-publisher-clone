@@ -2,7 +2,7 @@
 ; 构建：先 pyinstaller --noconfirm --clean app.spec，再 ISCC.exe installer.iss
 
 #define MyAppName "AuroraList"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "AuroraList"
 #define MyAppExeName "AuroraList.exe"
 
@@ -17,6 +17,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=dist
 OutputBaseFilename=AuroraList-Setup-{#MyAppVersion}
+SetupIconFile=assets\icon.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
