@@ -148,6 +148,11 @@ def card(content, padding=20, expand=False):
                         expand=expand, border=ft.border.all(1, CARD_2))
 
 
+def empty_state(text, icon=ft.Icons.INBOX_OUTLINED):
+    """统一空状态样式。"""
+    return ft.Row([ft.Icon(icon, size=16, color=MUTED), muted(text, 11)], spacing=8)
+
+
 def h1(t, s=22):
     return ft.Text(t, size=s, weight=ft.FontWeight.BOLD, color=TEXT)
 
@@ -1114,7 +1119,8 @@ class App:
             rows = []
         if not rows:
             return card(ft.Column([h1("改前后对比", 15),
-                                   muted("还没有处理记录；跑一次后这里会显示改前/改后差异", 11)], spacing=6))
+                                   empty_state("还没有处理记录；跑一次后这里会显示改前/改后差异")],
+                                  spacing=6))
 
         def _item(r):
             b = r.get("before") or {}
@@ -1124,17 +1130,22 @@ class App:
             ai = (a2.get("images") or [""])[0]
             bd, ad = len(str(b.get("detail") or "")), len(str(a2.get("detail") or ""))
             _gal = [x for x in (bi, ai) if str(x or "").strip()]
-            thumbs = ft.Row([self._zoom_img(bi, 70, 70, "改前", gallery=_gal),
-                             ft.Icon(ft.Icons.ARROW_FORWARD, size=14, color=MUTED),
-                             self._zoom_img(ai, 70, 70, "改后", gallery=_gal)], spacing=6)
-            return ft.Column([
-                ft.Text(f"{r.get('id')} · {r.get('title','')[:30]}", size=12, color=TEXT),
-                ft.Row([ft.Text("改前", size=10, color=MUTED, width=30),
-                        ft.Text(bt[:80], size=11, color=MUTED, expand=True)], spacing=6),
-                ft.Row([ft.Text("改后", size=10, color=ACCENT_2, width=30),
-                        ft.Text(at[:80], size=11, color=TEXT, expand=True)], spacing=6),
-                ft.Row([ft.Text(f"详情 {bd}→{ad} 字符", size=10, color=MUTED), thumbs], spacing=12),
-            ], spacing=3)
+            thumbs = ft.Row([self._zoom_img(bi, 52, 52, "改前", gallery=_gal),
+                             ft.Icon(ft.Icons.ARROW_FORWARD, size=13, color=MUTED),
+                             self._zoom_img(ai, 52, 52, "改后", gallery=_gal)], spacing=5)
+            _title_now = str(r.get("title") or "")[:46]
+            _new_title = at if at and at != "-" and at != bt else ""
+            return ft.Row([
+                thumbs,
+                ft.Column([
+                    ft.Text(_title_now or str(r.get("id") or ""), size=12.5,
+                            color=TEXT, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                    ft.Text(f"{r.get('id')} · 详情 {bd}→{ad} 字符"
+                            + (f" · 新标题「{_new_title[:24]}」" if _new_title else ""),
+                            size=10.5, color=MUTED, max_lines=1,
+                            overflow=ft.TextOverflow.ELLIPSIS),
+                ], spacing=2, expand=True),
+            ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
         PER = 5
         page = {"i": 0}
@@ -1189,7 +1200,10 @@ class App:
             ft.Row([ft.ElevatedButton("继续处理剩余", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT,
                                       color="white", on_click=lambda e: self._start()),
                     ft.OutlinedButton("清空断点", icon=ft.Icons.CLEAR,
-                                      on_click=lambda e: (bs.clear(), self._switch(0)))],
+                                      on_click=lambda e: self._confirm(
+                                          "清空断点记录？",
+                                          "清空后下次启动会重新扫描全部待处理商品。",
+                                          lambda: (bs.clear(), self._switch(0))))],
                    spacing=10, wrap=True),
             muted("「继续」会重新扫描待处理商品，已成功的自动跳过，只处理剩余的", 11),
         ], spacing=8))
@@ -1208,7 +1222,7 @@ class App:
                                 ft.Text(f"{v['n']} 次", size=12, color=MUTED, width=70),
                                 ft.Text(f"¥{v['cost']:.3f}", size=12, color=ACCENT_2)], spacing=8))
         if not rows:
-            rows = [muted("今天还没有 AI 调用记录", 11)]
+            rows = [empty_state("今天还没有 AI 调用记录")]
         return card(ft.Column([
             h1("成本 / 用量", 15),
             ft.Row([ft.Text(f"今日 ¥{d1['total']:.3f}", size=13, color=ACCENT_2),
@@ -1911,7 +1925,7 @@ class App:
                     title=ft.Text((it.get("title") or pid)[:70], size=12, color=TEXT, max_lines=2),
                     subtitle=ft.Text(f"{pid} · {it.get('status_type') or ''}", size=10, color=MUTED),
                     dense=True))
-            col.controls = rows or [muted("没有匹配的商品", 11)]
+            col.controls = rows or [empty_state("没有匹配的商品")]
             pager.value = f"第 {state['page']}/{total} 页 · 共 {len(state['rows'])} 个"
             prev_btn.disabled = state["page"] <= 1
             next_btn.disabled = state["page"] >= total
@@ -2004,7 +2018,7 @@ class App:
                         title=ft.Text(title or pid, size=12, color=TEXT, max_lines=2),
                         subtitle=ft.Text(pid, size=10, color=MUTED),
                         dense=True))
-                col.controls = rows or [muted("这一栏没有商品", 11)]
+                col.controls = rows or [empty_state("这一栏没有商品")]
                 status.value = f"共 {po.get('totalSize') or len(items)} 个（显示前 {len(items)} 个）"
                 status.color = ACCENT_2
             except Exception as ex:  # noqa: BLE001
@@ -3622,9 +3636,19 @@ class App:
 
         self._bind_eu_guard()
 
-        return [h1("类目与属性"), muted("商品默认值：类目、规格、属性模板、欧盟资质；图片见「AI 图片」，发布见「发布队列」"),
-                cat_card, base_card, attr_default_card, attr_card, sku_map_card,
-                eu_card, self._combo_card()]
+        def _fold(title, cards):
+            return ft.ExpansionTile(
+                title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=TEXT),
+                controls=[c for c in cards if c is not None],
+                initially_expanded=False, icon_color=ACCENT, collapsed_icon_color=MUTED,
+                tile_padding=ft.padding.symmetric(horizontal=4))
+
+        return [h1("类目与属性"),
+                muted("商品默认值：类目、规格、属性；图片见「AI 图片」，发布见「发布队列」"),
+                cat_card, base_card, attr_default_card,
+                _fold("属性模板与 SKU 图替换", [attr_card, sku_map_card]),
+                _fold("欧盟资质（需要时再填）", [eu_card]),
+                _fold("套装 SKU（可选）", [self._combo_card()])]
 
     # ---------- 可复用设置卡（拆分自原「商品设置」）----------
     def _sw(self, key, label, tooltip_text=""):
@@ -5401,6 +5425,23 @@ class App:
     def _p_workbench(self):
         self._current = 9
         ok, ck_text = self._cookie_status_text()
+
+        def _step(n, label):
+            return ft.Container(
+                content=ft.Row([ft.Container(width=18, height=18, border_radius=9,
+                                             bgcolor=CARD_2, alignment=ft.alignment.center,
+                                             content=ft.Text(str(n), size=10, color=MUTED)),
+                                ft.Text(label, size=11.5, color=MUTED)], spacing=6),
+                padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                bgcolor=CARD, border_radius=999, border=ft.border.all(1, CARD_2))
+
+        self.wb_steps = ft.Row([
+            _step(1, "连接"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
+            _step(2, "选商品"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
+            _step(3, "取图并处理"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
+            _step(4, "任务队列"),
+        ], spacing=6, wrap=True)
+
         self.wb_conn = ft.Text(("Cookie：" + ck_text), size=12,
                                color=ACCENT_2 if ok else "#FF6B6B")
         self.wb_conn_hint = muted("加载不了产品时先看这里：没有 Cookie 就点「粘贴 Cookie」或「启动浏览器」")
@@ -5607,6 +5648,7 @@ class App:
                                                            on_click=lambda e: self._retry_failed_queue())],
                                         spacing=10, wrap=True)], spacing=8))
         return [h1("图片工作台"), muted("单商品手动调试：加载产品 → 取图 → 白底/去水印/翻译/编辑 → 上传或合成视频"),
+                self.wb_steps,
                 conn_card, prod_card, img_card, q_card]
 
     # ---------- 工作台内部 ----------
@@ -6094,7 +6136,10 @@ class App:
                               tooltip="把当前日志全部复制到剪贴板",
                               on_click=lambda e: self._copy_logs()),
                 ft.TextButton("清空日志", icon=ft.Icons.CLEAR_ALL,
-                              on_click=lambda e: self._clear_logs_ui()),
+                              on_click=lambda e: self._confirm(
+                                  "清空当前日志？",
+                                  "只清空界面里的日志；磁盘上的 app.log 不受影响。",
+                                  self._clear_logs_ui)),
             ], spacing=8, wrap=True),
             ft.Row([self.log_level, self.log_filter, self.log_follow], spacing=12,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
