@@ -5428,19 +5428,20 @@ class App:
 
         def _step(n, label):
             return ft.Container(
+                width=132,
                 content=ft.Row([ft.Container(width=18, height=18, border_radius=9,
                                              bgcolor=CARD_2, alignment=ft.alignment.center,
                                              content=ft.Text(str(n), size=10, color=MUTED)),
-                                ft.Text(label, size=11.5, color=MUTED)], spacing=6),
+                                ft.Text(label, size=11.5, color=MUTED, no_wrap=True)], spacing=6),
                 padding=ft.padding.symmetric(horizontal=10, vertical=5),
                 bgcolor=CARD, border_radius=999, border=ft.border.all(1, CARD_2))
 
         self.wb_steps = ft.Row([
-            _step(1, "连接"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
-            _step(2, "选商品"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
-            _step(3, "取图并处理"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
+            _step(1, "连接"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=13, color=MUTED),
+            _step(2, "选商品"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=13, color=MUTED),
+            _step(3, "取图并处理"), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=13, color=MUTED),
             _step(4, "任务队列"),
-        ], spacing=6, wrap=True)
+        ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
         self.wb_conn = ft.Text(("Cookie：" + ck_text), size=12,
                                color=ACCENT_2 if ok else "#FF6B6B")
