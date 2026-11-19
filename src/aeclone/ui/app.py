@@ -1031,6 +1031,8 @@ class App:
                 ft.TextButton("清空", icon=ft.Icons.CLEAR, on_click=lambda e: self._clear_search()),
                 ft.OutlinedButton("搜索全部商品", icon=ft.Icons.SEARCH,
                                   on_click=lambda e: self._global_search_dialog()),
+                ft.TextButton("刷新数量", icon=ft.Icons.REFRESH,
+                              on_click=lambda e: self._refresh_store_counts()),
             ], spacing=10, wrap=True),
             self.search_hint,
         ], spacing=8))
@@ -2171,6 +2173,10 @@ class App:
             for b in bad[:5]:
                 self._log(f"  ✗ {b.get('id')} {str(b.get('msg'))[:80]}", "WARN")
             self.toast(label + f"：成功 {len(ok)} / 失败 {len(bad)}", not bad)
+            try:
+                self._refresh_store_counts()
+            except Exception:
+                pass
         except Exception as ex:  # noqa: BLE001
             self._log(label + " 失败：" + str(ex)[:150], "ERROR")
             self.toast(label + " 失败：" + str(ex)[:80], False)
@@ -6282,7 +6288,10 @@ class App:
                                   "只清空界面里的日志；磁盘上的 app.log 不受影响。",
                                   self._clear_logs_ui)),
             ], spacing=8, wrap=True),
-            ft.Row([self.log_level, self.log_filter, self.log_follow], spacing=12,
+            ft.Row([self.log_level, self.log_filter,
+                    ft.TextButton("清空筛选", icon=ft.Icons.FILTER_ALT_OFF,
+                                  on_click=lambda e: self._clear_log_filter()),
+                    self.log_follow], spacing=12,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
             self.log_status,
             muted("「上报运行日志」会把最近 800 行日志和错误类型发到授权后台，管理员在「用户数据」里查看；"
@@ -6642,6 +6651,14 @@ class App:
                 pass
         except Exception as ex:  # noqa: BLE001
             self.toast(f"导出失败：{str(ex)[:60]}", False)
+
+    def _clear_log_filter(self):
+        try:
+            if getattr(self, "log_filter", None) is not None:
+                self.log_filter.value = ""
+            self._refresh_log_table()
+        except Exception:
+            pass
 
     def _copy_logs(self):
         text = "\n".join(getattr(self, "logs", []) or [])
