@@ -413,8 +413,18 @@ def build_save_payload(product: dict, template: dict | None = None,
         except Exception:
             cfg = None
     _auto_cat = bool(getattr(cfg, "auto_detect_category", True)) if cfg is not None else True
-    if _auto_cat and str(p.get("categoryId") or "").strip() not in ("", "0"):
-        pass  # 保留商品自带类目
+    # 类目优先级：关键词映射 → 商品自带 → 模板兜底
+    _kw_cat = ""
+    if _auto_cat:
+        try:
+            from .category_map import match as _cat_match
+            _kw_cat = _cat_match(str(product.get("subject") or product.get("title") or ""))
+        except Exception:
+            _kw_cat = ""
+    if _kw_cat:
+        p["categoryId"] = _kw_cat
+    elif _auto_cat and str(p.get("categoryId") or "").strip() not in ("", "0"):
+        p["categoryId"] = str(p.get("categoryId") or "").strip()   # 保留商品自带类目（去空格）
     else:
         p.pop("categoryId", None)  # 让下面的模板补齐逻辑接管
     for k in ("categoryId", "productType", "taxType", "sizechartId",

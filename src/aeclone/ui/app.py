@@ -1608,6 +1608,96 @@ class App:
         except Exception:
             self.toast(f"请在浏览器打开 {url}", False)
 
+    def _category_map_dialog(self):
+        from ..services.category_map import load as _cm_load
+        m = _cm_load()
+        rules = m.get("rules") or []
+        learned = m.get("learned") or {}
+        body = "\n".join(f"{r.get('kw')}={r.get('categoryId')}" for r in rules
+                         if isinstance(r, dict))
+        tf = ft.TextField(value=body, multiline=True, min_lines=6, max_lines=12, width=560,
+                          label="关键词规则（每行一条：关键词=类目ID）",
+                          hint_text="hydraulic=100007204")
+        info = ft.Text(f"学习表：{len(learned)} 个关键词", size=11, color=MUTED)
+
+        def do_save(e):
+            from ..services.category_map import load as _l, save as _s
+            cur = _l()
+            new_rules = []
+            for line in (tf.value or "").splitlines():
+                line = line.strip()
+                if not line or "=" not in line:
+                    continue
+                kw, cid = line.split("=", 1)
+                if kw.strip() and cid.strip():
+                    new_rules.append({"kw": kw.strip(), "categoryId": cid.strip()})
+            cur["rules"] = new_rules
+            _s(cur)
+            self._log(f"类目规则已保存：{len(new_rules)} 条", "INFO")
+            self.toast(f"已保存 {len(new_rules)} 条关键词规则", True)
+            self._close_dlg(dlg)
+
+        def do_learn(e):
+            self._close_dlg(dlg)
+            threading.Thread(target=self._category_learn, daemon=True).start()
+
+        def do_clear(e):
+            from ..services.category_map import save as _s
+            _s({"rules": rules, "learned": {}})
+            info.value = "学习表：0 个关键词"
+            self._safe_update()
+            self.toast("已清空学习表", True)
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("类目自动匹配"),
+            content=ft.Column([
+                ft.Text("匹配顺序：关键词规则 → 学习表 → 商品自带类目 → 模板类目", size=11, color=MUTED),
+                tf, info,
+            ], spacing=8, width=580),
+            actions=[ft.TextButton("从历史商品学习", on_click=do_learn),
+                     ft.TextButton("清空学习表", on_click=do_clear),
+                     ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
+                     ft.ElevatedButton("保存规则", bgcolor=ACCENT, color="white", on_click=do_save)],
+        )
+        self._show_dlg(dlg)
+
+    def _category_learn(self):
+        try:
+            from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+            from ..services.category_map import learn_from_products, merge_learned
+            dxm = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+            sid = self.cfg.store_id or None
+            # 列表接口不返回类目，必须逐个取详情；限制数量避免太慢
+            cand = []
+            for st, pages in (("editingRequired", 3), ("onSelling", 4)):
+                for page in range(1, pages + 1):
+                    got, meta = dxm.product_page(page, 100, sid, st)
+                    if not got:
+                        break
+                    cand.extend(got)
+                    if len(got) < 100:
+                        break
+            limit = 150
+            cand = cand[:limit]
+            self._log(f"类目学习：准备读取 {len(cand)} 个商品的详情…", "INFO")
+            items = []
+            for i, it in enumerate(cand, 1):
+                try:
+                    d0 = dxm._get("product_detail", {"id": it.get("id")}).get("data", {}).get("product", {})
+                    items.append({"title": d0.get("subject") or "", "categoryId": d0.get("categoryId")})
+                except Exception:
+                    continue
+                if i % 30 == 0:
+                    self._log(f"类目学习：已读 {i}/{len(cand)}", "INFO")
+                time.sleep(0.05)
+            learned = learn_from_products(items)
+            merge_learned(learned)
+            self._log(f"类目学习：学到 {len(learned)} 个关键词", "INFO")
+            self.toast(f"已学习 {len(learned)} 个关键词", True)
+        except Exception as ex:  # noqa: BLE001
+            self._log(f"类目学习失败：{str(ex)[:150]}", "ERROR")
+            self.toast(f"类目学习失败：{str(ex)[:80]}", False)
+
     def _batch_publish(self, offline_state: str, label: str):
         """批量发布：按 dxmOfflineState 取商品 -> batchPublish -> 汇总。"""
         try:
@@ -2082,6 +2172,9 @@ class App:
             h1("3 · 选择模板", 15),
             muted("后续产品沿用模板的运费模板、属性、重量尺寸；标题/SKU/图片仍按新生成"),
             ft.Row([self.tpl_source_dd, self.cat_mode_dd,
+                    ft.OutlinedButton("类目映射 / 学习", icon=ft.Icons.AUTO_AWESOME_MOTION,
+                                      tooltip_text="配关键词→类目规则，或从你已有的商品里自动学习",
+                                      on_click=lambda e: self._category_map_dialog()),
                     ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick),
                     ft.ElevatedButton("保存模板到本地", icon=ft.Icons.SAVE, bgcolor=ACCENT_2, color="#04231C",
                                       on_click=lambda e: threading.Thread(target=self._save_tpl_local_quick, daemon=True).start()),
