@@ -1029,12 +1029,14 @@ class App:
                 ], spacing=24, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=20),
                 *_extra,
                 ft.Row([svc("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT,
-                            sub="自建站点 · 按量计费"),
+                            sub="自建站点 · 按量计费",
+                            action=ft.TextButton("去设置", on_click=lambda e: self._switch(11))),
                         auth_card,
                         svc("图片服务", ft.Text("约 15 秒/张", color="#FFB020", size=12,
                                                 weight=ft.FontWeight.BOLD),
                             ft.Icons.BOLT_OUTLINED, "#FFB020",
-                            sub="AI 出图 · 图床托管")],
+                            sub=(str(getattr(self.cfg, "image_host_url", "") or "image.moneyfly.club")
+                                 .replace("https://", "").replace("http://", "")))],
                        spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 ]
 
@@ -2794,6 +2796,12 @@ class App:
             if shops:
                 self.shop_dd.value = str(self.cfg.store_id or shops[0]["id"])
             sid = self.cfg.store_id or (shops[0]["id"] if shops else None)
+            # 名称以店小秘返回为准（本地配置可能残留旧店名）
+            for _sh in shops:
+                if str(_sh.get("id")) == str(sid) and _sh.get("name"):
+                    self.cfg.store_name = str(_sh["name"])
+                    break
+            save_config(self.cfg)
             cnt = c.counts(sid, ttl=30) if sid else {}
             self.store_counts = cnt
             try:
