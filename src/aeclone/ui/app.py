@@ -4880,14 +4880,17 @@ class App:
         calc_card = card(ft.Column([
             h1("价格试算", 15),
             muted("用的就是刊登时同一套算法（模式 → 阶梯 → 区域 → 批发）"),
-            ft.Row([self.base_input, ft.ElevatedButton("计算", icon=ft.Icons.CALCULATE, bgcolor=ACCENT,
-                                                       color="white", on_click=calc),
-                    ft.TextField(label="平台佣金 %（试算）", width=160, bgcolor=CARD_2,
-                                 border_color=CARD_2, color=TEXT,
-                                 value=str(getattr(self.cfg, "platform_commission", "0") or "0"),
-                                 on_change=lambda e: (self.cfg.set("platform_commission",
-                                                                   str(e.control.value or "0")), save_config(self.cfg)))],
-                   spacing=10, wrap=True),
+            ft.Row([
+                self.base_input,
+                ft.TextField(label="平台佣金 %（试算）", width=160, bgcolor=CARD_2,
+                             border_color=CARD_2, color=TEXT,
+                             value=str(getattr(self.cfg, "platform_commission", "0") or "0"),
+                             on_change=lambda e: (self.cfg.set("platform_commission",
+                                                              str(e.control.value or "0")),
+                                                  save_config(self.cfg))),
+                ft.ElevatedButton("计算", icon=ft.Icons.CALCULATE, bgcolor=ACCENT,
+                                  color="white", on_click=calc),
+            ], spacing=10, wrap=True),
             self.price_out, self.price_break,
         ], spacing=8))
 
