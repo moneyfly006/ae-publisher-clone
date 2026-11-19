@@ -7063,6 +7063,7 @@ class App:
             h1("界面", 15),
             muted("启动页面与窗口大小，保存后下次启动生效", 11),
             ft.Row([start_dd, size_dd], spacing=12, wrap=True),
+            muted("快捷键：⌘R 启动/停止 · ⌘L 打开日志 · ⌘F 搜索商品", 11),
         ], spacing=8))
 
         # 分组：版本更新 → 账号与授权 → 服务与价格 → 运行与诊断
