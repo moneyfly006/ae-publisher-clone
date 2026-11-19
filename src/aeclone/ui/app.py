@@ -6287,6 +6287,103 @@ def _assets_dir() -> str:
     return str(p if p.exists() else (Path("assets")))
 
 
+def _patch_flet_dock_icon():
+    """macOS：把 Flet.app 的 Dock 图标换成 AuroraList 的图标。
+
+    Flet 桌面端会用一个独立的 Flet.app 承载 Flutter 窗口，Dock 里显示的是
+    它自带的 AppIcon.icns。这里在启动前把该文件替换成我们的图标（原文件备份为
+    AppIcon.icns.flet-orig），失败静默——换不了图标也不影响功能。
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from pathlib import Path as _P
+        import shutil as _sh
+        # 我们的图标
+        assets = _P(_assets_dir())
+        src = assets / "icon.icns"
+        if not src.exists():
+            return
+        # Flet.app 的图标
+        home = _P.home()
+        candidates = sorted((home / ".flet" / "bin").glob("flet-*/Flet.app/Contents/Resources/AppIcon.icns"))
+        if not candidates:
+            return
+        dst = candidates[-1]
+        bak = dst.with_name("AppIcon.icns.flet-orig")
+        # 已替换过（大小一致）就跳过
+        try:
+            if dst.stat().st_size == src.stat().st_size and bak.exists():
+                return
+        except Exception:
+            pass
+        if not bak.exists():
+            _sh.copy2(dst, bak)
+        _sh.copy2(src, dst)
+        # 让 Finder/Dock 重新读图标
+        try:
+            import subprocess as _sp
+            _sp.run(["/usr/bin/touch", str(dst.parent.parent.parent)], check=False)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def _patch_flet_identity():
+    """macOS：把 Flet.app 的菜单栏名字从 "Flet" 改成 "AuroraList"。
+
+    Flet.app 是 adhoc 签名，改 Info.plist 后重新 adhoc 签名即可；
+    改坏了就恢复备份（.flet-orig），失败静默。
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from pathlib import Path as _P
+        import plistlib as _pl
+        import shutil as _sh
+        import subprocess as _sp
+
+        home = _P.home()
+        apps = sorted((home / ".flet" / "bin").glob("flet-*/Flet.app"))
+        if not apps:
+            return
+        app = apps[-1]
+        plist = app / "Contents" / "Info.plist"
+        if not plist.exists():
+            return
+        bak = plist.with_name("Info.plist.flet-orig")
+        try:
+            data = _pl.loads(plist.read_bytes())
+        except Exception:
+            return
+        # 已经是 AuroraList 就跳过
+        if str(data.get("CFBundleDisplayName") or "") == "AuroraList":
+            return
+        if not bak.exists():
+            _sh.copy2(plist, bak)
+        data["CFBundleDisplayName"] = "AuroraList"
+        data["CFBundleName"] = "AuroraList"
+        try:
+            plist.write_bytes(_pl.dumps(data))
+        except Exception:
+            return
+        # 重新 adhoc 签名；失败就恢复原 plist
+        r = _sp.run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", str(app)],
+                    capture_output=True, text=True)
+        if r.returncode != 0:
+            try:
+                _sh.copy2(bak, plist)
+                _sp.run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", str(app)],
+                        capture_output=True, text=True)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def run():
     _install_crash_log()
+    _patch_flet_dock_icon()
+    _patch_flet_identity()
     ft.app(target=lambda page: App(page), assets_dir=_assets_dir())
