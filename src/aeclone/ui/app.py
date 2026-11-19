@@ -972,7 +972,8 @@ class App:
                 ]
 
     # ---------- 概览的状态刷新（ISSUES #8 / #9）----------
-    def _zoom_img(self, src, w: int = 70, h: int = 70, label: str = "", radius: int = 6):
+    def _zoom_img(self, src, w: int = 70, h: int = 70, label: str = "", radius: int = 6,
+                  gallery=None):
         """缩略图 + 点击放大。没有图时显示占位图标。"""
         s0 = str(src or "").strip()
         if not s0:
@@ -984,13 +985,34 @@ class App:
                        error_content=ft.Text(label or "加载失败", size=9, color=MUTED))
 
         def open_big(e):
-            big = ft.Image(src=s0, fit=ft.ImageFit.CONTAIN, width=760, height=560)
+            imgs = [str(x) for x in (gallery or []) if str(x or "").strip()]
+            if not imgs:
+                imgs = [s0]
+            idx0 = imgs.index(s0) if s0 in imgs else 0
+            big = ft.Image(src=imgs[idx0], fit=ft.ImageFit.CONTAIN, width=760, height=560)
+            pos = ft.Text(f"{idx0 + 1}/{len(imgs)}", size=10, color=MUTED)
+
+            def shift(delta):
+                nonlocal idx0
+                idx0 = (idx0 + delta) % len(imgs)
+                big.src = imgs[idx0]
+                pos.value = f"{idx0 + 1}/{len(imgs)}"
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            actions = []
+            if len(imgs) > 1:
+                actions += [ft.TextButton("◀ 上一张", on_click=lambda ev: shift(-1)),
+                            ft.TextButton("下一张 ▶", on_click=lambda ev: shift(1))]
+            actions += [ft.TextButton("打开原图", on_click=lambda ev: self._open_url(imgs[idx0])),
+                        ft.TextButton("关闭", on_click=lambda ev: self._close_dlg(dlg))]
             dlg = ft.AlertDialog(
-                title=ft.Text(label or "图片预览"),
+                title=ft.Row([ft.Text(label or "图片预览"), pos], spacing=10),
                 content=ft.Container(content=big, width=780, height=580,
                                      alignment=ft.alignment.center),
-                actions=[ft.TextButton("打开原图", on_click=lambda ev: self._open_url(s0)),
-                         ft.TextButton("关闭", on_click=lambda ev: self._close_dlg(dlg))],
+                actions=actions,
             )
             self._show_dlg(dlg)
 
@@ -1024,9 +1046,10 @@ class App:
             bi = (b.get("images") or [""])[0]
             ai = (a2.get("images") or [""])[0]
             bd, ad = len(str(b.get("detail") or "")), len(str(a2.get("detail") or ""))
-            thumbs = ft.Row([self._zoom_img(bi, 70, 70, "改前"),
+            _gal = [x for x in (bi, ai) if str(x or "").strip()]
+            thumbs = ft.Row([self._zoom_img(bi, 70, 70, "改前", gallery=_gal),
                              ft.Icon(ft.Icons.ARROW_FORWARD, size=14, color=MUTED),
-                             self._zoom_img(ai, 70, 70, "改后")], spacing=6)
+                             self._zoom_img(ai, 70, 70, "改后", gallery=_gal)], spacing=6)
             return ft.Column([
                 ft.Text(f"{r.get('id')} · {r.get('title','')[:30]}", size=12, color=TEXT),
                 ft.Row([ft.Text("改前", size=10, color=MUTED, width=30),
@@ -2253,7 +2276,7 @@ class App:
             muted("后续产品沿用模板的运费模板、属性、重量尺寸；标题/SKU/图片仍按新生成"),
             ft.Row([self.tpl_source_dd, self.cat_mode_dd,
                     ft.OutlinedButton("类目映射 / 学习", icon=ft.Icons.AUTO_AWESOME_MOTION,
-                                      tooltip_text="配关键词→类目规则，或从你已有的商品里自动学习",
+                                      tooltip="配关键词→类目规则，或从你已有的商品里自动学习",
                                       on_click=lambda e: self._category_map_dialog()),
                     ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick),
                     ft.ElevatedButton("保存模板到本地", icon=ft.Icons.SAVE, bgcolor=ACCENT_2, color="#04231C",
@@ -2297,7 +2320,7 @@ class App:
             try:
                 c = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
                 sid = self.cfg.store_id or None
-                cnt = c.counts(sid) if sid else {}
+                cnt = c.counts(sid, ttl=30) if sid else {}
                 if not cnt:
                     return
                 self.store_counts = cnt
@@ -2664,7 +2687,7 @@ class App:
             if shops:
                 self.shop_dd.value = str(self.cfg.store_id or shops[0]["id"])
             sid = self.cfg.store_id or (shops[0]["id"] if shops else None)
-            cnt = c.counts(sid) if sid else {}
+            cnt = c.counts(sid, ttl=30) if sid else {}
             self.store_counts = cnt
             try:
                 self.chip_online.value = str(cnt.get("onSelling", 0))
@@ -2818,7 +2841,7 @@ class App:
                 imgs = it.get("images") or []
                 thumb = imgs[0] if imgs else None
                 rows.append(ft.ListTile(
-                    leading=self._zoom_img(thumb, 44, 44, "模板主图"),
+                    leading=self._zoom_img(thumb, 44, 44, "模板主图", gallery=imgs),
                     title=ft.Text((it.get("title") or it["id"])[:60], size=12, color=TEXT, max_lines=2),
                     subtitle=ft.Text(f"{it['id']} · {it.get('status_type')}", size=10, color=MUTED),
                     dense=True, on_click=lambda e, x=it: pick(x["id"], x.get("title", ""), x.get("images") or []),
@@ -2852,6 +2875,28 @@ class App:
             state["kw"] = e.control.value or ""
             state["page"] = 1
             render()
+            kw = (state["kw"] or "").strip()
+            if len(kw) < 2:
+                return
+            # 服务端搜索：商品几千条时也不必先全部拉下来
+            state["seq"] = int(state.get("seq") or 0) + 1
+            seq = state["seq"]
+
+            def work():
+                try:
+                    c = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                    st = "draft" if state["source"] == "draft" else "onSelling"
+                    hits = c.search_products(kw, self.cfg.store_id or None, st, 200)
+                    if seq != state.get("seq"):
+                        return
+                    state["data"][state["source"]] = hits
+                    state["page"] = 1
+                    status.value = f"服务端搜索「{kw}」：{len(hits)} 个"
+                    status.color = ACCENT_2
+                    render()
+                except Exception:
+                    pass
+            threading.Thread(target=work, daemon=True).start()
 
         search.on_change = on_search
         sort_dd.on_change = _on_sort
@@ -4951,7 +4996,10 @@ class App:
             muted("先「加载」产品，再勾选产品 → 取图；也可以直接粘贴图片 URL"),
             ft.Row([self.wb_status_sel, self.wb_kw,
                     ft.ElevatedButton("加载", icon=ft.Icons.SEARCH, bgcolor=ACCENT, color="white",
-                                      on_click=load_products)], spacing=8, wrap=True),
+                                      on_click=load_products),
+                    ft.Checkbox(label="只看有图", value=bool(getattr(self, "wb_only_img", False)),
+                                on_change=lambda e: self._wb_toggle_only_img(e.control.value))],
+                   spacing=8, wrap=True),
             ft.Row([ft.OutlinedButton("上一页", on_click=prev_page),
                     ft.OutlinedButton("下一页", on_click=next_page),
                     self.wb_page_info], spacing=8, wrap=True),
@@ -5084,6 +5132,13 @@ class App:
         except Exception:
             pass
 
+    def _wb_toggle_only_img(self, val: bool):
+        self.wb_only_img = bool(val)
+        try:
+            self._wb_load_products(self.wb_page_no or 1)
+        except Exception:
+            pass
+
     def _wb_load_products(self, page: int = 1):
         self.wb_status.value = f"加载第 {page} 页…"
         self.wb_status.color = MUTED
@@ -5103,6 +5158,8 @@ class App:
                 self.wb_rows = items or []
                 rows = []
                 for it in self.wb_rows:
+                    if getattr(self, "wb_only_img", False) and not (it.get("images") or []):
+                        continue
                     pid = str(it.get("id") or "")
                     cb = ft.Checkbox(value=pid in self.wb_selected,
                                      on_change=lambda e, _p=pid: self._wb_toggle(_p, e.control.value))

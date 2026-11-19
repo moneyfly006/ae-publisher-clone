@@ -598,8 +598,21 @@ class DianxiaomiClient:
         except Exception:
             return {}
 
-    def counts(self, shop_id=None) -> dict:
-        """各状态数量：优先用一次请求的 getOfflineCounts，失败才逐页探。"""
+    def counts(self, shop_id=None, ttl: float = 0) -> dict:
+        """各状态数量：优先用一次请求的 getOfflineCounts，失败才逐页探。
+
+        ttl > 0 时结果缓存 ttl 秒，避免每次切页都打 3 个接口。
+        """
+        key = str(shop_id or "")
+        cache = getattr(self, "_counts_cache", None)
+        if cache is None:
+            cache = {}
+            self._counts_cache = cache
+        if ttl and key in cache:
+            import time as _t
+            ts, val = cache[key]
+            if _t.time() - ts < ttl:
+                return dict(val)
         fast = self.get_offline_counts(shop_id)
         # 在线/审核中不在 getOfflineCounts 里：用 productStatusType 精确计数
         def _cnt(st: str) -> int:
@@ -609,7 +622,7 @@ class DianxiaomiClient:
             except Exception:
                 return 0
         if fast:
-            return {
+            out = {
                 "draft": fast.get("draftNum", 0),
                 "editingRequired": fast.get("waitPublish", 0),
                 "publishFail": fast.get("publishFail", 0),
@@ -618,6 +631,10 @@ class DianxiaomiClient:
                 "onSelling": _cnt("onSelling"),
                 "auditing": _cnt("auditing"),
             }
+            if ttl:
+                import time as _t
+                cache[key] = (_t.time(), dict(out))
+            return out
         out = {}
         for st in ("onSelling", "editingRequired", "auditing", "offline", "publishFail"):
             try:
