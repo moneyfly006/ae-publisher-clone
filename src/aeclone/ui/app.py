@@ -475,6 +475,13 @@ class App:
             padding=ft.padding.symmetric(vertical=4, horizontal=12),
             on_click=self._toggle_run, ink=True)
         self.license_text = ft.Text("检测中…", color=MUTED, size=12, weight=ft.FontWeight.BOLD)
+        # 商品搜索（只处理标题含关键词的采集箱商品）
+        self.search_kw = ft.TextField(
+            label="只处理标题包含…（留空=全部）", width=360, dense=True,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            hint_text="如 Concrete / Drilling",
+            on_submit=lambda e: self._apply_search())
+        self.search_hint = ft.Text("", size=11, color=MUTED)
         # 侧栏导航可滚动：1514×945 及更小的窗口也能点到「提示词 / 任务与日志」
         nav_scroll = ft.Column([col], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO)
         sidebar = ft.Container(width=168, bgcolor=CARD, padding=10, content=ft.Column([
@@ -936,9 +943,22 @@ class App:
                 pass
 
         threading.Thread(target=_refresh_ready, daemon=True).start()
+        # 启动时顺便拉一次店铺各状态数量，避免三个数字一直是「—」
+        self._refresh_store_counts()
+
+        filter_card = card(ft.Column([
+            h1("处理范围", 15),
+            muted("按标题关键词只处理部分采集箱商品；留空表示处理全部"),
+            ft.Row([self.search_kw,
+                    ft.ElevatedButton("应用", icon=ft.Icons.FILTER_ALT, bgcolor=CARD_2, color=TEXT,
+                                      on_click=lambda e: self._apply_search()),
+                    ft.TextButton("清空", icon=ft.Icons.CLEAR, on_click=lambda e: self._clear_search())],
+                   spacing=8, wrap=True),
+            self.search_hint,
+        ], spacing=8))
 
         return [prog_card, h1("概览"), muted("AI 能力接入自建站点，全部调用按站点价格计费"),
-                ready_card,
+                ready_card, filter_card,
                 card(ft.Row([ft.Text(f"今日任务 {st['runs']}", color=TEXT, size=13),
                              ft.Text(f"成功 {st['ok']}", color=ACCENT_2, size=13),
                              ft.Text(f"失败 {st['failed']}", color="#FF8A8A", size=13)], spacing=24)),
@@ -1935,6 +1955,19 @@ class App:
             limit = int(self.cfg.edit_sum or 0) or 0
             _fetch = (max(limit * 4, 40) if limit else 0)
             prods = dxm.pending_products(limit=_fetch, shop_id=self.cfg.store_id or None)
+            # 标题关键词筛选（留空=全部）
+            _kw = str(getattr(self, "run_keyword", "") or "").strip()
+            if _kw:
+                _low = _kw.lower()
+                _hit = [x for x in prods if _low in str(x.get("title") or "").lower()]
+                self._log(f"按关键词「{_kw}」筛选：{len(_hit)}/{len(prods)} 个", "INFO")
+                if not _hit:
+                    try:
+                        _hit = dxm.search_products(_kw, self.cfg.store_id or None, "draft", 200)
+                        self._log(f"服务端搜索「{_kw}」命中 {len(_hit)} 个", "INFO")
+                    except Exception:
+                        pass
+                prods = _hit
             prods = [x for x in prods if (x.get("status_type") or "") not in
                      ("auditing", "onSelling", "published", "online")]
             _tpl_ids = {str(getattr(self.cfg, "template_product_id", "") or ""),
@@ -2086,9 +2119,24 @@ class App:
         ck_ok, ck_text = self._cookie_status_text()
 
         cnt = getattr(self, "store_counts", {}) or {}
-        status_chip = lambda label, value, color=MUTED: ft.Column([
-            ft.Text(label, size=10, color=MUTED), ft.Text(str(value), size=16, color=color, weight=ft.FontWeight.BOLD)
-        ], spacing=0)
+
+        def status_chip(label, value, color=MUTED):
+            # 数字用可变 Text 持有：同步店铺后直接改 value 并刷新，
+            # 否则构建时没有数据就会永远显示「—」。
+            return ft.Column([
+                ft.Text(label, size=10, color=MUTED),
+                ft.Text(str(value), size=16, color=color, weight=ft.FontWeight.BOLD),
+            ], spacing=0)
+
+        self.chip_online = ft.Text(str(cnt.get("onSelling", "—")), size=16, color=ACCENT_2,
+                                   weight=ft.FontWeight.BOLD)
+        self.chip_wait = ft.Text(str(cnt.get("editingRequired", "—")), size=16, color="#6EC6FF",
+                                 weight=ft.FontWeight.BOLD)
+        self.chip_audit = ft.Text(str(cnt.get("auditing", "—")), size=16, color="#FFB020",
+                                  weight=ft.FontWeight.BOLD)
+
+        def chip_col(label, ctrl):
+            return ft.Column([ft.Text(label, size=10, color=MUTED), ctrl], spacing=0)
 
         self.shop_dd = ft.Dropdown(label="当前店铺", width=340, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                    options=[ft.dropdown.Option(key=self.cfg.store_id, text=self.cfg.store_name)] if self.cfg.store_id else [],
@@ -2146,9 +2194,9 @@ class App:
         shop_card = card(ft.Column([
             h1("2 · 选择店铺", 15),
             self.shop_dd,
-            ft.Row([status_chip("在线", cnt.get("onSelling", "—"), ACCENT_2),
-                    status_chip("待发布", cnt.get("editingRequired", "—"), "#6EC6FF"),
-                    status_chip("审核中", cnt.get("auditing", "—"), "#FFB020")], spacing=28),
+            ft.Row([chip_col("在线", self.chip_online),
+                    chip_col("待发布", self.chip_wait),
+                    chip_col("审核中", self.chip_audit)], spacing=28),
         ], spacing=12))
 
         def pick(e):
@@ -2190,6 +2238,48 @@ class App:
             threading.Thread(target=self._sync_shops, daemon=True).start()
         return [h1("店铺设置"), muted("三步：读 Cookie → 选店铺 → 选模板"), connect_card, shop_card, tpl_card]
 
+    def _apply_search(self):
+        kw = str(getattr(self.search_kw, "value", "") or "").strip()
+        self.run_keyword = kw
+        if not kw:
+            self.search_hint.value = "当前：处理全部采集箱商品"
+        else:
+            self.search_hint.value = f"当前：只处理标题包含「{kw}」的商品"
+        self.search_hint.color = ACCENT_2 if kw else MUTED
+        self._safe_update()
+        self.toast(f"处理范围：{'全部' if not kw else '标题含「' + kw + '」'}", True)
+
+    def _clear_search(self):
+        try:
+            self.search_kw.value = ""
+        except Exception:
+            pass
+        self.run_keyword = ""
+        self.search_hint.value = "当前：处理全部采集箱商品"
+        self.search_hint.color = MUTED
+        self._safe_update()
+
+    def _refresh_store_counts(self):
+        """后台拉一次各状态数量并刷新店铺卡片上的三个数字。"""
+        def go():
+            try:
+                c = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                sid = self.cfg.store_id or None
+                cnt = c.counts(sid) if sid else {}
+                if not cnt:
+                    return
+                self.store_counts = cnt
+                try:
+                    self.chip_online.value = str(cnt.get("onSelling", 0))
+                    self.chip_wait.value = str(cnt.get("editingRequired", 0))
+                    self.chip_audit.value = str(cnt.get("auditing", 0))
+                except Exception:
+                    pass
+                self._safe_update()
+            except Exception:
+                pass
+        threading.Thread(target=go, daemon=True).start()
+
     def _on_shop_change(self):
         sid_now = str(getattr(self, "shop_dd", None).value if getattr(self, "shop_dd", None) else "")
         sid_saved = str(getattr(self.cfg, "store_id", "") or "")
@@ -2203,6 +2293,10 @@ class App:
         self.cfg.template_product_id = ""
         self.cfg.template_product_title = ""
         self.cfg.template_snapshot = ""
+        try:
+            self._refresh_store_counts()
+        except Exception:
+            pass
         save_config(self.cfg)
         self.tpl_preview_box.content = self._template_preview_row()
         self.tpl_snapshot_text.value = "模板参数：未读取（已切换店铺，请重新选择模板）"
@@ -2540,6 +2634,12 @@ class App:
             sid = self.cfg.store_id or (shops[0]["id"] if shops else None)
             cnt = c.counts(sid) if sid else {}
             self.store_counts = cnt
+            try:
+                self.chip_online.value = str(cnt.get("onSelling", 0))
+                self.chip_wait.value = str(cnt.get("editingRequired", 0))
+                self.chip_audit.value = str(cnt.get("auditing", 0))
+            except Exception:
+                pass
             self.store_status.value = (f"店铺 {self.cfg.store_name}：在线 {cnt.get('onSelling',0)} · "
                                        f"待发布 {cnt.get('editingRequired',0)} · 审核中 {cnt.get('auditing',0)}")
             self.store_status.color = ACCENT_2

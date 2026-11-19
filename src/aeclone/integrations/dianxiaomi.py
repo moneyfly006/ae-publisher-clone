@@ -483,9 +483,11 @@ class DianxiaomiClient:
         "waitPublish": {"dxmState": "offline", "dxmOfflineState": "waitPublish"},
         "offline": {"dxmState": "offline", "dxmOfflineState": "offline"},
         "publishFail": {"dxmState": "offline", "dxmOfflineState": "publishFail"},
-        "onSelling": {"dxmState": "online"},
-        "online": {"dxmState": "online"},
-        "auditing": {"dxmState": "offline", "dxmOfflineState": "waitPublish"},
+        "onSelling": {"dxmState": "online", "dxmOfflineState": "",
+                      "productStatusType": "onSelling"},
+        "online": {"dxmState": "online", "dxmOfflineState": ""},
+        "auditing": {"dxmState": "online", "dxmOfflineState": "",
+                     "productStatusType": "auditing"},
     }
 
     def product_page(self, page: int = 1, size: int = 100, shop_id=None,
@@ -519,6 +521,45 @@ class DianxiaomiClient:
             if page >= int(meta.get("total_pages") or 1):
                 break
             page += 1
+        return out
+
+    def search_products(self, keyword: str, shop_id=None, status: str = "draft",
+                        limit: int = 200) -> list[dict]:
+        """按关键词找产品。
+
+        店小秘的 searchType=0 只对部分字段生效（实测 "Concrete" 能命中、
+        "Kerb" 命中不了），所以先走服务端搜索，命中为空再本地扫标题兜底。
+        """
+        kw = str(keyword or "").strip()
+        if not kw:
+            return self.pending_products(limit=limit, shop_id=shop_id)
+        # 1) 服务端搜索
+        try:
+            params = {"pageNo": 1, "pageSize": min(limit, 100), "total": 0,
+                      "searchType": 0, "searchValue": kw,
+                      "shopId": shop_id or -1}
+            params.update(self._STATE_PARAMS.get(status, {"dxmState": status}))
+            data = self._post("product_list", params)
+            po = ((data.get("data") or {}).get("page") or {})
+            hits = [self._map_item(x) for x in (po.get("list") or [])]
+            if hits:
+                return hits[:limit]
+        except Exception:
+            pass
+        # 2) 本地兜底：扫采集箱标题
+        low = kw.lower()
+        out = []
+        for page in range(1, 6):
+            items, meta = self.product_page(page, 100, shop_id, status)
+            if not items:
+                break
+            for it in items:
+                if low in str(it.get("title") or "").lower():
+                    out.append(it)
+                    if len(out) >= limit:
+                        return out
+            if len(items) < 100:
+                break
         return out
 
     def batch_publish(self, ids: list[str]) -> dict:
@@ -558,6 +599,13 @@ class DianxiaomiClient:
     def counts(self, shop_id=None) -> dict:
         """各状态数量：优先用一次请求的 getOfflineCounts，失败才逐页探。"""
         fast = self.get_offline_counts(shop_id)
+        # 在线/审核中不在 getOfflineCounts 里：用 productStatusType 精确计数
+        def _cnt(st: str) -> int:
+            try:
+                _, meta = self.product_page(1, 1, shop_id, st)
+                return int(meta.get("total") or 0)
+            except Exception:
+                return 0
         if fast:
             return {
                 "draft": fast.get("draftNum", 0),
@@ -565,6 +613,8 @@ class DianxiaomiClient:
                 "publishFail": fast.get("publishFail", 0),
                 "publishing": fast.get("publishing", 0),
                 "publishingTiming": fast.get("publishingTiming", 0),
+                "onSelling": _cnt("onSelling"),
+                "auditing": _cnt("auditing"),
             }
         out = {}
         for st in ("onSelling", "editingRequired", "auditing", "offline", "publishFail"):
