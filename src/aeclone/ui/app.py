@@ -977,9 +977,7 @@ class App:
                         auth_card,
                         stat("图片服务", ft.Text("~15 秒/张", color=ACCENT_2, size=12), ft.Icons.BOLT_OUTLINED, "#FFB020")],
                        spacing=12),
-                card(ft.Column([h1("运行模式", 15),
-                                muted("正式运行前先确认这里是「真实写入」；点左上角「启动」开始"),
-                                self._run_mode_row()], spacing=10))]
+                ]
 
     # ---------- 概览的状态刷新（ISSUES #8 / #9）----------
     def _diff_card(self):
@@ -1066,45 +1064,6 @@ class App:
                     ft.Text(f"（{d7['calls']} 次）", size=11, color=MUTED)], spacing=18),
             ft.Column(rows, spacing=3),
         ], spacing=8))
-
-    def _run_mode_row(self):
-        """把「试跑 / 真实写入」做成显眼的一行，避免点了半天发现什么都没写。"""
-        import flet as ft
-
-        real = bool(getattr(self.cfg, "auto_save_products", False))
-        badge = ft.Container(
-            content=ft.Text("真实写入" if real else "试跑（不写入店小秘）",
-                            size=12, weight=ft.FontWeight.BOLD,
-                            color="white" if real else "#3A2A00"),
-            bgcolor=ACCENT_2 if real else "#F0A020",
-            border_radius=6, padding=ft.padding.symmetric(horizontal=8, vertical=3))
-        hint = ft.Text(
-            "当前会真的处理图片/文本并保存到店小秘" if real
-            else "当前只做预演：不调 AI、不保存。点右边开关切成真实写入",
-            size=11, color=MUTED)
-
-        sw = ft.Switch(value=real, active_color=ACCENT_2)
-
-        def on_toggle(e):
-            val = bool(sw.value)
-            self.cfg.set("auto_save_products", val)
-            save_config(self.cfg)
-            badge.content.value = "真实写入" if val else "试跑（不写入店小秘）"
-            badge.content.color = "white" if val else "#3A2A00"
-            badge.bgcolor = ACCENT_2 if val else "#F0A020"
-            hint.value = ("当前会真的处理图片/文本并保存到店小秘" if val
-                          else "当前只做预演：不调 AI、不保存。点右边开关切成真实写入")
-            self._log(f"运行模式：{'真实写入' if val else '试跑（不写入）'}", "INFO")
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-
-        sw.on_change = on_toggle
-        return ft.Container(
-            content=ft.Row([badge, sw, hint], spacing=10, wrap=True),
-            bgcolor="#FFF7E6" if not real else "#EAFBF3",
-            border_radius=8, padding=10)
 
     def _apply_api_state(self):
         st = getattr(self, "api_state", None) or {}
@@ -1790,7 +1749,7 @@ class App:
                     if getattr(self, "_abort_now", False):
                         self._log(f"[{i}/{len(prods)}] 已停止，跳过 {prod.get('id')}", "WARN")
                         return
-                    res = pub.run(prod, dry_run=not self.cfg.auto_save_products, manage_progress=False)
+                    res = pub.run(prod, dry_run=False, manage_progress=False)
                     for line in res.log().splitlines():
                         self._log("   " + line, "INFO" if "✓" in line else "WARN")
                     if getattr(res, "skipped_auditing", False):
@@ -1811,7 +1770,7 @@ class App:
                             audit_streak = 0
                             ok_n += 1 if res.ok else 0
                             fail_n += 0 if res.ok else 1
-                        if self.cfg.auto_save_products and res.ok:
+                        if res.ok:
                             history.record("publish", 1, 0, prod["id"])
                 except Exception as ex:  # noqa: BLE001
                     with lock:
@@ -2833,8 +2792,6 @@ class App:
                 ], width=200, tooltip_text="产品保存后放在哪个位置"),
                 sw("check_banned_word", "违禁词检查",
                    tooltip_text="发布前检查标题/详情是否有违禁词"),
-                sw("auto_save_products", "真实写入",
-                   tooltip_text="关闭=只试跑预演，不调AI、不保存；开启=真实处理并保存到店小秘"),
             ], spacing=16, wrap=True),
         ], spacing=10))
 
@@ -2918,8 +2875,6 @@ class App:
             ft.Row([
                 tf("declared_value", "货值默认值", width=160,
                    tooltip_text="申报货值（速卖通草稿必填，建议填实际货值），未填则默认 100"),
-                sw("prefer_collected_weight", "优先使用采集重量尺寸",
-                   tooltip_text="勾选：用采集到的重量/尺寸（克自动换算为kg）；不勾：用上方填写的值"),
             ], spacing=12, wrap=True),
         ], spacing=10))
 
@@ -2989,14 +2944,6 @@ class App:
             ctl.on_change = on
             return ctl
 
-        self.publish_pos = ft.Dropdown(
-            label="发布到什么地方", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            value=str(getattr(self.cfg, "publish_action", "save_only") or "save_only"),
-            options=[ft.dropdown.Option("save_only", "待发布"), ft.dropdown.Option("publish", "直接发布")])
-        def set_pub(e):
-            self.cfg.set("publish_action", str(self.publish_pos.value or "save_only"))
-            save_config(self.cfg)
-        self.publish_pos.on_change = set_pub
         try:
             from ..services import publish_retry as _prc
             _pf_count = _prc.count()
@@ -3032,11 +2979,8 @@ class App:
 
         extra_card = card(ft.Column([
             h1("发布设置", 15),
-            muted("视频来源、发布去向、相册清理、属性去重等与刊登相关的开关"),
+            muted("视频来源、相册清理等与刊登相关的开关"),
             ft.Row([self.video_src_dd, self.video_path_tf], spacing=12, wrap=True),
-            ft.Row([sw("auto_clean_dup_attributes",
-                       "保存时清理与系统属性重名的自定义属性（关掉=完全不动属性表）")],
-                   spacing=14, wrap=True),
             ft.Row([sw("prefer_dianxiaomi_album", "AI 出图直接传店小秘图片空间（不用图床）"),
                     sw("album_auto_clean_enable", "刊登完成后自动清理相册未引用图片"),
                     ft.TextField(label="清理 N 天前的", width=140,
@@ -3047,7 +2991,6 @@ class App:
                                                       save_config(self.cfg)))],
                    spacing=14, wrap=True),
             muted("「自动清理」只删「N 天前上传且没有被任何商品引用」的图片，已被引用的不会动。"),
-            ft.Row([self.publish_pos], spacing=10, wrap=True),
             ft.Row([self._edited_count_text(), ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
                                                               on_click=lambda e: self._clear_edited()),
                     ft.ElevatedButton("重跑上次失败的商品", icon=ft.Icons.REPLAY,

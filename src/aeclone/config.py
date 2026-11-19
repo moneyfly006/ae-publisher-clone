@@ -49,14 +49,14 @@ DEFAULTS: dict = {
     "product_template_name": "",
     "product_id_title": "",
     # ---- 高级设置 ----
-    "edit_sum": "10",
+    "edit_sum": "3",
     "watermark": "",
     "title_prefix": "",
     "title_suffix": "",
     # ---- 库存 / SKU ----
     "max_sku_count": 256,
     # ---- AI 智能填写 ----
-    "enable_ai_title": False,
+    "enable_ai_title": True,
     "enable_ai_detail": False,
     "enable_ai_sku": False,
     "enable_ai_weight": False,
@@ -103,12 +103,10 @@ DEFAULTS: dict = {
     ),
     # ---- 内容审查 ----
     "review_block_on_fail": False,
-    "auto_save_products": False,
-    "publish_after_save": False,
-    "publish_action": "save_only",   # save_only=保存到待发布 / publish=保存并发布
-    "onboarded": False,
+    "publish_action": "save_only",   # save_only=留在待发布 / save_to_waiting=移入待发布 / publish=直接发布
+    "onboarded": True,
     "manual_cookies": {},
-    "template_source": "draft",
+    "template_source": "online",
     "template_product_id": "",
     "template_product_title": "",
     "template_snapshot": "",
@@ -143,7 +141,7 @@ DEFAULTS: dict = {
     "img_fine_detail_replace": False,   # 删除原有详情图，仅保留编辑结果
     "img_fine_sku_enable": False,
     # ---- 图片尺寸校验（速卖通要求 ≥800×800）----
-    "img_min_size_enable": True,        # AI 产出的图小于下限时不采用（保留原图）
+    "img_min_size_enable": False,       # AI 产出的图小于下限时不采用（保留原图）
     "img_min_size": 800,                # 最小边长（px）
     "img_min_size_drop_invalid": False, # 连原图里本来就不合规的也去掉（默认关，避免误删）
     # 编辑器主图上限（速卖通一般是 6；改大前请确认类目允许）
@@ -160,7 +158,7 @@ DEFAULTS: dict = {
     # 运费模板名称（草稿必填项，留空则跳过不填）
     "freight_template": "",
     # 点店小秘「营销图 → 一键生成」（生成 1:1 + 3:4 两张）
-    "marketing_auto_generate": False,   # 营销图：可选增强，单张 40~90s，默认关
+    "marketing_auto_generate": True,    # 营销图：发布必填，本地裁切免费秒出，默认开
     # 类目属性默认值（模板产品读不到时用；速卖通默认都选「否」）
     "high_concerned_chemical": "否",
     "charge_status": "否",

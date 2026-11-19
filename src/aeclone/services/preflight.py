@@ -236,11 +236,8 @@ def check(cfg) -> list[Issue]:
         if snap in ("", "{}"):
             issues.append(Issue("warn", "没选产品模板 —— 必填属性可能不完整，保存会被站点拒绝"))
 
-    if not _truthy(cfg, "auto_save_products", True):
-        issues.append(Issue("info", "未开启「自动保存」——只预演，不会写入店小秘"))
-    else:
-        issues.append(Issue("info", "真实写入模式：会处理图片/文本并保存到店小秘"
-                                    "（建议先只跑 1 个商品确认效果）"))
+    issues.append(Issue("info", "真实写入模式：会处理图片/文本并保存到店小秘"
+                                "（建议先只跑 1 个商品确认效果）"))
     return issues
 
 

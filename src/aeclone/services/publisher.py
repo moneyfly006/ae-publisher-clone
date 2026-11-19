@@ -2688,8 +2688,7 @@ class Publisher:
                         res.error = "保存前无法确认商品状态，已停止"
                         return res
                 # 发布动作：save_only=留在待发布 / publish=保存并发布
-                _action = (getattr(self.cfg, "publish_action", "") or
-                           ("publish" if getattr(self.cfg, "publish_after_save", False) else "save_only"))
+                _action = getattr(self.cfg, "publish_action", "") or "save_only"
                 # 定时发布时先只保存，到点由调度器发布
                 _ship = self._ship_dims(p, res)
                 # 要写回的主图（与 DOM 路径同一条件）
