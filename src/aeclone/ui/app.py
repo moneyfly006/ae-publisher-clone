@@ -866,6 +866,10 @@ class App:
             st = history.stats(days=1)
         except Exception:
             pass
+        try:
+            _today_cost = f"¥{history.cost_stats(days=1)['total']:.2f}"
+        except Exception:
+            _today_cost = "¥0.00"
 
         def recheck_auth(e):
             self.stat_auth.value = "检测中…"
@@ -983,17 +987,22 @@ class App:
         # 状态数字：5 个等宽块（采集箱 / 待发布 / 发布失败 / 在线 / 审核中）
         _sc = getattr(self, "store_counts", {}) or {}
         self.ov_tiles = {}
-        def _tile(key, label, hint, color):
+        def _tile(key, label, hint, color, target=None):
             num = ft.Text(str(_sc.get(key, "—")), size=22, weight=ft.FontWeight.BOLD, color=color)
             self.ov_tiles[key] = num
-            return card(ft.Column([muted(label, 10.5),
-                                   ft.Container(content=num, height=30,
-                                                alignment=ft.alignment.center_left),
-                                   muted(hint, 10)], spacing=2), padding=14, expand=True)
+            c = card(ft.Column([muted(label, 10.5),
+                                ft.Container(content=num, height=30,
+                                             alignment=ft.alignment.center_left),
+                                muted(hint, 10)], spacing=2), padding=14, expand=True)
+            if target is not None:
+                c.on_click = lambda e, _t=target: self._switch(_t)
+                c.ink = True
+                c.tooltip = "点一下去处理"
+            return c
         tiles_row = ft.Row([
             _tile("draft", "采集箱", "待处理", TEXT),
-            _tile("editingRequired", "待发布", "可直接发布", "#6EC6FF"),
-            _tile("publishFail", "发布失败", "可重试", "#FF6B6B"),
+            _tile("editingRequired", "待发布", "可直接发布", "#6EC6FF", target=8),
+            _tile("publishFail", "发布失败", "可重试", "#FF6B6B", target=8),
             _tile("onSelling", "在线", "已上架", ACCENT_2),
             _tile("auditing", "审核中", "等待平台", "#FFB020"),
         ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
@@ -1025,6 +1034,9 @@ class App:
                                        weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
                     ft.Column([muted("失败", 11),
                                ft.Text(str(st["failed"]), size=18, color="#FF8A8A",
+                                       weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
+                    ft.Column([muted("今日花费", 11),
+                               ft.Text(_today_cost, size=18, color=TEXT,
                                        weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
                 ], spacing=24, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=20),
                 *_extra,
@@ -1870,6 +1882,50 @@ class App:
         except Exception as ex:  # noqa: BLE001
             self._log(f"类目学习失败：{str(ex)[:150]}", "ERROR")
             self.toast(f"类目学习失败：{str(ex)[:80]}", False)
+
+    def _publish_list_dialog(self, offline_state: str, label: str):
+        """查看「待发布 / 发布失败」的具体商品（前 100 条）。"""
+        col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
+        status = ft.Text("读取中…", size=11, color=MUTED)
+        dlg = ft.AlertDialog(
+            title=ft.Text(label),
+            content=ft.Column([status, col], spacing=8, width=640),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+        )
+        self._show_dlg(dlg)
+
+        def work():
+            try:
+                from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+                c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                raw = c._post("product_list", {
+                    "pageNo": 1, "pageSize": 100, "total": 0, "searchType": 0,
+                    "searchValue": "", "shopId": self.cfg.store_id or -1,
+                    "dxmState": "offline", "dxmOfflineState": offline_state})
+                po = ((raw.get("data") or {}).get("page") or {})
+                items = po.get("list") or []
+                rows = []
+                for it in items:
+                    pid = str(it.get("id") or "")
+                    title = str(it.get("subject") or it.get("productName") or "")[:70]
+                    rows.append(ft.ListTile(
+                        leading=self._zoom_img((it.get("imageURLs") or "").split(";")[0]
+                                               if it.get("imageURLs") else "", 40, 40, "主图"),
+                        title=ft.Text(title or pid, size=12, color=TEXT, max_lines=2),
+                        subtitle=ft.Text(pid, size=10, color=MUTED),
+                        dense=True))
+                col.controls = rows or [muted("这一栏没有商品", 11)]
+                status.value = f"共 {po.get('totalSize') or len(items)} 个（显示前 {len(items)} 个）"
+                status.color = ACCENT_2
+            except Exception as ex:  # noqa: BLE001
+                status.value = f"读取失败：{str(ex)[:120]}"
+                status.color = "#FF6B6B"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        threading.Thread(target=work, daemon=True).start()
 
     def _confirm(self, title: str, body: str, on_yes):
         """通用二次确认（批量发布这类会影响线上商品的动作）。"""
@@ -5220,6 +5276,10 @@ class App:
             ft.Row([
                 ft.ElevatedButton("刷新数量", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
                                   on_click=lambda e: refresh_counts()),
+                ft.OutlinedButton("看待发布列表", icon=ft.Icons.LIST_ALT,
+                                  on_click=lambda e: self._publish_list_dialog("waitPublish", "待发布商品")),
+                ft.OutlinedButton("看发布失败列表", icon=ft.Icons.LIST_ALT,
+                                  on_click=lambda e: self._publish_list_dialog("publishFail", "发布失败商品")),
                 ft.ElevatedButton("批量发布「待发布」", icon=ft.Icons.PUBLISH,
                                   bgcolor="#6EC6FF", color="#04231C",
                                   on_click=lambda e: self._confirm(
