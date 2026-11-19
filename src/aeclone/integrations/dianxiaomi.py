@@ -521,19 +521,20 @@ class DianxiaomiClient:
         return self.iter_products(shop_id, "onSelling", limit)
 
     def pending_products(self, limit: int = 0, shop_id=None) -> list[dict]:
-        """待处理产品：editingRequired + 草稿(draft)。
+        """可编辑产品：采集箱（offline）+ 草稿（draft）。
 
-        草稿的 productStatusType 是 None，用 editingRequired 过滤查不到，
-        但它们恰恰是最该处理的（没发布、不会被"审核中"拦住）。
+        店小秘的 add.json 只接受「采集箱」商品：
+        - offline  = 采集箱（未上架）
+        - draft    = 草稿（productStatusType 为 None）
+        - editingRequired = 待发布（已移出采集箱，add.json 会拒）
         """
-        items = self.iter_products(shop_id, "editingRequired",
+        items = self.iter_products(shop_id, "offline",
                                    max_items=(max(limit * 4, 80) if limit else 0))
         # 草稿优先：草稿没发布过，不会被速卖通的"审核中"挡住，是唯一能真正保存的一类。
-        # 之前把草稿追加在末尾，edit_sum=1 时永远选中 editingRequired（注定被拒）。
         try:
             more = self.iter_products(shop_id, None,
                                       max_items=(max(limit * 6, 120) if limit else 120))
-            drafts = [x for x in more if str(x.get("status_type")) == "draft"]
+            drafts = [x for x in more if str(x.get("status_type")) in ("draft", "offline")]
             if drafts:
                 seen = {str(x.get("id")) for x in drafts}
                 items = drafts + [x for x in items if str(x.get("id")) not in seen]

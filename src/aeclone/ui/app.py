@@ -1769,7 +1769,7 @@ class App:
                 prods = prods[:limit]
             self.products = prods
             if not prods:
-                self._log("没有可编辑（待发布）的产品", "WARN")
+                self._log("没有可编辑的产品（采集箱 offline / 草稿 draft 都为空）", "WARN")
                 finish("没有待处理产品")
                 return
             state["total"] = len(prods)
