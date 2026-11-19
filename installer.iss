@@ -28,7 +28,7 @@ CloseApplications=yes
 CloseApplicationsFilter={#MyAppExeName}
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务:"; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式（默认勾选）"; GroupDescription: "附加任务:"
 
 [Files]
 Source: "dist\{#MyAppName}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion

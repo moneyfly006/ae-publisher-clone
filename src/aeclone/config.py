@@ -154,7 +154,6 @@ DEFAULTS: dict = {
     # 默认关：这是唯一会删用户数据的属性操作，而且实测该商品 22 条自定义属性里
     # 有 7 条名字与系统属性重名（Brand Name / Type / Model Number / Origin …），
     # 一开就会静默删掉它们。要清理再手动打开。
-    "auto_clean_dup_attributes": True,
     # 主图写回方式：auto=先试「网络图片」URL 粘贴，失败再用文件上传 | url | file
     # 实测新版编辑器没有「网络图片」入口，所以 auto 的兜底（文件上传）才是实际生效的那条。
     # 服务模板名称（草稿商品的必填项之一，留空则跳过不填）
@@ -219,7 +218,6 @@ DEFAULTS: dict = {
     # 视频来源：collected=用采集的产品视频（默认）｜template=模板视频｜generated=主图轮播生成｜none=不要视频
     "video_source": "collected",
     "generate_main_video": False,
-    "upload_main_video": True,
     "use_template_video": False,
     "template_video_path": "",
     "overwrite_existing_video": False,
@@ -280,8 +278,8 @@ DEFAULTS: dict = {
     "review_detail_img_prompt": "你是速卖通详情图合规审查员。只输出一行结论：PASS 或 FAIL|原因关键词。\nFAIL 条件：厂家名称/地址/联系方式、二维码、其它平台水印、促销与返现引导、侵权品牌、医疗功效宣称、暴露内容。正常产品细节图、尺寸图、场景图应判 PASS。",
     "review_main_img_prompt": "你是速卖通主图合规审查员。只输出一行结论：PASS 或 FAIL|原因关键词。\nFAIL 条件：出现品牌 logo/商标、厂家名称、联系方式（电话/邮箱/网址/微信）、二维码、促销文字（折扣/包邮/热卖）、中文文字、水印、拼接边框、非白底主图、暴露人体。\n判断从严，但仅针对上述明确项。",
     # ---- 图片处理 ----
-    "white_bg_enable": True,
-    "watermark_enable": True,
+    "white_bg_enable": False,
+    "watermark_enable": False,
     "edit_enable": False,
     "edit_prompt": "清理并本地化这张商品图：去掉水印、Logo、二维码和促销贴纸；保持商品本体颜色、形状、材质不变；输出干净可直接上架的电商图，画面里不要出现任何文字。",
     "four_in_one": False,
@@ -335,13 +333,13 @@ DEFAULTS: dict = {
     "white_background_pic_1": "1",
     "white_background_pic_2": "3",
     "white_background_detail_pic_indices": "",
-    "white_background_sku_pic": True,
+    "white_background_sku_pic": False,
     # 分类型处理开关：简单=白底/去水印，精细=AI编辑
     "img_main_edit": False,
     "img_detail_white_bg": False,
     "img_detail_remove_wm": False,
     "img_detail_edit": False,
-    "img_sku_white_bg": True,
+    "img_sku_white_bg": False,
     "img_sku_remove_wm": False,
     "img_sku_edit": False,
     "white_background_sku_pic_indices": "1-20",   # SKU 图序号（白底/去水印/编辑共用）

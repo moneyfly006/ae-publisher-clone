@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .pricing import calc_multiplier, calc_with_commission
 from .text_pipeline import TextPipeline
 from .image_pipeline import ImagePipeline
 from .variants import auto_map, check_consistency, limit_skus
@@ -19,6 +18,22 @@ class Step:
     name: str
     ok: bool
     detail: str = ""
+
+
+_FAIL_WORDS = ("失败", "错误", "不能", "只有", "无效", "不存在", "未找到", "不允许",
+               "异常", "isv.", "error", "failed", "invalid", "not allowed", "cannot")
+
+
+def is_failure_msg(msg: str) -> bool:
+    """店小秘有些接口 code=0 但 data.msg 是「操作失败，只有处在采集箱中的产品…」。
+
+    只判断 code==0 会把这类失败当成成功，导致「日志说成功、列表里找不到商品」。
+    """
+    m = str(msg or "").strip()
+    if not m:
+        return False
+    low = m.lower()
+    return any(w in m or w in low for w in _FAIL_WORDS)
 
 
 def is_audit_pending(message: str) -> bool:
@@ -595,7 +610,6 @@ class Publisher:
         if not any(_group_enable.values()):
             add_step(res, "精细化编辑", True, "主图/详情图/SKU 图都未启用，跳过 AI 编辑")
             return p
-        _detail_before = len(p.get("detail_images") or [])
         _detail_touched = False
         _ai_made_detail: set[str] = set()
 
@@ -809,7 +823,6 @@ class Publisher:
 
     def _apply_general_edit(self, p: dict, res) -> dict:
         """图片通用编辑：一条提示词按范围逐张编辑主图（老软件的「通用编辑」）。"""
-        from .image_jobs import GROUP_LABELS
         prompt = str(getattr(self.cfg, "img_general_prompt", "") or "").strip() \
             or str(getattr(self.cfg, "edit_prompt", "") or "").strip()
         if not prompt:
@@ -1404,6 +1417,8 @@ class Publisher:
             except Exception:
                 cookies = None
         
+        _upload_errors: list[tuple[int, str]] = []
+
         def _one(i):
             u = images[i]
             try:
@@ -1415,7 +1430,12 @@ class Publisher:
                 except Exception:
                     pass
                 return i, host_upload(fp)
-            except Exception:
+            except Exception as _ex:
+                # 不静默：记下第几张、什么原因，主线程统一写进步骤，避免「图没上传成功但没人知道」
+                try:
+                    _upload_errors.append((i + 1, f"{type(_ex).__name__}: {str(_ex)[:80]}"))
+                except Exception:
+                    pass
                 return i, str(u)
         
         results = self._pmap(_one, needs_upload) or []
@@ -1427,6 +1447,11 @@ class Publisher:
             except Exception:
                 continue
             images[i] = url
+        if _upload_errors:
+            _detail = "；".join(f"第{n}张 {e}" for n, e in _upload_errors[:3])
+            if res is not None:
+                add_step(res, "图片上传", False,
+                         f"{len(_upload_errors)} 张没能上传到图床，已退回原地址：{_detail}")
 
         # ---- 尺寸校验：速卖通要求 ≥800×800，不合格的不写回去 ----
         if getattr(self.cfg, "img_min_size_enable", True) and images:
@@ -1871,6 +1896,8 @@ class Publisher:
         if _code == 0:
             _d = resp.get("data") if isinstance(resp.get("data"), dict) else {}
             _m = str(_d.get("msg") or resp.get("msg") or "")
+            if is_failure_msg(_m):
+                return SaveResult(ok=False, message=f"发布失败：{_m[:200]}")
             return SaveResult(ok=True, message=f"只发布成功（商品ID {pid}）：{_m[:110]}", published=True)
         _m2 = str(resp.get("msg") or "")
         if any(k in _m2 for k in ("PRODUCT_IN_AUDIT_PENDING", "audit process", "正在审核中", "审核中")):
@@ -1971,6 +1998,19 @@ class Publisher:
         if not target:
             add_step(res, "API 直存", False, "没取到目标商品详情")
             return None
+        # 店小秘的 add.json 只接受「采集箱」商品；待发布/审核中/在线商品会返回
+        # 「操作失败，只有处在采集箱中的产品才能执行此操作」
+        _st = str(target.get("productStatusType") or "").strip()
+        if _st and _st not in ("", "draft", "offline", "waitPublish"):
+            _hint = {
+                "editingRequired": "该商品在「待发布」",
+                "auditing": "该商品在「审核中」",
+                "onSelling": "该商品已「在线」",
+            }.get(_st, f"该商品状态为 {_st}")
+            add_step(res, "API 直存", False,
+                     f"{_hint}，店小秘只允许编辑采集箱商品；请先在店小秘把它移入采集箱")
+            return SaveResult(ok=False,
+                              message=f"{_hint}，店小秘只允许编辑采集箱商品；请先移入采集箱再运行")
 
         try:
             # 主图数量上限
@@ -2037,6 +2077,9 @@ class Publisher:
         if _code == 0:
             _msg = ((resp.get("data") or {}).get("msg") if isinstance(resp.get("data"), dict)
                     else str(resp.get("msg") or ""))
+            if is_failure_msg(_msg):
+                add_step(res, "API 直存", False, f"保存失败：{_msg[:200]}")
+                return SaveResult(ok=False, message=f"保存失败：{_msg[:200]}")
             _pid2 = ""
             try:
                 _d = resp.get("data") if isinstance(resp.get("data"), dict) else {}
@@ -2237,7 +2280,6 @@ class Publisher:
             if _need_title or _need_sku:
                 try:
                     from concurrent.futures import ThreadPoolExecutor as _TPE
-                    import copy as _copy
                     _tp_sku = tp if self.text is not None else TextPipeline(self.cfg)
 
                     def _do_title():
@@ -2252,12 +2294,12 @@ class Publisher:
                         if _f_t is not None:
                             try:
                                 _title_res = _f_t.result()
-                            except Exception as _et:  # noqa: BLE001
+                            except Exception:  # noqa: BLE001
                                 _title_res = None
                         if _f_s is not None:
                             try:
                                 _sku_res = _f_s.result()
-                            except Exception as _es:  # noqa: BLE001
+                            except Exception:  # noqa: BLE001
                                 _sku_res = None
                 except Exception:
                     _title_res = _sku_res = None
@@ -2641,7 +2683,7 @@ class Publisher:
                     import tempfile as _tf
                     from pathlib import Path as _P2
                     import requests as _rq2
-                    from .video import build_slideshow, generate_carousel_video, probe as _vp
+                    from .video import generate_carousel_video, probe as _vp
 
                     # 已存在视频且未允许覆盖 → 跳过
                     if p.get("main_video") and not getattr(self.cfg, "overwrite_existing_video", False):

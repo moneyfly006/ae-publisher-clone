@@ -53,17 +53,39 @@ def build_plan(cfg, product: dict | None = None) -> ImagePlan:
             refs = "参考现有主图" if getattr(cfg, "main_image_generate_use_refs", True) else "纯文生图"
             plan.steps.append(f"生成主图 ×{getattr(cfg, 'main_image_generate_count', '1')}（{refs}）")
 
-    if cfg.white_bg_enable:
-        pos = _fmt_positions(f"{cfg.white_background_pic_1}-{cfg.white_background_pic_2}", n_main)
-        if pos == "无":
-            plan.warnings.append("主图白底：序号范围为空，已跳过")
-        plan.steps.append(f"主图白底 {pos}")
+    # 简单编辑（白底/去水印）：以 image_simple_rules 为准（实际执行也读它）。
+    # 规则表为空时才退回旧开关，保证老配置仍能显示计划。
+    _rules = []
+    try:
+        from .image_jobs import parse_rules
+        _rules = parse_rules(getattr(cfg, "image_simple_rules", "[]"))
+    except Exception:
+        _rules = []
+    if _rules:
+        _op_names = {"white": "白底", "watermark": "去水印", "edit": "编辑",
+                     "translate": "翻译", "upscale": "放大"}
+        _grp_names = {"main": "主图", "detail": "描述图", "sku": "SKU 图"}
+        for r in _rules:
+            grp = str(r.get("group") or "main")
+            ops = "/".join(_op_names.get(o, o) for o in (r.get("ops") or []))
+            rng = str(r.get("range") or "")
+            total = {"main": n_main, "detail": n_detail, "sku": 1}.get(grp, n_main)
+            pos = _fmt_positions(rng, total) if rng else f"1-{total}"
+            if pos == "无":
+                plan.warnings.append(f"{_grp_names.get(grp, grp)}{ops}：序号范围为空，已跳过")
+            plan.steps.append(f"{_grp_names.get(grp, grp)} {ops} {pos}")
+    else:
+        if cfg.white_bg_enable:
+            pos = _fmt_positions(f"{cfg.white_background_pic_1}-{cfg.white_background_pic_2}", n_main)
+            if pos == "无":
+                plan.warnings.append("主图白底：序号范围为空，已跳过")
+            plan.steps.append(f"主图白底 {pos}")
 
-    if cfg.watermark_enable:
-        pos = _fmt_positions(f"{getattr(cfg, 'remove_watermark_pic_1', '1')}-{getattr(cfg, 'remove_watermark_pic_2', '5')}", n_main)
-        if pos == "无":
-            plan.warnings.append("主图去水印：序号范围为空，已跳过")
-        plan.steps.append(f"主图去水印 {pos}")
+        if cfg.watermark_enable:
+            pos = _fmt_positions(f"{getattr(cfg, 'remove_watermark_pic_1', '1')}-{getattr(cfg, 'remove_watermark_pic_2', '5')}", n_main)
+            if pos == "无":
+                plan.warnings.append("主图去水印：序号范围为空，已跳过")
+            plan.steps.append(f"主图去水印 {pos}")
 
     if getattr(cfg, "translate_main_pic_enable", False):
         plan.steps.append("主图文字翻译 " + _fmt_positions(getattr(cfg, "translate_main_pic_indices", "") or "1", n_main))

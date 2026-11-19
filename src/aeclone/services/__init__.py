@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
 
-from ..api import ApiClient, ApiError
+from ..api import ApiClient
 from .progress import BUS, track
 from ..config import AppConfig
 

@@ -16,10 +16,9 @@ import flet as ft
 from ..api import ApiClient, ApiError
 from ..config import AppConfig, config_dir, get_config, save_config
 from ..license import verify as verify_license
-from ..services import BatchRunner, ImageService, TextService, model_of
-from ..services.variants import parse_mapping_json
-from ..services.publisher import Publisher, demo_product
-from ..integrations.dianxiaomi import DianxiaomiClient, ENDPOINTS
+from ..services import BatchRunner, ImageService, model_of
+from ..services.publisher import Publisher
+from ..integrations.dianxiaomi import DianxiaomiClient
 from ..services.video import generate_carousel_video, probe as video_probe
 from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
@@ -300,9 +299,8 @@ def schema_image():
             Field("main_pic_count", "主图目标数量"),
         ]),
         ("主图视频", [
-            Field("generate_main_video", "发布时生成主图视频", "bool"),
-            Field("upload_main_video", "保存时上传主图视频", "bool",
-                  hint="暂未接入 API 直存（视频上传）"),
+            Field("generate_main_video", "发布时生成主图视频", "bool",
+                  hint="生成轮播视频并上传（需 ffmpeg）"),
             Field("use_template_video", "使用模板视频（需填路径）", "bool"),
             Field("template_video_path", "模板视频路径"),
             Field("overwrite_existing_video", "覆盖产品已有视频", "bool"),
@@ -682,9 +680,7 @@ class App:
                                *fields.values(), status], spacing=10, width=520),
             actions=[ft.TextButton("改为「否」", on_click=to_no),
                      ft.ElevatedButton("保存并提交", bgcolor=ACCENT, color="white", on_click=save)])
-        self.page.dialog = dlg
-        dlg.open = True
-        self._safe_update()
+        self._show_dlg(dlg)
 
     def _reset(self):
         # 恢复默认前先备份，避免误点丢配置（API Key / 店铺 / 模板）
@@ -716,11 +712,6 @@ class App:
         self.page.overlay.append(self.dlg)
         self.dlg.open = True
         self.update()
-
-    def _close_dialog(self):
-        if hasattr(self, 'dlg'):
-            self.dlg.open = False
-            self.update()
 
     # ---------- 页面 ----------
     def _maybe_wizard(self):
@@ -758,9 +749,7 @@ class App:
             actions=[ft.TextButton("稍后设置", on_click=lambda e: self._wz_close(False)),
                      ft.ElevatedButton("完成", bgcolor=ACCENT_2, color="#04231C", on_click=self._wz_finish)],
         )
-        self.page.dialog = self.wz_dlg
-        self.wz_dlg.open = True
-        self._safe_update()
+        self._show_dlg(self.wz_dlg)
 
     def _wz_source_changed(self):
         self.cfg.template_source = self.wz_source.value
@@ -1443,9 +1432,7 @@ class App:
                      ft.TextButton("仍然启动", on_click=go_anyway)],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.dialog = self.dlg
-        self.dlg.open = True
-        self._safe_update()
+        self._show_dlg(self.dlg)
         return True
 
     def _start(self, ignore_conflicts: bool = False, only_ids: list | None = None):
@@ -1476,7 +1463,6 @@ class App:
         # 授权校验：未授权不允许开始；但不要在 UI 线程里阻塞等网络
         try:
             if getattr(self.cfg, "license_enforce", True) and not (self.license_state or {}).get("ok"):
-                from ..license import machine_code as _mc
                 state = self.license_state or {}
                 cached_ok = bool(getattr(self.cfg, "license_cache_ok", False)) and \
                     (time.time() - float(getattr(self.cfg, "license_cache_ts", 0) or 0) < 72 * 3600)
@@ -1512,7 +1498,7 @@ class App:
                                                    spacing=6, height=200, width=460),
                                  actions=[ft.TextButton("去修改", on_click=lambda e: (setattr(dlg, "open", False), self._switch(1), self._safe_update())),
                                           ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
-            self.page.dialog = dlg; dlg.open = True; self._safe_update()
+            self._show_dlg(dlg)
             return
         self._log("启动：配置检查通过")
         self._switch(10)
@@ -1539,8 +1525,17 @@ class App:
                                          custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None))
             resp = dxm.save_product_via_api(payload)
             _code = resp.get("code") if isinstance(resp, dict) else None
+            _d = resp.get("data") if isinstance(resp, dict) and isinstance(resp.get("data"), dict) else {}
+            _msg = str(_d.get("msg") or (resp.get("msg") if isinstance(resp, dict) else "") or "")
             if _code != 0:
-                raise RuntimeError(str(resp.get("msg") or "发布失败")[:120])
+                raise RuntimeError(_msg[:120] or "发布失败")
+            # 店小秘可能返回 code=0 但 msg 是「操作失败，只有处在采集箱中的产品…」
+            try:
+                from ..services.publisher import is_failure_msg as _ifm
+            except Exception:
+                _ifm = lambda m: False  # noqa: E731
+            if _ifm(_msg):
+                raise RuntimeError(_msg[:120])
             self._log(f"定时发布成功：{pid}", "INFO")
             try:
                 history.record("scheduled_publish", 1, 0, pid)
@@ -1573,7 +1568,7 @@ class App:
         except Exception:
             pass
 
-    def _show_balance_low(self, bal: float, on_continue=None):
+    def _show_balance_low(self, bal: float):
         """余额不足弹窗：说明会被跳过的步骤，并给「去充值 / 继续」两个选择。"""
         dlg = ft.AlertDialog(
             title=ft.Text("API 余额不足"),
@@ -1590,9 +1585,7 @@ class App:
                                   on_click=lambda e: self._open_recharge(dlg)),
             ],
         )
-        self.page.dialog = dlg
-        dlg.open = True
-        self._safe_update()
+        self._show_dlg(dlg)
 
     def _open_recharge(self, dlg=None):
         try:
@@ -1628,9 +1621,7 @@ class App:
                                                            threading.Thread(target=self._check_license,
                                                                             daemon=True).start(),
                                                            self._safe_update()))])
-        self.page.dialog = dlg
-        dlg.open = True
-        self._safe_update()
+        self._show_dlg(dlg)
 
     def _request_stop(self, e=None):
         self._stop_requested = True
@@ -2103,7 +2094,7 @@ class App:
             d2 = ft.AlertDialog(title=ft.Text("重命名模板"), content=field,
                                 actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(d2)),
                                          ft.ElevatedButton("确定", on_click=do)])
-            self.page.dialog = d2; d2.open = True; self._safe_update()
+            self._show_dlg(d2)
 
         def delete_item(name):
             lib.pop(name, None)
@@ -2141,7 +2132,7 @@ class App:
                                ft.Divider(color=CARD_2), list_col], spacing=8, width=560),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
         )
-        self.page.dialog = dlg; dlg.open = True
+        self._show_dlg(dlg)
         render()
 
     def _sku_replace_dialog(self):
@@ -2253,9 +2244,7 @@ class App:
             actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
                      ft.ElevatedButton("保存", bgcolor=ACCENT, color="white", on_click=save)],
         )
-        self.page.dialog = dlg
-        dlg.open = True
-        self._safe_update()
+        self._show_dlg(dlg)
 
     def _paste_cookie(self):
         field = ft.TextField(label="Cookie", multiline=True, min_lines=4, bgcolor=CARD_2,
@@ -2284,7 +2273,7 @@ class App:
                              content=ft.Column([field], width=560, height=200),
                              actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
                                       ft.ElevatedButton("保存并同步", bgcolor=ACCENT, color="white", on_click=save)])
-        self.page.dialog = dlg; dlg.open = True; self._safe_update()
+        self._show_dlg(dlg)
 
     def _set_tpl_preview(self, images=None):
         self.tpl_preview_box.content = self._template_preview_row(images)
@@ -2394,8 +2383,32 @@ class App:
         self._cookie_ts = time.time()
         return bool(src.ok and src.cookies), describe(src)
 
+    def _show_dlg(self, dlg) -> None:
+        """统一弹窗入口：优先用 Flet 0.25 的 page.show_dialog()。
+
+        老写法 page.dialog = dlg 在后台线程 + 其他 _safe_update 竞争时容易「一闪就没」，
+        show_dialog 由 Flet 自己管理弹窗栈，稳定得多。
+        """
+        try:
+            self.page.show_dialog(dlg)
+        except Exception:
+            try:
+                self._show_dlg(dlg)
+            except Exception:
+                pass
+        try:
+            self._safe_update()
+        except Exception:
+            pass
+
     def _close_dlg(self, dlg):
-        dlg.open = False
+        try:
+            self.page.close_dialog()
+        except Exception:
+            try:
+                dlg.open = False
+            except Exception:
+                pass
         self._safe_update()
 
     def _open_template_picker(self, source: str, on_pick=None):
@@ -2403,7 +2416,7 @@ class App:
         state = {"source": source if source in ("draft", "online") else "draft",
                  "kw": "", "data": {}, "totals": {}, "err": ""}
         list_col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
-        search = ft.TextField(hint_text="搜索标题或产品ID", prefix_icon=ft.Icons.SEARCH, dense=True,
+        search = ft.TextField(hint_text="搜索标题或产品ID（在当前已加载的列表里过滤）", prefix_icon=ft.Icons.SEARCH, dense=True,
                               bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         tab_row = ft.Row(spacing=8)
         status = ft.Text("正在读取模板产品…", size=11, color=MUTED)
@@ -2422,6 +2435,11 @@ class App:
 
         def render():
             items = (state["data"] or {}).get(state["source"], []) or []
+            # 按商品 ID 降序 = 新刊登的在前（店小秘 ID 单调递增）
+            try:
+                items = sorted(items, key=lambda x: int(str(x.get("id") or 0)), reverse=True)
+            except Exception:
+                pass
             kw = (state["kw"] or "").strip().lower()
             if kw:
                 items = [x for x in items if kw in (x.get("title") or "").lower() or kw in str(x.get("id"))]
@@ -2470,9 +2488,7 @@ class App:
             content=ft.Column([tab_row, search, status, list_col], spacing=10, width=620),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
         )
-        self.page.dialog = dlg
-        dlg.open = True
-        self._safe_update()
+        self._show_dlg(dlg)
         render()
 
         def load():
@@ -2480,10 +2496,11 @@ class App:
                 ck = self._cookies()
                 c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
                 sid = self.cfg.store_id or None
-                state["data"] = {"draft": c.drafts(limit=300, shop_id=sid),
-                                 "online": c.online(limit=300, shop_id=sid)}
+                state["data"] = {"draft": c.drafts(limit=800, shop_id=sid),
+                                 "online": c.online(limit=800, shop_id=sid)}
                 state["totals"] = c.counts(sid) if sid else {}
-                status.value = "读取完成"
+                _n1 = len(state["data"]["draft"]); _n2 = len(state["data"]["online"])
+                status.value = f"读取完成：待发布 {_n1} 条 / 在线 {_n2} 条（超过 800 条的请用搜索过滤）"
                 status.color = ACCENT_2
             except Exception as ex:  # noqa: BLE001
                 state["data"] = {}
@@ -2756,9 +2773,7 @@ class App:
                 actions=[ft.TextButton("取消", on_click=lambda e: (setattr(confirm, "open", False), self._safe_update())),
                          ft.ElevatedButton("确认删除", bgcolor="#D9534F", color="white",
                                            on_click=lambda e: (setattr(confirm, "open", False), self._safe_update(), action()))])
-            self.page.dialog = confirm
-            confirm.open = True
-            self._safe_update()
+            self._show_dlg(confirm)
 
         def delete_selected():
             ids = list(state["sel"])
@@ -2814,9 +2829,7 @@ class App:
             actions=[ft.TextButton("打开相册页面", on_click=open_album),
                      ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
         )
-        self.page.dialog = dlg
-        dlg.open = True
-        self._safe_update()
+        self._show_dlg(dlg)
         threading.Thread(target=load_space, daemon=True).start()
         threading.Thread(target=scan_now, daemon=True).start()
 
@@ -3083,7 +3096,7 @@ class App:
             import json as _jd
             raw = getattr(self.cfg, "detail_local_images", "[]")
             try:
-                return [str(x) for x in (json.loads(raw) if isinstance(raw, str) else raw) if str(x)]
+                return [str(x) for x in (_jd.loads(raw) if isinstance(raw, str) else raw) if str(x)]
             except Exception:
                 return []
 
@@ -3611,7 +3624,7 @@ class App:
                 size=11, color=ACCENT_2 if jobs else MUTED)
 
             add_btn = ft.OutlinedButton(
-                f"+ 添加", icon=ft.Icons.ADD, on_click=add_job,
+                "+ 添加", icon=ft.Icons.ADD, on_click=add_job,
                 tooltip=f"逐个添加{title}任务，自定义每张图的 AI 提示词")
             batch_btn = ft.OutlinedButton(
                 "批量 1-8 张", icon=ft.Icons.PLAYLIST_ADD, on_click=batch_add,
@@ -3748,26 +3761,6 @@ class App:
 
         audit_btn = ft.OutlinedButton("检查图片尺寸", icon=ft.Icons.SEARCH,
                                       on_click=lambda e: run_audit())
-
-        # ---------- 使用说明 ----------
-        usage_guide = ft.Container(
-            content=ft.Column([
-                ft.Row([
-                    ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color="#4B3B8F"),
-                    ft.Text("使用说明", size=12, weight=ft.FontWeight.BOLD, color="#4B3B8F")
-                ], spacing=6),
-                ft.Text(
-                    "• 分组开关：控制主图/详情图/SKU图是否处理\n"
-                    "• 添加任务：为每张图片设置独立的AI提示词\n"
-                    "• 批量添加：一键为所有图片添加任务（使用默认预设）",
-                    size=10, color="#4B3B8F"),
-                ft.Text(
-                    "💡 常见场景：\n"
-                    "  - 只处理主图：勾选「AI 主图编辑」，添加主图任务\n"
-                    "  - 批量编辑主图：点击「批量 1-8 张」，一键添加所有主图任务",
-                    size=10, color="#6B5B9F"),
-            ], spacing=6),
-            bgcolor="#EFEBFB", border_radius=10, padding=12)
 
         return card(ft.Column([
             h1("图片通用编辑", 15),
@@ -4004,15 +3997,6 @@ class App:
                 controls=controls, initially_expanded=expanded,
                 icon_color=ACCENT, collapsed_icon_color=MUTED)
 
-        # ---- 写回（统一成一个卡片，措辞直白）----
-        write_card = card(ft.Column([
-            h1("处理结果写回商品", 15),
-            muted("AI 处理完的图片 / 详情 / SKU 是否写回商品；全关=只在本地生成、不写回"),
-            ft.Row([sw("write_main_images_to_product", "图片写回主图"),
-                    sw("write_detail_html_to_product", "详情写回商品"),
-                    sw("write_sku_codes_to_product", "SKU 名称写回")], spacing=16, wrap=True),
-        ], spacing=8))
-
         # ---- 营销图（可选增强）----
         _mk_on = ft.Switch(label="生成营销图（写进营销图片 1:1 / 3:4）",
                            value=bool(getattr(self.cfg, "marketing_auto_generate", False)),
@@ -4133,7 +4117,7 @@ class App:
             expand=True,
         )
         return [view[0], muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
-                write_card, conflict_card, marketing_card, tabs, view[-1]]
+                conflict_card, marketing_card, tabs, view[-1]]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
     def _p_price(self):
@@ -4424,7 +4408,7 @@ class App:
             name = (self.lib_name.value or "").strip()
             if not name:
                 self.toast("请输入模板名称", False); return
-            rates = {r.get("currency"): r.get("rate") for r in reg_state["rows"] if r.get("currency")}
+            rates = {r.get("country"): r.get("price") for r in rq_state["rows"] if r.get("country")}
             lib = [t for t in (self.cfg.price_template_library or [])
                    if isinstance(t, dict) and t.get("name") != name]
             lib.append({"name": name, "rates": rates})
@@ -4437,9 +4421,9 @@ class App:
             name = self.lib_dd.value
             for t in (self.cfg.price_template_library or []):
                 if isinstance(t, dict) and t.get("name") == name:
-                    reg_state["rows"] = [{"currency": k, "rate": v}
-                                         for k, v in (t.get("rates") or {}).items()]
-                    reg_render(); reg_persist()
+                    rq_state["rows"] = [{"country": k, "price": v}
+                                        for k, v in (t.get("rates") or {}).items()]
+                    rq_render(); rq_persist()
                     self.toast(f"已套用模板：{name}")
                     return
             self.toast("未找到模板", False)
@@ -4710,9 +4694,9 @@ class App:
                       and "PRODUCT_IN_AUDIT_PENDING" not in str((p.get("raw") or {}).get("errMsg") or "")]
             try:
                 from ..services import edited as _edited
-                chosen, _skip_ed = _edited.filter_new(chosen)
+                chosen, _ = _edited.filter_new(chosen)
             except Exception:
-                _skip_ed = 0
+                pass
             skipped = before - len(chosen)
             self._queue_products = pool
             n = self.q.add_many(chosen)
@@ -4940,6 +4924,14 @@ class App:
         workers = max(1, min(int(getattr(self.cfg, "concurrency", 3) or 3), 8, len(items)))
         lock = threading.Lock()
         counts = {"ok": 0, "fail": 0}
+        # 队列批处理必须带 dxm（API 直存）和 scheduler（定时发布登记），
+        # 否则会退回 DOM 保存 / 报「未启用调度器」。
+        _q_dxm = None
+        try:
+            from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+            _q_dxm = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+        except Exception as _ex:
+            self._log(f"队列：连接店小秘失败（将退回 DOM）：{str(_ex)[:80]}", "WARN")
 
         def work(item):
             if self._stop_requested:
@@ -4964,7 +4956,8 @@ class App:
                 self.q.mark(item.product_id, "running")
                 self._refresh_queue()
             try:
-                pub = Publisher(self.cfg)
+                pub = Publisher(self.cfg, dxm=_q_dxm,
+                                scheduler=getattr(self, "scheduler", None))
                 res = pub.run(prod, dry_run=False, manage_progress=False)
                 status = "done" if res.ok else "failed"
                 msg = "处理完成，已保存到店小秘" if res.ok else res.error
@@ -5358,15 +5351,13 @@ class App:
                                                     self.log_panel_list], spacing=6, tight=True), width=820),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_log_panel())])
         try:
-            self.page.dialog = self.log_panel_dlg
-            self.log_panel_dlg.open = True
-            self._safe_update()
+            self._show_dlg(self.log_panel_dlg)
         except Exception:
             pass
         try:
             from ..services.progress import BUS
-            from ..api import ApiClient as _AC
-            rows_p = _AC(self.cfg.api_base, self.cfg.api_key, 15).pricing()
+            from ..services import client_from_config
+            rows_p = client_from_config(self.cfg, 15).pricing()
             BUS.set_prices({r["model"]: r["per_call"] for r in rows_p if r.get("per_call")})
         except Exception:
             pass
@@ -5963,7 +5954,6 @@ class App:
 
         # 2) 价格接口
         try:
-            from ..api import ApiClient as _AC
             from ..services import client_from_config
             rows_p = client_from_config(self.cfg, 20).pricing()
             add("价格接口", bool(rows_p), f"{len(rows_p)} 个模型有价格")
@@ -6080,9 +6070,7 @@ class App:
                      ft.ElevatedButton("下载并安装", bgcolor=ACCENT, color="white", disabled=not has_url,
                                        on_click=lambda e: do_download(e))],
         )
-        self.page.dialog = dlg
-        dlg.open = True
-        self._safe_update()
+        self._show_dlg(dlg)
 
         def do_download(e):
             dlg.open = False
@@ -6204,9 +6192,7 @@ class App:
                                     f"· 图片生成 {model_of(None, 'image_gen')}（¥{self._price_of(model_of(None, 'image_gen')):.3f}/张）"),
                     actions=[ft.TextButton("稍后", on_click=lambda e: self._close_dialog()),
                              ft.ElevatedButton("去充值", bgcolor="#F0A020", color="#1A1200", on_click=go)])
-                self.page.dialog = self.dlg
-                self.dlg.open = True
-                self._safe_update()
+                self._show_dlg(self.dlg)
             except Exception:
                 self.toast("额度不足，请去站点充值", False)
 
