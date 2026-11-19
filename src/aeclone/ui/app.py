@@ -4898,9 +4898,11 @@ class App:
         # ---- 产品列表 ----
         self.wb_status_sel = ft.Dropdown(
             value="editingRequired", width=150, bgcolor=CARD_2, color=TEXT, border_color=CARD_2,
-            options=[ft.dropdown.Option("editingRequired", "草稿/待发布"),
+            options=[ft.dropdown.Option("draft", "采集箱"),
+                     ft.dropdown.Option("editingRequired", "待发布"),
+                     ft.dropdown.Option("publishFail", "发布失败"),
                      ft.dropdown.Option("onSelling", "在线"),
-                     ft.dropdown.Option("auditing", "待审核"),
+                     ft.dropdown.Option("auditing", "审核中"),
                      ft.dropdown.Option("offline", "已下架"),
                      ft.dropdown.Option("", "全部")])
         self.wb_kw = ft.TextField(label="搜索标题", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)

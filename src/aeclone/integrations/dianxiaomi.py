@@ -481,7 +481,9 @@ class DianxiaomiClient:
         "draft": {"dxmState": "draft"},
         "editingRequired": {"dxmState": "offline", "dxmOfflineState": "waitPublish"},
         "waitPublish": {"dxmState": "offline", "dxmOfflineState": "waitPublish"},
-        "offline": {"dxmState": "offline", "dxmOfflineState": "offline"},
+        # 注意：offline + dxmOfflineState=offline 取不到数据（0 条），
+        # 不带子状态才是「已下架」这一桶（实测 165 条）。
+        "offline": {"dxmState": "offline"},
         "publishFail": {"dxmState": "offline", "dxmOfflineState": "publishFail"},
         "onSelling": {"dxmState": "online", "dxmOfflineState": "",
                       "productStatusType": "onSelling"},
