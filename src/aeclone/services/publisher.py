@@ -32,6 +32,14 @@ def is_failure_msg(msg: str) -> bool:
     m = str(msg or "").strip()
     if not m:
         return False
+    # 成功语义白名单：店小秘会用「产品已提交发布，请在『发布中』、『发布失败』
+    # 或『在线产品』中查看」这种带状态名的句子，里面含「失败」字样，
+    # 不能据此判失败。
+    _ok_marks = ("已提交发布", "已提交", "提交成功", "发布成功", "保存成功",
+                 "操作成功", "success")
+    low_all = m.lower()
+    if any(k in m or k in low_all for k in _ok_marks):
+        return False
     low = m.lower()
     return any(w in m or w in low for w in _FAIL_WORDS)
 

@@ -471,16 +471,34 @@ class DianxiaomiClient:
             "raw": it,
         }
 
+    # 店小秘列表接口用 dxmState + dxmOfflineState 两个参数区分页面：
+    #   draft                                  → 采集箱
+    #   offline + dxmOfflineState=waitPublish  → 待发布
+    #   offline + dxmOfflineState=offline      → 已下线
+    #   offline + dxmOfflineState=publishFail  → 发布失败
+    #   online                                 → 在线产品
+    _STATE_PARAMS = {
+        "draft": {"dxmState": "draft"},
+        "editingRequired": {"dxmState": "offline", "dxmOfflineState": "waitPublish"},
+        "waitPublish": {"dxmState": "offline", "dxmOfflineState": "waitPublish"},
+        "offline": {"dxmState": "offline", "dxmOfflineState": "offline"},
+        "publishFail": {"dxmState": "offline", "dxmOfflineState": "publishFail"},
+        "onSelling": {"dxmState": "online"},
+        "online": {"dxmState": "online"},
+        "auditing": {"dxmState": "offline", "dxmOfflineState": "waitPublish"},
+    }
+
     def product_page(self, page: int = 1, size: int = 100, shop_id=None,
                      status: str | None = None, keyword: str | None = None) -> tuple[list[dict], dict]:
-        params: dict = {"page": page, "pageSize": size}
+        params: dict = {"pageNo": page, "pageSize": size, "total": 0,
+                        "searchType": 0, "searchValue": ""}
         if shop_id:
             params["shopId"] = shop_id
         if status:
-            params["productStatusType"] = status
+            params.update(self._STATE_PARAMS.get(status, {"dxmState": status}))
         if keyword:
-            params["productName"] = keyword
-            params["searchType"] = "productName"
+            params["searchValue"] = keyword
+            params["searchType"] = 0
         data = self._get("product_list", params)
         inner = data.get("data") or {}
         po = inner.get("page") or {}
@@ -528,13 +546,13 @@ class DianxiaomiClient:
         - draft    = 草稿（productStatusType 为 None）
         - editingRequired = 待发布（已移出采集箱，add.json 会拒）
         """
-        items = self.iter_products(shop_id, "offline",
+        items = self.iter_products(shop_id, "draft",
                                    max_items=(max(limit * 4, 80) if limit else 0))
         # 草稿优先：草稿没发布过，不会被速卖通的"审核中"挡住，是唯一能真正保存的一类。
         try:
             more = self.iter_products(shop_id, None,
                                       max_items=(max(limit * 6, 120) if limit else 120))
-            drafts = [x for x in more if str(x.get("status_type")) in ("draft", "offline")]
+            drafts = [x for x in more if str(x.get("status_type")) == "draft"]
             if drafts:
                 seen = {str(x.get("id")) for x in drafts}
                 items = drafts + [x for x in items if str(x.get("id")) not in seen]
