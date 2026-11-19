@@ -27,6 +27,14 @@ chk("空版本不高于 1.0.0", not (updater._parse("") > updater._parse("1.0.0"
 chk("当前版本是 1.0.1", updater.CURRENT == "1.0.1", updater.CURRENT)
 chk("坏包不会抛异常", updater.install_update(Path("/tmp/definitely-not-a-zip.zip")) is False)
 chk("有下载进度函数", hasattr(updater, "download_with_progress"))
+arm = updater._asset_score("AuroraList-macos-arm64.zip")
+x64 = updater._asset_score("AuroraList-macos-x64.zip")
+print(f"  · 当前机器架构 {updater._machine_arch()} | arm64={arm} x64={x64}")
+if updater._machine_arch() == "arm64":
+    chk("arm64 机器优先选 arm64 包", arm > x64)
+else:
+    chk("x64 机器优先选 x64 包", x64 > arm)
+chk("无关文件不算匹配", updater._asset_score("readme.txt") == 0)
 print("=" * 60)
 print(f"结果: {ok} 通过, {fail} 失败")
 sys.exit(1 if fail else 0)

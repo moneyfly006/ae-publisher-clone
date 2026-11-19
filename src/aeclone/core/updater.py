@@ -26,15 +26,39 @@ def _parse(v: str) -> tuple:
     return tuple(parts[:3])
 
 
-def _platform_asset(name: str) -> bool:
-    """release 里的 asset 是否适用于当前平台。"""
+def _machine_arch() -> str:
+    """arm64 / x86_64（兼容 Rosetta 下报 x86_64 的情况）。"""
+    import platform as _pf
+    m = (_pf.machine() or "").lower()
+    if m in ("arm64", "aarch64"):
+        return "arm64"
+    return "x64"
+
+
+def _asset_score(name: str) -> int:
+    """给 release asset 打分，越大越合适；0 表示不适用于当前平台。"""
     n = (name or "").lower()
     if sys.platform == "darwin":
-        return "macos" in n and n.endswith(".zip")
+        if not (n.startswith("auroralist-macos") and n.endswith(".zip")):
+            return 0
+        want = _machine_arch()
+        other = "x64" if want == "arm64" else "arm64"
+        if want in n:
+            return 100
+        if other in n:
+            return 10      # 架构不匹配，仅作兜底
+        return 20
     if os.name == "nt":
-        return ("setup" in n and n.endswith(".exe")) or (
-            "windows" in n and n.endswith(".zip"))
-    return False
+        if n.startswith("auroralist-setup") and n.endswith(".exe"):
+            return 100
+        if "windows" in n and n.endswith(".zip"):
+            return 50
+    return 0
+
+
+def _platform_asset(name: str) -> bool:
+    """兼容旧调用：是否能用于当前平台。"""
+    return _asset_score(name) > 0
 
 
 def check_github(timeout: int = 10) -> dict:
@@ -48,12 +72,12 @@ def check_github(timeout: int = 10) -> dict:
         tag = str(data.get("tag_name") or "").strip()
         assets = data.get("assets") or []
         pick = None
+        best = 0
         for a in assets:
-            if _platform_asset(str(a.get("name") or "")):
-                pick = a
-                # Windows 优先安装包
-                if os.name == "nt" and str(a.get("name") or "").lower().startswith("auroralist-setup"):
-                    break
+            name = str(a.get("name") or "")
+            sc = _asset_score(name)
+            if sc > best:
+                best, pick = sc, a
         url = str((pick or {}).get("browser_download_url") or "")
         has = bool(tag and _parse(tag) > _parse(CURRENT))
         return {
