@@ -1025,6 +1025,10 @@ class App:
             _tile("onSelling", "在线", "已上架", ACCENT_2),
             _tile("auditing", "审核中", "等待平台", "#FFB020"),
         ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        self.ov_tiles_ts = ft.Text("尚未刷新", size=10.5, color=MUTED)
+        tiles_head = ft.Row([muted("状态数字 · 缓存 30 秒", 10.5),
+                             ft.Container(expand=True),
+                             self.ov_tiles_ts], spacing=8)
 
         filter_card = card(ft.Column([
             h1i(ft.Icons.PLAY_CIRCLE_OUTLINE, "开始一次任务"),
@@ -1047,7 +1051,7 @@ class App:
         _extra = [c for c in (self._cost_card(), self._resume_card(), self._diff_card())
                   if c is not None]
         return [h1("概览"), muted("采集箱 → AI 处理 → 保存 / 发布，一次点击跑完"),
-                tiles_row, filter_card, ready_card,
+                tiles_head, tiles_row, filter_card, ready_card,
                 card(ft.Row([
                     ft.Column([muted("今日任务", 11),
                                ft.Text(str(st["runs"]), size=18, color=TEXT,
@@ -2094,6 +2098,23 @@ class App:
             (picked.add(pid) if on else picked.discard(pid))
             sel_text.value = f"已选 {len(picked)} 个"
 
+        def _img_cnt(it) -> str:
+            u = str(it.get("imageURLs") or "")
+            n = len([x for x in u.split(";") if x.strip()]) if u else 0
+            return f"{n} 张图"
+
+        def _upd_time(it) -> str:
+            import time as _t
+            for k in ("gmtModified", "updateTime", "modifyTime"):
+                v = it.get(k)
+                try:
+                    if v:
+                        ts = float(v) / 1000.0
+                        return " · " + _t.strftime("%m-%d %H:%M", _t.localtime(ts))
+                except Exception:
+                    continue
+            return ""
+
         def _render(e=None):
             items = list(state["items"])
             mode = str(getattr(sort_dd, "value", "default") or "default")
@@ -2113,7 +2134,9 @@ class App:
                                        if it.get("imageURLs") else "", 40, 40, "主图")],
                         spacing=2, tight=True),
                     title=ft.Text(title or pid, size=12, color=TEXT, max_lines=2),
-                    subtitle=ft.Text(pid, size=10, color=MUTED),
+                    subtitle=ft.Text(
+                        pid + " · " + _img_cnt(it) + _upd_time(it),
+                        size=10, color=MUTED),
                     trailing=ft.TextButton("发布", icon=ft.Icons.SEND,
                                            on_click=lambda e, _p=pid: self._publish_one(_p)),
                     dense=True))
@@ -2760,6 +2783,11 @@ class App:
                 if not cnt:
                     return
                 self.store_counts = cnt
+                try:
+                    if getattr(self, "ov_tiles_ts", None) is not None:
+                        self.ov_tiles_ts.value = "更新于 " + time.strftime("%H:%M:%S")
+                except Exception:
+                    pass
                 for _k, _t in (getattr(self, "ov_tiles", {}) or {}).items():
                     try:
                         _t.value = str(cnt.get(_k, "—"))
@@ -6245,6 +6273,24 @@ class App:
         except Exception as ex:
             self.toast(f"上传失败：{ex}", False)
 
+    def _wb_compare(self, before, after):
+        """处理前后对比（左侧原图、右侧结果）。"""
+        def _col(path, label, color):
+            return ft.Column([
+                ft.Text(label, size=11, color=color),
+                (ft.Image(src=str(path), width=340, height=340, fit=ft.ImageFit.CONTAIN)
+                 if str(path or "").strip() else empty_state("无图")),
+            ], spacing=6, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("处理前后对比"),
+            content=ft.Row([_col(before, "处理前", MUTED),
+                            ft.Icon(ft.Icons.ARROW_FORWARD, size=16, color=MUTED),
+                            _col(after, "处理后", ACCENT_2)], spacing=14),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+        )
+        self._show_dlg(dlg)
+
     def _wb_process(self, kind):
         targets = self._wb_selected_paths()
         if not targets:
@@ -6276,9 +6322,15 @@ class App:
             color = ACCENT_2 if res.ok else "#FF6B6B"
             if not res.ok:
                 self._maybe_quota(res.error)
+            _before = (getattr(self, "_wb_before", {}) or {}).get(res.index)
+            _cmp = (ft.TextButton("对比", icon=ft.Icons.COMPARE,
+                                  on_click=lambda e, _b=_before, _a=res.value:
+                                  self._wb_compare(_b, _a))
+                    if (res.ok and _before) else ft.Container())
             self.wb_results.controls.append(ft.Row([ft.Icon(icon, size=15, color=color),
                                                     ft.Text(res.value if res.ok else res.error, size=11,
-                                                            color=MUTED, selectable=True)], spacing=8))
+                                                            color=MUTED, selectable=True),
+                                                    _cmp], spacing=8))
             self._safe_update()
 
         # 只处理第 N 张（1 基）时，过滤 targets
@@ -6297,6 +6349,8 @@ class App:
                 self._safe_update()
                 return
         _t0 = time.time()
+        self._wb_before = dict(targets) if isinstance(targets, dict) else {
+            i: pth for i, pth in enumerate(targets)}
         results = runner.run(list(targets), job, done)
         _el = time.time() - _t0
         ok = sum(1 for r in results if r.ok)
@@ -6321,6 +6375,7 @@ class App:
 
     def _p_logs(self):
         self._current = 10
+        self.log_filter_chip = ft.Text("", size=10.5, color=ACCENT_2)
         self.log_filter = ft.TextField(
             hint_text="搜索日志（产品 ID / 关键词）", width=260, dense=True,
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
@@ -6410,6 +6465,7 @@ class App:
             ft.Row([self.log_level, self.log_filter,
                     ft.TextButton("清空筛选", icon=ft.Icons.FILTER_ALT_OFF,
                                   on_click=lambda e: self._clear_log_filter()),
+                    self.log_filter_chip,
                     self.log_follow], spacing=12,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),
             self.log_status,
@@ -6849,6 +6905,14 @@ class App:
         kw = str(getattr(self, "log_filter", None).value if getattr(self, "log_filter", None) else "").strip().lower()
         shown = [(t, x, m) for t, x, m in rows
                  if (want == "全部" or x == want) and (not kw or kw in str(m).lower())]
+        try:
+            if getattr(self, "log_filter_chip", None) is not None:
+                if kw or want != "全部":
+                    self.log_filter_chip.value = f"筛选中：{kw or want} · {len(shown)} 行"
+                else:
+                    self.log_filter_chip.value = ""
+        except Exception:
+            pass
         self.log_table.rows = [
             ft.DataRow(cells=[
                 ft.DataCell(ft.Text(t, size=10.5, color=MUTED, width=62)),
@@ -7269,6 +7333,39 @@ class App:
                                       on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start())],
                    spacing=8, wrap=True),
             self.diag_list], spacing=8))
+        # ---------------- 推荐配置（集中恢复默认值） ----------------
+        from ..config import DEFAULTS as _DEF
+
+        def _rec_row(label, cur, rec):
+            return ft.Row([ft.Text(label, size=11, color=MUTED, width=70),
+                           ft.Text(str(cur)[:46], size=11, color=TEXT, expand=True),
+                           ft.Text("推荐 " + str(rec)[:40], size=10, color=ACCENT_2)],
+                          spacing=10)
+
+        def _restore(which: str):
+            if which in ("host", "all"):
+                self.cfg.set("image_host_url", str(_DEF.get("image_host_url", "")))
+                self.cfg.set("image_host_key", str(_DEF.get("image_host_key", "")))
+            if which in ("api", "all"):
+                self.cfg.set("api_base", str(_DEF.get("api_base", "")))
+            save_config(self.cfg)
+            self.toast("已恢复推荐值（图床/API 地址），重启后全部生效", True)
+            self._switch(11)
+
+        rec_card = card(ft.Column([
+            h1i(ft.Icons.VERIFIED_OUTLINED, "推荐配置"),
+            muted("发错环境时用这里一键回到官方默认；模型已锁定无需选择", 11),
+            _rec_row("图床", getattr(self.cfg, "image_host_url", ""), _DEF.get("image_host_url", "")),
+            _rec_row("API 地址", getattr(self.cfg, "api_base", ""), _DEF.get("api_base", "")),
+            ft.Row([ft.OutlinedButton("恢复图床", icon=ft.Icons.RESTORE,
+                                      on_click=lambda e: _restore("host")),
+                    ft.OutlinedButton("恢复 API 地址", icon=ft.Icons.RESTORE,
+                                      on_click=lambda e: _restore("api")),
+                    ft.ElevatedButton("全部恢复推荐值", icon=ft.Icons.SETTINGS_BACKUP_RESTORE,
+                                      bgcolor=ACCENT, color="white",
+                                      on_click=lambda e: _restore("all"))], spacing=10, wrap=True),
+        ], spacing=8))
+
         self.price_list = ft.Column(spacing=3)
         self.price_status = ft.Text("价格加载中…", size=11, color=MUTED)
         price_card = card(ft.Column([
@@ -7308,7 +7405,7 @@ class App:
         # 分组：版本更新 → 账号与授权 → 服务与价格 → 运行与诊断
         return [upd,
                 h1("账号与授权", 13), lic_card, api_card,
-                h1("服务与价格", 13), host_card, model_card, price_card,
+                h1("服务与价格", 13), rec_card, host_card, model_card, price_card,
                 h1("界面与运行", 13), ui_card, inst_card, diag_card]
 
     def _price_of(self, model: str) -> float:
