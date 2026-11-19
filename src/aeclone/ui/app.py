@@ -1608,6 +1608,40 @@ class App:
         except Exception:
             self.toast(f"请在浏览器打开 {url}", False)
 
+    def _batch_publish(self, offline_state: str, label: str):
+        """批量发布：按 dxmOfflineState 取商品 -> batchPublish -> 汇总。"""
+        try:
+            ck = self._cookies()
+            from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+            dxm = _DXC(ck, overrides=self.cfg.endpoint_overrides or {})
+            sid = self.cfg.store_id or None
+            raw = dxm._post("product_list", {
+                "pageNo": 1, "pageSize": 500, "total": 0, "searchType": 0,
+                "searchValue": "", "shopId": sid or -1,
+                "dxmState": "offline", "dxmOfflineState": offline_state})
+            po = ((raw.get("data") or {}).get("page") or {})
+            ids = [str(x.get("id")) for x in (po.get("list") or []) if x.get("id")]
+            if not ids:
+                self._log(label + "：没有可发布的商品", "WARN")
+                self.toast(label + "：没有商品", False)
+                return
+            self._log(label + f"：开始发布 {len(ids)} 个商品…", "INFO")
+            r = dxm.batch_publish(ids)
+            ok, bad = r.get("success") or [], r.get("failed") or []
+            self._log(label + f"：成功 {len(ok)} / 失败 {len(bad)}", "INFO" if not bad else "WARN")
+            for b in bad[:5]:
+                self._log(f"  ✗ {b.get('id')} {str(b.get('msg'))[:80]}", "WARN")
+            self.toast(label + f"：成功 {len(ok)} / 失败 {len(bad)}", not bad)
+        except Exception as ex:  # noqa: BLE001
+            self._log(label + " 失败：" + str(ex)[:150], "ERROR")
+            self.toast(label + " 失败：" + str(ex)[:80], False)
+
+    def _batch_publish_waiting(self):
+        self._batch_publish("waitPublish", "批量发布待发布商品")
+
+    def _batch_publish_failed(self):
+        self._batch_publish("publishFail", "重试发布失败商品")
+
     def _check_conflicts(self, silent: bool = False):
         """检查所有开关的互斥/依赖/无效组合，弹窗列出并给出改法。"""
         try:
@@ -2031,10 +2065,23 @@ class App:
             self._open_template_picker(self.tpl_source_dd.value,
                                        on_pick=lambda pid, t, imgs: self._set_tpl_preview(imgs))
 
+        # 类目来源：使用模板类目 / 自动分类（用商品自带类目）
+        self.cat_mode_dd = ft.Dropdown(
+            label="类目来源", width=210, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value="auto" if bool(getattr(self.cfg, "auto_detect_category", True)) else "template",
+            options=[ft.dropdown.Option("auto", "自动分类（用商品自带类目）"),
+                     ft.dropdown.Option("template", "使用模板类目")],
+        )
+        def _on_cat_mode(e):
+            self.cfg.set("auto_detect_category", e.control.value == "auto")
+            save_config(self.cfg)
+            self._log(f"类目来源：{'自动分类' if e.control.value == 'auto' else '使用模板类目'}", "INFO")
+        self.cat_mode_dd.on_change = _on_cat_mode
+
         tpl_card = card(ft.Column([
             h1("3 · 选择模板", 15),
-            muted("后续产品沿用模板的类目、运费模板、属性、重量尺寸；标题/SKU/图片仍按新生成"),
-            ft.Row([self.tpl_source_dd,
+            muted("后续产品沿用模板的运费模板、属性、重量尺寸；标题/SKU/图片仍按新生成"),
+            ft.Row([self.tpl_source_dd, self.cat_mode_dd,
                     ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick),
                     ft.ElevatedButton("保存模板到本地", icon=ft.Icons.SAVE, bgcolor=ACCENT_2, color="#04231C",
                                       on_click=lambda e: threading.Thread(target=self._save_tpl_local_quick, daemon=True).start()),
@@ -5225,6 +5272,18 @@ class App:
                                   on_click=lambda e: self._retry_publish_failed()),
                 ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
                               on_click=lambda e: self._clear_edited()),
+            ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Row([
+                ft.ElevatedButton("批量发布「待发布」商品", icon=ft.Icons.PUBLISH,
+                                  bgcolor="#6EC6FF", color="#04231C",
+                                  tooltip="把店小秘「待发布」里的商品全部提交发布",
+                                  on_click=lambda e: threading.Thread(
+                                      target=self._batch_publish_waiting, daemon=True).start()),
+                ft.ElevatedButton("重试「发布失败」商品", icon=ft.Icons.REPLAY,
+                                  bgcolor="#FFB020", color="#1A1200",
+                                  tooltip="重新提交那些发布失败的商品",
+                                  on_click=lambda e: threading.Thread(
+                                      target=self._batch_publish_failed, daemon=True).start()),
             ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Row([self.log_level, self.log_follow], spacing=12,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER),

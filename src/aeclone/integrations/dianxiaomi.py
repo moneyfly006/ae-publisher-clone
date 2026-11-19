@@ -521,8 +521,51 @@ class DianxiaomiClient:
             page += 1
         return out
 
+    def batch_publish(self, ids: list[str]) -> dict:
+        """批量发布（店小秘「批量发布」按钮用的接口）。
+
+        只接受处于 采集箱/待发布/发布失败 的商品，其它会出现在 failList 里。
+        返回 {success: [...], failed: [{id, msg}]}
+        """
+        ids = [str(x) for x in (ids or []) if str(x).strip()]
+        if not ids:
+            return {"success": [], "failed": []}
+        try:
+            r = self._request("post", self.base + "/api/smtProduct/batchPublish.json",
+                              params={"ids": ",".join(ids)}, timeout=60)
+            d = (r.json() or {}).get("data") or {}
+            ok = [str((x or {}).get("id") or "") for x in (d.get("successList") or [])]
+            bad = [{"id": str((x or {}).get("id") or ""),
+                    "msg": str((x or {}).get("msg") or "")}
+                   for x in (d.get("failList") or [])]
+            return {"success": [x for x in ok if x], "failed": bad}
+        except Exception as ex:  # noqa: BLE001
+            return {"success": [], "failed": [{"id": "", "msg": str(ex)[:200]}]}
+
+    def get_offline_counts(self, shop_id=None) -> dict:
+        """一次请求拿全部状态数量（店小秘商品页顶部角标用的就是它）。
+
+        返回 {draftNum, waitPublish, publishFail, publishing, publishingTiming}
+        """
+        try:
+            r = self._request("post", self.base + "/api/smtProduct/getOfflineCounts.json",
+                              params={"shopId": shop_id or -1}, timeout=15)
+            d = (r.json() or {}).get("data") or {}
+            return {k: int(v or 0) for k, v in d.items() if isinstance(v, (int, float, str))}
+        except Exception:
+            return {}
+
     def counts(self, shop_id=None) -> dict:
-        """各状态数量（只取 1 条，速度快）。"""
+        """各状态数量：优先用一次请求的 getOfflineCounts，失败才逐页探。"""
+        fast = self.get_offline_counts(shop_id)
+        if fast:
+            return {
+                "draft": fast.get("draftNum", 0),
+                "editingRequired": fast.get("waitPublish", 0),
+                "publishFail": fast.get("publishFail", 0),
+                "publishing": fast.get("publishing", 0),
+                "publishingTiming": fast.get("publishingTiming", 0),
+            }
         out = {}
         for st in ("onSelling", "editingRequired", "auditing", "offline", "publishFail"):
             try:

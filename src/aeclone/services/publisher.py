@@ -2902,7 +2902,11 @@ class Publisher:
                         res.ok = False
                         res.error = (res.error + " " if res.error else "") + f"定时登记失败：{_err}"
                 elif r.published:
-                    add_step(res, "发布到速卖通", True, "同一页面完成（省一次列表页加载）")
+                    add_step(res, "发布到速卖通", True,
+                             "已提交发布 → 请到店小秘「审核中」或「在线产品」里查看")
+                else:
+                    add_step(res, "保存结果", True,
+                             "已保存 → 请到店小秘「待发布」里查看（可手动发布）")
 
             if not dry_run and any(s.name == "保存到店小秘" and s.ok for s in res.steps):
                 try:
