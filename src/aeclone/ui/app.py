@@ -1154,13 +1154,31 @@ class App:
         info = ft.Text("", size=11, color=MUTED)
         prev_btn = ft.OutlinedButton("上一页", icon=ft.Icons.CHEVRON_LEFT)
         next_btn = ft.OutlinedButton("下一页", icon=ft.Icons.CHEVRON_RIGHT)
+        only_today = ft.Checkbox(label="只看今天", value=False)
+        kw = ft.TextField(hint_text="搜产品 ID / 标题", width=200, dense=True,
+                          bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+
+        def _filtered():
+            import time as _t
+            cur = list(rows)
+            if only_today.value:
+                start = _t.mktime(_t.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+                cur = [r for r in cur if int(r.get("ts") or 0) >= start]
+            k = (kw.value or "").strip().lower()
+            if k:
+                cur = [r for r in cur
+                       if k in str(r.get("id") or "").lower()
+                       or k in str(r.get("title") or "").lower()]
+            return cur
 
         def _render(ev=None):
-            total = max(1, (len(rows) + PER - 1) // PER)
+            cur = _filtered()
+            total = max(1, (len(cur) + PER - 1) // PER)
             page["i"] = min(max(0, page["i"]), total - 1)
             lo = page["i"] * PER
-            list_col.controls = [_item(r) for r in rows[lo:lo + PER]]
-            info.value = f"第 {page['i'] + 1}/{total} 页 · 共 {len(rows)} 条"
+            list_col.controls = ([_item(r) for r in cur[lo:lo + PER]]
+                                 or [empty_state("没有符合条件的记录")])
+            info.value = f"第 {page['i'] + 1}/{total} 页 · {len(cur)} 条（共 {len(rows)}）"
             prev_btn.disabled = page["i"] <= 0
             next_btn.disabled = page["i"] >= total - 1
             try:
@@ -1174,9 +1192,18 @@ class App:
 
         prev_btn.on_click = lambda e: _go(-1)
         next_btn.on_click = lambda e: _go(1)
+
+        def _reset(e=None):
+            page["i"] = 0
+            _render()
+
+        only_today.on_change = _reset
+        kw.on_change = _reset
         _render()
         return card(ft.Column([h1("改前后对比", 15),
                                muted("最近处理的商品：标题 / 详情 / 主图变化", 11),
+                               ft.Row([only_today, kw], spacing=12,
+                                      vertical_alignment=ft.CrossAxisAlignment.CENTER),
                                list_col,
                                ft.Row([prev_btn, next_btn, info], spacing=10,
                                       vertical_alignment=ft.CrossAxisAlignment.CENTER)],
@@ -1988,6 +2015,28 @@ class App:
         self._show_dlg(dlg)
         do_search()
 
+    def _publish_one(self, pid: str, on_done=None):
+        """单独发布 / 重试一个商品。"""
+        def go():
+            try:
+                from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+                c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                r = c.batch_publish([str(pid)])
+                ok = bool(r.get("success"))
+                bad = (r.get("failed") or [{}])[0].get("msg", "") if not ok else ""
+                self._log(("✓ 发布成功：" if ok else "✗ 发布失败：") + f"{pid} {bad}"[:120],
+                          "INFO" if ok else "WARN")
+                self.toast(("已提交发布：" if ok else f"发布失败：{bad[:60]}") + str(pid), ok)
+            except Exception as ex:  # noqa: BLE001
+                self._log(f"✗ 发布失败：{pid} {str(ex)[:100]}", "ERROR")
+                self.toast(f"发布失败：{str(ex)[:60]}", False)
+            if on_done:
+                try:
+                    on_done()
+                except Exception:
+                    pass
+        threading.Thread(target=go, daemon=True).start()
+
     def _publish_list_dialog(self, offline_state: str, label: str):
         """查看「待发布 / 发布失败」的具体商品（前 100 条）。"""
         col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
@@ -2018,6 +2067,8 @@ class App:
                                                if it.get("imageURLs") else "", 40, 40, "主图"),
                         title=ft.Text(title or pid, size=12, color=TEXT, max_lines=2),
                         subtitle=ft.Text(pid, size=10, color=MUTED),
+                        trailing=ft.TextButton("发布", icon=ft.Icons.SEND,
+                                               on_click=lambda e, _p=pid: self._publish_one(_p)),
                         dense=True))
                 col.controls = rows or [empty_state("这一栏没有商品")]
                 status.value = f"共 {po.get('totalSize') or len(items)} 个（显示前 {len(items)} 个）"

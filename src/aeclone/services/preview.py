@@ -15,7 +15,7 @@ def _path() -> Path:
 
 
 def record(product_id: str, before: dict, after: dict, title: str = "") -> None:
-    """记录一个商品的改前/改后快照（保留最近 30 条）。"""
+    """记录一个商品的改前/改后快照（保留最近 200 条）。"""
     entry = {
         "ts": int(time.time()),
         "id": str(product_id),
@@ -26,7 +26,7 @@ def record(product_id: str, before: dict, after: dict, title: str = "") -> None:
     rows = load_all()
     rows = [r for r in rows if str(r.get("id")) != str(product_id)]
     rows.append(entry)
-    rows = rows[-30:]
+    rows = rows[-200:]
     try:
         _path().write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
     except Exception:
