@@ -359,6 +359,10 @@ def schema_variant():
 class App:
     def __init__(self, page: ft.Page):
         self.page = page
+        try:
+            page.on_keyboard_event = self._on_key
+        except Exception:
+            pass
         self._ui_lock = threading.RLock()
         self._building_page = False
         self._update_err_ts = 0.0
@@ -367,6 +371,7 @@ class App:
         self.cfg: AppConfig = get_config()
         self.picked: list[Path] = []
         self.wb_sel_paths: set[str] = set()
+        self.wb_pick_summary = ft.Text("", size=11, color=ACCENT_2)
         self._subscribe_progress()
         self.wb_wall = None
         self.logs: list[str] = []
@@ -5659,7 +5664,8 @@ class App:
                    spacing=8, wrap=True),
             self.wb_index, self.wb_prompt,
             self.wb_status,
-            ft.Text("图片墙：点勾选要处理的图（默认全选）", size=11, color=MUTED),
+            ft.Row([ft.Text("图片墙：点勾选要处理的图（默认全选）", size=11, color=MUTED),
+                    self.wb_pick_summary], spacing=10),
             self.wb_wall,
             self.wb_results,
         ], spacing=8))
@@ -5863,6 +5869,10 @@ class App:
             ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER, width=96))
         self.wb_wall.controls = tiles
         try:
+            self.wb_pick_summary.value = f"已选 {len(self.wb_sel_paths)}/{len(self.picked)} 张"
+        except Exception:
+            pass
+        try:
             self._safe_update()
         except Exception:
             pass
@@ -5872,6 +5882,11 @@ class App:
             self.wb_sel_paths.add(key)
         else:
             self.wb_sel_paths.discard(key)
+        try:
+            self.wb_pick_summary.value = f"已选 {len(self.wb_sel_paths)}/{len(self.picked)} 张"
+            self._safe_update()
+        except Exception:
+            pass
 
     def _wb_selected_paths(self) -> list:
         return [pth for pth in self.picked if str(pth) in self.wb_sel_paths]
@@ -6197,6 +6212,8 @@ class App:
                 ft.TextButton("复制全部日志", icon=ft.Icons.COPY,
                               tooltip="把当前日志全部复制到剪贴板",
                               on_click=lambda e: self._copy_logs()),
+                ft.TextButton("导出筛选结果", icon=ft.Icons.FILE_DOWNLOAD,
+                              on_click=lambda e: self._export_logs_filtered()),
                 ft.TextButton("清空日志", icon=ft.Icons.CLEAR_ALL,
                               on_click=lambda e: self._confirm(
                                   "清空当前日志？",
@@ -6316,6 +6333,24 @@ class App:
         try:
             from ..services.progress import BUS
             BUS.subscribe(self._on_progress)
+        except Exception:
+            pass
+
+    def _on_key(self, e):
+        """快捷键：⌘/Ctrl+R 启动·停止，⌘/Ctrl+L 日志，⌘/Ctrl+F 搜商品。"""
+        try:
+            key = (getattr(e, "key", "") or "").lower()
+            ctrl = bool(getattr(e, "ctrl", False) or getattr(e, "meta", False))
+            if not ctrl:
+                return
+            if key == "r":
+                self._toggle_run()
+            elif key == "l":
+                self._switch(10)
+            elif key == "f":
+                self._global_search_dialog()
+            elif key == "escape":
+                self.page.close_dialog()
         except Exception:
             pass
 
@@ -6517,6 +6552,34 @@ class App:
     def _on_log_scroll(self, e):
         if not bool(getattr(self.log_follow, "value", True)):
             self._log_scroll_pos = float(getattr(e, "pixels", 0) or 0)
+
+    def _export_logs_filtered(self):
+        """把当前筛选结果导出成 txt（默认到配置目录 logs/）。"""
+        rows = getattr(self, "log_rows", []) or []
+        lv = getattr(self, "log_level", None)
+        want = lv.value if lv is not None else "全部"
+        kw = str(getattr(self, "log_filter", None).value if getattr(self, "log_filter", None) else "").strip().lower()
+        shown = [(t, x, m) for t, x, m in rows
+                 if (want == "全部" or x == want) and (not kw or kw in str(m).lower())]
+        if not shown:
+            self.toast("当前筛选没有内容可导出", False)
+            return
+        try:
+            from ..config import config_dir
+            outdir = config_dir() / "logs"
+            outdir.mkdir(parents=True, exist_ok=True)
+            fn = outdir / f"export-{time.strftime('%Y%m%d-%H%M%S')}.txt"
+            text = "\n".join(f"{t} [{x}] {m}" for t, x, m in shown)
+            fn.write_text(text, encoding="utf-8")
+            self._log(f"已导出 {len(shown)} 行日志 → {fn}", "INFO")
+            self.toast(f"已导出 {len(shown)} 行：{fn.name}", True)
+            try:
+                import subprocess
+                subprocess.Popen(["open", str(fn)])
+            except Exception:
+                pass
+        except Exception as ex:  # noqa: BLE001
+            self.toast(f"导出失败：{str(ex)[:60]}", False)
 
     def _copy_logs(self):
         text = "\n".join(getattr(self, "logs", []) or [])
