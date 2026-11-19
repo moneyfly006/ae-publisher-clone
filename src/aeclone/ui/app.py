@@ -148,6 +148,13 @@ def card(content, padding=20, expand=False):
                         expand=expand, border=ft.border.all(1, CARD_2))
 
 
+def h1i(icon, text, size=15, color=ACCENT):
+    """带小图标的卡片标题。"""
+    return ft.Row([ft.Icon(icon, size=size + 2, color=color),
+                   ft.Text(text, size=size, weight=ft.FontWeight.BOLD, color=TEXT)],
+                  spacing=8)
+
+
 def empty_state(text, icon=ft.Icons.INBOX_OUTLINED):
     """统一空状态样式。"""
     return ft.Row([ft.Icon(icon, size=16, color=MUTED), muted(text, 11)], spacing=8)
@@ -920,7 +927,7 @@ class App:
                  ctrl], spacing=8, tight=False))
 
         ready_card = card(ft.Column([
-            h1("准备状态", 15),
+            h1i(ft.Icons.CHECKLIST, "准备状态"),
             muted("都变绿就能一键启动；红色项点击可直接去对应页修复"),
             ft.Row([_ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie),
                     _ready_row(ft.Icons.COPY_OUTLINED, "模板商品", self.ready_tpl)], spacing=16),
@@ -1020,7 +1027,7 @@ class App:
         ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
         filter_card = card(ft.Column([
-            h1("开始一次任务", 15),
+            h1i(ft.Icons.PLAY_CIRCLE_OUTLINE, "开始一次任务"),
             muted("选范围 → 填关键词（可选）→ 启动；默认只处理采集箱商品"),
             ft.Row([
                 ft.ElevatedButton("启动", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white",
@@ -3654,7 +3661,7 @@ class App:
         # ---------- 类目 ----------
         _auto_cat_on = bool(getattr(self.cfg, "auto_detect_category", True))
         cat_card = card(ft.Column([
-            h1("类目", 15),
+            h1i(ft.Icons.CATEGORY_OUTLINED, "类目"),
             muted("类目来源在「店铺设置 → 选择模板」里切换，这里只显示当前生效方式"),
             ft.Row([
                 ft.Text("当前：" + ("自动分类（商品自带类目 → 关键词 → 模板兜底）"
@@ -3667,7 +3674,7 @@ class App:
 
         # ---------- 基础设置 ----------
         base_card = card(ft.Column([
-            h1("规格与库存", 15),
+            h1i(ft.Icons.STRAIGHTEN, "规格与库存"),
             ft.Row([
                 self._sw("original_box", "是否原箱",
                    tooltip_text="商品是否以原箱发货"),
@@ -3788,7 +3795,7 @@ class App:
 
     def _card_run(self):
         top_card = card(ft.Column([
-            h1("运行设置", 15),
+            h1i(ft.Icons.TUNE, "运行设置"),
             ft.Row([
                 self._tf("edit_sum", "处理产品数量", width=140,
                    tooltip_text="每次运行处理多少个产品（1=只跑1个，0或空=全部）"),
@@ -3900,7 +3907,7 @@ class App:
         self.video_path_tf.on_change = _on_video_path
 
         extra_card = card(ft.Column([
-            h1("发布设置", 15),
+            h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "发布设置"),
             muted("视频来源、相册清理等与刊登相关的开关"),
             ft.Row([self.video_src_dd, self.video_path_tf], spacing=12, wrap=True),
             ft.Row([self._edited_count_text(), ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
@@ -4955,7 +4962,7 @@ class App:
         self.p_cost_default = _param("goods_cost", "默认商品成本（元）", 170, "试算默认值，可留 0")
 
         mode_card = card(ft.Column([
-            h1("计算方式", 15),
+            h1i(ft.Icons.CALCULATE, "计算方式"),
             muted("先选算法，再填这一算法用得到的参数；没填的参数不会影响结果"),
             ft.Row([self.price_mode_dd, self.mode_formula], spacing=14,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER, wrap=True),
@@ -5007,7 +5014,7 @@ class App:
                 pass
 
         calc_card = card(ft.Column([
-            h1("价格试算", 15),
+            h1i(ft.Icons.PRICE_CHECK, "价格试算"),
             muted("用的就是刊登时同一套算法（模式 → 阶梯 → 区域 → 批发）"),
             ft.Row([
                 self.base_input,
@@ -5082,7 +5089,7 @@ class App:
 
         def tier_render():
             tier_col.controls = [tier_row(r) for r in tier_state["rows"]] or [
-                ft.Text("还没有阶梯。点「添加一档」，例如 0-100 用 1.5 倍、100-1000 用 1.35 倍。", size=11, color=MUTED)]
+                empty_state("还没有阶梯。点「添加一档」，例如 0-100 用 1.5 倍、100-1000 用 1.35 倍。")]
             try:
                 self._safe_update()
             except Exception:
@@ -5101,7 +5108,7 @@ class App:
 
         tier_render()
         tier_card = card(ft.Column([
-            h1("阶梯倍率（按成本区间）", 15),
+            h1i(ft.Icons.STAIRS, "阶梯倍率（按成本区间）"),
             muted("勾选后：成本落在哪一档就用该档倍率，会覆盖上面的「价格倍率」"),
             ft.Switch(label="启用阶梯倍率", value=bool(getattr(self.cfg, "tuoguan_price_tiered_enabled", False)),
                       active_color=ACCENT,
@@ -5172,7 +5179,7 @@ class App:
 
         def rq_render():
             rq_col.controls = [rq_row(r) for r in rq_state["rows"]] or [
-                ft.Text("还没有区域价。点「添加国家」，例如 US 12.99、RU 15.99。", size=11, color=MUTED)]
+                empty_state("还没有区域价。点「添加国家」，例如 US 12.99、RU 15.99。")]
             try:
                 self._safe_update()
             except Exception:
@@ -5186,7 +5193,7 @@ class App:
 
         rq_render()
         reg_card = card(ft.Column([
-            h1("区域调价", 15),
+            h1i(ft.Icons.PUBLIC, "区域调价"),
             muted("按国家/地区设置绝对成交价（店小秘同款：选中哪个国家就用哪个价）"),
             ft.Switch(label="启用区域调价", value=bool(getattr(self.cfg, "regional_quote_enable", False)),
                       active_color=ACCENT,
@@ -5243,7 +5250,7 @@ class App:
         self.dropship_discount = _num_field("dropship_discount", "一件代发折扣 Y%", 150, "0~99")
 
         ws_card = card(ft.Column([
-            h1("批发", 15),
+            h1i(ft.Icons.INVENTORY_2, "批发"),
             muted("店小秘同款：勾选后，买家一次购买满 N 件自动减免 X%"),
             ft.Switch(label="启用批发", value=bool(getattr(self.cfg, "wholesale_enable", False)),
                       active_color=ACCENT,
@@ -5411,7 +5418,7 @@ class App:
             return c
 
         code_card = card(ft.Column([
-            h1("SKU 编码规则", 15),
+            h1i(ft.Icons.QR_CODE_2, "SKU 编码规则"),
             muted("店小秘同款：前缀 + 分隔符 + 序号/原编码；下面的示例就是最终提交的编码"),
             ft.Row([_sw("custom_sku_prefix_enable", "启用自定义前缀"),
                     _tf("custom_sku_prefix", "前缀", 150, "例如 MY"),
@@ -5424,13 +5431,13 @@ class App:
         self.stock_tf = _tf("stock_quantity", "库存数量", 150, "所有 SKU 统一用这个库存")
         self.stock_tf.keyboard_type = ft.KeyboardType.NUMBER
         stock_card = card(ft.Column([
-            h1("库存", 15),
+            h1i(ft.Icons.WAREHOUSE, "库存"),
             muted("所有变种统一库存；不填则保留采集到的库存"),
             ft.Row([self.stock_tf], spacing=12, wrap=True),
         ], spacing=8))
 
         attr_card = card(ft.Column([
-            h1("变种属性", 15),
+            h1i(ft.Icons.TUNE, "变种属性"),
             muted("属性来自采集数据，软件按名称自动对齐到站点的变种属性（Color / Size 等）"),
             ft.Column([
                 ft.Text("· 名称完全一致 → 直接对齐", size=11, color=TEXT),
@@ -5447,7 +5454,7 @@ class App:
         except Exception:
             _price_line = "价格由「价格」页统一计算"
         price_card = card(ft.Column([
-            h1("变种价格", 15),
+            h1i(ft.Icons.SELL_OUTLINED, "变种价格"),
             muted("所有变种共用同一套价格算法（不在这里单独定价）"),
             ft.Text(_price_line, size=12, color=ACCENT_2, selectable=True),
             ft.TextButton("去价格页", icon=ft.Icons.ARROW_FORWARD,
@@ -5489,7 +5496,7 @@ class App:
             threading.Thread(target=go, daemon=True).start()
 
         queue_card = card(ft.Column([
-            h1("队列", 15),
+            h1i(ft.Icons.QUEUE, "队列"),
             muted("商品保存后会进入「待发布」，提交发布后进入「发布中 → 审核中」"),
             ft.Row([_kpi("待发布（可直接发布）", self.pub_wait_txt, "店小秘「待发布」"),
                     _kpi("发布失败（可重试）", self.pub_fail_txt, "多数是类目/属性问题"),
@@ -6341,7 +6348,7 @@ class App:
                    spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             muted("到点后自动在「待发布」列表里批量发布；商品本身在保存阶段已写入店小秘"),
             muted("注意：定时任务需要软件保持运行；关闭软件后不会执行。"),
-            *(sched_rows or [ft.Text("暂无定时任务", size=11, color=MUTED)]),
+            *(sched_rows or [empty_state("暂无定时任务")]),
         ], spacing=6))
 
         # ---------- 日志表 ----------
@@ -6530,7 +6537,7 @@ class App:
                 ts = time.strftime("%H:%M:%S", time.localtime(e.ts))
                 rows.append(ft.Text(f"{ts}  {e.text()}", size=11,
                                     color=self._log_color(e.level), selectable=True))
-            self.log_panel_list.controls = rows or [ft.Text("暂无匹配日志", size=11, color=MUTED)]
+            self.log_panel_list.controls = rows or [empty_state("暂无匹配日志")]
         else:
             self.log_panel_list.controls = [ft.Text(f"{t} [{lv}] {m}", size=11, color=self._log_color(lv), selectable=True)
                                             for t, lv, m in self._log_panel_items()]
