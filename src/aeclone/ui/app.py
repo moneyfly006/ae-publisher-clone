@@ -2999,8 +2999,6 @@ class App:
         detail_card = card(ft.Column([
             h1("详情设置", 15),
             ft.Row([
-                sw("custom_detail_text_enable", "添加自定义详情文本/图片",
-                   tooltip_text="在详情HTML头部或尾部插入自定义文字或图片"),
                 sw("copy_sku_to_detail", "复制SKU到详情",
                    tooltip_text="把SKU名称列表追加到详情页"),
                 sw("delete_detail_text", "删除详情原有文本",
