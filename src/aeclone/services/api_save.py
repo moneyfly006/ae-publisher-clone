@@ -348,6 +348,8 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
 
     out = []
     _prod_freight = str((product or {}).get("freightTemplateId") or "").strip()
+    if not _prod_freight and template is not None:
+        _prod_freight = str((template or {}).get("freightTemplateId") or "").strip()
     for sku in skus:
         s = dict(sku)
         # 脏值过滤：采集数据里常见 "<none>" 字符串，店小秘会把它当成无效 SKU id，
@@ -360,9 +362,14 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
             for k in ("originalBox", "logisticAttrList", "specialProductTypeList"):
                 if s.get(k) in (None, "", []) and tpl_skus.get(k) not in (None, "", []):
                     s[k] = tpl_skus[k]
-        # SKU 级运费模板：缺就用商品级的（否则 CHK_SKU_FREIGHT_TEMPLATE_NULL）
-        if not str(s.get("freightTemplateId") or "").strip() and _prod_freight:
-            s["freightTemplateId"] = _prod_freight
+        # SKU 级运费模板：商品级 → 模板商品级 → 模板 SKU 级，逐级兜底。
+        # 缺了平台就报 CHK_SKU_FREIGHT_TEMPLATE_NULL（采集商品常见的坑）。
+        if not str(s.get("freightTemplateId") or "").strip():
+            _f = _prod_freight
+            if not _f and tpl_skus:
+                _f = str(tpl_skus.get("freightTemplateId") or "").strip()
+            if _f:
+                s["freightTemplateId"] = _f
         out.append(s)
 
     # SKU id 修复：采集数据的 id 常是 "<none>"，店小秘不认（报

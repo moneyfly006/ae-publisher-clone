@@ -642,6 +642,15 @@ def t31_system_attr_deduped_by_id():
     assert len(ids) == len(set(ids)), f"仍有重复 attrNameId: {ids}"
 
 
+def t32_sku_freight_from_template():
+    """商品/ SKU 都没运费模板时，用模板补齐，否则平台报 CHK_SKU_FREIGHT_TEMPLATE_NULL。"""
+    prod = {"aeopAeProductSKUs": json.dumps([{"skuCode": "A"}])}
+    tpl = {"freightTemplateId": "50200232032",
+           "aeopAeProductSKUs": json.dumps([{"freightTemplateId": "50200232032"}])}
+    skus = A.merge_skus(prod, tpl)
+    assert skus[0].get("freightTemplateId") == "50200232032", skus
+
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -663,7 +672,7 @@ if __name__ == "__main__":
              t26_market_image_mapping_order,
              t27_sku_cargo_price_filled, t28_sku_logistic_attr_from_template,
              t29_sku_variation_theme_from_template,
-             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id]
+             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id, t32_sku_freight_from_template]
     ok = fail = 0
     for t in tests:
         try:
