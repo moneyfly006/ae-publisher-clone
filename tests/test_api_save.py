@@ -651,6 +651,19 @@ def t32_sku_freight_from_template():
     assert skus[0].get("freightTemplateId") == "50200232032", skus
 
 
+def t33_duplicate_sku_props_merged():
+    """8 个 SKU 同属性组合 → 平台 CHK_SKU_PROPS_DUPLICATE，必须去重。"""
+    props = [{"skuPropertyId": 14, "propertyValueId": 350686},
+             {"skuPropertyId": 400079803, "propertyValueId": 1983474624}]
+    skus = [{"skuCode": f"dx{i}", "aeopSKUProperty": json.dumps(props)} for i in range(8)]
+    prod = {"aeopAeProductSKUs": json.dumps([
+        {"skuCode": f"dx{i}", "aeopSKUProperty": props} for i in range(8)])}
+    out = A.merge_skus(prod, None)
+    combos = {tuple(sorted((x.get("skuPropertyId"), x.get("propertyValueId")) for x in s["aeopSKUProperty"]))
+              for s in out}
+    assert len(out) == 1 and len(combos) == 1, out
+
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -672,7 +685,7 @@ if __name__ == "__main__":
              t26_market_image_mapping_order,
              t27_sku_cargo_price_filled, t28_sku_logistic_attr_from_template,
              t29_sku_variation_theme_from_template,
-             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id, t32_sku_freight_from_template]
+             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id, t32_sku_freight_from_template, t33_duplicate_sku_props_merged]
     ok = fail = 0
     for t in tests:
         try:

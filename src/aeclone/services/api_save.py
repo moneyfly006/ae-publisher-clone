@@ -384,6 +384,21 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
                 tr2 = json.loads(tr2)
             except Exception:
                 tr2 = []
+    # SKU 属性组合去重：平台要求每个 SKU 的 (属性,值) 组合唯一，
+    # 采集数据里常见 8 个 SKU 全是同一组合 → isv.7CHK_SKU_PROPS_DUPLICATE。
+    _seen_combo = set()
+    _uniq = []
+    for _s in out:
+        _props = _s.get("aeopSKUProperty") or []
+        _combo = tuple(sorted((str(x.get("skuPropertyId")), str(x.get("propertyValueId")))
+                              for x in _props if isinstance(x, dict)))
+        if _combo and _combo in _seen_combo:
+            continue
+        if _combo:
+            _seen_combo.add(_combo)
+        _uniq.append(_s)
+    out = _uniq
+
     for _t in (tr2 or []) if isinstance(tr2, list) else []:
         vid = str((_t or {}).get("id") or "").strip()
         if vid and vid.lower() not in ("<none>", "none", "null", "undefined"):
