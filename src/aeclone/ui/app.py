@@ -748,14 +748,14 @@ class App:
                 self.cfg.set(k, str(f.value or "").strip())
             self.cfg.set("eu_qualification", "是")
             save_config(self.cfg)
-            dlg.open = False
+            self._close_dlg(dlg)
             self.toast("欧盟责任人资料已保存（欧盟资质=是）")
             self._switch(2)
 
         def to_no(e):
             self.cfg.set("eu_qualification", "否")
             save_config(self.cfg)
-            dlg.open = False
+            self._close_dlg(dlg)
             self.toast("已改为「否」，不提交欧盟资质")
             self._switch(2)
 
@@ -781,8 +781,7 @@ class App:
             save_config(self.cfg)
             self._switch(self._current)
             self.toast("已恢复默认")
-            self.dlg.open = False
-            self.update()
+            self._close_dlg(self.dlg)
         
         self.dlg = ft.AlertDialog(
             modal=True,
@@ -794,13 +793,14 @@ class App:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.overlay.append(self.dlg)
-        self.dlg.open = True
-        self.update()
+        self._show_dlg(self.dlg)
 
     # ---------- 页面 ----------
     def _maybe_wizard(self):
         if getattr(self.cfg, "onboarded", False):
+            return
+        if getattr(self, "_dlg", None) is not None:
+            self._log("已有弹窗（更新/授权等），首次引导稍后再弹", "INFO")
             return
         # 已有店铺/API 配置的老用户不再弹首次引导
         if getattr(self.cfg, "store_id", "") or getattr(self.cfg, "api_key", ""):
@@ -888,14 +888,13 @@ class App:
         self.cfg.template_source = self.wz_source.value
         self.cfg.onboarded = True
         save_config(self.cfg)
-        self.wz_dlg.open = False
+        self._close_dlg(self.wz_dlg)
         self._log(f"首次设置完成：店铺 {self.cfg.store_name} / 模板 {self.cfg.template_product_title[:30]}")
         self._safe_update()
         self._switch(0)
 
     def _wz_close(self, mark):
-        self.wz_dlg.open = False
-        self._safe_update()
+        self._close_dlg(self.wz_dlg)
 
     def _p_overview(self):
         self.stat_api = ft.Text("检测中…", color=MUTED, size=12)
@@ -1819,13 +1818,11 @@ class App:
         self._log("启动前发现开关冲突：" + "；".join(c["title"] for c in hard[:4]), "WARN")
 
         def go_fix(e):
-            self.dlg.open = False
-            self._safe_update()
+            self._close_dlg(dlg)
             self._switch(5)   # AI 图片页
 
         def go_anyway(e):
-            self.dlg.open = False
-            self._safe_update()
+            self._close_dlg(dlg)
             self._log("用户选择忽略冲突继续启动", "WARN")
             self._start(ignore_conflicts=True)
 
@@ -1904,7 +1901,7 @@ class App:
             dlg = ft.AlertDialog(title=ft.Text("启动前检查未通过"),
                                  content=ft.Column([ft.Text("• " + e, color="#FF8A8A", size=12) for e in errs],
                                                    spacing=6, height=200, width=460),
-                                 actions=[ft.TextButton("去修改", on_click=lambda e: (setattr(dlg, "open", False), self._switch(1), self._safe_update())),
+                                 actions=[ft.TextButton("去修改", on_click=lambda e: (self._close_dlg(dlg), self._switch(1))),
                                           ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
             self._show_dlg(dlg)
             return
@@ -1977,6 +1974,8 @@ class App:
             pass
 
     def _show_balance_low(self, bal: float):
+        if getattr(self, "_dlg", None) is not None:
+            return
         """余额不足弹窗：说明会被跳过的步骤，并给「去充值 / 继续」两个选择。"""
         dlg = ft.AlertDialog(
             title=ft.Text("API 余额不足"),
@@ -1998,8 +1997,7 @@ class App:
     def _open_recharge(self, dlg=None):
         try:
             if dlg is not None:
-                dlg.open = False
-                self._safe_update()
+                self._close_dlg(dlg)
         except Exception:
             pass
         url = str(getattr(self.cfg, "api_purchase_url", "") or "https://api.moneyfly.club")
@@ -2621,10 +2619,9 @@ class App:
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
                      ft.TextButton("复制机器码", on_click=lambda e: self._copy_machine(code)),
                      ft.ElevatedButton("重新检测", bgcolor=ACCENT, color="white",
-                                       on_click=lambda e: (setattr(dlg, "open", False),
+                                       on_click=lambda e: (self._close_dlg(dlg),
                                                            threading.Thread(target=self._check_license,
-                                                                            daemon=True).start(),
-                                                           self._safe_update()))])
+                                                                            daemon=True).start()))])
         self._show_dlg(dlg)
 
     def _request_stop(self, e=None):
@@ -3203,7 +3200,7 @@ class App:
             if getattr(self, "tpl_snapshot_text", None) is not None:
                 self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
                                                 f" · 属性 {len(item.get('attributes') or [])} 项")
-            dlg.open = False
+            self._close_dlg(dlg)
             self.toast(f"已应用模板：{name}")
             self._safe_update()
             try:
@@ -3235,8 +3232,7 @@ class App:
                     lib[nn] = lib.pop(name, item)
                     persist()
                     self.toast(f"已重命名为 {nn}")
-                d2.open = False
-                self._safe_update()
+                self._close_dlg(d2)
 
             d2 = ft.AlertDialog(title=ft.Text("重命名模板"), content=field,
                                 actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(d2)),
@@ -3369,8 +3365,7 @@ class App:
             self.cfg.sku_image_replace = _j.dumps(out, ensure_ascii=False)
             save_config(self.cfg)
             self.toast(f"已保存 {len(out)} 条 SKU 图替换")
-            dlg.open = False
-            self._safe_update()
+            self._close_dlg(dlg)
 
         dlg = ft.AlertDialog(
             title=ft.Text("SKU 图替换"),
@@ -3412,8 +3407,7 @@ class App:
             self._cookie_cache = None      # 刚粘贴的 Cookie 立刻生效
             self._cookie_ts = 0.0
             self.toast(f"已保存 {len(ck)} 个 Cookie")
-            dlg.open = False
-            self._safe_update()
+            self._close_dlg(dlg)
             threading.Thread(target=self._sync_shops, daemon=True).start()
 
         dlg = ft.AlertDialog(title=ft.Text("手动粘贴 Cookie"),
@@ -3553,16 +3547,28 @@ class App:
         return bool(src.ok and src.cookies), describe(src)
 
     def _show_dlg(self, dlg) -> None:
-        """统一弹窗入口：优先用 Flet 0.25 的 page.show_dialog()。
+        """统一弹窗入口：记录当前弹窗 + 交给 Flet 管理弹窗栈。
 
-        老写法 page.dialog = dlg 在后台线程 + 其他 _safe_update 竞争时容易「一闪就没」，
-        show_dialog 由 Flet 自己管理弹窗栈，稳定得多。
+        - 记录 self._dlg 后，_safe_update() 会在 page.update 之后把弹窗重新置顶，
+          避免后台线程/分页刷新时「弹窗一闪就没了」。
+        - 注意：这里不能递归调自己（以前 show_dialog 失败会无限递归）。
         """
+        self._dlg = dlg
+        try:
+            stack = getattr(self, "_dlg_stack", None)
+            if stack is None:
+                stack = []
+                self._dlg_stack = stack
+            if dlg not in stack:
+                stack.append(dlg)
+        except Exception:
+            pass
         try:
             self.page.show_dialog(dlg)
         except Exception:
             try:
-                self._show_dlg(dlg)
+                self.page.dialog = dlg
+                self.page.update()
             except Exception:
                 pass
         try:
@@ -3572,12 +3578,27 @@ class App:
 
     def _close_dlg(self, dlg):
         try:
+            if dlg is None:
+                return
+            _stack = getattr(self, "_dlg_stack", None) or []
+            if not bool(getattr(dlg, "open", False)) and dlg not in _stack:
+                return
+        except Exception:
+            pass
+        try:
             self.page.close_dialog()
         except Exception:
             try:
                 dlg.open = False
             except Exception:
                 pass
+        try:
+            stack = getattr(self, "_dlg_stack", None) or []
+            if dlg in stack:
+                stack.remove(dlg)
+            self._dlg = stack[-1] if stack else None
+        except Exception:
+            pass
         self._safe_update()
 
     def _open_template_picker(self, source: str, on_pick=None):
@@ -3623,8 +3644,7 @@ class App:
                 self.cfg.template_image_url = ""
             save_config(self.cfg)
             self.toast(f"已选模板：{title[:24]}")
-            dlg.open = False
-            self._safe_update()
+            self._close_dlg(dlg)
             if on_pick:
                 on_pick(pid, title, images)
             threading.Thread(target=self._read_template, daemon=True).start()
@@ -3898,8 +3918,17 @@ class App:
             self.toast(f"保存失败：{ex}", False)
 
     def _close_dialog(self):
-        self.dlg.open = False
-        self._safe_update()
+        """关闭 self.dlg（兼容 overlay 与 show_dialog 两种打开方式）。"""
+        dlg = getattr(self, "dlg", None)
+        if dlg is None:
+            return
+        try:
+            self._close_dlg(dlg)
+        except Exception:
+            try:
+                self._close_dlg(dlg)
+            except Exception:
+                pass
 
     # ---------- 图片空间 / 清理旧图（ISSUES #5）----------
     def _album_client(self):
@@ -4008,9 +4037,9 @@ class App:
             confirm = ft.AlertDialog(
                 title=ft.Text("确认删除图片？"),
                 content=ft.Text(tip, color=MUTED, size=12),
-                actions=[ft.TextButton("取消", on_click=lambda e: (setattr(confirm, "open", False), self._safe_update())),
+                actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(confirm)),
                          ft.ElevatedButton("确认删除", bgcolor="#D9534F", color="white",
-                                           on_click=lambda e: (setattr(confirm, "open", False), self._safe_update(), action()))])
+                                           on_click=lambda e: (self._close_dlg(confirm), action()))])
             self._show_dlg(confirm)
 
         def delete_selected():
@@ -5022,9 +5051,7 @@ class App:
                                                    spacing=8, scroll=ft.ScrollMode.AUTO)),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())],
             actions_alignment=ft.MainAxisAlignment.END)
-        self.page.overlay.append(self.dlg)
-        self.dlg.open = True
-        self._safe_update()
+        self._show_dlg(self.dlg)
 
     def _four_in_one_local(self, e=None):
         """把当前选中的图（前 4 张）拼成一张，追加到图片墙与结果里。"""
@@ -5149,11 +5176,15 @@ class App:
                             self.dl_paths.append(f.path)
                     _dl_refresh()
 
-            self._dl_picker = ft.FilePicker(on_result=_dl_on_result)
-            try:
-                self.page.overlay.append(self._dl_picker)
-            except Exception:
-                pass
+            # 复用同一个 FilePicker：每次进页面都 append 会在 overlay 里堆一堆
+            if getattr(self, "_dl_picker", None) is None:
+                self._dl_picker = ft.FilePicker(on_result=_dl_on_result)
+                try:
+                    self.page.overlay.append(self._dl_picker)
+                except Exception:
+                    pass
+            else:
+                self._dl_picker.on_result = _dl_on_result
             _dl_refresh()
 
             return card(ft.Column([
@@ -7120,8 +7151,7 @@ class App:
     def _close_log_panel(self):
         self.log_panel_open = False
         try:
-            self.log_panel_dlg.open = False
-            self._safe_update()
+            self._close_dlg(self.log_panel_dlg)
         except Exception:
             pass
 
@@ -7372,9 +7402,7 @@ class App:
             ],
             actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.overlay.append(self.dlg)
-        self.dlg.open = True
-        self.update()
+        self._show_dlg(self.dlg)
 
     def _p_settings(self):
         self._current = 11
@@ -8044,10 +8072,16 @@ class App:
             page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
         except Exception:
             pass
-        for pk in (getattr(self, "file_picker", None), getattr(self, "wm_picker", None)):
+        if not getattr(page, "_aurora_pickers_added", False):
+            for pk in (getattr(self, "file_picker", None), getattr(self, "wm_picker", None),
+                       getattr(self, "_ref_picker", None), getattr(self, "_dl_picker", None)):
+                try:
+                    if pk is not None:
+                        page.overlay.append(pk)
+                except Exception:
+                    pass
             try:
-                if pk is not None:
-                    page.overlay.append(pk)
+                page._aurora_pickers_added = True
             except Exception:
                 pass
         self._build_shell()
@@ -8055,6 +8089,8 @@ class App:
         self._safe_update()
 
     def _startup_ffmpeg_gate(self):
+        if getattr(self, "_dlg", None) is not None:
+            return
         """当前设置会用到 ffmpeg（生成主图视频）却没安装时，启动即提示下载。"""
         try:
             need = (str(getattr(self.cfg, "video_source", "") or "").lower() == "generated"
@@ -8284,8 +8320,7 @@ class App:
         self._show_dlg(dlg)
 
         def do_download(e):
-            dlg.open = False
-            self._safe_update()
+            self._close_dlg(dlg)
             self.toast("开始下载安装包…")
 
             def go():
@@ -8389,6 +8424,8 @@ class App:
             self._safe_update()
 
     def _maybe_quota(self, msg: str) -> None:
+        if getattr(self, "_dlg", None) is not None:
+            return
         txt = str(msg)
         if any(k in txt for k in ("额度", "余额", "quota", "insufficient", "欠费", "billing")):
             try:
@@ -8417,7 +8454,11 @@ class App:
         self._safe_update()
 
     def _safe_update(self):
-        """串行化 UI 更新：避免后台线程并发 page.update 导致卡死/重连。"""
+        """串行化 UI 更新：避免后台线程并发 page.update 导致卡死/重连。
+
+        如果当前有打开的弹窗，page.update 后再把弹窗自身 update 一次，
+        防止后台刷新把它顶掉（Flet 0.25 的 show_dialog 栈偶发被重建）。
+        """
         if getattr(self, "_building_page", False) or getattr(self, "_page_dead", False):
             return
         lock = getattr(self, "_ui_lock", None)
@@ -8427,6 +8468,13 @@ class App:
                     self.page.update()
             else:
                 self.page.update()
+            _dlg = getattr(self, "_dlg", None)
+            if _dlg is not None and bool(getattr(_dlg, "open", False)):
+                try:
+                    _dlg.open = True
+                    _dlg.update()
+                except Exception:
+                    pass
         except Exception as ex:  # noqa: BLE001
             # 窗口/事件循环已关闭 → 界面已经死了，后续 UI 更新全部静默跳过，
             # 否则心跳线程会每 15 秒往 error.log 刷一条 "Event loop is closed"。
