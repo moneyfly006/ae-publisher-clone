@@ -30,6 +30,23 @@ ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
 TEXT, MUTED = "#E8EAF2", "#8B92A8"
 
+THEMES = {
+    "dark": {"BG": "#0B0D12", "CARD": "#141824", "CARD_2": "#1B2030",
+             "TEXT": "#E8EAF2", "MUTED": "#8B92A8"},
+    "light": {"BG": "#F4F6FB", "CARD": "#FFFFFF", "CARD_2": "#EAEFF7",
+              "TEXT": "#101828", "MUTED": "#5B6478"},
+}
+
+
+def apply_theme(name: str) -> str:
+    """切换全局配色（重绘界面后生效）。返回真正生效的主题名。"""
+    global BG, CARD, CARD_2, TEXT, MUTED
+    key = "light" if str(name or "").lower() == "light" else "dark"
+    t = THEMES[key]
+    BG, CARD, CARD_2 = t["BG"], t["CARD"], t["CARD_2"]
+    TEXT, MUTED = t["TEXT"], t["MUTED"]
+    return key
+
 CURRENCIES = ["USD", "EUR", "GBP", "CNY", "RUB", "BRL"]
 # 区域调价常用国家/地区（代码 → 名称）
 REGIONS = [("US", "美国"), ("RU", "俄罗斯"), ("BR", "巴西"), ("ES", "西班牙"),
@@ -409,9 +426,10 @@ class App:
                 page.window.icon = "icon_1024.png"
             except Exception:
                 pass
+        _theme = apply_theme(str(getattr(self.cfg, "ui_theme", "dark") or "dark"))
         page.bgcolor = BG
         page.padding = 0
-        page.theme_mode = ft.ThemeMode.DARK
+        page.theme_mode = ft.ThemeMode.LIGHT if _theme == "light" else ft.ThemeMode.DARK
         # 小屏 / 截图验证时可固定窗口尺寸：AURORA_WINDOW=1514x945
         try:
             win = (os.environ.get("AURORA_WINDOW") or "").strip().lower()
@@ -442,6 +460,11 @@ class App:
         # 启动强制版本检查：有新版必须更新后才能继续使用
         try:
             self._startup_update_gate()
+        except Exception:
+            pass
+        # 设置里用到 ffmpeg 却没装：启动即提示下载
+        try:
+            self._startup_ffmpeg_gate()
         except Exception:
             pass
         page.update()
@@ -1055,7 +1078,16 @@ class App:
 
         _extra = [c for c in (self._cost_card(), self._resume_card(), self._diff_card())
                   if c is not None]
-        return [h1("概览"), muted("采集箱 → AI 处理 → 保存 / 发布，一次点击跑完"),
+        _is_light = str(getattr(self.cfg, "ui_theme", "dark") or "dark") == "light"
+        self.theme_btn = ft.TextButton(
+            "夜间模式" if _is_light else "白天模式",
+            icon=ft.Icons.DARK_MODE if _is_light else ft.Icons.LIGHT_MODE,
+            tooltip="切换白天 / 夜间配色",
+            on_click=lambda e: self._toggle_theme())
+        _head = ft.Row([h1("概览"), ft.Container(expand=True), self.theme_btn],
+                       vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+        return [_head, muted("采集箱 → AI 处理 → 保存 / 发布，一次点击跑完"),
                 tiles_head, tiles_row, filter_card, ready_card,
                 card(ft.Row([
                     ft.Column([muted("今日任务", 11),
@@ -7386,7 +7418,7 @@ class App:
             spacing=8))
         self.diag_list = ft.Column(spacing=4)
         self.diag_ff_btn = ft.OutlinedButton(
-            "下载 ffmpeg（约 80MB，仅 Windows）", icon=ft.Icons.DOWNLOAD,
+            "下载并安装 ffmpeg（约 70MB）", icon=ft.Icons.DOWNLOAD,
             visible=False, on_click=lambda e: threading.Thread(
                 target=self._download_ffmpeg, daemon=True).start())
         diag_card = card(ft.Column([
@@ -7532,8 +7564,7 @@ class App:
             _ff_ok = bool(info.get("available"))
             add("ffmpeg", _ff_ok, info.get("version", "")[:60] or "未安装", warn=not _ff_ok)
             try:
-                import os as _os
-                self.diag_ff_btn.visible = (not _ff_ok) and _os.name == "nt"
+                self.diag_ff_btn.visible = not _ff_ok
             except Exception:
                 pass
         except Exception as ex:
@@ -7654,6 +7685,125 @@ class App:
                 ft.Text(str(i.get("path") or "")[:60], size=10, color=MUTED, expand=True),
             ], spacing=8))
         self.inst_list.controls = rows or [ft.Text("暂无实例", size=11, color=MUTED)]
+
+    def _toggle_theme(self):
+        """白天/夜间切换：换色后重建界面（不重启进程）。"""
+        cur = str(getattr(self.cfg, "ui_theme", "dark") or "dark")
+        new = "light" if cur != "light" else "dark"
+        self.cfg.set("ui_theme", new)
+        save_config(self.cfg)
+        apply_theme(new)
+        self._rebuild_ui()
+        self.toast(("已切换到白天模式" if new == "light" else "已切换到夜间模式"), True)
+
+    def _rebuild_ui(self):
+        """按当前配色重建整个界面（保留状态与后台线程）。"""
+        page = self.page
+        try:
+            page.overlay.clear()
+        except Exception:
+            pass
+        try:
+            page.controls.clear()
+        except Exception:
+            pass
+        page.bgcolor = BG
+        page.theme_mode = (ft.ThemeMode.LIGHT
+                           if str(getattr(self.cfg, "ui_theme", "dark")) == "light"
+                           else ft.ThemeMode.DARK)
+        try:
+            page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
+        except Exception:
+            pass
+        for pk in (getattr(self, "file_picker", None), getattr(self, "wm_picker", None)):
+            try:
+                if pk is not None:
+                    page.overlay.append(pk)
+            except Exception:
+                pass
+        self._build_shell()
+        self._switch(getattr(self, "_current", 0))
+        self._safe_update()
+
+    def _startup_ffmpeg_gate(self):
+        """当前设置会用到 ffmpeg（生成主图视频）却没安装时，启动即提示下载。"""
+        try:
+            need = (str(getattr(self.cfg, "video_source", "") or "").lower() == "generated"
+                    or bool(getattr(self.cfg, "generate_main_video", False)))
+        except Exception:
+            need = False
+        if not need:
+            return
+
+        def go():
+            from ..services.video import find_ffmpeg
+            if find_ffmpeg():
+                return
+            self._show_ffmpeg_gate()
+
+        threading.Thread(target=go, daemon=True).start()
+
+    def _show_ffmpeg_gate(self):
+        """ffmpeg 缺失提示：可一键下载安装，也可先跳过。"""
+        from ..services.video import ensure_ffmpeg
+        bar = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
+        tip = ft.Text("未检测到 ffmpeg（生成本地视频需要它）", size=11, color="#FFB020")
+        dl_btn = ft.ElevatedButton("立即下载安装", icon=ft.Icons.DOWNLOAD,
+                                   bgcolor=ACCENT, color="white")
+        skip_btn = ft.TextButton("先跳过（视频会少一条）")
+
+        def close(e=None):
+            self._close_dlg(dlg)
+
+        def download(e=None):
+            dl_btn.disabled = True
+            tip.value = "开始下载…"
+            tip.color = MUTED
+
+            def prog(frac):
+                try:
+                    if frac is not None and frac >= 0:
+                        bar.value = max(0.0, min(1.0, frac))
+                        tip.value = f"下载中… {int(frac * 100)}%"
+                    else:
+                        tip.value = "下载中…"
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            def work():
+                path = ensure_ffmpeg(on_progress=prog)
+                if path:
+                    tip.value = f"已安装：{path}"
+                    tip.color = ACCENT_2
+                    self._log(f"ffmpeg 已就绪：{path}", "INFO")
+                    self.toast("ffmpeg 已安装，视频功能可用", True)
+                    dl_btn.visible = False
+                    skip_btn.text = "关闭"
+                else:
+                    tip.value = "下载失败：请检查网络，或手动安装 ffmpeg 后重试"
+                    tip.color = "#FF6B6B"
+                    dl_btn.disabled = False
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            threading.Thread(target=work, daemon=True).start()
+
+        dl_btn.on_click = download
+        skip_btn.on_click = close
+        dlg = ft.AlertDialog(
+            title=ft.Text("需要 ffmpeg 才能生成本地主图视频"),
+            content=ft.Column([
+                ft.Text("你的「视频来源」设为『用主图合成轮播视频』，需要本地 ffmpeg。"
+                        "可以现在下载安装（约 70MB，装一次即可），也可以先跳过。",
+                        size=12, color=TEXT),
+                bar, tip,
+            ], spacing=8, width=480),
+            actions=[skip_btn, dl_btn],
+        )
+        self._show_dlg(dlg)
 
     def _startup_update_gate(self):
         """启动时检查版本：有更新则阻断使用，后台自动下载并给出安装按钮。"""

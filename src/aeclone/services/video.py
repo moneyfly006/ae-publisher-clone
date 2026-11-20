@@ -57,49 +57,104 @@ def find_ffmpeg() -> str | None:
     return None
 
 
-def ensure_ffmpeg(on_progress=None) -> str | None:
-    """Windows: 没有 ffmpeg 时自动下载一份到用户目录（约 80MB）。
+def _download_macos_ffmpeg(dest_dir: Path, on_progress=None) -> str | None:
+    """macOS：从 PyPI 的 imageio-ffmpeg 轮子里取一份静态 ffmpeg。"""
+    import io
+    import platform as _pf
+    import zipfile
 
-    其他平台返回 None（macOS 用 brew 安装即可）。
+    import requests
+
+    arch = "arm64" if (_pf.machine() or "").lower() in ("arm64", "aarch64") else "x86_64"
+    meta = requests.get("https://pypi.org/pypi/imageio-ffmpeg/json", timeout=20).json()
+    ver = str((meta.get("info") or {}).get("version") or "")
+    files = (meta.get("releases") or {}).get(ver) or []
+    pick = ""
+    for f in files:
+        n = str(f.get("filename") or "")
+        if n.endswith(".whl") and "macosx" in n and arch in n:
+            pick = str(f.get("url") or "")
+            break
+    if not pick:
+        return None
+    with requests.get(pick, stream=True, timeout=60) as r:
+        r.raise_for_status()
+        total = int(r.headers.get("Content-Length") or 0)
+        buf = io.BytesIO()
+        done = 0
+        for chunk in r.iter_content(256 * 1024):
+            if not chunk:
+                continue
+            buf.write(chunk)
+            done += len(chunk)
+            if on_progress:
+                try:
+                    on_progress(done / total if total else -1.0)
+                except Exception:
+                    pass
+    buf.seek(0)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(buf) as z:
+        for name in z.namelist():
+            base = name.rsplit("/", 1)[-1]
+            if base.startswith("ffmpeg-") and "binaries" in name:
+                out = dest_dir / "ffmpeg"
+                with z.open(name) as src, open(out, "wb") as fh:
+                    fh.write(src.read())
+                out.chmod(0o755)
+                return str(out)
+    return None
+
+
+def ensure_ffmpeg(on_progress=None) -> str | None:
+    """缺 ffmpeg 时自动下载一份到用户目录（Windows / macOS）。
+
+    返回可用路径；失败返回 None（不抛异常）。
     """
-    import os as _os
     got = find_ffmpeg()
     if got:
         return got
-    if _os.name != "nt":
-        return None
+    import os as _os
+    import sys as _sys
+    dest = ffmpeg_bin_dir()
     try:
-        import requests, zipfile, tempfile, io
-        url = ("https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/"
-               "ffmpeg-master-latest-win64-gpl.zip")
-        dest = ffmpeg_bin_dir()
-        dest.mkdir(parents=True, exist_ok=True)
-        with requests.get(url, stream=True, timeout=30) as r:
-            r.raise_for_status()
-            total = int(r.headers.get("Content-Length") or 0)
-            buf = io.BytesIO()
-            done = 0
-            for chunk in r.iter_content(256 * 1024):
-                if not chunk:
-                    continue
-                buf.write(chunk)
-                done += len(chunk)
-                if on_progress:
-                    try:
-                        on_progress(done / total if total else -1.0)
-                    except Exception:
-                        pass
-        buf.seek(0)
-        with zipfile.ZipFile(buf) as z:
-            for name in z.namelist():
-                if name.lower().endswith("bin/ffmpeg.exe"):
-                    with z.open(name) as src, open(dest / "ffmpeg.exe", "wb") as out:
-                        out.write(src.read())
-                    break
-        exe = dest / "ffmpeg.exe"
-        return str(exe) if exe.exists() else None
+        if _os.name == "nt":
+            import io
+            import zipfile
+
+            import requests
+            url = ("https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/"
+                   "ffmpeg-master-latest-win64-gpl.zip")
+            dest.mkdir(parents=True, exist_ok=True)
+            with requests.get(url, stream=True, timeout=30) as r:
+                r.raise_for_status()
+                total = int(r.headers.get("Content-Length") or 0)
+                buf = io.BytesIO()
+                done = 0
+                for chunk in r.iter_content(256 * 1024):
+                    if not chunk:
+                        continue
+                    buf.write(chunk)
+                    done += len(chunk)
+                    if on_progress:
+                        try:
+                            on_progress(done / total if total else -1.0)
+                        except Exception:
+                            pass
+            buf.seek(0)
+            with zipfile.ZipFile(buf) as z:
+                for name in z.namelist():
+                    if name.lower().endswith("bin/ffmpeg.exe"):
+                        with z.open(name) as src, open(dest / "ffmpeg.exe", "wb") as fh:
+                            fh.write(src.read())
+                        break
+            exe = dest / "ffmpeg.exe"
+            return str(exe) if exe.exists() else None
+        if _sys.platform == "darwin":
+            return _download_macos_ffmpeg(dest, on_progress=on_progress)
     except Exception:
         return None
+    return None
 
 
 def build_slideshow(images: list[Path], out_path: Path, seconds_per_image: float = 2.0,

@@ -352,7 +352,8 @@ DEFAULTS: dict = {
     "product_id": "",
     # 启动时默认打开的页面（0=概览 … 12=预览）
     "start_page": 0,
-    "window_size": "1280x800",      # 启动窗口大小（小 1100x760 / 中 1280x800 / 大 1512x945）
+    "window_size": "1280x800",
+    "ui_theme": "dark",             # dark | light      # 启动窗口大小（小 1100x760 / 中 1280x800 / 大 1512x945）
 
 }
 
