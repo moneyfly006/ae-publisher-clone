@@ -758,9 +758,7 @@ class Publisher:
                 if _bal is not None:
                     # 余额不足：不算失败，跳过 AI 编辑并记下余额，供 UI 提示充值
                     try:
-                        import time as _t
                         self.cfg.set("api_balance", _bal)
-                        self.cfg.set("api_balance_ts", _t.time())
                     except Exception:
                         pass
                     self._quota_low = _bal

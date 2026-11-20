@@ -39,7 +39,7 @@ _DIRECT_KEYS = [
     "shopId", "categoryId", "subject", "sourceUrl", "groupId", "groupIds",
     "imageURLs", "extraImages", "marketImg1", "marketImg2",
     "productMinPrice", "productMaxPrice", "aeopAeProductSKUs",
-    "cspVideoId", "aeopAEMultimedia", "installVideoId", "productManual",
+    "cspVideoId", "videoUrl", "aeopAEMultimedia", "installVideoId", "productManual",
     "bulkOrder", "bulkDiscount", "dropshipDiscount", "productUnit", "packageType", "lotNum",
     "originalBox", "cargoPrice",
     "deliveryTime", "wsValidNum", "reduceStrategy", "ladderPriceListJson",
@@ -809,6 +809,13 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     except Exception:
         overrides["cargoPrice"] = "50"
 
+    # 明确「不要视频」：清空商品原有视频
+    if p.get("clear_video"):
+        overrides["videoUrl"] = ""
+        overrides["cspVideoId"] = ""
+    # 采集/模板视频：只有 URL，没有 cspVideoId
+    elif p.get("video_url") and not p.get("csp_video_id"):
+        overrides["videoUrl"] = str(p["video_url"])
     # 主图视频：cspVideoId
     if p.get("csp_video_id"):
         overrides["cspVideoId"] = str(p["csp_video_id"])

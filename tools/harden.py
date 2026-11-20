@@ -111,7 +111,9 @@ def compile_one(rel: str) -> bool:
         dst_rel = Path(rel)
         bak = BACKUP / dst_rel
         bak.parent.mkdir(parents=True, exist_ok=True)
-        if module.exists() and not bak.exists():
+        # 每次都刷新备份：否则 --restore 会把「第一次构建时的旧代码」盖回当前源码，
+        # 导致构建后刚改的补丁神秘消失（已踩坑多次）。
+        if module.exists():
             shutil.copy2(module, bak)
 
         # 放 .so 到原目录，删 .py
