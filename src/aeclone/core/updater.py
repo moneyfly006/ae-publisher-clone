@@ -168,6 +168,20 @@ def download_with_progress(url: str, dest: Path | None = None,
     return dest
 
 
+def looks_like_installer(path: Path) -> bool:
+    """粗校验：exe 应以 MZ 开头，zip 应以 PK 开头；HTML 错误页直接判坏。"""
+    try:
+        head = Path(path).read_bytes()[:512]
+    except Exception:
+        return False
+    if not head:
+        return False
+    if head.startswith(b"MZ") or head.startswith(b"PK"):
+        return True
+    low = head.lower()
+    return not (b"<html" in low or low.startswith(b"<") or b"doctype" in low)
+
+
 def install_update(path: Path, app_dir: str = "/Applications/AuroraList.app") -> bool:
     """安装更新并重启。
 
@@ -177,9 +191,28 @@ def install_update(path: Path, app_dir: str = "/Applications/AuroraList.app") ->
     """
     path = Path(path)
     if os.name == "nt":
+        import zipfile
         try:
-            os.startfile(str(path))  # type: ignore[attr-defined]
-            return True
+            ext = path.suffix.lower()
+            # 安装包（NSIS）：直接运行
+            if ext == ".exe":
+                os.startfile(str(path))  # type: ignore[attr-defined]
+                return True
+            # 便携包（zip）：解压后优先跑 Setup，其次跑主程序
+            if ext == ".zip":
+                tmp = Path(tempfile.mkdtemp(prefix="aurora-upd-"))
+                with zipfile.ZipFile(path) as z:
+                    z.extractall(tmp)
+                setups = sorted(tmp.rglob("Setup*.exe")) or sorted(tmp.rglob("*[Ss]etup*.exe"))
+                if setups:
+                    os.startfile(str(setups[0]))  # type: ignore[attr-defined]
+                    return True
+                exes = sorted(tmp.rglob("AuroraList.exe"))
+                if exes:
+                    os.startfile(str(exes[0]))  # type: ignore[attr-defined]
+                    return True
+                return False
+            return False
         except Exception:
             return False
     if sys.platform != "darwin":

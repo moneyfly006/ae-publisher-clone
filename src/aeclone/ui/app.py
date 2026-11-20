@@ -7927,7 +7927,10 @@ class App:
             try:
                 self.upd_status.value = "开始下载…"
                 self._safe_update()
-                dest = Path(tempfile.gettempdir()) / f"aurora-update-{latest}.zip"
+                # 按真实资产名保存（Setup.exe 不能存成 .zip，否则 Windows 会当压缩包打开）
+                from urllib.parse import urlparse as _uparse
+                _fname = Path(_uparse(url).path).name or f"aurora-update-{latest}"
+                dest = Path(tempfile.gettempdir()) / _fname
 
                 def prog(frac):
                     try:
@@ -7941,6 +7944,8 @@ class App:
                         pass
 
                 path = _up.download_with_progress(url, dest, on_progress=prog)
+                if not _up.looks_like_installer(path):
+                    raise RuntimeError("下载到的不是有效安装包（可能被网络拦截），请重试")
                 want = str(info.get("sha256") or "").lower()
                 if want and _up.sha256(path).lower() != want:
                     raise RuntimeError("安装包校验失败（SHA256 不一致）")
@@ -7995,6 +8000,8 @@ class App:
             def go():
                 try:
                     path = updater.download(str(r["url"]))
+                    if not updater.looks_like_installer(path):
+                        raise RuntimeError("下载到的不是有效安装包（可能被网络拦截），请重试")
                     want = str(r.get("sha256") or "").lower()
                     if want and updater.sha256(path).lower() != want:
                         raise RuntimeError("安装包校验失败（SHA256 不一致）")
