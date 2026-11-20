@@ -307,16 +307,25 @@ class Publisher:
             list(ex.map(lambda pair: run(*pair), list(enumerate(items))))
         return out
 
+    def _prompt_model(self) -> str:
+        """带用户提示词的改图统一用 3.0（turbo 会忽略提示词）。"""
+        try:
+            from . import model_of
+            return model_of(self.cfg, "image_prompt")
+        except Exception:
+            return ""
+
     def _edit_with_prompt(self, url: str, prompt: str) -> str:
         """对单张 URL 用指定提示词做一次编辑，返回新 URL。"""
-        _act = "edit:" + (prompt or "")
-        _hit = self._cache_get(url, _act, self._img_model())
+        _m = self._prompt_model()
+        _act = f"edit:{_m}:" + (prompt or "")
+        _hit = self._cache_get(url, _act, _m)
         if _hit:
             return _hit
         svc = self._img_service()
         fp = self._fetch(url)
-        out = str(svc.edit(fp, prompt))
-        self._cache_put(url, _act, out, self._img_model())
+        out = str(svc.edit(fp, prompt, model=_m or None))
+        self._cache_put(url, _act, out, _m)
         return out
 
     # ---------- 图片结果缓存（同图同处理只算一次）----------
@@ -650,11 +659,12 @@ class Publisher:
             count = max(1, min(3, int(job.get("count") or 1))) if job["mode"] == "generate" else 1
             # The cache stores one URL, so multi-output jobs must not reuse it.
             cacheable = count == 1
-            _cache_action = "many:v2:" + _json.dumps(
-                [job["mode"], prompt, target or "", ref_urls[:4], job.get("ref_paths") or []],
-                ensure_ascii=False)
+            _pm = self._prompt_model()
+            _cache_action = "many:v3:" + _json.dumps(
+                [_pm, job["mode"], prompt, target or "", ref_urls[:4],
+                 job.get("ref_paths") or []], ensure_ascii=False)
             _hit = self._cache_get(target or (ref_urls[0] if ref_urls else ""), _cache_action,
-                                   self._img_model()) if cacheable and (target or ref_urls) else None
+                                   _pm) if cacheable and (target or ref_urls) else None
             if _hit:
                 made = [_hit]
                 insert = job.get("insert") or ("first" if job["mode"] == "generate" else "replace")
@@ -722,7 +732,8 @@ class Publisher:
                                  f"模型最多接受 3 张输入，已用前 3 张（原 {len(files)} 张）")
                     for _ in range(max(1, min(3, count))):
                         u = svc.edit_many(_use, prompt,
-                                          tag=f"精细任务{n}·{GROUP_LABELS.get(group, group)}")
+                                          tag=f"精细任务{n}·{GROUP_LABELS.get(group, group)}",
+                                          model=_pm or None)
                         if u:
                             made.append(str(u))
                 if not made:
@@ -791,10 +802,11 @@ class Publisher:
                     self._set_group_url(p, group, tgt_i + k, u)
             if made and cacheable:
                 self._cache_put(target or (ref_urls[0] if ref_urls else ""), _cache_action,
-                                made[0], self._img_model())
+                                made[0], _pm)
             add_step(res, f"精细任务{n}", True,
                      f"{GROUP_LABELS.get(group, group)} · 素材 {len(files)} 张 · "
-                     + ("插到第1张" if insert == "first" else "放到最后" if insert == "last" else "替换原图"))
+                     + ("插到第1张" if insert == "first" else "放到最后" if insert == "last" else "替换原图")
+                     + (f" · 模型 {_pm}" if _pm else ""))
             if group == "detail" and made:
                 _detail_touched = True
                 _ai_made_detail.update(str(u) for u in made)
@@ -2498,7 +2510,8 @@ class Publisher:
                             if not files:
                                 break
                             try:
-                                u = svc.edit_many(files, prompt, tag="主图生成(参考素材)")
+                                u = svc.edit_many(files, prompt, tag="主图生成(参考素材)",
+                                                  model=self._prompt_model() or None)
                                 if u:
                                     gen.append(u)
                             except Exception:

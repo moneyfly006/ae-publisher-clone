@@ -116,6 +116,19 @@ a._zoom_img = lambda src, *x, **k: (seen.append(src) or ft.Text("img"))
 App._template_preview_row(a)
 chk("模板缩略图使用持久化的首图", any("t.jpg" in str(x) for x in seen), str(seen))
 
+# 7) 模型选择：提示词类编辑必须用 qwen-image-3.0，简单处理仍用 turbo
+from aeclone.services import model_of  # noqa: E402
+
+_m = Cfg()
+chk("白底/去水印仍用 turbo", model_of(_m, "image_edit") == "qwen-image-2.1-turbo",
+    model_of(_m, "image_edit"))
+chk("提示词改图用 3.0", model_of(_m, "image_prompt") == "qwen-image-3.0",
+    model_of(_m, "image_prompt"))
+
+pub2 = Publisher.__new__(Publisher)
+pub2.cfg = _m
+chk("publisher._prompt_model = 3.0", Publisher._prompt_model(pub2) == "qwen-image-3.0")
+
 print("=" * 60)
 print(f"结果: {ok} 通过, {fail} 失败")
 sys.exit(1 if fail else 0)

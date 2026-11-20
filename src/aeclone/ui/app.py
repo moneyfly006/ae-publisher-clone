@@ -7651,8 +7651,8 @@ class App:
                      "gpt-image-2.5-flare", "gpt-image-2.5-flare-vip", "gpt-image-2.0"}
             usage = {
                 "z-image-turbo": "文生图（主图生成）",
-                "qwen-image-2.1-turbo": "图像编辑 / 多图融合",
-                "qwen-image-3.0": "高质量文生图",
+                "qwen-image-2.1-turbo": "白底 / 去水印 / 翻译 / 多图融合",
+                "qwen-image-3.0": "按提示词改图（精细化 / 指定编辑）",
                 "qwen-plus": "标题 / 描述 / SKU 文本",
                 "qwen-turbo": "轻量文本",
                 "qwen3-vl-plus": "图片审查 / 读图估重",
@@ -8103,8 +8103,9 @@ class App:
                 self.dlg = ft.AlertDialog(
                     title=ft.Text("额度不足"),
                     content=ft.Text(f"本次调用被拒绝：{txt[:160]}\n\n当前价格参考：\n"
-                                    f"· 图片编辑 {model_of(None, 'image_edit')}（¥{self._price_of(model_of(None, 'image_edit')):.3f}/张）\n"
-                                    f"· 图片生成 {model_of(None, 'image_gen')}（¥{self._price_of(model_of(None, 'image_gen')):.3f}/张）"),
+                                    f"· 白底/去水印 {model_of(None, 'image_edit')}（¥{self._price_of(model_of(None, 'image_edit')):.3f}/张）\n"
+                                    f"· 按提示词改图 {model_of(None, 'image_prompt')}（¥{self._price_of(model_of(None, 'image_prompt')):.3f}/张）\n"
+                                    f"· 文生图 {model_of(None, 'image_gen')}（¥{self._price_of(model_of(None, 'image_gen')):.3f}/张）"),
                     actions=[ft.TextButton("稍后", on_click=lambda e: self._close_dialog()),
                              ft.ElevatedButton("去充值", bgcolor="#F0A020", color="#1A1200", on_click=go)])
                 self._show_dlg(self.dlg)

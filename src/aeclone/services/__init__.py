@@ -24,23 +24,27 @@ IMAGE_GEN_MODEL = "z-image-turbo"
 MARKETING_MODEL = "qwen-image-2.1-turbo"
 # 主模型超时/524 时的降级模型（快且稳定）
 FALLBACK_IMAGE_MODEL = "qwen-image-2.1-turbo"
+# 带自定义提示词的图生图（精细化编辑 / 指定编辑 / 通用编辑）必须用 3.0：
+# 实测 2.1-turbo 对同一张图的两条不同提示词返回同一结果（提示词没生效），
+# 3.0 才会真正按提示词改图。白底/去水印这类固定提示词仍用 turbo 省钱。
+IMAGE_MODEL_PROMPT = "qwen-image-3.0"
 
 # 模型已固定（真机实测）：文本 qwen-plus、视觉 qwen3-vl-plus、图片生成 z-image-turbo。
 #
-# 图片编辑从 qwen-image-2.1-turbo 换成 qwen-image-3.0（2026-11-18 实测）：
-#   同一张输入图、两条完全不同的提示词（纯白背景 vs 深蓝车间火花），
-#   2.1-turbo 返回的是**同一个 URL**（说明提示词根本没进推理），
-#   3.0 返回两张内容明显不同的图（346KB vs 969KB）。
-#   用户反馈的「AI 不按提示词改图」根因就在这里。
-#
-# 代价：3.0 约 ¥0.30/次（2.1 是 ¥0.20），但它至少会照提示词做。
-# 另外 3.0 返回的是阿里云临时签名 URL（约 1 天过期），
-# 所以 ImageService 拿到结果后会立刻转存到我们自己的图床（见 _stabilize）。
+# 图片模型按用途拆分（2026-11-20）：
+#   · 固定提示词（白底/去水印/翻译/多图融合）→ qwen-image-2.1-turbo
+#     约 14 秒、约 ¥0.20/次，稳定且便宜。
+#   · 用户自定义提示词（精细化编辑/指定编辑/通用编辑）→ qwen-image-3.0
+#     实测 2.1-turbo 对同一张图的两条不同提示词会返回同一个结果（提示词没生效），
+#     3.0 才会真正按提示词改图；慢一些（50~130s）、贵一些（约 ¥0.30），
+#     但这类任务就是要“按我说的改”，宁慢勿错。
+#   3.0 失败/超时会自动降级回 turbo；返回的临时签名 URL 由 _stabilize 转存图床。
 # 不再让客户自选模型，避免选到不可用/超慢/超贵的。
 FIXED_MODELS = {
     "text": TEXT_MODEL,
     "vision": VISION_MODEL,
     "image_edit": IMAGE_MODEL,
+    "image_prompt": IMAGE_MODEL_PROMPT,
     "image_gen": IMAGE_GEN_MODEL,
     "marketing": MARKETING_MODEL,
 }
@@ -49,6 +53,7 @@ FIXED_MODEL_LABELS = {
     "text": "文本（标题/描述/SKU）",
     "vision": "视觉（图片审查/估重）",
     "image_edit": "图片编辑（白底/去水印/翻译/多图合成）",
+    "image_prompt": "按提示词改图（精细化/指定/通用编辑）",
     "image_gen": "图片生成（文生图主图）",
 }
 
@@ -227,8 +232,8 @@ class ImageService:
             t.detail = str(url)[-40:]
             return url
 
-    def edit(self, image: Path, prompt: str) -> str:
-        m = model_of(self.cfg, "image_edit")
+    def edit(self, image: Path, prompt: str, model: str | None = None) -> str:
+        m = model or model_of(self.cfg, "image_edit")
         with track("精细编辑", (prompt or "")[:24], model=m, product=Path(image).name) as t:
             url = self._img_edit(prompt, [image], m)
             url = self._stabilize(url)
@@ -260,9 +265,10 @@ class ImageService:
     # 避免把服务端错误抛给上层。
     MAX_INPUT_IMAGES = 3
 
-    def edit_many(self, images: Iterable[Path], prompt: str, tag: str = "多图素材编辑") -> str:
+    def edit_many(self, images: Iterable[Path], prompt: str, tag: str = "多图素材编辑",
+                  model: str | None = None) -> str:
         """多图素材编辑：把 target + 参考图一起交给图像编辑模型（图生图）。"""
-        m = model_of(self.cfg, "image_edit")
+        m = model or model_of(self.cfg, "image_edit")
         imgs = list(images)[: self.MAX_INPUT_IMAGES]
         with track(tag, f"{len(imgs)} 张素材 · {(prompt or '')[:16]}", model=m) as t:
             url = self._img_edit(prompt, imgs, m)
