@@ -1840,9 +1840,47 @@ class App:
         self._show_dlg(self.dlg)
         return True
 
+    def _auto_enable_fine_groups(self):
+        """精细化任务已配置、但主图/详情图/SKU 分组开关没开时，自动打开对应分组。
+
+        以前这种情况会弹「启动前检查未通过 · 三组都没启用」并阻断启动，
+        用户以为是 bug；实际是开关和任务不一致。现在启动时自动补齐。
+        """
+        try:
+            import json as _j
+            jobs = _j.loads(self.cfg.image_ai_jobs or "[]")
+        except Exception:
+            return
+        groups = {str(j.get("group") or "") for j in jobs if isinstance(j, dict)}
+        mapping = {"main": "img_fine_main_enable",
+                   "detail": "img_fine_detail_enable",
+                   "sku": "img_fine_sku_enable"}
+        changed = []
+        for g, k in mapping.items():
+            if g in groups and not bool(getattr(self.cfg, k, False)):
+                try:
+                    self.cfg.set(k, True)
+                    changed.append(k)
+                except Exception:
+                    pass
+        if changed:
+            try:
+                save_config(self.cfg)
+            except Exception:
+                pass
+            try:
+                self._log("精细化任务已存在，自动启用对应分组：" + ", ".join(changed), "WARN")
+            except Exception:
+                pass
+
     def _start(self, ignore_conflicts: bool = False, only_ids: list | None = None):
         # 启动前先把当前配置全部落盘（含未失焦的输入）
         self._save_api_fields()
+        # 精细化任务存在但分组开关关了 → 先自动打开对应分组，避免整单被跳过
+        try:
+            self._auto_enable_fine_groups()
+        except Exception:
+            pass
         # 启动前检查图片开关冲突：有冲突先提醒，用户可强制继续
         if not ignore_conflicts:
             try:
