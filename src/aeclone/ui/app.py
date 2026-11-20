@@ -3214,6 +3214,16 @@ class App:
                                                       ensure_ascii=False)
                 if snap.get("values"):
                     self.cfg.template_values = _j.dumps(snap["values"], ensure_ascii=False)
+                # 预览首图：老版本没有存过，就从详情接口补一张
+                try:
+                    if not str(getattr(self.cfg, "template_image_url", "") or "").strip():
+                        _d = dxm._get("product_detail", {"id": str(pid)}).get("data", {}).get("product", {})
+                        _u = str(_d.get("imageURLs") or "").split(";")
+                        _u = [x for x in _u if x.strip()]
+                        if _u:
+                            self.cfg.template_image_url = _u[0]
+                except Exception:
+                    pass
                 save_config(self.cfg)
                 f = snap["fields"]
                 self.tpl_snapshot_text.value = (f"模板参数：类目 {f.get('category','-')} · 运费 {f.get('freight','-')}"
@@ -3368,6 +3378,11 @@ class App:
             self.cfg.template_product_id = str(pid)
             self.cfg.template_product_title = title
             self.cfg.template_source = state["source"]
+            try:
+                _imgs0 = [str(x) for x in (images or []) if str(x or "").strip()]
+                self.cfg.template_image_url = _imgs0[0] if _imgs0 else ""
+            except Exception:
+                self.cfg.template_image_url = ""
             save_config(self.cfg)
             self.toast(f"已选模板：{title[:24]}")
             dlg.open = False
@@ -3493,7 +3508,8 @@ class App:
     def _template_preview_row(self, images=None):
         """模板预览：标题 + 类目/运费/品牌/属性数/抓取字段数（ISSUES #2）。"""
         import json as _j
-        thumb = (images or [None])[0] if images else None
+        _imgs = [x for x in (images or []) if str(x or "").strip()]
+        thumb = _imgs[0] if _imgs else (str(getattr(self.cfg, "template_image_url", "") or "") or None)
         title = self.cfg.template_product_title or "未选择模板"
         f: dict = {}
         attrs: list = []

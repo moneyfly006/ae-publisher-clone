@@ -129,6 +129,30 @@ def refs_indices(refs, total: int, exclude: int | None = None) -> list[int]:
 
 
 # ---------------- 旧配置迁移 ----------------
+def merged_jobs(cfg) -> tuple[list[dict], list[dict]]:
+    """返回 (rules, jobs)，并把「主图指定编辑」等老配置合并进来。
+
+    migrate() 在已有新表时会直接返回、不再处理老配置，导致「指定编辑」被忽略。
+    这里保证只要指定编辑开着且有提示词，就一定有对应任务。
+    """
+    rules = parse_rules(getattr(cfg, "image_simple_rules", "[]"))
+    jobs = parse_jobs(getattr(cfg, "image_ai_jobs", "[]"))
+    try:
+        if getattr(cfg, "designated_edit_enable", False):
+            prompt = str(getattr(cfg, "designated_edit_prompt", "") or "").strip()
+            if prompt:
+                for i in parse_indices(str(getattr(cfg, "designated_edit_indices", "") or "1"), 12):
+                    dup = any(str(j.get("group")) == "main" and int(j.get("index") or 0) == int(i)
+                              and str(j.get("mode")) == "edit" for j in jobs)
+                    if not dup:
+                        jobs.append({"group": "main", "index": int(i), "refs": "all",
+                                     "prompt": prompt, "mode": "edit", "count": 1,
+                                     "insert": "replace"})
+    except Exception:
+        pass
+    return rules, jobs
+
+
 def migrate(cfg, with_global: bool = False) -> tuple[str, str]:
     """把老配置（逐图编辑方案 / 指定编辑 / 全局开关）迁到新表，返回 (rules_json, jobs_json)。
 

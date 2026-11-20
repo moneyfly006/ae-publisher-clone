@@ -114,6 +114,7 @@ DEFAULTS: dict = {
     "template_product_id": "",
     "template_product_title": "",
     "template_snapshot": "",
+    "template_image_url": "",        # 模板商品首图（预览用，选中模板时保存）
     "template_values": "",
     "template_library": "{}",
     "auto_detect_category": True,                        # 自动识别类目：优先用商品自带 categoryId

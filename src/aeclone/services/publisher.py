@@ -259,9 +259,9 @@ class Publisher:
         if self._img_svc is None:
             from ..api import ApiClient
             from . import ImageService
-            # 图片接口超时最多 60 秒：turbo 正常 14 秒，超过基本就是卡死/网关超时，
-            # 早点放弃、保留原图，别让一个商品堵 100 秒
-            _to = min(float(self.cfg.timeout or 60), 60.0)
+            # 图片接口给足 120 秒：qwen-image-3.0 正常 50~130 秒，
+            # 60 秒会频繁超时导致「图片没变化」；超时后仍会降级到 turbo
+            _to = max(120.0, min(float(self.cfg.timeout or 60), 180.0))
             self._img_svc = ImageService(
                 ApiClient(self.cfg.api_base, self.cfg.api_key, _to), self.cfg)
         return self._img_svc
@@ -485,9 +485,8 @@ class Publisher:
         if not getattr(self.cfg, "ai_image_enable", True):
             add_step(res, "图片方案", True, "AI图片处理总开关已关闭，跳过")
             return p
-        from .image_jobs import parse_rules, parse_jobs, refs_indices, migrate, GROUP_LABELS
-        rules = parse_rules(getattr(self.cfg, "image_simple_rules", "[]"))
-        jobs = parse_jobs(getattr(self.cfg, "image_ai_jobs", "[]"))
+        from .image_jobs import parse_rules, parse_jobs, refs_indices, migrate, GROUP_LABELS, merged_jobs
+        rules, jobs = merged_jobs(self.cfg)
         _mode = str(getattr(self.cfg, "image_edit_mode", "fine") or "fine").strip().lower()
         _general = _mode in ("general", "simple")
         _general_prompt = str(getattr(self.cfg, "img_general_prompt", "") or "").strip() \
@@ -498,6 +497,9 @@ class Publisher:
                 rules, jobs = parse_rules(rj), parse_jobs(jj)
             except Exception:
                 rules, jobs = [], []
+        if (getattr(self.cfg, "designated_edit_enable", False)
+                and not str(getattr(self.cfg, "designated_edit_prompt", "") or "").strip()):
+            add_step(res, "主图指定编辑", False, "已开启，但提示词为空，未生效")
         if not rules and not jobs and not (_general and _general_prompt):
             return p
         if dry_run:
@@ -741,7 +743,12 @@ class Publisher:
                     add_step(res, f"精细任务{n}", True,
                              f"余额不足（剩 ¥{_bal:.3f}），本次跳过 AI 图片编辑")
                     continue
-                add_step(res, f"精细任务{n}", False, str(ex)[:100])
+                _em = str(ex)
+                if any(k in _em.lower() for k in ("timeout", "timed out", "read timed out")):
+                    add_step(res, f"精细任务{n}", False,
+                             "AI 生图超时（模型响应慢），已保留原图；可稍后重跑这一张")
+                else:
+                    add_step(res, f"精细任务{n}", False, _em[:100])
                 continue
             # 尺寸校验：不合格的产出直接不要（replace 时保留原图）
             _rej = 0
@@ -1063,9 +1070,10 @@ class Publisher:
         return out
 
     def _process_urls(self, urls: list[str], limit: int = 8, white_bg: bool = True,
-                      remove_wm: bool = False, edit: bool = False) -> tuple[list[str], int]:
+                      remove_wm: bool = False, edit: bool = False,
+                      prompt: str | None = None) -> tuple[list[str], int]:
         src = list(urls[:limit])
-        vals = self._pmap(lambda u: self._run_ops(u, white_bg, remove_wm, edit), src)
+        vals = self._pmap(lambda u: self._run_ops(u, white_bg, remove_wm, edit, prompt), src)
         out, done = [], 0
         for u, nu in zip(src, vals):
             if nu:
@@ -1097,25 +1105,35 @@ class Publisher:
 
         # 主图
         main = p.get("images", [])
-        main_ops = (self.cfg.white_bg_enable or self.cfg.watermark_enable
-                    or getattr(self.cfg, "img_main_edit", False)
+        # 关键：范围输入框有默认值（1-3 / 1-5），不能拿它当"开关打开"。
+        # 只有对应开关真的勾选时，才处理该类操作。
+        _wb_on = bool(self.cfg.white_bg_enable)
+        _wm_on = bool(self.cfg.watermark_enable)
+        _edit_on = bool(getattr(self.cfg, "img_main_edit", False))
+        _edit_prompt = str(getattr(self.cfg, "edit_prompt", "") or "").strip()
+        if _edit_on and not _edit_prompt:
+            add_step(res, "主图精细编辑", False, "未设置编辑提示词（AI 图片→通用编辑），已跳过")
+            _edit_on = False
+        main_ops = (_wb_on or _wm_on or _edit_on
                     or (self.cfg.background_gen_rules or "").strip() not in ("", "[]"))
         if main and main_ops and "main" not in _covered:
-            # 白底范围
+            # 白底范围（仅开关打开时生效）
             wb_expr = ""
-            if self.cfg.white_background_pic_1 or self.cfg.white_background_pic_2:
+            if _wb_on and (self.cfg.white_background_pic_1 or self.cfg.white_background_pic_2):
                 wb_expr = f"{self.cfg.white_background_pic_1}-{self.cfg.white_background_pic_2}"
-            # 去水印范围（独立）
+            # 去水印范围（仅开关打开时生效）
             wm_expr = ""
-            if getattr(self.cfg, "remove_watermark_pic_1", "") or getattr(self.cfg, "remove_watermark_pic_2", ""):
+            if _wm_on and (getattr(self.cfg, "remove_watermark_pic_1", "")
+                           or getattr(self.cfg, "remove_watermark_pic_2", "")):
                 wm_expr = f"{getattr(self.cfg, 'remove_watermark_pic_1', '1')}-{getattr(self.cfg, 'remove_watermark_pic_2', '5')}"
-            edit_expr = getattr(self.cfg, "single_edit_main_pic_indices", "") or ""
+            edit_expr = (getattr(self.cfg, "single_edit_main_pic_indices", "") or "") if _edit_on else ""
             selected = pick(main, wb_expr or wm_expr or edit_expr) if (wb_expr or wm_expr or edit_expr) else main
             if selected:
                 out, done = self._process_urls(selected,
-                                               white_bg=self.cfg.white_bg_enable or bool(wb_expr),
-                                               remove_wm=self.cfg.watermark_enable or bool(wm_expr),
-                                               edit=getattr(self.cfg, "img_main_edit", False) or bool(edit_expr))
+                                               white_bg=_wb_on,
+                                               remove_wm=_wm_on,
+                                               edit=_edit_on,
+                                               prompt=_edit_prompt or None)
                 idx = [i for i, u in enumerate(main) if u in selected]
                 for i, u in zip(idx, out):
                     main[i] = u
