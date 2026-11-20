@@ -1968,6 +1968,15 @@ class Publisher:
         except Exception:
             pass
 
+        # 营销图是发布必填项（缺了报「请补充营销图(1:1白底图)、(3:4场景图)」）：
+        # 即使开关没勾，发布前也自动用主图本地裁切补上（免费，约 0.5 秒）。
+        try:
+            if action in ("publish", "publish_fast") and not p.get("market_images") and p.get("images"):
+                _mk_fix = self._market_images_for(str(p["images"][0]), res)
+                if _mk_fix:
+                    p["market_images"] = _mk_fix
+        except Exception:
+            pass
         try:
             payload = build_save_payload(
                 target, tpl, action="publish",
@@ -2849,7 +2858,7 @@ class Publisher:
             # 说明：营销图是可选增强，单张 AI 生成常需 40~90 秒；默认关闭。
             # 开启时用短超时 + 单次尝试，失败立刻跳过，绝不拖住整个商品。
             if (getattr(self.cfg, "marketing_auto_generate", False)
-                    and getattr(self.cfg, "ai_image_enable", True) and p.get("images") and not dry_run):
+                    and p.get("images") and not dry_run):
                 _msrc = str(getattr(self.cfg, "marketing_source", "local") or "local").lower()
                 try:
                     import tempfile as _tf, requests as _rq
