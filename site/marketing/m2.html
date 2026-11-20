@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1440px;overflow:hidden}
+  body{font-family:"Noto Sans SC",sans-serif;background:#06070C;color:#F3F5FB;position:relative}
+  .bg{position:absolute;inset:0;overflow:hidden}
+  .glow{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5}
+  .g1{width:720px;height:480px;left:-140px;top:-200px;background:#7C5CFF}
+  .g2{width:600px;height:440px;right:-160px;top:60px;background:#00D2A8;opacity:.3}
+  .g3{width:640px;height:420px;left:240px;bottom:-220px;background:#3B6CFF;opacity:.22}
+  .grid{position:absolute;inset:0;opacity:.35;
+    background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(ellipse at 50% 0%,#000 25%,transparent 75%);
+    -webkit-mask-image:radial-gradient(ellipse at 50% 0%,#000 25%,transparent 75%);}
+  .wrap{position:relative;padding:64px 64px;height:100%;display:flex;flex-direction:column}
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:19px;letter-spacing:.22em;color:#00D2A8}
+  h1{font-family:"Noto Serif SC",serif;font-weight:900;font-size:60px;line-height:1.16;letter-spacing:-.02em;margin-top:16px}
+  .grad{background:linear-gradient(110deg,#fff,#A78BFA 45%,#00D2A8);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin-top:16px;font-size:22px;color:#98A0B8;line-height:1.5}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:22px 22px 20px;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;top:0;left:22px;right:22px;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(124,92,255,.7),transparent)}
+  .ico{width:40px;height:40px;border-radius:12px;background:rgba(124,92,255,.16);
+    border:1px solid rgba(124,92,255,.35);display:grid;place-items:center;margin-bottom:14px}
+  .ico svg{width:20px;height:20px;stroke:#A78BFA;fill:none;stroke-width:1.8}
+  .card b{font-size:24px;font-weight:700;display:block;margin-bottom:6px}
+  .card p{font-size:18px;color:#98A0B8;line-height:1.55}
+  .shot{margin-top:26px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 26px 70px rgba(0,0,0,.6);position:relative}
+  .shot img{width:100%;height:430px;object-fit:cover;object-position:top;display:block}
+  .shot::after{content:"";position:absolute;inset:auto 0 0 0;height:90px;background:linear-gradient(180deg,transparent,#06070C);pointer-events:none}
+  .shot .badge{position:absolute;left:16px;top:14px;font-family:"JetBrains Mono",monospace;
+    font-size:13px;letter-spacing:.14em;color:#07080D;background:linear-gradient(120deg,#8B6BFF,#00D2A8);
+    padding:6px 12px;border-radius:999px;font-weight:700}
+  .footer{margin-top:auto;display:flex;align-items:center;justify-content:space-between;
+    border-top:1px solid rgba(255,255,255,.1);padding-top:22px}
+  .foot-l{font-size:19px;color:#8B92A8}
+  .foot-l b{display:block;font-size:27px;color:#F3F5FB;margin-top:4px}
+  .cta{background:linear-gradient(120deg,#8B6BFF,#00D2A8);color:#07080D;font-weight:700;
+    padding:16px 26px;border-radius:16px;font-size:22px;line-height:1.3;text-align:center}
+  .cta small{display:block;font-size:15px;font-weight:500;opacity:.8}
+</style></head>
+<body>
+<div class="bg"><div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div><div class="grid"></div></div>
+<div class="wrap">
+  <div class="eyebrow">为什么选极光上架</div>
+  <h1>把 10 个环节，<br/><span class="grad">压成 1 次点击</span></h1>
+  <div class="sub">采集箱进，可发布商品出。每一步都能单独调，每一分钱都算得清。</div>
+
+  <div class="cards">
+    <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h10M7 13h6"/></svg></div>
+      <b>AI 文案</b><p>英文标题、五点描述、SKU 名称，按模板类目生成，可读图估重</p></div>
+    <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M3 17l5-5 4 4 3-3 6 6"/></svg></div>
+      <b>AI 图片</b><p>白底、去水印/Logo、翻译、精细化编辑，精确到第几张，¥0.1/张</p></div>
+    <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v18M6 8l6-5 6 5M6 16l6 5 6-5"/></svg></div>
+      <b>价格与利润</b><p>倍率/加价/区域定价/多 SKU 独立算价，自动卡平台上限</p></div>
+    <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="7" height="7" rx="2"/><rect x="14" y="7" width="7" height="7" rx="2"/><rect x="8" y="16" width="8" height="5" rx="2"/></svg></div>
+      <b>变种与库存</b><p>SKU 组合、库存、重量尺寸、套装 SKU，编码可回写</p></div>
+    <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="15" r="3"/></svg></div>
+      <b>类目与属性</b><p>自动匹配类目、继承模板属性、违禁词检测，冲突提前拦</p></div>
+    <div class="card"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></div>
+      <b>发布与日志</b><p>待发布/失败/发布中分栏，单条或批量重试；日志可导出 CSV</p></div>
+  </div>
+
+  <div class="shot"><span class="badge">真实界面 · v1.0.2</span><img src="../assets/shots/p0.png" alt="" /></div>
+
+  <div class="footer">
+    <div class="foot-l">免费下载 v1.0.2 · Windows / macOS<b>咨询 QQ 3219904322</b></div>
+    <div class="cta">看演示<small>发一个商品链接</small></div>
+  </div>
+</div>
+</body></html>

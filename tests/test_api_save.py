@@ -96,7 +96,8 @@ def t3_op_mapping():
 def t4_payload_has_63_keys_and_promise_zero():
     print("\n[测试4] payload 键完整、promiseTemplateId 默认 0")
     p = A.build_save_payload(_product(), _template(), action="save_only")
-    assert len(p) == 63, len(p)
+    assert len(p) == 64, len(p)
+    assert "videoUrl" in p, "payload 应包含 videoUrl"
     assert p["promiseTemplateId"] == "0", p["promiseTemplateId"]
     assert p["aeopAeProductPropertys"].startswith("["), "属性应为 JSON 字符串"
     print(f"  ✓ {len(p)} 键，promiseTemplateId=0")

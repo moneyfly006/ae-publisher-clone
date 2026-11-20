@@ -2002,7 +2002,19 @@ class Publisher:
             add_step(res, "视频", True, "已选择「不要视频」，本次不写入视频")
             return
         if _sv == "collected":
-            add_step(res, "视频", True, "使用采集到的产品视频（自动保留）")
+            # 采集来的视频只有 URL（videoUrl），cspVideoId 还是 0。
+            # 必须把 videoUrl 一起写回去，否则保存后视频会被清空。
+            _vu = ""
+            try:
+                _raw = (product or {}).get("raw") or {}
+                _vu = str(_raw.get("videoUrl") or _raw.get("video_url") or "").strip()
+            except Exception:
+                _vu = ""
+            if _vu:
+                p["video_url"] = _vu
+                add_step(res, "视频", True, "使用采集到的产品视频（自动保留 + 写回 videoUrl）")
+            else:
+                add_step(res, "视频", True, "使用采集到的产品视频（未检测到视频 URL）")
             return
         src_video: str = ""
         # ① 模板视频（需填路径）
@@ -2046,7 +2058,17 @@ class Publisher:
                 p["csp_video_id"] = vid
                 add_step(res, "视频上传", True, f"cspVideoId={vid[:24]}")
         except Exception as ex:  # noqa: BLE001
-            add_step(res, "视频上传", False, str(ex)[:80])
+            # 店小秘上传接口已停用（返回“上传失败，参数缺失”）：改传自有文件服务，
+            # 用 videoUrl 写回商品（实测店小秘接受外部 videoUrl）。
+            try:
+                from .hosting import upload_video_file
+                vurl = upload_video_file(Path(src_video))
+                p["video_url"] = vurl
+                add_step(res, "视频上传", True,
+                         f"店小秘上传不可用，已用自有地址写入 videoUrl：{vurl[-40:]}")
+                return
+            except Exception as ex2:  # noqa: BLE001
+                add_step(res, "视频上传", False, f"{str(ex)[:50]} / 兜底失败：{str(ex2)[:50]}")
 
     def _save_via_api(self, p: dict, res, action: str, ship, images: list[str] | None):
         """用 add.json 的 API 直存路径保存（绕开 DOM）。
@@ -2154,6 +2176,11 @@ class Publisher:
             if is_audit_pending(_msg):
                 add_step(res, "API 直存", True, "商品在审核中，本次跳过保存（不是失败）")
                 return SaveResult(ok=True, message="商品在审核中，已跳过保存")
+            # 运费模板失效：给出可执行的修复步骤，避免用户只看到平台英文报错
+            if "运费模板" in _msg or "freight" in _msg.lower():
+                add_step(res, "运费模板", False,
+                         "模板商品的运费模板已被删除：请在店小秘打开模板商品 → 物流信息里重新选择运费模板 → 保存 → "
+                         "回本软件「店铺与模板」重新读取模板参数，然后再发布")
             # 发布模式（op=2）被拒时降级为「保存」（op=1）：商品先落到待发布，
             # 用户可在店小秘里手动发布。常见于 SKU 缺速卖通侧信息
             # （isv.13CHK_SKU_FREIGHT_TEMPLATE_NULL）。

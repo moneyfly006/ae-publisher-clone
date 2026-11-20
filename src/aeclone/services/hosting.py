@@ -239,3 +239,33 @@ def clean_old(days: int | None = None, base: str | None = None, key: str | None 
     msg = f"删除 {deleted} 张 / 失败 {failed} / 保留 {kept}（{days} 天内）"
     return {"ok": failed == 0, "deleted": deleted, "failed": failed,
             "kept": kept, "message": msg}
+
+
+def upload_video_file(path: Path) -> str:
+    """把本地视频传到自有文件服务，返回公网 URL（店小秘上传接口已停用时兜底）。
+
+    默认用 VPS 上的老服务 http://132.226.1.44:8099/upload（接受任意文件），
+    可用配置 video_host_url 覆盖。
+    """
+    import requests as _rq
+    from ..config import get_config
+
+    p = Path(path)
+    if not p.exists():
+        raise HostError(f"视频不存在: {p}")
+    base = "http://132.226.1.44:8099"
+    try:
+        base = str(getattr(get_config(), "video_host_url", "") or base).rstrip("/")
+    except Exception:
+        pass
+    try:
+        with open(p, "rb") as fh:
+            r = _rq.post(base + "/upload", files={"file": (p.name, fh, "video/mp4")}, timeout=300)
+        r.raise_for_status()
+        j = r.json()
+        url = str((j or {}).get("url") or "")
+        if url.startswith("http"):
+            return url
+    except Exception as ex:  # noqa: BLE001
+        raise HostError(f"视频托管失败：{str(ex)[:120]}")
+    raise HostError("视频托管失败：未返回 URL")
