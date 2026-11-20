@@ -5451,14 +5451,54 @@ class App:
         self.p_profit = _param("sales_profit", "期望利润 %", 140, "含佣金/包邮模式用")
         self.p_cost_default = _param("goods_cost", "默认商品成本（元）", 170, "试算默认值，可留 0")
 
+        def _sync_mode_fields(mode: str):
+            """按模式启用/禁用参数，避免用户填了不该填的字段。"""
+            mode = str(mode or "multiplier")
+            use = {
+                "fixed": {"p_fixed"},
+                "multiplier": {"p_mult", "p_add"},
+                "free_shipping": {"p_express", "p_profit"},
+                "commission": {"p_mult", "p_add", "p_commission", "p_profit"},
+            }.get(mode, {"p_mult", "p_add"})
+            for name, ctl in (("p_fixed", self.p_fixed), ("p_mult", self.p_mult),
+                              ("p_add", self.p_add), ("p_express", self.p_express),
+                              ("p_commission", self.p_commission), ("p_profit", self.p_profit)):
+                try:
+                    ctl.disabled = name not in use
+                    ctl.opacity = 1.0 if name in use else 0.45
+                except Exception:
+                    pass
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def _on_mode(e):
+            m = e.control.value or "multiplier"
+            self.cfg.set("price_mode", m)
+            save_config(self.cfg)
+            self.mode_formula.value = _mode_hint(m)
+            _sync_mode_fields(m)
+
+        self.price_mode_dd.on_change = _on_mode
+        self.price_mode_dd.width = 360
+
         mode_card = card(ft.Column([
             h1i(ft.Icons.CALCULATE, "计算方式"),
-            muted("先选算法，再填这一算法用得到的参数；没填的参数不会影响结果"),
+            muted("先选算法，只需填这一算法用得到的参数；灰色字段当前模式不使用"),
             ft.Row([self.price_mode_dd, self.mode_formula], spacing=14,
                    vertical_alignment=ft.CrossAxisAlignment.CENTER, wrap=True),
-            ft.Row([self.p_fixed, self.p_mult, self.p_add, self.p_express], spacing=12, wrap=True),
+            ft.Container(
+                content=ft.Column([
+                    ft.Text("固定价格", size=15, weight=ft.FontWeight.BOLD, color=ACCENT_2),
+                    muted("选「固定价格」模式时：所有商品统一用这个价格，忽略成本/倍率"),
+                    ft.Row([self.p_fixed], spacing=12, wrap=True),
+                ], spacing=8),
+                border=ft.border.all(1, ACCENT_2), border_radius=12, padding=14),
+            ft.Row([self.p_mult, self.p_add, self.p_express], spacing=12, wrap=True),
             ft.Row([self.p_commission, self.p_profit, self.p_cost_default], spacing=12, wrap=True),
         ], spacing=10))
+        _sync_mode_fields(str(getattr(self.cfg, "price_mode", "multiplier") or "multiplier"))
 
         # ---- 试算 ----
         try:
@@ -5807,6 +5847,10 @@ class App:
                                            ft.OutlinedButton("删除", on_click=lib_del)], spacing=10, wrap=True)],
                                  spacing=8))
 
+        try:
+            calc()          # 进页面就按当前配置试算一次，别让结果一直显示「—」
+        except Exception:
+            pass
         return [h1("价格"), mode_card, calc_card, tier_card, ws_card, reg_card, tpl_card, lib_card]
 
     def _search_templates(self):
