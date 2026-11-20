@@ -2496,7 +2496,17 @@ class Publisher:
                 add_step(res, "AI 标题", True, "未启用，跳过")
 
             if self.cfg.enable_ai_detail and p["title"]:
-                r = tp.make_detail(p.get("title_en") or p["title"], p.get("attributes_map"))
+                # 原文：优先用商品自带详情里去标签后的文字，让 AI 有真实信息可依
+                _src_text = ""
+                try:
+                    import re as _re_d
+                    _raw_detail = str((product or {}).get("raw", {}).get("detail") or "")
+                    _src_text = _re_d.sub(r"<[^>]+>", " ", _raw_detail)
+                    _src_text = _re_d.sub(r"\s+", " ", _src_text).strip()[:6000]
+                except Exception:
+                    _src_text = ""
+                r = tp.make_detail(p.get("title_en") or p["title"], p.get("attributes_map"),
+                                   source_text=_src_text, images=list(p.get("images") or []))
                 add_step(res, "AI 详情", r.ok, (r.value[:60] if r.ok else r.error))
                 if r.ok:
                     html = r.value

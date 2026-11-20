@@ -108,14 +108,29 @@ class TextPipeline:
             return TextResult(False, error=str(e))
 
     # ---------- 描述 ----------
-    def make_detail(self, title: str, attributes: dict | None = None) -> TextResult:
+    def make_detail(self, title: str, attributes: dict | None = None,
+                    source_text: str = "", images: list[str] | None = None) -> TextResult:
         try:
-            base = self.text.write_detail(title)
+            base = self.text.write_detail(title, source_text or "")
             if attributes:
                 bullets = "\n".join(f"- {k}: {v}" for k, v in list(attributes.items())[:20])
                 base = f"{base}\n\nSpecifications:\n{bullets}"
             html = "<p>" + base.replace("\n\n", "</p><p>").replace("\n", "<br/>") + "</p>"
-            return TextResult(True, html, ["已包装为 HTML"])
+            # 详情配图：把商品主图插进正文段落之间，图文混排
+            imgs = [str(u) for u in (images or []) if str(u).startswith("http")][:6]
+            if imgs:
+                blocks = [f'<p><img src="{u}" style="max-width:100%;"/></p>' for u in imgs]
+                parts = html.split("</p>")
+                out, bi = [], 0
+                for i, seg in enumerate(parts):
+                    if seg.strip():
+                        out.append(seg + "</p>")
+                    if (i + 1) % 2 == 0 and bi < len(blocks):
+                        out.append(blocks[bi]); bi += 1
+                while bi < len(blocks):
+                    out.append(blocks[bi]); bi += 1
+                html = "".join(out)
+            return TextResult(True, html, [f"已包装为 HTML，配图 {len(imgs)} 张"])
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))
 

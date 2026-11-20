@@ -122,13 +122,18 @@ class TextService:
                 {"role": "user", "content": title},
             ]))
 
-    def write_detail(self, title: str) -> str:
+    def write_detail(self, title: str, source_text: str = "") -> str:
         _p = str(getattr(self.cfg, "detail_prompt", "") or "")
-        return _text_cached("detail", f"{_p}|{title}", lambda: self.client.chat(
+        _src = str(source_text or "").strip()[:6000]
+        user = title if not _src else (
+            f"Product title: {title}\n\n"
+            f"Original description (facts only, do not copy verbatim):\n{_src}\n\n"
+            f"请基于上面的原始信息，重写成专业英文详情（保留真实参数，不要编造）。")
+        return _text_cached("detail", f"{_p}|{title}|{_src[:500]}", lambda: self.client.chat(
             model_of(getattr(self, "cfg", None), "text"), [
                 {"role": "system", "content": self.cfg.detail_prompt},
-                {"role": "user", "content": title},
-            ], max_tokens=1200))
+                {"role": "user", "content": user},
+            ], max_tokens=1600))
 
     def optimize_skus(self, names: list[str]) -> list[str]:
         text = "\n".join(names)
