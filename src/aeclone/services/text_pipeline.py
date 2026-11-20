@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from . import TextService
+from . import TextService, model_of
 from ..api import ApiClient
 from ..config import AppConfig
 
@@ -110,29 +110,98 @@ class TextPipeline:
     # ---------- 描述 ----------
     def make_detail(self, title: str, attributes: dict | None = None,
                     source_text: str = "", images: list[str] | None = None) -> TextResult:
+        """生成详情：原文信息 + 原详情图（AI 决定图片放哪，再按合规尺寸输出）。
+
+        images 是「原详情里的图片」，不是商品主图；保留它们，只做排版。
+        """
         try:
-            base = self.text.write_detail(title, source_text or "")
-            if attributes:
-                bullets = "\n".join(f"- {k}: {v}" for k, v in list(attributes.items())[:20])
-                base = f"{base}\n\nSpecifications:\n{bullets}"
-            html = "<p>" + base.replace("\n\n", "</p><p>").replace("\n", "<br/>") + "</p>"
-            # 详情配图：把商品主图插进正文段落之间，图文混排
-            imgs = [str(u) for u in (images or []) if str(u).startswith("http")][:6]
+            imgs = [str(u) for u in (images or []) if str(u).startswith("http")][:12]
+            src = (str(source_text or "").strip())[:6000]
+            user = f"Product title: {title}\n"
+            if src:
+                user += f"\nOriginal description (facts only, do not copy verbatim):\n{src}\n"
             if imgs:
-                blocks = [f'<p><img src="{u}" style="max-width:100%;"/></p>' for u in imgs]
-                parts = html.split("</p>")
+                user += ("\nAvailable detail images (use placeholder <img data-detail-img=\"N\"> "
+                         "where N is the 1-based index):\n")
+                for i, _u in enumerate(imgs, 1):
+                    user += f"{i}. image\n"
+            user += "\n请重写为专业英文详情，并按上面的图片规则插入占位符。"
+            base = self.client.chat(model_of(getattr(self, "cfg", None), "text"), [
+                {"role": "system", "content": self.cfg.detail_prompt},
+                {"role": "user", "content": user},
+            ], max_tokens=2000)
+
+            # 清理模型可能带出的代码块/样板块
+            base = __import__("re").sub(r"```[a-zA-Z]*|```", "", base or "").strip()
+            base = __import__("re").sub(r"<(style|script|iframe)[\s\S]*?</\1>", "", base, flags=__import__("re").I)
+            if not base:
+                raise RuntimeError("模型返回空内容")
+
+            # 占位符 → 合规图片标签（宽 750 上限、自适应、居中、懒加载）
+            def _tag(u: str) -> str:
+                return ('<p style="text-align:center;margin:12px 0;">'
+                        f'<img src="{u}" loading="lazy" '
+                        'style="max-width:750px;width:100%;height:auto;display:block;margin:0 auto;" />'
+                        '</p>')
+            used = set()
+            def _rep(m):
+                try:
+                    idx = int(m.group(1))
+                except Exception:
+                    return ""
+                if 1 <= idx <= len(imgs):
+                    used.add(idx)
+                    return _tag(imgs[idx - 1])
+                return ""
+            html = __import__("re").sub(r'<img[^>]*data-detail-img=["\']?(\d+)["\']?[^>]*>', _rep, base)
+
+            # 模型没按占位符放图：按段落自动均分插入（仍然保留原图）
+            if imgs and not used:
+                blocks = [_tag(u) for u in imgs]
+                parts = [p for p in html.split("</p>") if p.strip()]
+                step = max(1, len(parts) // max(1, len(blocks) + 1))
                 out, bi = [], 0
-                for i, seg in enumerate(parts):
-                    if seg.strip():
-                        out.append(seg + "</p>")
-                    if (i + 1) % 2 == 0 and bi < len(blocks):
+                for i, seg in enumerate(parts, 1):
+                    out.append(seg + "</p>")
+                    if bi < len(blocks) and i % step == 0:
                         out.append(blocks[bi]); bi += 1
-                while bi < len(blocks):
-                    out.append(blocks[bi]); bi += 1
+                out.extend(blocks[bi:])
                 html = "".join(out)
-            return TextResult(True, html, [f"已包装为 HTML，配图 {len(imgs)} 张"])
+            elif imgs and len(used) < len(imgs):
+                # 有占位符但没用全：把剩下的均匀插到段落之间（不要全堆到末尾）
+                rest = [u for i, u in enumerate(imgs, 1) if i not in used]
+                parts = html.split("</p>")
+                n = max(1, len(rest))
+                step = max(1, len(parts) // (n + 1))
+                for k, u in enumerate(rest):
+                    idx = min(len(parts) - 1, step * (k + 1))
+                    parts[idx] = parts[idx] + _tag(u)
+                html = "</p>".join(parts)
+
+            html = f'<div style="max-width:750px;margin:0 auto;font-size:14px;line-height:1.7;">{html}</div>'
+            return TextResult(True, html, [f"图文详情，保留原图 {len(imgs)} 张"])
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))
+
+    def filter_detail_images(self, urls: list[str]) -> set[int]:
+        """一次视觉调用，返回「不合规」的图片序号（1 基）。失败则返回空集合。"""
+        urls = [u for u in (urls or []) if str(u).startswith("http")][:12]
+        if not urls:
+            return set()
+        try:
+            from . import model_of as _mo
+            content = [{"type": "text", "text": (
+                "逐张检查这些商品详情图是否含有：联系方式（电话/邮箱/WhatsApp/微信）、"
+                "二维码、促销返现、其他平台水印/Logo。"
+                "只输出一行：不合法图片的序号，用逗号分隔，如 3,5；全部合规输出 NONE。")}]
+            for u in urls:
+                content.append({"type": "image_url", "image_url": {"url": u}})
+            out = self.client.chat(_mo(self.cfg, "vision"),
+                                   [{"role": "user", "content": content}], max_tokens=60)
+            nums = __import__("re").findall(r"\d+", out or "")
+            return {int(n) for n in nums if 1 <= int(n) <= len(urls)}
+        except Exception:
+            return set()
 
     # ---------- SKU ----------
     def make_skus(self, names: list[str]) -> TextResult:

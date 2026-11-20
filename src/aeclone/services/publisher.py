@@ -2505,8 +2505,33 @@ class Publisher:
                     _src_text = _re_d.sub(r"\s+", " ", _src_text).strip()[:6000]
                 except Exception:
                     _src_text = ""
+                # 详情图：用「原详情里的图片」，保留并交给 AI 排版（不再换成主图）
+                _src_imgs = []
+                try:
+                    import re as _re_i
+                    _raw_html = str((product or {}).get("raw", {}).get("detail") or "")
+                    for _u in _re_i.findall(r'<img[^>]+src=["\']([^"\']+)', _raw_html, _re_i.I):
+                        _u = _u.strip()
+                        if _u.startswith("//"):
+                            _u = "https:" + _u
+                        if _u.startswith("http") and _u not in _src_imgs:
+                            _src_imgs.append(_u)
+                    _src_imgs = _src_imgs[:12]
+                except Exception:
+                    _src_imgs = []
+                # 合规过滤：剔除含联系方式/二维码/促销的详情图（失败则保留全部）
+                if _src_imgs and getattr(self.cfg, "detail_image_compliance", True):
+                    try:
+                        _bad = tp.filter_detail_images(_src_imgs)
+                        if _bad:
+                            _kept = [u for i, u in enumerate(_src_imgs, 1) if i not in _bad]
+                            add_step(res, "详情图合规", True,
+                                     f"剔除 {len(_bad)} 张（联系方式/二维码/促销），保留 {len(_kept)} 张")
+                            _src_imgs = _kept
+                    except Exception:
+                        pass
                 r = tp.make_detail(p.get("title_en") or p["title"], p.get("attributes_map"),
-                                   source_text=_src_text, images=list(p.get("images") or []))
+                                   source_text=_src_text, images=_src_imgs)
                 add_step(res, "AI 详情", r.ok, (r.value[:60] if r.ok else r.error))
                 if r.ok:
                     html = r.value

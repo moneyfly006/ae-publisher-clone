@@ -62,6 +62,8 @@ DEFAULTS: dict = {
     # ---- AI 智能填写 ----
     "enable_ai_title": True,
     "enable_ai_detail": False,
+    # 详情图合规过滤：用视觉模型识别含联系方式/二维码/促销/他平台水印的图片并剔除
+    "detail_image_compliance": True,
     "enable_ai_sku": False,
     "enable_ai_weight": False,
     "title_prompt": (
@@ -76,16 +78,21 @@ DEFAULTS: dict = {
         "7) 只输出一行英文标题，不要引号、不要解释、不要中文。"
     ),
     "detail_prompt": (
-        "你是一名专业工业设备外贸营销专家。在保持原有文字基础之上，请优化以下商品描述，面向海外工程承包商、设备经销商、工程公司及终端采购商。\n\n"
-        "重点突出：\n"
-        "1) 设备用途及适用施工场景；\n"
-        "2) 核心技术参数和产品性能；\n"
-        "3) 设备结构、操作特点及实际优势；\n"
-        "4) 适用行业和目标客户；\n"
-        "5) 产品质量、生产制造及服务优势（仅限原文有依据的信息）。\n\n"
-        "排版要求：逻辑清晰，章节段落规范，使用 <h3>、<p>、<ul><li>、<table> 等 HTML 标签。\n"
-        "硬性规则：全英文；禁止中文、邮箱、电话、网址、二维码、支付方式、第三方平台名；"
-        "禁止绝对化/医疗功效/侵权表述；只输出 HTML 片段本身，不要任何解释。"
+        "你是一名专业工业设备外贸营销专家。请基于用户提供的原始商品信息，重写一段可直接上架的英文详情。\n\n"
+        "内容重点：\n"
+        "1) 设备用途与适用场景；\n"
+        "2) 核心参数与性能（只用原文有依据的数据，禁止编造）；\n"
+        "3) 结构、操作与维护特点；\n"
+        "4) 适用行业与目标客户；\n"
+        "5) 质量与服务优势。\n\n"
+        "图片规则（重要）：\n"
+        "- 原始详情里的图片不在正文里，改用占位符 <img data-detail-img=\"序号\"> 表示，"
+        "序号从 1 开始，对应你收到的图片清单；\n"
+        "- 按内容逻辑把图片放到对应章节之后（不要全部堆在开头或结尾）；\n"
+        "- 至少使用 2 张、最多使用全部图片；没有图片就不写占位符。\n\n"
+        "排版规则：使用 <h3>、<p>、<ul><li>、<table> 组织，段落之间留空；总长度 1500~3500 字符。\n"
+        "合规硬规则：全英文；禁止中文、邮箱、电话、网址、二维码、支付方式、第三方平台名、促销返现；"
+        "禁止绝对化用语与医疗功效；不要写 <style>/<script>/iframe；只输出 HTML 片段，不要解释。"
     ),
     "sku_prompt": (
         "你是速卖通 SKU 命名规范专家。用户会给出一组中文 SKU 名称（每行一个），请逐个改写为规范英文 SKU。\n"
@@ -455,6 +462,17 @@ class AppConfig:
         if not p.exists():
             cls.loaded_from = "new"
             return cls()
+        cfg = cls._load_file(p)
+        try:
+            _cur = str(getattr(cfg, "detail_prompt", "") or "")
+            if _cur.startswith("你是一名专业工业设备外贸营销专家。在保持原有文字基础之上"):
+                cfg.set("detail_prompt", DEFAULTS["detail_prompt"])
+        except Exception:
+            pass
+        return cfg
+
+    @classmethod
+    def _load_file(cls, p) -> "AppConfig":
         try:
             cfg = cls(json.loads(p.read_text(encoding="utf-8")))
             cls.loaded_from = "file"
