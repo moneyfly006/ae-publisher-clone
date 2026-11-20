@@ -197,8 +197,9 @@ def check(cfg) -> list[Issue]:
                      _truthy(cfg, "img_fine_detail_enable", False),
                      _truthy(cfg, "img_fine_sku_enable", False))
             if jobs and not any(gates):
-                issues.append(Issue("error",
-                                    f"精细化编辑有 {len(jobs)} 条任务，但主图/详情图/SKU 三组都没启用 —— 全部跳过"))
+                # 只警告，不阻断启动：用户可能就是想先跳过这些精细化任务
+                issues.append(Issue("warn",
+                                    f"精细化编辑有 {len(jobs)} 条任务，但主图/详情图/SKU 三组都没启用 —— 本次会全部跳过（不影响启动）"))
             empty = [j for j in jobs if not str(j.get("prompt") or "").strip()]
             if empty:
                 issues.append(Issue("warn", f"{len(empty)} 条精细化任务提示词为空，会被忽略"))
