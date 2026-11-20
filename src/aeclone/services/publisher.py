@@ -150,6 +150,9 @@ class Publisher:
         stock = getattr(self.cfg, "stock_quantity", "") or ""
         for i, sku in enumerate(p.get("skus") or [], 1):
             name = str(sku.get("sku") or sku.get("name") or "").strip()
+            # 记住原始名字：后面可能被前缀/自动编码改名，SKU 图替换要能用原名匹配
+            if name and not sku.get("original_sku"):
+                sku["original_sku"] = name
             if prefix and only_prefix:
                 # 「只用前缀」= 不保留原 SKU 名，直接 前缀-序号
                 name = f"{prefix}{split_ch}{i:03d}"
@@ -1246,6 +1249,7 @@ class Publisher:
                 name = str(sku.get("sku") or "")
                 if name in repl and repl[name]:
                     sku["image"] = repl[name]
+                    sku["processed_image"] = repl[name]
                     img = repl[name]
                 if not img:
                     return None
@@ -1980,6 +1984,43 @@ class Publisher:
                               message=f"已在审核中（商品ID {pid}）：无需重复发布")
         return SaveResult(ok=False, message=f"发布失败：{_m2[:200]}")
 
+    def _apply_sku_image_replace(self, p: dict, res) -> None:
+        """SKU 图替换：只要配置了映射就生效（不依赖 SKU 白底开关）。"""
+        try:
+            import json as _jsr
+            repl = _jsr.loads(getattr(self.cfg, "sku_image_replace", "") or "{}")
+        except Exception:
+            repl = {}
+        if not isinstance(repl, dict) or not repl:
+            return
+        skus = list(p.get("skus") or [])
+        _norm = lambda x: str(x or "").strip().lower().replace(" ", "")
+        # 映射表可能按「模板 SKU 名」填，商品上的名字可能带前缀/编码，做多键匹配
+        _lookup = {_norm(k): str(v).strip() for k, v in repl.items() if str(v or "").strip()}
+        hit = 0
+        for sku in skus:
+            cands = [sku.get("sku"), sku.get("name"), sku.get("skuCode"),
+                     sku.get("original_sku")]
+            url = ""
+            for c in cands:
+                url = _lookup.get(_norm(c), "")
+                if url:
+                    break
+            if url:
+                sku["image"] = url
+                sku["processed_image"] = url      # api_save 从 processed_image 取图
+                hit += 1
+        # 名字实在对不上、且数量一致时，按顺序替换（用户按模板顺序填的）
+        if hit == 0 and len(_lookup) == len(skus) and skus:
+            for sku, (k, v) in zip(skus, repl.items()):
+                sku["image"] = str(v)
+                sku["processed_image"] = str(v)
+                hit += 1
+            add_step(res, "SKU 图替换", True, f"按顺序替换 {hit} 个 SKU（名称未匹配，改用顺序）")
+            return
+        add_step(res, "SKU 图替换", hit > 0,
+                 f"{hit} 个 SKU 已换成指定图片" if hit else "映射里的 SKU 名没有匹配到商品")
+
     def _prepare_video(self, p: dict, res, product: dict, dry_run: bool):
         """主图视频：模板视频 / 生成轮播视频 → 上传店小秘 → p["csp_video_id"]。
 
@@ -2253,6 +2294,7 @@ class Publisher:
             res.steps.append(Step("预演", True, "不调用 AI、不下载图片、不连接浏览器、不保存商品"))
             try:
                 p = self._normalize(product)
+                self._apply_sku_image_replace(p, res)
                 res.steps.append(Step("标准化", True,
                                       f"{len(p.get('skus') or [])} 个 SKU / "
                                       f"{len(p.get('images') or [])} 张主图"))
@@ -2351,6 +2393,7 @@ class Publisher:
                 except Exception:
                     pass
             p = self._normalize(product)
+            self._apply_sku_image_replace(p, res)
             add_step(res, "标准化", True,
                      f"{len(p['skus'])} 个 SKU / {len(p['images'])} 张图（上限 {self.cfg.max_sku_count}）")
             if p["skus"]:

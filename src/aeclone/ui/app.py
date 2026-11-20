@@ -467,6 +467,12 @@ class App:
             self._startup_ffmpeg_gate()
         except Exception:
             pass
+        # 启动时后台探一次余额：充值后不会再显示旧的低余额提示
+        try:
+            threading.Thread(target=self._probe_balance, kwargs={"silent": True},
+                             daemon=True).start()
+        except Exception:
+            pass
         page.update()
         # 启动即自动检测一次 API / 图片空间（ISSUES #9）
         self._probe_api_async()
@@ -1483,9 +1489,14 @@ class App:
             return -1.0
         return bal
 
-    def _probe_balance(self):
-        """用一次最小请求判断余额：成功=可用；失败若是额度错误，解析剩余金额。"""
+    def _probe_balance(self, silent: bool = False):
+        """用一次最小请求判断余额：成功=可用；失败若是额度错误，解析剩余金额。
+
+        silent=True 用于启动时后台探测：不弹 toast，只写日志/刷新概览。
+        """
         from ..api import ApiClient, parse_balance, classify_api_error
+        if not str(getattr(self.cfg, "api_key", "") or "").strip():
+            return
         try:
             cli = ApiClient(self.cfg.api_base, self.cfg.api_key, 20)
             cli.chat("qwen-plus", [{"role": "user", "content": "hi"}], max_tokens=1)
@@ -1493,7 +1504,10 @@ class App:
             self.cfg.set("api_balance_ts", 0)
             save_config(self.cfg)
             self._apply_balance_state()
-            self.toast("余额可用（最小请求调用成功）", True)
+            if silent:
+                self._log("余额探测：API 可用（最小请求成功），已清除历史余额不足缓存", "INFO")
+            else:
+                self.toast("余额可用（最小请求调用成功）", True)
             return
         except Exception as ex:  # noqa: BLE001
             import time as _t
@@ -3935,20 +3949,57 @@ class App:
             self._safe_update()
             threading.Thread(target=self._search_attr_templates, daemon=True).start()
 
-        attr_card = card(ft.Column([
-            h1("属性模板", 15),
-            muted("从店小秘属性模板读取「属性名=值」，发布时自动填入编辑器"),
-            ft.Row([self.attr_kw,
-                    ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, bgcolor=CARD_2, color=TEXT, on_click=attr_search),
-                    ft.OutlinedButton("清空已应用属性", on_click=lambda e: self._clear_attrs())], spacing=10),
-            self.attr_status, self.attr_list], spacing=8))
+        # 属性模板 + SKU 图替换 + 自定义属性清理：合成一张卡，左右两栏对齐
+        def _append_drop(name: str):
+            cur = [x.strip() for x in str(self.attr_drop_tf.value or "").replace("，", ",").split(",") if x.strip()]
+            if name.lower() not in [x.lower() for x in cur]:
+                cur.append(name)
+            self.attr_drop_tf.value = ", ".join(cur)
+            self.cfg.set("custom_attr_drop", self.attr_drop_tf.value)
+            save_config(self.cfg)
+            self._safe_update()
 
-        sku_map_card = card(ft.Column([
-            h1("SKU 图替换", 15),
-            muted("把某个 SKU 的图片换成指定 URL"),
-            ft.Row([ft.ElevatedButton("打开替换表", icon=ft.Icons.SWAP_HORIZ, bgcolor=CARD_2, color=TEXT,
-                                      on_click=lambda e: self._sku_replace_dialog())], spacing=10, wrap=True),
-        ], spacing=8))
+        def _on_drop_change(e):
+            self.cfg.set("custom_attr_drop", str(e.control.value or "").strip())
+            save_config(self.cfg)
+
+        self.attr_drop_tf = ft.TextField(
+            label="强制删除的自定义属性（逗号分隔）", width=None, expand=True,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "custom_attr_drop", "") or ""),
+            hint_text="如 brand, type, model —— 与系统属性冲突、软件删不掉的填这里",
+            on_change=_on_drop_change)
+
+        props_card = card(ft.Column([
+            h1i(ft.Icons.RULE, "属性模板 · SKU 图替换"),
+            muted("左边读模板属性；右边换 SKU 图；下面强制清理与系统属性冲突的自定义属性"),
+            ft.Row([
+                ft.Column([
+                    ft.Row([self.attr_kw,
+                            ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, bgcolor=CARD_2, color=TEXT,
+                                              on_click=attr_search),
+                            ft.OutlinedButton("清空已应用", on_click=lambda e: self._clear_attrs())],
+                           spacing=8, wrap=True),
+                    self.attr_status, self.attr_list,
+                ], expand=3, spacing=8),
+                ft.Container(width=1, bgcolor=CARD_2, height=250),
+                ft.Column([
+                    ft.Text("SKU 图替换", size=13, weight=ft.FontWeight.BOLD, color=TEXT),
+                    muted("把某个 SKU 的图换成指定 URL（按 SKU 名匹配）", 11),
+                    ft.ElevatedButton("打开替换表", icon=ft.Icons.SWAP_HORIZ, bgcolor=CARD_2, color=TEXT,
+                                      on_click=lambda e: self._sku_replace_dialog()),
+                    ft.Container(height=6),
+                    ft.Text("自定义属性清理", size=13, weight=ft.FontWeight.BOLD, color=TEXT),
+                    muted("勾选/填写后，保存时直接从属性里删掉，不再报冲突", 11),
+                    ft.Row([self.attr_drop_tf], spacing=8),
+                    ft.Row([ft.TextButton("+ brand", on_click=lambda e: _append_drop("brand")),
+                            ft.TextButton("+ type", on_click=lambda e: _append_drop("type")),
+                            ft.TextButton("+ model", on_click=lambda e: _append_drop("model")),
+                            ft.TextButton("+ condition", on_click=lambda e: _append_drop("condition"))],
+                           spacing=2, wrap=True),
+                ], expand=2, spacing=8),
+            ], spacing=16, vertical_alignment=ft.CrossAxisAlignment.START),
+        ], spacing=10))
 
         # ---------- 欧盟资质 ----------
         eu_card = card(ft.Column([
@@ -3970,17 +4021,17 @@ class App:
 
         self._bind_eu_guard()
 
-        def _fold(title, cards):
+        def _fold(title, cards, open_first=False):
             return ft.ExpansionTile(
                 title=ft.Text(title, size=14, weight=ft.FontWeight.BOLD, color=TEXT),
                 controls=[c for c in cards if c is not None],
-                initially_expanded=False, icon_color=ACCENT, collapsed_icon_color=MUTED,
+                initially_expanded=bool(open_first), icon_color=ACCENT, collapsed_icon_color=MUTED,
                 tile_padding=ft.padding.symmetric(horizontal=4))
 
         return [h1("类目与属性"),
                 muted("商品默认值：类目、规格、属性；图片见「AI 图片」，发布见「发布队列」"),
                 cat_card, base_card, attr_default_card,
-                _fold("属性模板与 SKU 图替换", [attr_card, sku_map_card]),
+                _fold("属性模板与 SKU 图替换", [props_card], open_first=True),
                 _fold("欧盟资质（需要时再填）", [eu_card]),
                 _fold("套装 SKU（可选）", [self._combo_card()])]
 

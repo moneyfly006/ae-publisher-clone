@@ -214,8 +214,16 @@ def _valid_attr_id(v) -> bool:
     return s not in ("", "none", "null", "-1", "0")
 
 
+def _drop_names(cfg) -> set[str]:
+    """用户配置的「强制删除自定义属性」名单（逗号/空格分隔，归一化）。"""
+    raw = str(getattr(cfg, "custom_attr_drop", "") or "")
+    parts = [x for x in __import__("re").split(r"[,，;；\s]+", raw) if x]
+    return {_norm_attr_name(x) for x in parts if _norm_attr_name(x)}
+
+
 def to_submit_props(product: dict, template: dict | None = None,
-                    custom_attributes: list | None = None) -> list[dict]:
+                    custom_attributes: list | None = None,
+                    drop_names: set[str] | None = None) -> list[dict]:
     """生成保存用的属性数组。
 
     - 系统属性（attrNameId/attrValueId 都有效）→ {attrNameId, attrValueId}
@@ -279,6 +287,8 @@ def to_submit_props(product: dict, template: dict | None = None,
         if _bad_value(name) or _bad_value(value):
             continue
         _ck = _norm_attr_name(name)
+        if drop_names and _ck in drop_names:
+            continue                      # 用户指定的「强制删除」名单
         if _ck in system_names:
             continue                      # 与系统属性重名（含同义词）→ 删除
         if _ck in seen_custom:
@@ -302,6 +312,7 @@ def to_submit_props(product: dict, template: dict | None = None,
             _n, _v = _n.strip(), _v.strip()
             _ck = _norm_attr_name(_n) if _n else ""
             if (_n and _v and _ck and _ck not in seen_custom
+                    and not (drop_names and _ck in drop_names)
                     and _ck not in system_names and _n not in have_names):
                 out.append({"attrName": _n, "attrValue": _v})
                 have_names.add(_n)
@@ -449,7 +460,8 @@ def build_save_payload(product: dict, template: dict | None = None,
             p["originalBox"] = "1"
 
     p["aeopAeProductPropertys"] = json.dumps(
-        to_submit_props(product, template, custom_attributes=custom_attributes),
+        to_submit_props(product, template, custom_attributes=custom_attributes,
+                        drop_names=_drop_names(cfg)),
         ensure_ascii=False)
     p["motorAfid"] = ""
     p["motorIds"] = ""

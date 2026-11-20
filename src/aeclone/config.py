@@ -317,6 +317,9 @@ DEFAULTS: dict = {
     "wholesale_tiers": "[]",             # 旧数据，保留兼容
     "price_template_library": [],
     "custom_attributes": [],
+    # 强制删除的自定义属性名（逗号分隔，大小写/空格不敏感）：清掉与系统属性冲突、
+    # 软件自动判断删不掉的那些（如 brand / type / model）
+    "custom_attr_drop": "",
     "attribute_template_id": "",
     # ---- 变种 ----
     # ---- 视频 / 发布 ----
