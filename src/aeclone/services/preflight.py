@@ -182,6 +182,12 @@ def check(cfg) -> list[Issue]:
     if _truthy(cfg, "ai_image_enable", True):
         mode = _text(cfg, "image_edit_mode", "fine").lower()
         if mode in ("general", "simple"):
+            _gj = [j for j in _as_list(_get(cfg, "image_ai_jobs", "[]")) if isinstance(j, dict)]
+            if _gj:
+                issues.append(Issue("warn",
+                                    "当前编辑模式是「通用/简单编辑」，精细化任务不会执行；"
+                                    "想按第几张单独编辑，请把编辑模式切换成「精细化编辑」"))
+        if mode in ("general", "simple"):
             if not _text(cfg, "img_general_prompt"):
                 issues.append(Issue("error", "选了「通用编辑」但编辑提示词是空的 —— 不会处理任何图"))
             try:
@@ -203,10 +209,6 @@ def check(cfg) -> list[Issue]:
             empty = [j for j in jobs if not str(j.get("prompt") or "").strip()]
             if empty:
                 issues.append(Issue("warn", f"{len(empty)} 条精细化任务提示词为空，会被忽略"))
-            if jobs and mode in ("general", "simple"):
-                issues.append(Issue("warn",
-                                    "当前编辑模式是「通用/简单编辑」，精细化任务不会执行；"
-                                    "想按第几张单独编辑，请把编辑模式切换成「精细化编辑」"))
 
         # 白底范围合理性
         if _truthy(cfg, "white_bg_enable"):
