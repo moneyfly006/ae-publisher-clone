@@ -2419,7 +2419,7 @@ class App:
             pass
         try:
             if getattr(self, "run_status", None) is not None:
-                self.run_status.value = "状态：已请求停止（当前任务结束后停）"
+                self.run_status.value = "状态：停止中…（正在中断当前步骤，不会继续保存）"
                 self.run_status.color = "#FFB020"
         except Exception:
             pass
@@ -2628,6 +2628,9 @@ class App:
                     res = pub.run(prod, dry_run=False, manage_progress=False)
                     for line in res.log().splitlines():
                         self._log("   " + line, "INFO" if "✓" in line else "WARN")
+                    if getattr(res, "stopped", False):
+                        self._log(f"[{i}/{len(prods)}] 已停止，未继续保存 {prod.get('id')}", "WARN")
+                        return
                     if getattr(res, "skipped_auditing", False):
                         # 审核中的商品不是失败，也不算成功；单独计数，下次再处理
                         with lock:
@@ -4055,7 +4058,7 @@ class App:
             label="视频来源", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value=str(getattr(self.cfg, "video_source", "collected") or "collected"),
             options=[ft.dropdown.Option("collected", "采集的产品视频（默认）"),
-                     ft.dropdown.Option("template", "模板产品视频（填路径）"),
+                     ft.dropdown.Option("template", "模板产品视频（自动取模板链接）"),
                      ft.dropdown.Option("generated", "用主图合成轮播视频"),
                      ft.dropdown.Option("none", "不要视频")])
 
@@ -4066,10 +4069,10 @@ class App:
 
         self.video_src_dd.on_change = _on_video_src
         self.video_path_tf = ft.TextField(
-            label="模板视频路径（选「模板产品视频」时必填）", width=380,
+            label="本地视频路径（可选；留空=用模板商品的视频）", width=380,
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value=str(getattr(self.cfg, "template_video_path", "") or ""),
-            hint_text="/Users/you/video.mp4")
+            hint_text="留空即可：自动使用模板商品视频；也可填本地 mp4 覆盖")
 
         def _on_video_path(e):
             self.cfg.set("template_video_path", str(e.control.value or "").strip())

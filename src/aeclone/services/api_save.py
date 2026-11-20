@@ -809,8 +809,12 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     except Exception:
         overrides["cargoPrice"] = "50"
 
-    # 采集视频：只有 URL，没有 cspVideoId
-    if p.get("video_url") and not p.get("csp_video_id"):
+    # 明确「不要视频」：清空商品原有视频
+    if p.get("clear_video"):
+        overrides["videoUrl"] = ""
+        overrides["cspVideoId"] = ""
+    # 采集/模板视频：只有 URL，没有 cspVideoId
+    elif p.get("video_url") and not p.get("csp_video_id"):
         overrides["videoUrl"] = str(p["video_url"])
     # 主图视频：cspVideoId
     if p.get("csp_video_id"):

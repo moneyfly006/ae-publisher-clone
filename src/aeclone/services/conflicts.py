@@ -110,10 +110,7 @@ def check(cfg) -> list[Conflict]:
             "两者都要产出主图视频，只有一个会生效",
             "只保留一种：用模板就关掉「生成主图视频」，反之亦然",
             ("use_template_video", "generate_main_video"))
-    if _b(cfg, "use_template_video") and not _s(cfg, "template_video_path"):
-        add("warn", "「使用模板视频」开启但没填视频路径",
-            "template_video_path 为空", "填好视频路径，或关掉该开关",
-            ("use_template_video", "template_video_path"))
+    # 模板视频现在会自动取「模板商品」的视频链接，路径只是可选覆盖，不再强制
 
     # ---------- 审查：拦截开了但没审查项 ----------
     if _b(cfg, "review_block_on_fail") and not (
