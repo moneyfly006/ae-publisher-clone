@@ -501,6 +501,8 @@ class Publisher:
         if not getattr(self.cfg, "ai_image_enable", True):
             add_step(res, "图片方案", True, "AI图片处理总开关已关闭，跳过")
             return p
+        # 四合一独立生效：不依赖是否配置了规则/任务
+        self._apply_four_in_one(p, res)
         from .image_jobs import (parse_rules, parse_jobs, refs_indices, migrate,
                                  GROUP_LABELS, merged_jobs, rules_from_switches)
         # 简单编辑以界面开关为准（老规则可能是迁移残留，会导致“没勾也执行”）
@@ -589,44 +591,6 @@ class Publisher:
                 tail += f" / 跳过空图 {_skipped}"
             add_step(res, f"简单处理·{GROUP_LABELS.get(group, group)}", failed == 0 and done > 0,
                      f"成功 {done} / 失败 {failed}{tail}")
-
-        # ---- 四合一：本地 PIL 拼图（免费、确定、无张数限制）----
-        if getattr(self.cfg, "four_in_one", False):
-            try:
-                import tempfile as _tf4, requests as _rq4
-                from pathlib import Path as _P4
-                from .image_ops import four_in_one as _four4
-                from .hosting import upload as _host4
-                _urls4 = self._group_urls(p, "main")
-                if len(_urls4) >= 2:
-                    _d4 = _P4(_tf4.mkdtemp())
-                    _imgs4 = []
-                    for _i4, _u4 in enumerate(_urls4[:4]):
-                        try:
-                            _f4 = _d4 / f"f{_i4}.png"
-                            _f4.write_bytes(_rq4.get(str(_u4), timeout=60).content)
-                            _imgs4.append(_f4)
-                        except Exception:
-                            continue
-                    if len(_imgs4) >= 2:
-                        _out4 = _d4 / "four.png"
-                        _four4(_imgs4, _out4)
-                        _url4 = _host4(_out4)
-                        _cur4 = list(p.get("images") or [])
-                        if str(getattr(self.cfg, "four_in_one_position", "append") or "append") == "first":
-                            p["images"] = [_url4] + _cur4
-                            _where = "第一位"
-                        else:
-                            p["images"] = _cur4 + [_url4]
-                            _where = "末尾"
-                        add_step(res, "四合一", True,
-                                 f"本地拼图（{len(_imgs4)} 张，不调 AI）→ 插入{_where}")
-                    else:
-                        add_step(res, "四合一", False, "可用主图不足 2 张，跳过")
-                else:
-                    add_step(res, "四合一", False, "主图不足 2 张，跳过")
-            except Exception as _ex4:  # noqa: BLE001
-                add_step(res, "四合一", False, str(_ex4)[:80])
 
         # ---- 图片通用编辑：两种模式二选一（对齐老软件）----
         if _general:
@@ -1984,6 +1948,45 @@ class Publisher:
                               message=f"已在审核中（商品ID {pid}）：无需重复发布")
         return SaveResult(ok=False, message=f"发布失败：{_m2[:200]}")
 
+    def _apply_four_in_one(self, p: dict, res) -> None:
+        """四合一主图：本地 PIL 拼 2~4 张主图，插入首位/末尾（不调 AI）。"""
+        if not getattr(self.cfg, "four_in_one", False):
+            return
+        try:
+            import tempfile as _tf4, requests as _rq4
+            from pathlib import Path as _P4
+            from .image_ops import four_in_one as _four4
+            from .hosting import upload as _host4
+            _urls4 = self._group_urls(p, "main")
+            if len(_urls4) < 2:
+                add_step(res, "四合一", False, "主图不足 2 张，跳过")
+                return
+            _d4 = _P4(_tf4.mkdtemp())
+            _imgs4 = []
+            for _i4, _u4 in enumerate(_urls4[:4]):
+                try:
+                    _f4 = _d4 / f"f{_i4}.png"
+                    _f4.write_bytes(_rq4.get(str(_u4), timeout=60).content)
+                    _imgs4.append(_f4)
+                except Exception:
+                    continue
+            if len(_imgs4) < 2:
+                add_step(res, "四合一", False, "可用主图不足 2 张，跳过")
+                return
+            _out4 = _d4 / "four.png"
+            _four4(_imgs4, _out4)
+            _url4 = _host4(_out4)
+            _cur4 = list(p.get("images") or [])
+            if str(getattr(self.cfg, "four_in_one_position", "append") or "append") == "first":
+                p["images"] = [_url4] + _cur4
+                _where = "第一位"
+            else:
+                p["images"] = _cur4 + [_url4]
+                _where = "末尾"
+            add_step(res, "四合一", True, f"本地拼图（{len(_imgs4)} 张，不调 AI）→ 插入{_where}")
+        except Exception as ex:  # noqa: BLE001
+            add_step(res, "四合一", False, str(ex)[:80])
+
     def _apply_sku_image_replace(self, p: dict, res) -> None:
         """SKU 图替换：只要配置了映射就生效（不依赖 SKU 白底开关）。"""
         try:
@@ -2721,6 +2724,7 @@ class Publisher:
                 for k in ("image_simple_rules", "image_ai_jobs", "image_edit_plans"))
             _has_img_jobs = _has_img_jobs or bool(getattr(self.cfg, "designated_edit_enable", False))
             _has_img_jobs = _has_img_jobs or _has_general
+            _has_img_jobs = _has_img_jobs or bool(getattr(self.cfg, "four_in_one", False))
             # 只有旧开关（白底/去水印）时，规则由开关实时生成，也必须进新引擎
             try:
                 from .image_jobs import rules_from_switches as _rfs2

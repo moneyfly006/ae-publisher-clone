@@ -62,8 +62,8 @@ DEFAULTS: dict = {
     # ---- AI 智能填写 ----
     "enable_ai_title": True,
     "enable_ai_detail": False,
-    # 详情图合规过滤：用视觉模型识别含联系方式/二维码/促销/他平台水印的图片并剔除
-    "detail_image_compliance": True,
+    # 详情图合规过滤（默认关）：打开后用视觉模型识别含联系方式/二维码/促销的图片并剔除
+    "detail_image_compliance": False,
     "enable_ai_sku": False,
     "enable_ai_weight": False,
     "title_prompt": (

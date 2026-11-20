@@ -4982,6 +4982,8 @@ class App:
                 ft.Row([
                     sw2("custom_detail_text_enable", "启用（总开关）",
                         "关闭后，下面的文字和图片都不会插入详情"),
+                    sw2("detail_image_compliance", "详情图合规过滤",
+                        "默认关闭；打开后会剔除含联系方式/二维码/促销的详情图（多一次视觉检查）"),
                     dd2("detail_text_position", "文字插入位置",
                         [("head", "开头"), ("tail", "结尾"), ("both", "头尾都加")],
                         tip="自定义文字插到哪里"),
