@@ -346,8 +346,13 @@ def page_header(title: str, subtitle: str = "", actions=None):
 
 def workspace_tabs(items):
     """同页按任务分栏；控件只创建一次，切换时保留输入与回调。"""
+    try:
+        _sel = int(str(os.environ.get("AURORA_TAB", "0") or "0"))
+    except Exception:
+        _sel = 0
+    _sel = max(0, min(_sel, max(0, len(items) - 1)))
     return ft.Tabs(
-        selected_index=0, animation_duration=0, scrollable=True,
+        selected_index=_sel, animation_duration=0, scrollable=True,
         indicator_color=ACCENT, label_color=ACCENT, unselected_label_color=MUTED,
         tabs=[ft.Tab(text=title, content=ft.Container(
             content=ft.Column(controls, spacing=SP_MD,
