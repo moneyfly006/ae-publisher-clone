@@ -153,7 +153,7 @@ def t7_empty_key_raises_clear_error():
         print("  ✓", str(ex))
 
 
-GATES = ("ai_title_enable", "ai_desc_enable", "enable_ai_sku", "review_enable",
+GATES = ("enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_enable",
          "estimate_weight_enable", "ai_image_enable", "translate_main_pic_enable",
          "translate_detail_pic_enable", "translate_sku_pic")
 
