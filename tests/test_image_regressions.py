@@ -56,25 +56,24 @@ pub._process_urls = lambda urls, **kw: (calls.append(kw), (urls, 0))[1]
 Publisher._ai_images(pub, {"images": ["u1", "u2"]}, Res())
 chk("未勾选白底/去水印时不调用 AI", not calls, str(calls))
 
-# 2) 只开白底：remove_wm 必须为 False
-cfg = Cfg(white_bg_enable=True)
-pub = Publisher.__new__(Publisher)
-pub.cfg = cfg
-calls = []
-pub._process_urls = lambda urls, **kw: (calls.append(kw), (urls, 1))[1]
-Publisher._ai_images(pub, {"images": ["u1", "u2"]}, Res())
-chk("只开白底时 remove_wm=False", calls and calls[0].get("remove_wm") is False,
-    str(calls[0] if calls else "无调用"))
-chk("只开白底时 white_bg=True", calls and calls[0].get("white_bg") is True)
+# 2) 只开白底：规则里只能有 white
+from aeclone.services.image_jobs import rules_from_switches  # noqa: E402
 
-# 3) 只开去水印：white_bg 必须为 False
+cfg = Cfg(white_bg_enable=True)
+r = rules_from_switches(cfg)
+chk("只开白底时规则只有 white", r and r[0]["ops"] == ["white"], str(r))
 cfg = Cfg(watermark_enable=True)
-pub = Publisher.__new__(Publisher)
-pub.cfg = cfg
-calls = []
-pub._process_urls = lambda urls, **kw: (calls.append(kw), (urls, 1))[1]
-Publisher._ai_images(pub, {"images": ["u1"]}, Res())
-chk("只开去水印时 white_bg=False", calls and calls[0].get("white_bg") is False)
+r = rules_from_switches(cfg)
+chk("只开去水印时规则只有 watermark", r and r[0]["ops"] == ["watermark"], str(r))
+cfg = Cfg(white_bg_enable=True, watermark_enable=True)
+r = rules_from_switches(cfg)
+chk("两个都开才合并", r and r[0]["ops"] == ["white", "watermark"], str(r))
+
+# 3) 关掉开关后，旧规则残留也不能执行（客户真实日志里的问题）
+cfg = Cfg(white_bg_enable=False, watermark_enable=False,
+          image_simple_rules='[{"group":"main","range":"1-3","ops":["white","watermark"]}]')
+r = rules_from_switches(cfg)
+chk("开关全关时忽略旧规则", r == [], str(r))
 
 # 4) 主图精细编辑没提示词：不应调用（会白花钱且图片不变）
 cfg = Cfg(img_main_edit=True, edit_prompt="")

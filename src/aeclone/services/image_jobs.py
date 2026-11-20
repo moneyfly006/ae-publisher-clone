@@ -33,6 +33,73 @@ def dumps(rows) -> str:
 
 
 # ---------------- 简单规则 ----------------
+def rules_from_switches(cfg) -> list[dict]:
+    """按界面上的开关生成简单规则（开关才是用户看到的“真相”）。
+
+    背景：老版本把开关迁移成 image_simple_rules 后就不再同步。用户后来关掉
+    「去水印」，旧规则还在，日志照样显示「白底+去水印」——客户看到的就是
+    “我没勾却执行了”。这里每次执行前按开关重建，关掉就一定不跑。
+    """
+    out: list[dict] = []
+
+    def _on(name: str) -> bool:
+        try:
+            return bool(getattr(cfg, name, False))
+        except Exception:
+            return False
+
+    def _s(name: str, default: str = "") -> str:
+        try:
+            return str(getattr(cfg, name, "") or default).strip()
+        except Exception:
+            return default
+
+    # 主图
+    ops = []
+    if _on("white_bg_enable"):
+        ops.append("white")
+    if _on("watermark_enable"):
+        ops.append("watermark")
+    if _on("translate_main_pic_enable"):
+        ops.append("translate")
+    if ops:
+        if _on("white_bg_enable"):
+            rng = f"{_s('white_background_pic_1', '1')}-{_s('white_background_pic_2', '3')}"
+        elif _on("watermark_enable"):
+            rng = f"{_s('remove_watermark_pic_1', '1')}-{_s('remove_watermark_pic_2', '5')}"
+        else:
+            rng = _s("translate_main_pic_indices", "1-2")
+        out.append({"group": "main", "range": rng, "ops": ops})
+
+    # 详情图
+    ops = []
+    if _on("img_detail_white_bg"):
+        ops.append("white")
+    if _on("img_detail_remove_wm"):
+        ops.append("watermark")
+    if _on("translate_detail_pic_enable"):
+        ops.append("translate")
+    if ops:
+        out.append({"group": "detail",
+                    "range": _s("white_background_detail_pic_indices",
+                                _s("translate_detail_pic_indices", "1-20")) or "1-20",
+                    "ops": ops})
+
+    # SKU 图
+    ops = []
+    if _on("img_sku_white_bg") or _on("white_background_sku_pic"):
+        ops.append("white")
+    if _on("img_sku_remove_wm"):
+        ops.append("watermark")
+    if _on("translate_sku_pic"):
+        ops.append("translate")
+    if ops:
+        out.append({"group": "sku",
+                    "range": _s("white_background_sku_pic_indices", "1-20") or "1-20",
+                    "ops": ops})
+    return out
+
+
 def parse_rules(raw) -> list[dict]:
     rows = _load(raw, [])
     out = []

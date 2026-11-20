@@ -259,9 +259,9 @@ class Publisher:
         if self._img_svc is None:
             from ..api import ApiClient
             from . import ImageService
-            # 图片接口给足 120 秒：qwen-image-3.0 正常 50~130 秒，
-            # 60 秒会频繁超时导致「图片没变化」；超时后仍会降级到 turbo
-            _to = max(120.0, min(float(self.cfg.timeout or 60), 180.0))
+            # 图片接口给足 180 秒：qwen-image-3.0 正常 50~130 秒，
+            # 60/120 秒都会偶发超时导致「图片没变化」；超时后仍会降级到 turbo
+            _to = max(180.0, min(float(self.cfg.timeout or 60), 240.0))
             self._img_svc = ImageService(
                 ApiClient(self.cfg.api_base, self.cfg.api_key, _to), self.cfg)
         return self._img_svc
@@ -498,8 +498,11 @@ class Publisher:
         if not getattr(self.cfg, "ai_image_enable", True):
             add_step(res, "图片方案", True, "AI图片处理总开关已关闭，跳过")
             return p
-        from .image_jobs import parse_rules, parse_jobs, refs_indices, migrate, GROUP_LABELS, merged_jobs
-        rules, jobs = merged_jobs(self.cfg)
+        from .image_jobs import (parse_rules, parse_jobs, refs_indices, migrate,
+                                 GROUP_LABELS, merged_jobs, rules_from_switches)
+        # 简单编辑以界面开关为准（老规则可能是迁移残留，会导致“没勾也执行”）
+        rules = rules_from_switches(self.cfg)
+        _, jobs = merged_jobs(self.cfg)
         _mode = str(getattr(self.cfg, "image_edit_mode", "fine") or "fine").strip().lower()
         _general = _mode in ("general", "simple")
         _general_prompt = str(getattr(self.cfg, "img_general_prompt", "") or "").strip() \
@@ -1113,9 +1116,9 @@ class Publisher:
         # 否则同一张图会被白底/去水印加工两次：多花一次钱、多等一轮。
         _covered: set[str] = set()
         try:
-            from .image_jobs import parse_rules as _pr, parse_jobs as _pj
-            # 检查简单规则和精细任务覆盖的分组
-            _covered = {r["group"] for r in _pr(getattr(self.cfg, "image_simple_rules", "[]"))}
+            from .image_jobs import parse_jobs as _pj, rules_from_switches as _rfs
+            # 检查简单规则和精细任务覆盖的分组（简单规则由开关决定）
+            _covered = {r["group"] for r in _rfs(self.cfg)}
             _covered.update(j["group"] for j in _pj(getattr(self.cfg, "image_ai_jobs", "[]")))
         except Exception:
             _covered = set()
@@ -1379,6 +1382,7 @@ class Publisher:
         full_cid = str(getattr(self.cfg, "upload_full_cid", "") or "")
         done = failed = skipped = 0
         _errs: list[str] = []
+        _dead = False          # 店小秘上传接口已停用：第一次失败后不再逐张重试
         for key in ("images", "detail_images"):
             urls = p.get(key) or []
             for i, u in enumerate(urls):
@@ -1387,6 +1391,9 @@ class Publisher:
                     skipped += 1
                     continue
                 if su.startswith("http") and any(h in su for h in skip_hosts):
+                    skipped += 1
+                    continue
+                if _dead:
                     skipped += 1
                     continue
                 try:
@@ -1418,10 +1425,13 @@ class Publisher:
                         failed += 1
                 except Exception as _ex:
                     failed += 1
+                    _em = f"{type(_ex).__name__}: {str(_ex)[:90]}"
                     try:
-                        _errs.append(f"第{i + 1}张 {type(_ex).__name__}: {str(_ex)[:90]}")
+                        _errs.append(f"第{i + 1}张 {_em}")
                     except Exception:
                         pass
+                    if "参数缺失" in _em:
+                        _dead = True     # 接口整体不可用，剩余图片直接跳过
             p[key] = urls
         if res is not None:
             _msg = f"成功 {done} / 失败 {failed} / 跳过 {skipped}"
@@ -2598,6 +2608,12 @@ class Publisher:
                 for k in ("image_simple_rules", "image_ai_jobs", "image_edit_plans"))
             _has_img_jobs = _has_img_jobs or bool(getattr(self.cfg, "designated_edit_enable", False))
             _has_img_jobs = _has_img_jobs or _has_general
+            # 只有旧开关（白底/去水印）时，规则由开关实时生成，也必须进新引擎
+            try:
+                from .image_jobs import rules_from_switches as _rfs2
+                _has_img_jobs = _has_img_jobs or bool(_rfs2(self.cfg))
+            except Exception:
+                pass
             if _has_img_jobs and getattr(self.cfg, "ai_image_enable", True):
                 try:
                     p = self._apply_image_jobs(p, res, dry_run=dry_run)

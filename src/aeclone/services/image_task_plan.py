@@ -57,8 +57,8 @@ def build_plan(cfg, product: dict | None = None) -> ImagePlan:
     # 规则表为空时才退回旧开关，保证老配置仍能显示计划。
     _rules = []
     try:
-        from .image_jobs import parse_rules
-        _rules = parse_rules(getattr(cfg, "image_simple_rules", "[]"))
+        from .image_jobs import rules_from_switches
+        _rules = rules_from_switches(cfg)
     except Exception:
         _rules = []
     if _rules:
