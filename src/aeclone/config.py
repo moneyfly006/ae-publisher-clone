@@ -292,7 +292,8 @@ DEFAULTS: dict = {
     "edit_prompt": "清理并本地化这张商品图：去掉水印、Logo、二维码和促销贴纸；保持商品本体颜色、形状、材质不变；输出干净可直接上架的电商图，画面里不要出现任何文字。",
     "four_in_one": False,
     # ---- 价格 ----
-    "price_mode": "multiplier",          # multiplier | free_shipping
+    "price_mode": "multiplier",          # multiplier | free_shipping | commission | fixed
+    "price_fixed": "0",                  # 固定价格模式：所有商品统一售价（元）
     "price_multiplier": "1.2",
     "price_fixed_add": "0",
     "regional_pricing": False,

@@ -148,7 +148,13 @@ def compute_price(cfg, cost, *, commission: float | None = None, profit: float |
         float(getattr(cfg, "sales_profit", 0) or 0) / 100.0)
     express = float(getattr(cfg, "default_express_price", 0) or 0)
 
-    if mode == "commission":
+    if mode == "fixed":
+        try:
+            fixed = float(getattr(cfg, "price_fixed", 0) or 0)
+        except Exception:
+            fixed = 0.0
+        r = PriceResult(base, 1.0, 0.0, round(fixed, 2), "固定价格", mode="fixed")
+    elif mode == "commission":
         r = calc_with_commission(base, mult, add, commission_rate, profit_rate)
         if tier_m:
             r.note = f"含佣金/利润 · 阶梯倍率 {tier_m:g}"
