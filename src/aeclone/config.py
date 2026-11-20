@@ -14,6 +14,7 @@ DEFAULTS: dict = {
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "api_balance": -1.0,                                  # 最近一次已知余额（-1=未知）
+    "api_balance_ts": 0,                                  # 上面这个值是什么时候测到的（0=旧数据）
     "license_server": "https://license.moneyfly.club",
     "license_enforce": True,                              # 未授权时禁止开始上架
     "license_identity": "",                               # 可选：从老软件复制过来的旧授权 ID

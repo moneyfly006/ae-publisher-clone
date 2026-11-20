@@ -1443,7 +1443,7 @@ class App:
             self._log(f"API 预检通过：{len(models)} 个模型可用", "INFO")
             # 余额：已知不足就提醒（不阻断，允许只跑免费步骤）
             try:
-                _bal = float(getattr(self.cfg, "api_balance", -1) or -1)
+                _bal = self._fresh_balance()
                 self._apply_balance_state()
                 if 0 <= _bal < 0.2:
                     self._log(f"API 余额不足：剩 ¥{_bal:.3f}（AI 图片编辑约 ¥0.2/次），本次会跳过付费步骤；"
@@ -1467,10 +1467,51 @@ class App:
             self._log(f"API 预检网络异常（不阻断）：{str(ex)[:80]}", "WARN")
             return ""
 
+    def _fresh_balance(self) -> float:
+        """只信任 10 分钟内测到的余额；旧数据一律当“未知”（-1）。
+
+        旧版把一次「余额不足」的报错永久写进配置，充值后仍会提示余额少，
+        客户看到的就是「明明有钱还说没钱」。现在过期即作废。
+        """
+        try:
+            import time as _t
+            ts = float(getattr(self.cfg, "api_balance_ts", 0) or 0)
+            bal = float(getattr(self.cfg, "api_balance", -1) or -1)
+        except Exception:
+            return -1.0
+        if ts <= 0 or (_t.time() - ts) > 600:
+            return -1.0
+        return bal
+
+    def _probe_balance(self):
+        """用一次最小请求判断余额：成功=可用；失败若是额度错误，解析剩余金额。"""
+        from ..api import ApiClient, parse_balance, classify_api_error
+        try:
+            cli = ApiClient(self.cfg.api_base, self.cfg.api_key, 20)
+            cli.chat("qwen-plus", [{"role": "user", "content": "hi"}], max_tokens=1)
+            self.cfg.set("api_balance", -1)
+            self.cfg.set("api_balance_ts", 0)
+            save_config(self.cfg)
+            self._apply_balance_state()
+            self.toast("余额可用（最小请求调用成功）", True)
+            return
+        except Exception as ex:  # noqa: BLE001
+            import time as _t
+            bal = parse_balance(ex)
+            if bal is not None:
+                self.cfg.set("api_balance", bal)
+                self.cfg.set("api_balance_ts", _t.time())
+                save_config(self.cfg)
+                self._apply_balance_state()
+                self.toast(f"余额不足：剩 ¥{bal:.3f}", False)
+            else:
+                kind = classify_api_error(ex)
+                self.toast("检测失败：" + ("Key 无效" if kind == "auth" else str(ex)[:60]), False)
+
     def _apply_balance_state(self):
         """把最近一次已知余额刷到概览页（-1=未知）。"""
         try:
-            bal = float(getattr(self.cfg, "api_balance", -1) or -1)
+            bal = self._fresh_balance()
         except Exception:
             bal = -1
         ctrl = getattr(self, "ready_balance", None)
@@ -2464,7 +2505,7 @@ class App:
         self._stop_requested = False
         # 余额不足：跑之前先提示一次（不阻断，免费步骤照常）
         try:
-            _bal = float(getattr(self.cfg, "api_balance", -1) or -1)
+            _bal = self._fresh_balance()
             if 0 <= _bal < 0.2 and not getattr(self, "_balance_warned", False):
                 self._balance_warned = True
                 self._log(f"API 余额不足：剩 ¥{_bal:.3f}，AI 图片编辑会被跳过", "WARN")
@@ -2650,6 +2691,13 @@ class App:
                             ok_n += 1 if res.ok else 0
                             fail_n += 0 if res.ok else 1
                         if res.ok:
+                            try:
+                                # 能成功保存说明余额足够，清掉历史“余额不足”缓存
+                                if float(getattr(self.cfg, "api_balance", -1) or -1) >= 0:
+                                    self.cfg.set("api_balance", -1)
+                                    self.cfg.set("api_balance_ts", 0)
+                            except Exception:
+                                pass
                             history.record("publish", 1, 0, prod["id"])
                             self._log(f"✓ 编辑成功：{prod['id']} "
                                       f"{(prod.get('title') or '')[:44]}", "INFO")
@@ -7226,6 +7274,9 @@ class App:
             ft.Row([self.cfg_concurrency, self.cfg_timeout,
                     ft.ElevatedButton("保存", icon=ft.Icons.SAVE, bgcolor=ACCENT, color="white", on_click=save_api),
                     ft.OutlinedButton("测试连接", icon=ft.Icons.WIFI_TETHERING, on_click=test_api),
+                    ft.OutlinedButton("检测余额", icon=ft.Icons.ACCOUNT_BALANCE,
+                                      on_click=lambda e: threading.Thread(
+                                          target=self._probe_balance, daemon=True).start()),
                     ft.ElevatedButton("购买 / 充值 API", icon=ft.Icons.ACCOUNT_BALANCE_WALLET,
                                       bgcolor="#F0A020", color="#1A1200", on_click=buy_api)],
                    spacing=8, wrap=True),

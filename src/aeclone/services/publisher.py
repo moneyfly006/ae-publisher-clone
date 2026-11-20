@@ -493,15 +493,6 @@ class Publisher:
         except Exception:
             return False
 
-    def _halt(self, res, where: str = ""):
-        """被「停止」打断：标记结果并立即返回，不继续花钱/写商品。"""
-        res.ok = False
-        res.stopped = True
-        res.error = "已按请求停止"
-        add_step(res, "停止", True,
-                 f"已按请求停止" + (f"（在「{where}」之前中断）" if where else ""))
-        return res
-
     def _apply_image_jobs(self, p: dict, res, dry_run: bool = False) -> dict:
         """执行「简单规则 + 精细任务」（新引擎；旧配置自动迁移）。"""
         if not getattr(self.cfg, "ai_image_enable", True):
@@ -558,9 +549,6 @@ class Publisher:
             pass
         # ---- 简单规则（图片简单编辑：白底/去水印/翻译）----
         for rule in rules:
-            if self._aborted():
-                add_step(res, "停止", True, "已按请求停止（图片处理中断）")
-                return p
             group = rule["group"]
             urls = self._group_urls(p, group)
             if not urls:
@@ -655,9 +643,6 @@ class Publisher:
 
         # ---- 精细任务 ----
         for n, job in enumerate(jobs, 1):
-            if self._aborted():
-                add_step(res, "停止", True, "已按请求停止（精细任务中断）")
-                return p
             group = job["group"]
             if not _group_enable.get(group, False):
                 add_step(res, f"精细任务{n}", True,
@@ -773,7 +758,9 @@ class Publisher:
                 if _bal is not None:
                     # 余额不足：不算失败，跳过 AI 编辑并记下余额，供 UI 提示充值
                     try:
+                        import time as _t
                         self.cfg.set("api_balance", _bal)
+                        self.cfg.set("api_balance_ts", _t.time())
                     except Exception:
                         pass
                     self._quota_low = _bal
@@ -2014,24 +2001,10 @@ class Publisher:
                 _sv = "collected"
         if _sv == "none":
             p["csp_video_id"] = ""          # 明确不要视频
-            p["video_url"] = ""             # 同时清掉采集/模板留下的视频地址
-            p["clear_video"] = True
-            add_step(res, "视频", True, "已选择「不要视频」，将清空商品原有视频")
+            add_step(res, "视频", True, "已选择「不要视频」，本次不写入视频")
             return
         if _sv == "collected":
-            # 采集来的视频只有 URL（videoUrl），cspVideoId 还是 0。
-            # 必须把 videoUrl 一起写回去，否则保存后视频会被清空。
-            _vu = ""
-            try:
-                _raw = (product or {}).get("raw") or {}
-                _vu = str(_raw.get("videoUrl") or _raw.get("video_url") or "").strip()
-            except Exception:
-                _vu = ""
-            if _vu:
-                p["video_url"] = _vu
-                add_step(res, "视频", True, "使用采集到的产品视频（写回 videoUrl）")
-            else:
-                add_step(res, "视频", True, "使用采集到的产品视频（未检测到视频 URL）")
+            add_step(res, "视频", True, "使用采集到的产品视频（自动保留）")
             return
         src_video: str = ""
         # ① 模板视频（需填路径）
@@ -2040,20 +2013,7 @@ class Publisher:
             if _tp and Path(_tp).exists():
                 src_video = _tp
             else:
-                # 没填本地路径：直接用「模板商品」的视频链接，客户不用准备文件
-                _vu = ""
-                try:
-                    _tpl_id = str(getattr(self.cfg, "template_product_id", "") or "").strip()
-                    if self.dxm is not None and _tpl_id:
-                        _tpl = _cached_template_edit(self.dxm, _tpl_id)
-                        _vu = str(_tpl.get("videoUrl") or _tpl.get("video_url") or "").strip()
-                except Exception:
-                    _vu = ""
-                if _vu:
-                    p["video_url"] = _vu
-                    add_step(res, "视频", True, "使用模板商品的视频（videoUrl 写回）")
-                    return
-                add_step(res, "视频", False, "模板视频：未填本地路径，模板商品也没有视频，已跳过")
+                add_step(res, "视频", False, "模板视频：路径为空或文件不存在，已跳过")
                 return
         # ② 生成轮播视频（本地 ffmpeg 合成，不调 AI）
         if not src_video and _sv == "generated" and p.get("images"):
@@ -2088,17 +2048,7 @@ class Publisher:
                 p["csp_video_id"] = vid
                 add_step(res, "视频上传", True, f"cspVideoId={vid[:24]}")
         except Exception as ex:  # noqa: BLE001
-            # 店小秘上传接口已停用（返回“上传失败，参数缺失”）：改传自有文件服务，
-            # 用 videoUrl 写回商品（实测店小秘接受外部 videoUrl）。
-            try:
-                from .hosting import upload_video_file
-                vurl = upload_video_file(Path(src_video))
-                p["video_url"] = vurl
-                add_step(res, "视频上传", True,
-                         f"店小秘上传不可用，已用自有地址写入 videoUrl：{vurl[-40:]}")
-                return
-            except Exception as ex2:  # noqa: BLE001
-                add_step(res, "视频上传", False, f"{str(ex)[:50]} / 兜底失败：{str(ex2)[:50]}")
+            add_step(res, "视频上传", False, str(ex)[:80])
 
     def _save_via_api(self, p: dict, res, action: str, ship, images: list[str] | None):
         """用 add.json 的 API 直存路径保存（绕开 DOM）。
@@ -2635,8 +2585,6 @@ class Publisher:
                 except Exception:
                     pass
 
-            if self._aborted():
-                return self._halt(res, "图片处理")
             if (p.get("images") or p.get("detail_images") or p.get("skus")) and _img_ops:
                 try:
                     p = self._ai_images(p, res)
@@ -2946,13 +2894,9 @@ class Publisher:
                     except Exception:
                         pass
 
-                if self._aborted():
-                    return self._halt(res, "主图视频")
                 # 主图视频：模板视频 / 生成轮播视频（本地 ffmpeg）→ 上传店小秘 → cspVideoId
                 self._prepare_video(p, res, product, dry_run)
 
-                if self._aborted():
-                    return self._halt(res, "保存")
                 # API 直存（唯一保存路径，无 DOM 模拟、支持并发）
                 r = self._save_via_api(p, res, _action, _ship, _img_for_save)
                 if r is None:
