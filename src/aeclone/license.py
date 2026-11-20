@@ -28,11 +28,21 @@ CLIENT_TYPE = "local"
 
 
 def _run(cmd: list[str], timeout: int = 5) -> str:
+    """执行系统命令拿机器码。
+
+    Windows 上必须走 CREATE_NO_WINDOW：否则每次进「设置」页读 MachineGuid
+    都会闪一个黑框（用户看到的就是“弹窗一闪而逝”）。
+    """
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        from .core.proc import run as _hidden_run
+        p = _hidden_run(cmd, capture_output=True, text=True, timeout=timeout)
         return (p.stdout or "").strip()
     except Exception:
-        return ""
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            return (p.stdout or "").strip()
+        except Exception:
+            return ""
 
 
 def _raw_identity() -> str:

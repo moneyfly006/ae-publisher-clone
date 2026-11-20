@@ -3563,18 +3563,22 @@ class App:
                 stack.append(dlg)
         except Exception:
             pass
+        shown = False
         try:
             self.page.show_dialog(dlg)
+            shown = True          # show_dialog 自己会推一次更新，别再 update 造成闪烁
         except Exception:
             try:
                 self.page.dialog = dlg
                 self.page.update()
+                shown = True
             except Exception:
                 pass
-        try:
-            self._safe_update()
-        except Exception:
-            pass
+        if not shown:
+            try:
+                self._safe_update()
+            except Exception:
+                pass
 
     def _close_dlg(self, dlg):
         try:
@@ -8041,14 +8045,13 @@ class App:
     def _restart_app(self):
         """重启本进程（主题兜底 / 更新安装前调用）。"""
         import os as _os
-        import subprocess as _sp
         import sys as _sys
         try:
+            from ..core.proc import popen as _hidden_popen
             if getattr(_sys, "frozen", False):
-                _sp.Popen([_sys.executable], start_new_session=True)
+                _hidden_popen([_sys.executable])
             else:
-                _sp.Popen([_sys.executable, str(Path(_sys.argv[0]).resolve())],
-                          start_new_session=True)
+                _hidden_popen([_sys.executable, str(Path(_sys.argv[0]).resolve())])
         except Exception:
             pass
         _os._exit(0)

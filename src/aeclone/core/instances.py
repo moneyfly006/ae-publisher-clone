@@ -91,4 +91,5 @@ def launch_instance(name: str) -> subprocess.Popen:
         cmd = [exe]
     else:
         cmd = [exe, str(Path(__file__).resolve().parents[3] / "main.py")]
-    return subprocess.Popen(cmd, env=env, close_fds=True)
+    from .proc import popen as _hidden_popen
+    return _hidden_popen(cmd, env=env, close_fds=True)

@@ -193,7 +193,7 @@ def probe(ffmpeg: str | None = None) -> dict:
     if not exe:
         return {"available": False, "path": ""}
     try:
-        out = subprocess.run([exe, "-version"], capture_output=True, text=True, timeout=10).stdout.splitlines()[0]
+        out = run([exe, "-version"], capture_output=True, text=True, timeout=10).stdout.splitlines()[0]
     except Exception:
         out = ""
     return {"available": True, "path": exe, "version": out}
