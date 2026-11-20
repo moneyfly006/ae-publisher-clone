@@ -182,6 +182,12 @@ def looks_like_installer(path: Path) -> bool:
     return not (b"<html" in low or low.startswith(b"<") or b"doctype" in low)
 
 
+def windows_setup_args(app_dir: Path) -> list[str]:
+    """Inno Setup 静默参数：装回原目录（可能是 D 盘），并允许关闭正在运行的软件。"""
+    return ["/SILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES",
+            f'/DIR={Path(app_dir)}']
+
+
 def windows_install_target(path: Path) -> Path | None:
     """Windows 上真正要运行的文件：Setup.exe 直接用；zip 解压后找 Setup/主程序。"""
     import zipfile
@@ -216,6 +222,12 @@ def install_update(path: Path, app_dir: str = "/Applications/AuroraList.app") ->
             target = windows_install_target(path)
             if target is None:
                 return False
+            import subprocess
+            if target.suffix.lower() == ".exe" and target.name.lower().startswith("setup"):
+                # Inno Setup：静默安装到「当前程序所在目录」，换盘符也能原地升级
+                cur = Path(sys.executable).resolve().parent
+                subprocess.Popen([str(target)] + windows_setup_args(cur), close_fds=True)
+                return True
             os.startfile(str(target))  # type: ignore[attr-defined]
             return True
         except Exception:
