@@ -7693,8 +7693,29 @@ class App:
         self.cfg.set("ui_theme", new)
         save_config(self.cfg)
         apply_theme(new)
-        self._rebuild_ui()
+        try:
+            self._rebuild_ui()
+        except Exception as ex:  # noqa: BLE001
+            # 重建失败就重启进程，保证配色一定生效
+            self._log(f"界面重建失败，改为重启：{ex}", "WARN")
+            self._restart_app()
+            return
         self.toast(("已切换到白天模式" if new == "light" else "已切换到夜间模式"), True)
+
+    def _restart_app(self):
+        """重启本进程（主题兜底 / 更新安装前调用）。"""
+        import os as _os
+        import subprocess as _sp
+        import sys as _sys
+        try:
+            if getattr(_sys, "frozen", False):
+                _sp.Popen([_sys.executable], start_new_session=True)
+            else:
+                _sp.Popen([_sys.executable, str(Path(_sys.argv[0]).resolve())],
+                          start_new_session=True)
+        except Exception:
+            pass
+        _os._exit(0)
 
     def _rebuild_ui(self):
         """按当前配色重建整个界面（保留状态与后台线程）。"""
