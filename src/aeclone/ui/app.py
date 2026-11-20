@@ -7652,7 +7652,7 @@ class App:
             usage = {
                 "z-image-turbo": "文生图（主图生成）",
                 "qwen-image-2.1-turbo": "白底 / 去水印 / 翻译 / 多图融合",
-                "qwen-image-3.0": "按提示词改图（精细化 / 指定编辑）",
+                "qwen-image-3.0": "备用（当前未使用）",
                 "qwen-plus": "标题 / 描述 / SKU 文本",
                 "qwen-turbo": "轻量文本",
                 "qwen3-vl-plus": "图片审查 / 读图估重",

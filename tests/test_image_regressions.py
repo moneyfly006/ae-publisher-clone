@@ -121,12 +121,12 @@ from aeclone.services import model_of  # noqa: E402
 _m = Cfg()
 chk("白底/去水印仍用 turbo", model_of(_m, "image_edit") == "qwen-image-2.1-turbo",
     model_of(_m, "image_edit"))
-chk("提示词改图用 3.0", model_of(_m, "image_prompt") == "qwen-image-3.0",
+chk("提示词改图也用 turbo（客户指定）", model_of(_m, "image_prompt") == "qwen-image-2.1-turbo",
     model_of(_m, "image_prompt"))
 
 pub2 = Publisher.__new__(Publisher)
 pub2.cfg = _m
-chk("publisher._prompt_model = 3.0", Publisher._prompt_model(pub2) == "qwen-image-3.0")
+chk("publisher._prompt_model = turbo", Publisher._prompt_model(pub2) == "qwen-image-2.1-turbo")
 
 print("=" * 60)
 print(f"结果: {ok} 通过, {fail} 失败")

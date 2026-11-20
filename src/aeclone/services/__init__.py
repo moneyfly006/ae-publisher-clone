@@ -24,22 +24,18 @@ IMAGE_GEN_MODEL = "z-image-turbo"
 MARKETING_MODEL = "qwen-image-2.1-turbo"
 # 主模型超时/524 时的降级模型（快且稳定）
 FALLBACK_IMAGE_MODEL = "qwen-image-2.1-turbo"
-# 带自定义提示词的图生图（精细化编辑 / 指定编辑 / 通用编辑）必须用 3.0：
-# 实测 2.1-turbo 对同一张图的两条不同提示词返回同一结果（提示词没生效），
-# 3.0 才会真正按提示词改图。白底/去水印这类固定提示词仍用 turbo 省钱。
-IMAGE_MODEL_PROMPT = "qwen-image-3.0"
+# 带自定义提示词的图生图（精细化编辑 / 指定编辑 / 通用编辑）。
+# 按客户要求统一使用 qwen-image-2.1-turbo（快、约 ¥0.20/次）。
+# 注意：早期实测 turbo 有时不严格遵循提示词；如果以后要换回按提示词改图，
+# 只改这一行即可（推荐值 "qwen-image-3.0"），其他代码无需调整。
+IMAGE_MODEL_PROMPT = "qwen-image-2.1-turbo"
 
 # 模型已固定（真机实测）：文本 qwen-plus、视觉 qwen3-vl-plus、图片生成 z-image-turbo。
 #
-# 图片模型按用途拆分（2026-11-20）：
-#   · 固定提示词（白底/去水印/翻译/多图融合）→ qwen-image-2.1-turbo
-#     约 14 秒、约 ¥0.20/次，稳定且便宜。
-#   · 用户自定义提示词（精细化编辑/指定编辑/通用编辑）→ qwen-image-3.0
-#     实测 2.1-turbo 对同一张图的两条不同提示词会返回同一个结果（提示词没生效），
-#     3.0 才会真正按提示词改图；慢一些（50~130s）、贵一些（约 ¥0.30），
-#     但这类任务就是要“按我说的改”，宁慢勿错。
-#   3.0 失败/超时会自动降级回 turbo；返回的临时签名 URL 由 _stabilize 转存图床。
-# 不再让客户自选模型，避免选到不可用/超慢/超贵的。
+# 图片模型一律使用 qwen-image-2.1-turbo（客户指定）：
+#   · 白底/去水印/翻译/多图融合 —— 固定提示词，turbo 足够
+#   · 精细化编辑/指定编辑/通用编辑 —— 也走 turbo（快、便宜）
+# 模型名集中在这里，不再让客户自选，避免选到不可用/超慢/超贵的。
 FIXED_MODELS = {
     "text": TEXT_MODEL,
     "vision": VISION_MODEL,
@@ -153,27 +149,37 @@ class ImageService:
     _STABLE_HOSTS = ("132.226.1.44:8099", "moneyfly.club", "alicdn.com")
 
     def _img_edit(self, prompt: str, files, model: str | None = None):
-        """统一的图像编辑调用：主模型超时/524 时自动降级到 turbo 模型。
-
-        背景：qwen-image-3.0 出图质量好但要 50~130 秒，经常被 Cloudflare
-        判 524（网关超时），整条任务就白跑了。turbo 版约 14 秒且稳定。
-        """
+        """统一的图像编辑调用：网关 5xx 自动重试，超时/失败再降级到 turbo。"""
         m = model or model_of(self.cfg, "image_edit")
-        try:
-            return self.client.images_edit(m, prompt, files)
-        except Exception as e:
-            _msg = str(e)
-            _slow = any(k in _msg for k in (
-                "524", "520", "521", "522", "502", "503", "500",
-                "timeout", "Timeout", "timed out", "Read timed out",
-                "Connection aborted", "Connection reset"))
-            if m != FALLBACK_IMAGE_MODEL and _slow:
-                try:
-                    BUS.emit("图片降级", f"{m} 超时", f"改用 {FALLBACK_IMAGE_MODEL} 重试", "WARN")
-                except Exception:
-                    pass
-                return self.client.images_edit(FALLBACK_IMAGE_MODEL, prompt, files)
-            raise
+        _slow_keys = ("524", "520", "521", "522", "502", "503", "500",
+                      "timeout", "Timeout", "timed out", "Read timed out",
+                      "Connection aborted", "Connection reset")
+        _gw_keys = ("500", "502", "503", "520", "521", "522", "524")
+        last = None
+        # 网关 5xx/524 多半是排队超时，隔几秒重试两次通常就出图了
+        for attempt in range(3):
+            try:
+                return self.client.images_edit(m, prompt, files)
+            except Exception as e:  # noqa: BLE001
+                last = e
+                _msg = str(e)
+                _gw = any(k in _msg for k in _gw_keys)
+                if attempt < 2 and _gw:
+                    try:
+                        import time as _t
+                        _t.sleep(5 * (attempt + 1))
+                    except Exception:
+                        pass
+                    continue
+                break
+        _msg = str(last or "")
+        if m != FALLBACK_IMAGE_MODEL and any(k in _msg for k in _slow_keys):
+            try:
+                BUS.emit("图片重试", f"{m} 失败", f"改用 {FALLBACK_IMAGE_MODEL} 重试", "WARN")
+            except Exception:
+                pass
+            return self.client.images_edit(FALLBACK_IMAGE_MODEL, prompt, files)
+        raise last
 
     def _stabilize(self, url: str) -> str:
         """把模型返回的临时 URL 转存到我们自己的图床。
