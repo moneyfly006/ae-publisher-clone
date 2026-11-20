@@ -48,6 +48,22 @@ chk("zip 头识别为安装包", updater.looks_like_installer(_p) is True)
 _h = Path(tempfile.mkdtemp()) / "err.exe"
 _h.write_bytes(b"<!DOCTYPE html><html>blocked</html>")
 chk("HTML 错误页判为无效", updater.looks_like_installer(_h) is False)
+
+# Windows 安装目标：.exe 直接返回；.zip 解压后找 Setup
+_exe = Path(tempfile.mkdtemp()) / "AuroraList-Setup-1.0.2.exe"
+_exe.write_bytes(b"MZ fake")
+chk("Windows .exe 直接作为安装目标", updater.windows_install_target(_exe) == _exe)
+_zip = Path(tempfile.mkdtemp()) / "pkg.zip"
+with zipfile.ZipFile(_zip, "w") as _z:
+    _z.writestr("pkg/AuroraList-Setup-1.0.2.exe", "MZ")
+_wt = updater.windows_install_target(_zip)
+chk("Windows zip 解压后找到 Setup", _wt is not None and _wt.name == "AuroraList-Setup-1.0.2.exe",
+    str(_wt))
+_zip2 = Path(tempfile.mkdtemp()) / "portable.zip"
+with zipfile.ZipFile(_zip2, "w") as _z:
+    _z.writestr("AuroraList/AuroraList.exe", "MZ")
+_wt2 = updater.windows_install_target(_zip2)
+chk("Windows 便携 zip 找到主程序", _wt2 is not None and _wt2.name == "AuroraList.exe", str(_wt2))
 print("=" * 60)
 print(f"结果: {ok} 通过, {fail} 失败")
 sys.exit(1 if fail else 0)
