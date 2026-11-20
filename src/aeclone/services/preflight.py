@@ -56,8 +56,6 @@ def _as_list(raw) -> list:
 def image_plan_lines(cfg) -> list[str]:
     """把图片配置翻译成几条人话。"""
     out: list[str] = []
-    if not _truthy(cfg, "ai_image_enable", True):
-        return ["AI 图片处理：已关闭（一张图都不会处理）"]
 
     mode = _text(cfg, "image_edit_mode", "fine").lower()
     general_mode = mode in ("general", "simple")
@@ -158,6 +156,27 @@ def text_plan_lines(cfg) -> list[str]:
     return out or ["AI 文本：全部关闭（标题/详情/SKU 都不改）"]
 
 
+def ai_active(cfg) -> bool:
+    """是否有任何会调用 AI（含图片）的功能真的开着。
+
+    总开关已取消：图片是否处理由各自的功能开关/任务/规则决定。
+    """
+    keys = ("enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_enable",
+            "estimate_weight_enable", "translate_main_pic_enable",
+            "translate_detail_pic_enable", "translate_sku_pic",
+            "white_bg_enable", "watermark_enable", "edit_enable", "four_in_one",
+            "main_image_generate_enable")
+    try:
+        if any(_truthy(cfg, k) for k in keys):
+            return True
+        for k in ("image_ai_jobs", "image_simple_rules"):
+            if str(_get(cfg, k, "") or "").strip() not in ("", "[]"):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def check(cfg) -> list[Issue]:
     """挑出会静默失效或一定失败的配置。"""
     issues: list[Issue] = []
@@ -170,16 +189,13 @@ def check(cfg) -> list[Issue]:
     elif src == "bak":
         issues.append(Issue("warn", "配置文件损坏，已从 config.bak 恢复——"
                                     "请确认 API Key / 店铺 / 模板是否还在"))
-    ai_on = any(_truthy(cfg, k) for k in (
-        "enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_enable",
-        "estimate_weight_enable", "ai_image_enable", "translate_main_pic_enable",
-        "translate_detail_pic_enable", "translate_sku_pic"))
+    ai_on = ai_active(cfg)
 
     if ai_on and not _text(cfg, "api_key"):
         issues.append(Issue("error", "开了 AI 功能但没填 API Key —— 每一步都会失败"))
 
     # 图片：静默失效
-    if _truthy(cfg, "ai_image_enable", True):
+    if True:
         mode = _text(cfg, "image_edit_mode", "fine").lower()
         if mode in ("general", "simple"):
             _gj = [j for j in _as_list(_get(cfg, "image_ai_jobs", "[]")) if isinstance(j, dict)]

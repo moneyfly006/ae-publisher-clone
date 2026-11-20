@@ -35,16 +35,6 @@ def check(cfg) -> list[Conflict]:
     out: list[Conflict] = []
     add = lambda *a, **kw: out.append(Conflict(*a, **kw))
 
-    # ---------- AI 总开关 vs 子项 ----------
-    if not _b(cfg, "ai_image_enable", True):
-        subs = [k for k in ("white_bg_enable", "watermark_enable", "four_in_one",
-                            "img_main_edit", "translate_main_pic_enable", "img_sku_white_bg")
-                if _b(cfg, k)]
-        if subs:
-            add("warn", "AI 图片总开关已关闭，子项不会生效",
-                "以下子项开着但不会执行：" + "、".join(subs),
-                "要么打开「AI 图片 → 总开关」，要么关掉这些子项", tuple(subs))
-
     # ---------- AI 提示词为空 ----------
     for en, pr, name in (
         ("enable_ai_title", "title_prompt", "AI 标题"),

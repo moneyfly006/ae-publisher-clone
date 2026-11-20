@@ -181,7 +181,10 @@ def _cfg(**kw):
 def t8_gate_off_skips_probe():
     print("\n[测试8] 所有 AI 开关关闭 → 不预检、不阻断")
     from aeclone.ui.app import App
-    app = _FakeApp(_cfg(api_key=""))
+    app = _FakeApp(_cfg(api_key="", white_bg_enable=False, watermark_enable=False,
+                        edit_enable=False, four_in_one=False,
+                        main_image_generate_enable=False,
+                        image_ai_jobs="[]", image_simple_rules="[]"))
     assert App._preflight_api(app) == "", "关掉 AI 就不该拦"
     print("  ✓ 返回空串（放行）")
 
@@ -189,7 +192,7 @@ def t8_gate_off_skips_probe():
 def t9_empty_key_blocks():
     print("\n[测试9] 开了 AI 但 Key 为空 → 阻断并提示")
     from aeclone.ui.app import App
-    app = _FakeApp(_cfg(ai_image_enable=True, api_key="   "))
+    app = _FakeApp(_cfg(white_bg_enable=True, api_key="   "))
     why = App._preflight_api(app)
     assert "未填写 API Key" in why, why
     print("  ✓", why)
@@ -200,7 +203,7 @@ def t10_invalid_token_blocks():
     from aeclone.ui.app import App
     srv, base = _serve("401")
     try:
-        app = _FakeApp(_cfg(ai_image_enable=True, api_key="sk-bad",
+        app = _FakeApp(_cfg(white_bg_enable=True, api_key="sk-bad",
                             api_base=base, timeout=10))
         why = App._preflight_api(app)
         assert "无效或已过期" in why, why
@@ -215,7 +218,7 @@ def t11_quota_blocks():
     from aeclone.ui.app import App
     srv, base = _serve("402")
     try:
-        app = _FakeApp(_cfg(ai_image_enable=True, api_key="sk-x",
+        app = _FakeApp(_cfg(white_bg_enable=True, api_key="sk-x",
                             api_base=base, timeout=10))
         why = App._preflight_api(app)
         assert "额度不足" in why, why
@@ -227,7 +230,7 @@ def t11_quota_blocks():
 def t12_network_does_not_block():
     print("\n[测试12] 网络异常 → 只 WARN，不阻断")
     from aeclone.ui.app import App
-    app = _FakeApp(_cfg(ai_image_enable=True, api_key="sk-x",
+    app = _FakeApp(_cfg(white_bg_enable=True, api_key="sk-x",
                         api_base="http://127.0.0.1:9", timeout=2))
     why = App._preflight_api(app)
     assert why == "", why
@@ -240,7 +243,7 @@ def t13_ok_passes():
     from aeclone.ui.app import App
     srv, base = _serve("ok")
     try:
-        app = _FakeApp(_cfg(ai_image_enable=True, api_key="sk-good",
+        app = _FakeApp(_cfg(white_bg_enable=True, api_key="sk-good",
                             api_base=base, timeout=10))
         why = App._preflight_api(app)
         assert why == "", why

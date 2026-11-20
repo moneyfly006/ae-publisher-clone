@@ -536,9 +536,6 @@ class Publisher:
 
     def _apply_image_jobs(self, p: dict, res, dry_run: bool = False) -> dict:
         """执行「简单规则 + 精细任务」（新引擎；旧配置自动迁移）。"""
-        if not getattr(self.cfg, "ai_image_enable", True):
-            add_step(res, "图片方案", True, "AI图片处理总开关已关闭，跳过")
-            return p
         # 四合一独立生效：不依赖是否配置了规则/任务
         self._apply_four_in_one(p, res)
         from .image_jobs import (parse_rules, parse_jobs, refs_indices, migrate,
@@ -1118,9 +1115,6 @@ class Publisher:
 
     def _ai_images(self, p: dict, res) -> dict:
         """主图 / 详情图 / SKU 图 三条分支，按配置范围处理。"""
-        if not getattr(self.cfg, "ai_image_enable", True):
-            add_step(res, "图片AI处理", True, "总开关已关闭，跳过")
-            return p
         from .image_index import pick
 
         # 新引擎（简单规则 / 精细任务）已经覆盖的分组，旧路径不要再做一遍，
@@ -2690,8 +2684,7 @@ class Publisher:
             # 如果用户使用旧配置 cfg.four_in_one 或 cfg.watermark，
             # migrate() 会自动迁移到 image_simple_rules 或 image_ai_jobs
             
-            _img_ops = (getattr(self.cfg, "ai_image_enable", True)
-                        and (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable
+            _img_ops = (self.cfg.white_bg_enable or self.cfg.watermark_enable or self.cfg.edit_enable
                         or getattr(self.cfg, "img_main_edit", False)
                         or getattr(self.cfg, "img_detail_white_bg", False)
                         or getattr(self.cfg, "img_detail_remove_wm", False)
@@ -2702,9 +2695,9 @@ class Publisher:
                         or (getattr(self.cfg, "background_gen_rules", "") or "").strip() not in ("", "[]")
                         or getattr(self.cfg, "translate_detail_pic_enable", False)
                         or getattr(self.cfg, "translate_main_pic_enable", False)
-                        or getattr(self.cfg, "translate_sku_pic", False)))
+                        or getattr(self.cfg, "translate_sku_pic", False))
             # AI 主图生成（文生图 / 以现有主图为素材的图生图）
-            if getattr(self.cfg, "main_image_generate_enable", False) and getattr(self.cfg, "ai_image_enable", True):
+            if getattr(self.cfg, "main_image_generate_enable", False):
                 try:
                     from ..api import ApiClient
                     from . import model_of as _model_of_gen
@@ -2824,7 +2817,7 @@ class Publisher:
                 _has_img_jobs = _has_img_jobs or bool(_rfs2(self.cfg))
             except Exception:
                 pass
-            if _has_img_jobs and getattr(self.cfg, "ai_image_enable", True):
+            if _has_img_jobs:
                 try:
                     p = self._apply_image_jobs(p, res, dry_run=dry_run)
                 except Exception as ex:  # noqa: BLE001
@@ -3081,9 +3074,7 @@ class Publisher:
                 _ship = self._ship_dims(p, res)
                 # 要写回的主图（与 DOM 路径同一条件）
                 _img_for_save = (p.get("images") or None) \
-                    if ((getattr(self.cfg, "write_main_images_to_product", True)
-                         or getattr(self.cfg, "ai_image_enable", True))
-                        and (p.get("images") or []) != (product.get("images") or [])) \
+                    if (p.get("images") or []) != (product.get("images") or []) \
                     else None
                 # 记录改前/改后快照，供界面「对比预览」
                 if not dry_run:

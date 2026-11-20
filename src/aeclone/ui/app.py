@@ -290,8 +290,7 @@ def schema_review():
 
 def schema_image():
     return [
-        ("总开关", [
-            Field("ai_image_enable", "启用 AI 图片处理（总开关）", "bool"),
+        ("并发", [
             Field("image_concurrency", "单产品图片并发数（1-8，越大越快）"),
         ]),
         ("主图", [
@@ -1430,7 +1429,7 @@ class App:
 
     # 需要 AI 的开关（任意一个开就要预检）
     _AI_GATES = ("enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_enable",
-                 "estimate_weight_enable", "ai_image_enable", "translate_main_pic_enable",
+                 "estimate_weight_enable", "translate_main_pic_enable",
                  "translate_detail_pic_enable", "translate_sku_pic")
 
     def _preflight_api(self) -> str:
@@ -1439,11 +1438,9 @@ class App:
         只拦「Key 无效 / 额度不足」这类一定跑不通的情况；
         网络抖动只记 WARN，不阻断（可能只是瞬时）。
         """
-        gates = ("enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_enable",
-                 "estimate_weight_enable", "ai_image_enable", "translate_main_pic_enable",
-                 "translate_detail_pic_enable", "translate_sku_pic")
         try:
-            if not any(bool(getattr(self.cfg, k, False)) for k in gates):
+            from ..services.preflight import ai_active as _ai_active
+            if not _ai_active(self.cfg):
                 return ""
         except Exception:
             pass
@@ -4830,9 +4827,6 @@ class App:
 
             def on_enable(e):
                 self.cfg.set(enable_key, bool(enabled.value))
-                # 只要有任何分组开启，就确保总开关也是开的
-                if enabled.value:
-                    self.cfg.set("ai_image_enable", True)
                 save_config(self.cfg)
                 refresh_summary()
                 try:

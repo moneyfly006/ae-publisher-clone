@@ -38,8 +38,6 @@ def build_plan(cfg, product: dict | None = None) -> ImagePlan:
     n_main = max(len(p.get("images") or []), 1)
     n_detail = max(len(p.get("detail_images") or []), 1)
     plan = ImagePlan()
-    if not getattr(cfg, "ai_image_enable", True):
-        return plan
 
     if getattr(cfg, "main_image_generate_enable", False):
         prompt = (getattr(cfg, "main_image_generate_prompt", "") or "").strip()

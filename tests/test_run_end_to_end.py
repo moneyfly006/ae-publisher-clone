@@ -223,15 +223,33 @@ def t2_fine_mode_reaches_engine():
 
 
 def t3_master_switch_off():
-    print("\n[测试3] 总开关关闭 → 一次 AI 都不调")
+    print("\n[测试3] 没有开启任何图片功能 → 一次 AI 都不调")
     with tempfile.TemporaryDirectory() as td:
         d = Path(td)
         big, small = _mk(d, "big.png"), _mk(d, "small.png", 500, 500)
-        cfg = _cfg(ai_image_enable=False, image_edit_mode="general",
-                   img_general_prompt="清理商品图")
+        cfg = _cfg(image_edit_mode="general", img_general_prompt="",
+                   white_bg_enable=False, watermark_enable=False, edit_enable=False,
+                   four_in_one=False, main_image_generate_enable=False,
+                   image_ai_jobs="[]", image_simple_rules="[]")
         res, cap, pub = _run(cfg, _product(10), big, small)
         assert not pub.image.calls, f"不应调用 AI：{pub.image.calls}"
         print("  ✓ 0 次调用")
+
+
+def t3b_no_master_switch_needed():
+    """总开关已取消：ai_image_enable=False 时，勾了的功能/任务照样执行。"""
+    print("\n[测试3b] 没有总开关，勾选的功能照常执行")
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        big, small = _mk(d, "big.png"), _mk(d, "small.png", 500, 500)
+        jobs = [{"group": "main", "index": 3, "prompt": "换成白色背景",
+                 "mode": "edit", "insert": "replace"}]
+        cfg = _cfg(ai_image_enable=False, image_edit_mode="fine",
+                   image_ai_jobs=json.dumps(jobs, ensure_ascii=False))
+        res, cap, pub = _run(cfg, _product(8), big, small)
+        many = [c for c in pub.image.calls if c[0] == "edit_many"]
+        assert len(many) == 1, f"应执行 1 次精细化任务，实际 {pub.image.calls}"
+        print("  ✓ 仍执行 1 次：", many[0][2])
 
 
 def t4_save_payload_has_images():
@@ -661,7 +679,7 @@ def t26_dry_run_no_ai_no_network():
 
 if __name__ == "__main__":
     tests = [t1_general_mode_reaches_engine, t2_fine_mode_reaches_engine,
-             t3_master_switch_off, t4_save_payload_has_images, t5_ai_title_flows,
+             t3_master_switch_off, t3b_no_master_switch_needed, t4_save_payload_has_images, t5_ai_title_flows,
              t6_auditing_state_blocks, t7_multi_sku_guard, t8_multi_sku_allowed_when_off,
              t9_no_double_processing, t10_legacy_only_still_works,
              t11_collected_weight_used, t12_spec_weight_when_off,
