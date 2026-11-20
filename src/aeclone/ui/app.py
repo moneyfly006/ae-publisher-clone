@@ -33,8 +33,8 @@ TEXT, MUTED = "#E8EAF2", "#8B92A8"
 THEMES = {
     "dark": {"BG": "#0B0D12", "CARD": "#141824", "CARD_2": "#1B2030",
              "TEXT": "#E8EAF2", "MUTED": "#8B92A8"},
-    "light": {"BG": "#F4F6FB", "CARD": "#FFFFFF", "CARD_2": "#EAEFF7",
-              "TEXT": "#101828", "MUTED": "#5B6478"},
+    "light": {"BG": "#F5F7FC", "CARD": "#FFFFFF", "CARD_2": "#E6EBF4",
+              "TEXT": "#0B1220", "MUTED": "#4A5468"},
 }
 
 
@@ -453,7 +453,8 @@ class App:
                 page.window.icon = "icon_1024.png"
             except Exception:
                 pass
-        _theme = apply_theme(str(getattr(self.cfg, "ui_theme", "dark") or "dark"))
+        _theme = apply_theme(os.environ.get("AURORA_THEME") or
+                             str(getattr(self.cfg, "ui_theme", "dark") or "dark"))
         page.bgcolor = BG
         page.padding = 0
         page.theme_mode = ft.ThemeMode.LIGHT if _theme == "light" else ft.ThemeMode.DARK
