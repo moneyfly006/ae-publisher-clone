@@ -203,6 +203,10 @@ def check(cfg) -> list[Issue]:
             empty = [j for j in jobs if not str(j.get("prompt") or "").strip()]
             if empty:
                 issues.append(Issue("warn", f"{len(empty)} 条精细化任务提示词为空，会被忽略"))
+            if jobs and mode in ("general", "simple"):
+                issues.append(Issue("warn",
+                                    "当前编辑模式是「通用/简单编辑」，精细化任务不会执行；"
+                                    "想按第几张单独编辑，请把编辑模式切换成「精细化编辑」"))
 
         # 白底范围合理性
         if _truthy(cfg, "white_bg_enable"):
