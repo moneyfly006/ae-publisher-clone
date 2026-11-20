@@ -28,6 +28,7 @@ from ..services.scheduler import Scheduler
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
 INFO_C, DANGER_C, WARN_C = "#6EC6FF", "#FF6B6B", "#FFB020"
+BORDER = "#232A3D"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
 TEXT, MUTED = "#E8EAF2", "#8B92A8"
 
@@ -35,23 +36,26 @@ THEMES = {
     "dark": {"BG": "#0B0D12", "CARD": "#141824", "CARD_2": "#1B2030",
              "TEXT": "#E8EAF2", "MUTED": "#8B92A8",
              "ACCENT": "#7C5CFF", "ACCENT_2": "#00D2A8",
-             "INFO": "#6EC6FF", "DANGER": "#FF6B6B", "WARN": "#FFB020"},
-    "light": {"BG": "#F5F7FC", "CARD": "#FFFFFF", "CARD_2": "#E4EAF4",
-              "TEXT": "#0B1220", "MUTED": "#45506A",
+             "INFO": "#6EC6FF", "DANGER": "#FF6B6B", "WARN": "#FFB020",
+             "BORDER": "#232A3D"},
+    "light": {"BG": "#F3F6FB", "CARD": "#FFFFFF", "CARD_2": "#E8EDF6",
+              "TEXT": "#05080F", "MUTED": "#3A4256",
               "ACCENT": "#5B3DF5", "ACCENT_2": "#0B7F63",
-              "INFO": "#1D5FB8", "DANGER": "#C62828", "WARN": "#9A5B00"},
+              "INFO": "#164E9E", "DANGER": "#B3261E", "WARN": "#8A4B00",
+              "BORDER": "#CFD9E8"},
 }
 
 
 def apply_theme(name: str) -> str:
     """切换全局配色（重绘界面后生效）。返回真正生效的主题名。"""
-    global BG, CARD, CARD_2, TEXT, MUTED, ACCENT, ACCENT_2, INFO_C, DANGER_C, WARN_C
+    global BG, CARD, CARD_2, TEXT, MUTED, ACCENT, ACCENT_2, INFO_C, DANGER_C, WARN_C, BORDER
     key = "light" if str(name or "").lower() == "light" else "dark"
     t = THEMES[key]
     BG, CARD, CARD_2 = t["BG"], t["CARD"], t["CARD_2"]
     TEXT, MUTED = t["TEXT"], t["MUTED"]
     ACCENT, ACCENT_2 = t["ACCENT"], t["ACCENT_2"]
     INFO_C, DANGER_C, WARN_C = t["INFO"], t["DANGER"], t["WARN"]
+    BORDER = t["BORDER"]
     return key
 
 CURRENCIES = ["USD", "EUR", "GBP", "CNY", "RUB", "BRL"]
@@ -176,7 +180,7 @@ ROW_MIN_H = 44          # 列表行最小高度（可点击区域）
 
 def card(content, padding=SP_MD + 4, expand=False):
     return ft.Container(content=content, bgcolor=CARD, border_radius=RADIUS_CARD, padding=padding,
-                        expand=expand, border=ft.border.all(1, CARD_2))
+                        expand=expand, border=ft.border.all(1, BORDER))
 
 
 def h1i(icon, text, size=FS_MD, color=ACCENT):
@@ -216,7 +220,7 @@ def kpi_tile(label, value_ctrl, hint, color):
             muted(hint, FS_XS),
         ], spacing=2),
         padding=ft.padding.symmetric(horizontal=16, vertical=12),
-        bgcolor=CARD_2, border_radius=RADIUS_CTRL, expand=True)
+        bgcolor=CARD_2, border_radius=RADIUS_CTRL, expand=True, height=96)
 
 
 # 下拉选项的中文显示（配置里仍存英文 key，旧配置不受影响）
@@ -5433,7 +5437,8 @@ class App:
                   ft.Tab(text="精细化编辑", content=refined_tab)],
         )
         # 主操作（两个 Tab）放前面；营销图与图片合成设置放后面
-        return [view[0], muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
+        return [h1("AI 图片"),
+                muted("简单编辑：整体白底/去水印/翻译；精细化编辑：逐张指定提示词与参考图"),
                 tabs, conflict_card, marketing_card, self._card_img(), view[-1]]
 
     # ---------- 价格设置（表格化，不再让用户写 JSON）----------
@@ -6066,7 +6071,7 @@ class App:
             ft.Row([kpi_tile("待发布", self.pub_wait_txt, "可直接发布", INFO_C),
                     kpi_tile("发布失败", self.pub_fail_txt, "可重试", DANGER_C),
                     kpi_tile("发布中", self.pub_publishing_txt, "等待平台审核", ACCENT_2)],
-                   spacing=12, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
+                   spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             ft.Row([
                 ft.ElevatedButton("刷新数量", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
                                   on_click=lambda e: refresh_counts()),
