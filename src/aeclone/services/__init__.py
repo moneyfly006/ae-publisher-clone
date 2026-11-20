@@ -156,15 +156,21 @@ class ImageService:
                       "Connection aborted", "Connection reset")
         _gw_keys = ("500", "502", "503", "520", "521", "522", "524")
         last = None
-        # 网关 5xx/524 多半是排队超时，隔几秒重试两次通常就出图了
-        for attempt in range(3):
+        # 网关 5xx/524 多半是排队超时；默认只重试 1 次，避免极端情况下重复计费。
+        # 想完全不重试：在 config.json 里把 image_retry_times 设为 0。
+        try:
+            _retries = int(getattr(self.cfg, "image_retry_times", 1) or 0)
+        except Exception:
+            _retries = 1
+        _retries = max(0, min(2, _retries))
+        for attempt in range(_retries + 1):
             try:
                 return self.client.images_edit(m, prompt, files)
             except Exception as e:  # noqa: BLE001
                 last = e
                 _msg = str(e)
                 _gw = any(k in _msg for k in _gw_keys)
-                if attempt < 2 and _gw:
+                if attempt < _retries and _gw:
                     try:
                         import time as _t
                         _t.sleep(5 * (attempt + 1))
@@ -172,6 +178,7 @@ class ImageService:
                         pass
                     continue
                 break
+        self.last_attempts = attempt + 1
         _msg = str(last or "")
         if m != FALLBACK_IMAGE_MODEL and any(k in _msg for k in _slow_keys):
             try:

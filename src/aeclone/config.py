@@ -354,7 +354,8 @@ DEFAULTS: dict = {
     # 启动时默认打开的页面（0=概览 … 12=预览）
     "start_page": 0,
     "window_size": "1280x800",
-    "ui_theme": "dark",             # dark | light      # 启动窗口大小（小 1100x760 / 中 1280x800 / 大 1512x945）
+    "ui_theme": "dark",             # dark | light
+    "image_retry_times": 1,         # 图片接口 5xx 自动重试次数（0=不重试）      # 启动窗口大小（小 1100x760 / 中 1280x800 / 大 1512x945）
 
 }
 
