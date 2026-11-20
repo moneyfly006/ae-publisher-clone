@@ -7385,12 +7385,16 @@ class App:
                                       on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
             spacing=8))
         self.diag_list = ft.Column(spacing=4)
+        self.diag_ff_btn = ft.OutlinedButton(
+            "下载 ffmpeg（约 80MB，仅 Windows）", icon=ft.Icons.DOWNLOAD,
+            visible=False, on_click=lambda e: threading.Thread(
+                target=self._download_ffmpeg, daemon=True).start())
         diag_card = card(ft.Column([
             h1("诊断（出问题时再点）", 15),
             muted("检查 API、浏览器、店小秘、ffmpeg、磁盘；不影响正常使用"),
             ft.Row([ft.ElevatedButton("开始诊断", icon=ft.Icons.HEALTH_AND_SAFETY, bgcolor=ACCENT, color="white",
-                                      on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start())],
-                   spacing=8, wrap=True),
+                                      on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start()),
+                    self.diag_ff_btn], spacing=8, wrap=True),
             self.diag_list], spacing=8))
         # ---------------- 推荐配置（集中恢复默认值） ----------------
         from ..config import DEFAULTS as _DEF
@@ -7525,7 +7529,13 @@ class App:
         # 5) ffmpeg
         try:
             info = video_probe()
-            add("ffmpeg", info["available"], info.get("version", "")[:60] or "未安装", warn=not info["available"])
+            _ff_ok = bool(info.get("available"))
+            add("ffmpeg", _ff_ok, info.get("version", "")[:60] or "未安装", warn=not _ff_ok)
+            try:
+                import os as _os
+                self.diag_ff_btn.visible = (not _ff_ok) and _os.name == "nt"
+            except Exception:
+                pass
         except Exception as ex:
             add("ffmpeg", False, str(ex)[:60], warn=True)
 
@@ -7540,6 +7550,51 @@ class App:
 
         ok_n = sum(1 for r in rows if any(getattr(c, "color", "") == ACCENT_2 for c in r.controls))
         self._log(f"系统诊断完成：{ok_n}/{len(rows)} 项正常")
+
+    def _download_ffmpeg(self):
+        """Windows 缺 ffmpeg 时自动下载到用户目录。"""
+        from ..services.video import ensure_ffmpeg
+        self.diag_ff_btn.disabled = True
+        bar = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
+        tip = ft.Text("开始下载 ffmpeg…", size=11, color=MUTED)
+        self.diag_list.controls.append(ft.Column([tip, bar], spacing=4))
+        try:
+            self._safe_update()
+        except Exception:
+            pass
+
+        def prog(frac):
+            try:
+                if frac is not None and frac >= 0:
+                    bar.value = max(0.0, min(1.0, frac))
+                    tip.value = f"下载 ffmpeg… {int(frac * 100)}%"
+                else:
+                    tip.value = "下载 ffmpeg…"
+                self._safe_update()
+            except Exception:
+                pass
+
+        try:
+            path = ensure_ffmpeg(on_progress=prog)
+            if path:
+                tip.value = f"已安装：{path}"
+                tip.color = ACCENT_2
+                self._log(f"ffmpeg 已就绪：{path}", "INFO")
+                self.toast("ffmpeg 已安装，视频功能可用", True)
+                self.diag_ff_btn.visible = False
+            else:
+                tip.value = "下载失败（网络受限时请手动安装 ffmpeg）"
+                tip.color = "#FF6B6B"
+                self.toast("下载失败，请手动安装 ffmpeg", False)
+        except Exception as ex:  # noqa: BLE001
+            tip.value = f"下载失败：{str(ex)[:80]}"
+            tip.color = "#FF6B6B"
+        finally:
+            self.diag_ff_btn.disabled = False
+            try:
+                self._safe_update()
+            except Exception:
+                pass
 
     def _load_prices(self):
         try:

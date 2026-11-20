@@ -12,7 +12,21 @@ class VideoError(RuntimeError):
     pass
 
 
+def _exe_name() -> str:
+    return "ffmpeg.exe" if __import__("os").name == "nt" else "ffmpeg"
+
+
+def ffmpeg_bin_dir() -> Path:
+    """可写的 ffmpeg 存放目录（Windows: %LOCALAPPDATA%\\AuroraList\\bin）。"""
+    import os as _os
+    if _os.name == "nt":
+        base = Path(_os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
+        return base / "AuroraList" / "bin"
+    return Path.home() / ".local" / "share" / "AuroraList" / "bin"
+
+
 def find_ffmpeg() -> str | None:
+    """查找顺序：PATH → 应用自带 assets/bin → 用户目录 → 常见安装位置。"""
     for name in ("ffmpeg", "ffmpeg.exe"):
         p = shutil.which(name)
         if p:
@@ -21,16 +35,71 @@ def find_ffmpeg() -> str | None:
     roots = []
     if getattr(_sys, "frozen", False):
         roots.append(Path(getattr(_sys, "_MEIPASS", Path(_sys.executable).parent)))
+        roots.append(Path(_sys.executable).resolve().parent)
     roots.append(Path(__file__).resolve().parents[3])
     for root in roots:
-        for cand in (root / "assets" / "bin" / "ffmpeg.exe", root / "ffmpeg.exe",
-                     root / "bin" / "ffmpeg.exe"):
+        for cand in (root / "assets" / "bin" / _exe_name(),
+                     root / "assets" / "bin" / "ffmpeg.exe",
+                     root / "ffmpeg.exe", root / "bin" / "ffmpeg.exe",
+                     root / "bin" / "ffmpeg"):
             if cand.exists():
                 return str(cand)
-    for cand in (r"C:\ffmpeg\bin\ffmpeg.exe", "/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
+    try:
+        local = ffmpeg_bin_dir() / _exe_name()
+        if local.exists():
+            return str(local)
+    except Exception:
+        pass
+    for cand in (r"C:\ffmpeg\bin\ffmpeg.exe", "/opt/homebrew/bin/ffmpeg",
+                 "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"):
         if Path(cand).exists():
             return cand
     return None
+
+
+def ensure_ffmpeg(on_progress=None) -> str | None:
+    """Windows: 没有 ffmpeg 时自动下载一份到用户目录（约 80MB）。
+
+    其他平台返回 None（macOS 用 brew 安装即可）。
+    """
+    import os as _os
+    got = find_ffmpeg()
+    if got:
+        return got
+    if _os.name != "nt":
+        return None
+    try:
+        import requests, zipfile, tempfile, io
+        url = ("https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/"
+               "ffmpeg-master-latest-win64-gpl.zip")
+        dest = ffmpeg_bin_dir()
+        dest.mkdir(parents=True, exist_ok=True)
+        with requests.get(url, stream=True, timeout=30) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("Content-Length") or 0)
+            buf = io.BytesIO()
+            done = 0
+            for chunk in r.iter_content(256 * 1024):
+                if not chunk:
+                    continue
+                buf.write(chunk)
+                done += len(chunk)
+                if on_progress:
+                    try:
+                        on_progress(done / total if total else -1.0)
+                    except Exception:
+                        pass
+        buf.seek(0)
+        with zipfile.ZipFile(buf) as z:
+            for name in z.namelist():
+                if name.lower().endswith("bin/ffmpeg.exe"):
+                    with z.open(name) as src, open(dest / "ffmpeg.exe", "wb") as out:
+                        out.write(src.read())
+                    break
+        exe = dest / "ffmpeg.exe"
+        return str(exe) if exe.exists() else None
+    except Exception:
+        return None
 
 
 def build_slideshow(images: list[Path], out_path: Path, seconds_per_image: float = 2.0,
