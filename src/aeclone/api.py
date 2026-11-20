@@ -232,12 +232,24 @@ class ApiClient:
             raise ApiError("图片接口未返回结果", r.status_code, r.text[:300])
         return arr[0].get("url", "")
 
+    def _idem_key(self, *parts: str) -> str:
+        """稳定的幂等键：同一请求重试/重跑命中网关缓存，不重复扣费。"""
+        import hashlib as _hl
+        h = _hl.sha256()
+        h.update(str(self.key or "")[:32].encode())
+        for part in parts:
+            h.update(b"|")
+            h.update(str(part).encode())
+        return "ae-" + h.hexdigest()[:48]
+
     def images_generate(self, model: str, prompt: str, size: str = "1024x1024", n: int = 1) -> str:
         payload = {"model": model, "prompt": prompt, "size": size, "n": max(1, int(n))}
         _t0 = __import__("time").time()
         r = self.session.post(
             self._url("/v1/images/generations"),
-            headers=self._headers({"Content-Type": "application/json"}),
+            headers=self._headers({"Content-Type": "application/json",
+                                   "Idempotency-Key": self._idem_key(
+                                       "gen", model, prompt, size, str(n))}),
             data=json.dumps(payload).encode(),
             timeout=self.timeout,
         )
