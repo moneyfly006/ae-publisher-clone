@@ -183,18 +183,31 @@ class ApiClient:
     # ---------- 图片 ----------
     def images_edit(self, model: str, prompt: str, images: Iterable[Path | bytes], size: str = "1024x1024") -> str:
         files = []
+        _h = __import__("hashlib").sha256()
+        _h.update(str(model).encode())
+        _h.update(b"|")
+        _h.update(str(prompt).encode())
+        _h.update(b"|")
+        _h.update(str(size).encode())
         for i, img in enumerate(images):
             if isinstance(img, Path):
                 content = img.read_bytes()
                 name = img.name
             else:
                 content, name = img, f"image_{i}.png"
+            _h.update(__import__("hashlib").sha256(content).digest())
             files.append(("image", (name, content, "image/png")))
         data = {"model": model, "prompt": prompt, "size": size, "n": "1"}
+        # 幂等键：同一张图 + 同一提示词的重试会命中网关缓存，不会重复扣费
+        _ih = __import__("hashlib").sha256()
+        _ih.update(str(self.key or "")[:32].encode())
+        _ih.update(_h.digest())
+        headers = dict(self._headers())
+        headers["Idempotency-Key"] = "ae-" + _ih.hexdigest()[:48]
         _t0 = __import__("time").time()
         r = self.session.post(
             self._url("/v1/images/edits"),
-            headers=self._headers(),
+            headers=headers,
             data=data,
             files=files,
             timeout=self.timeout,
