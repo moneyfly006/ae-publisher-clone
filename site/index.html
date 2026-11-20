@@ -57,6 +57,10 @@ section.block{padding:60px 0}.section-head{display:flex;align-items:end;justify-
 footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted);font-size:13px}footer .wrap{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
 @media(max-width:960px){.hero .wrap,.feature{grid-template-columns:1fr}.gallery,.gallery.tabs,.steps,.dl-grid,.stats .wrap{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:36px}.nav-links{display:none}}
 @media(max-width:620px){.gallery,.gallery.tabs,.steps,.dl-grid,.stats .wrap{grid-template-columns:1fr}.hero h1{font-size:29px}.section-head{flex-direction:column;align-items:start}}
+.zoomable{cursor:zoom-in}.zoomable:hover{filter:brightness(1.06)}
+.lightbox{position:fixed;inset:0;background:rgba(4,6,10,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:3vw}
+.lightbox.open{display:flex}.lightbox img{max-width:96vw;max-height:92vh;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.65)}
+.lightbox .x{position:absolute;top:14px;right:24px;font-size:38px;line-height:1;color:#fff;cursor:pointer;opacity:.8}
 </style></head><body>
 <header class="nav"><div class="wrap">
 <a class="brand" href="#top"><img src="assets/logo.png" alt="">极光上架 <span style="color:var(--muted);font-size:12px;font-weight:500">v1.0.5</span></a>
@@ -241,4 +245,20 @@ footer{border-top:1px solid var(--border);padding:30px 0;color:var(--muted);font
 </main>
 <footer><div class="wrap"><div>极光上架 AuroraList · 速卖通机械类目 AI 批量上架</div>
 <div>咨询 QQ 3219904322 · © 2026 AuroraList · <a href="manual/" style="color:var(--accent)">操作手册</a></div></div></footer>
+<div class="lightbox" id="lb"><span class="x" id="lbx">&times;</span><img id="lbi" alt=""></div>
+<script>
+(function(){
+  var lb=document.getElementById('lb'), li=document.getElementById('lbi');
+  if(!lb) return;
+  document.querySelectorAll('img').forEach(function(im){
+    if(im.closest('.nav')||im.closest('footer')||im.width<120) return;
+    im.classList.add('zoomable');
+    im.addEventListener('click',function(){ li.src=im.src; lb.classList.add('open'); });
+  });
+  function close(){ lb.classList.remove('open'); li.src=''; }
+  lb.addEventListener('click',function(e){ if(e.target!==li) close(); });
+  document.getElementById('lbx').addEventListener('click',close);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') close(); });
+})();
+</script>
 </body></html>

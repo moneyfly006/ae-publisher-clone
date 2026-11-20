@@ -9,11 +9,11 @@ OUT = ROOT / "docs" / "manual"
 WEB = ROOT / "site" / "manual"
 OUT.mkdir(parents=True, exist_ok=True)
 WEB.mkdir(parents=True, exist_ok=True)
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 QQ = "3219904322"
 
 CHAPTERS = [
-    ("0", "概览", "一屏掌握店铺状态，一键跑完一批商品。", "p0",
+    ("0", "概览", "一屏掌握店铺状态，一键跑完一批商品。", "p0_t0",
      [("状态数字", "采集箱 / 待发布 / 发布失败 / 在线 / 审核中；点数字可直接跳到对应页面"),
       ("启动", "按当前设置开始跑一批商品（默认只处理采集箱）"),
       ("关键词", "只处理标题包含该词的商品，留空 = 全部"),
@@ -26,7 +26,7 @@ CHAPTERS = [
       ("成本 / 用量", "今日与近 7 天花费、按功能拆分、7 天柱状趋势"),
       ("最近处理", "只看今天 / 只看失败 / 搜索；点缩略图看大图")],
      "第一次用先看「准备状态」，四项全绿再点启动。"),
-    ("1", "店铺与模板", "连接店小秘、选店铺、选模板商品。", "p1",
+    ("1", "店铺与模板", "连接店小秘、选店铺、选模板商品。", "p1_t0",
      [("读取并同步", "自动读取本机 Chrome/Edge 已登录的店小秘并同步店铺"),
       ("重新检测 Cookie", "Cookie 过期时点它重新读取"),
       ("粘贴 Cookie", "读不到时手动粘贴一次"),
@@ -39,7 +39,7 @@ CHAPTERS = [
       ("模板库", "管理多个模板"),
       ("读取模板参数", "读取类目、运费、属性数量、重量，并显示模板首图")],
      "模板商品决定类目/运费/属性；标题、SKU、图片仍按新商品生成。"),
-    ("2", "类目与属性", "类目、规格库存、属性默认值与 SKU 图替换。", "p2",
+    ("2", "类目与属性", "类目、规格库存、属性默认值与 SKU 图替换。", "p2_t0",
      [("类目", "显示当前生效方式；点「去店铺设置切换」改来源"),
       ("是否原箱", "按原箱计算运费与重量"),
       ("重量/长宽高", "默认规格，模板缺省时使用"),
@@ -49,20 +49,20 @@ CHAPTERS = [
       ("欧盟资质", "需要时再填"),
       ("套装 SKU", "可选：为主 SKU 追加套装 SKU")],
      "属性冲突、重复属性会在执行前被检查出来，不用等平台报错。"),
-    ("3", "AI 文案", "英文标题、五点描述、SKU 名称。", "p3",
+    ("3", "AI 文案", "英文标题、五点描述、SKU 名称。", "p3_t0",
      [("生成范围", "标题 / 描述 / SKU 名称，可单独勾选"),
       ("提示词模板", "选择或编辑提示词，支持 {title} 等占位"),
       ("生成预览", "先预览再写入，避免直接改坏商品"),
       ("应用", "写回当前商品或本次批量"),
       ("模型", "固定使用配置好的文本模型，无需自选")],
      "建议先用 1 个商品预演，确认风格后再批量。"),
-    ("4", "内容审查", "违禁词检测与替换。", "p4",
+    ("4", "内容审查", "违禁词检测与替换。", "p4_t0",
      [("检测范围", "标题 / 属性 / SKU / 详情"),
       ("词库", "内置违禁词 + 自定义词"),
       ("开始检测", "扫描当前商品或本次批量"),
       ("结果", "标出命中的词与位置，可替换或忽略")],
      "上架前跑一次，能减少平台下架风险。"),
-    ("5", "AI 图片", "白底、去水印、翻译、精细化编辑。", "p5",
+    ("5", "AI 图片", "白底、去水印、翻译、精细化编辑。", "p5_t0",
      [("简单编辑 / 精细化编辑", "两种模式切换"),
       ("常用预设", "只做白底 / 只去水印 / 只做翻译 / 全部关闭，点后先预览再执行"),
       ("主图白底", "开关 + 起始/结束序号，只处理指定张"),
@@ -72,7 +72,7 @@ CHAPTERS = [
       ("精细化编辑", "逐张任务：第几张 + 提示词 + 参考图 + 插入位置"),
       ("冲突检查", "执行前提示互相冲突的开关")],
      "白底/去水印约 ¥0.1/张；重复图片命中缓存与幂等键，不会重复扣费。"),
-    ("6", "价格", "倍率、区域定价、多 SKU 算价。", "p6",
+    ("6", "价格", "倍率、区域定价、多 SKU 算价。", "p6_t0",
      [("价格模式", "倍率 / 固定加价 / 成本利润"),
       ("倍率 / 汇率", "按倍率换算售价，支持区域倍率"),
       ("区域定价", "按国家/地区单独定价"),
@@ -80,7 +80,7 @@ CHAPTERS = [
       ("试算预览", "改完先看结果再保存"),
       ("平台上限", "超过 999999 会自动截断并提示")],
      "价格改完先试算，再批量跑，避免全店返工。"),
-    ("7", "变种与库存", "SKU 组合、库存、重量尺寸、编码回写。", "p7",
+    ("7", "变种与库存", "SKU 组合、库存、重量尺寸、编码回写。", "p7_t0",
      [("SKU 组合", "选择属性生成组合"),
       ("库存", "批量设置库存"),
       ("重量尺寸", "每个 SKU 可单独设置"),
@@ -88,7 +88,7 @@ CHAPTERS = [
       ("套装 SKU", "追加套装组合"),
       ("同步到商品", "把当前设置写入商品")],
      "多 SKU 商品若被「SKU 编码写回」卡住，可先关闭该开关再跑。"),
-    ("8", "发布队列", "待发布 / 发布失败 / 发布中，集中发布与重试。", "p8",
+    ("8", "发布队列", "待发布 / 发布失败 / 发布中，集中发布与重试。", "p8_t0",
      [("待发布 / 发布失败 / 发布中", "三个数字，点开看对应列表"),
       ("刷新数量", "重新统计"),
       ("看待发布列表", "弹窗：按图数量排序，可多选发布"),
@@ -97,7 +97,7 @@ CHAPTERS = [
       ("重试", "只重试失败的商品"),
       ("单条发布", "列表里每行右侧「发布」，成功后从列表移除")],
      "发布前确认商品在采集箱；待发布/在线商品不能再用 API 直存。"),
-    ("9", "图片工作台", "单商品手动调试图片。", "p9",
+    ("9", "图片工作台", "单商品手动调试图片。", "p9_t0",
      [("① 单张处理", "白底 / 去水印 / 翻译 / 编辑"),
       ("② 组合与输出", "四合一、合成视频、上传、导出"),
       ("③ 维护", "清理旧图、清理缓存"),
@@ -105,7 +105,7 @@ CHAPTERS = [
       ("处理结果", "每张结果可点「对比」看处理前后"),
       ("任务队列", "进度条与待处理/完成/失败统计")],
      "调试图效果用这一页，不会写回商品。"),
-    ("10", "任务与日志", "实时日志、筛选、导出。", "p10",
+    ("10", "任务与日志", "实时日志、筛选、导出。", "p10_t0",
      [("停止任务", "当前商品结束后停止"),
       ("日志级别", "全部 / INFO / WARN / ERROR"),
       ("搜索", "按产品 ID 或关键词"),
@@ -116,7 +116,7 @@ CHAPTERS = [
       ("清空日志", "二次确认后清空本地日志"),
       ("上传运行日志", "把最近日志上报授权后台，方便远程排查")],
      "出问题先按产品 ID 筛选，把对应几行发出来最快。"),
-    ("11", "设置", "授权、API、图床、界面与诊断。", "p11",
+    ("11", "设置", "授权、API、图床、界面与诊断。", "p11_t0",
      [("机器码 / 复制 / 重新检测", "换机或授权异常时用"),
       ("授权状态", "到期时间与是否有效"),
       ("API 地址与 Key", "中转站配置"),
@@ -329,8 +329,30 @@ def print_html() -> str:
   .q{{border:1px solid #E6EAF3;border-radius:3mm;padding:3.4mm}}
   .q h3{{font-size:9.2pt;margin-bottom:1.2mm}}
   .q p{{font-size:7.7pt;color:#5B6478;line-height:1.55}}
+
+  .zoomable{{cursor:zoom-in;transition:.2s}}
+  .zoomable:hover{{filter:brightness(1.06)}}
+  .lightbox{{position:fixed;inset:0;background:rgba(4,6,10,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:3vw}}
+  .lightbox.open{{display:flex}}
+  .lightbox img{{max-width:96vw;max-height:92vh;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.65)}}
+  .lightbox .x{{position:absolute;top:14px;right:24px;font-size:38px;line-height:1;color:#fff;cursor:pointer;opacity:.8}}
+  .lightbox .x:hover{{opacity:1}}
 </style></head><body>
 {''.join(pages)}
+
+<div class="lightbox" id="lb"><span class="x" id="lbx">&times;</span><img id="lbi" alt=""></div>
+<script>
+(function(){{
+  var lb=document.getElementById('lb'), li=document.getElementById('lbi');
+  document.querySelectorAll('img.zoomable').forEach(function(im){{
+    im.addEventListener('click',function(){{ li.src=im.src; lb.classList.add('open'); }});
+  }});
+  function close(){{ lb.classList.remove('open'); li.src=''; }}
+  lb.addEventListener('click',function(e){{ if(e.target!==li) close(); }});
+  document.getElementById('lbx').addEventListener('click',close);
+  document.addEventListener('keydown',function(e){{ if(e.key==='Escape') close(); }});
+}})();
+</script>
 </body></html>"""
 
 
@@ -346,8 +368,8 @@ def web_html() -> str:
   <div class="sec-head"><span class="no">{num:0>2}</span>
     <div><h2>{esc(title)}</h2><p>{esc(desc)}</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/{img}.png" target="_blank"><img src="../assets/shots/{img}.png" alt="{esc(title)} 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v{VERSION}</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/{img}.png" alt="{esc(title)} 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v{VERSION}</figcaption></figure>
     <ol class="legend">{legend}</ol>
   </div>
   <div class="tip">提示 · {esc(tip)}</div>

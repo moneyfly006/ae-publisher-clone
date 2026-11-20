@@ -251,7 +251,19 @@ def windows_install_plan(path: Path, exe_dir: Path | None = None) -> tuple[Path 
     return target, []
 
 
-def install_update(path: Path, app_dir: str = "/Applications/AuroraList.app") -> bool:
+def _current_app_dir() -> str:
+    """当前 .app 包路径；打包后从可执行文件向上找 Contents/MacOS。"""
+    try:
+        exe = Path(sys.executable).resolve()
+        for parent in [exe.parent, *exe.parents]:
+            if parent.suffix == ".app":
+                return str(parent)
+    except Exception:
+        pass
+    return "/Applications/AuroraList.app"
+
+
+def install_update(path: Path, app_dir: str | None = None) -> bool:
     """安装更新并重启。
 
     macOS：解压 zip → 等本进程退出 → 替换 /Applications 下的 app → 重新打开。
@@ -259,6 +271,7 @@ def install_update(path: Path, app_dir: str = "/Applications/AuroraList.app") ->
     返回 True 表示已交给后台安装器（调用方随后应退出）。
     """
     path = Path(path)
+    app_dir = str(app_dir or _current_app_dir())
     if os.name == "nt":
         try:
             target, args = windows_install_plan(path)

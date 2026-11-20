@@ -1,6 +1,6 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>极光上架 AuroraList · 操作手册 v1.0.4</title>
+<title>极光上架 AuroraList · 操作手册 v1.0.5</title>
 <link rel="icon" href="../assets/logo.png"/>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <style>
@@ -76,18 +76,22 @@
     .hero,.sec{max-width:100%}
     .hero p{font-size:13px}
   }
+.zoomable{cursor:zoom-in}.zoomable:hover{filter:brightness(1.06)}
+.lightbox{position:fixed;inset:0;background:rgba(4,6,10,.94);display:none;align-items:center;justify-content:center;z-index:9999;padding:3vw}
+.lightbox.open{display:flex}.lightbox img{max-width:96vw;max-height:92vh;border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.65)}
+.lightbox .x{position:absolute;top:14px;right:24px;font-size:38px;line-height:1;color:#fff;cursor:pointer;opacity:.8}
 </style></head><body>
 <div class="bg"><div class="glow g1"></div><div class="glow g2"></div></div>
 <header class="top"><div class="top-in">
   <img src="../assets/logo.png" alt=""/><div><b>极光上架 AuroraList</b><small>USER MANUAL</small></div>
-  <div class="r"><a class="btn" href="../">← 返回官网</a><a class="btn pri" href="#download">下载 v1.0.4</a></div>
+  <div class="r"><a class="btn" href="../">← 返回官网</a><a class="btn pri" href="#download">下载 v1.0.5</a></div>
 </div></header>
 
 <div class="layout">
   <aside class="side"><h3>目录</h3><a href="#quickstart">新手 5 步</a><a href="#c0">00 概览</a><a href="#c1">01 店铺与模板</a><a href="#c2">02 类目与属性</a><a href="#c3">03 AI 文案</a><a href="#c4">04 内容审查</a><a href="#c5">05 AI 图片</a><a href="#c6">06 价格</a><a href="#c7">07 变种与库存</a><a href="#c8">08 发布队列</a><a href="#c9">09 图片工作台</a><a href="#c10">10 任务与日志</a><a href="#c11">11 设置</a><a href="#faq">常见问题</a></aside>
   <main>
     <section class="hero">
-      <div class="eyebrow">操作手册 · v1.0.4</div>
+      <div class="eyebrow">操作手册 · v1.0.5</div>
       <h1>从装好软件，<br/>到跑完第一批商品</h1>
       <p>每个页面、每个按钮做什么，都写在这里。遇到问题先看「常见问题与排查」。</p>
       <div class="quick" id="quickstart"><div class="qs"><b>01</b><div><h3>装好并授权</h3><p>打开软件 → 设置页确认「授权有效」。换机时把机器码发给管理员迁移。</p></div></div><div class="qs"><b>02</b><div><h3>连店小秘</h3><p>店铺与模板 → 读取并同步；Cookie 过期就「重新检测」或「粘贴 Cookie」。</p></div></div><div class="qs"><b>03</b><div><h3>选模板并读取</h3><p>选一个模板商品 → 读取模板参数，确认类目、运费、属性、重量都正确。</p></div></div><div class="qs"><b>04</b><div><h3>配文案与图片</h3><p>AI 文案选提示词；AI 图片按需开白底/去水印/翻译，先只处理 1-3 张看效果。</p></div></div><div class="qs"><b>05</b><div><h3>先跑 1 个，再批量</h3><p>概览 → 关键词填一个商品 → 启动。确认无误后再「搜索全部商品」批量跑。</p></div></div></div>
@@ -97,8 +101,8 @@
   <div class="sec-head"><span class="no">00</span>
     <div><h2>概览</h2><p>一屏掌握店铺状态，一键跑完一批商品。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p0.png" target="_blank"><img src="../assets/shots/p0.png" alt="概览 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p0_t0.png" alt="概览 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>状态数字</strong><span>采集箱 / 待发布 / 发布失败 / 在线 / 审核中；点数字可直接跳到对应页面</span></div></li><li><b>02</b><div><strong>启动</strong><span>按当前设置开始跑一批商品（默认只处理采集箱）</span></div></li><li><b>03</b><div><strong>关键词</strong><span>只处理标题包含该词的商品，留空 = 全部</span></div></li><li><b>04</b><div><strong>应用范围</strong><span>限定本次处理哪些商品</span></div></li><li><b>05</b><div><strong>清空</strong><span>清空关键词与范围</span></div></li><li><b>06</b><div><strong>搜索全部商品</strong><span>不受采集箱限制，按关键词搜索全店商品</span></div></li><li><b>07</b><div><strong>刷新数量</strong><span>重新拉取各状态数量</span></div></li><li><b>08</b><div><strong>准备状态</strong><span>Cookie / AI API / 模板 / 授权，绿色才能一键启动；红色点进去修</span></div></li><li><b>09</b><div><strong>今日任务</strong><span>成功 / 失败 / 今日花费</span></div></li><li><b>10</b><div><strong>成本 / 用量</strong><span>今日与近 7 天花费、按功能拆分、7 天柱状趋势</span></div></li><li><b>11</b><div><strong>最近处理</strong><span>只看今天 / 只看失败 / 搜索；点缩略图看大图</span></div></li></ol>
   </div>
   <div class="tip">提示 · 第一次用先看「准备状态」，四项全绿再点启动。</div>
@@ -107,8 +111,8 @@
   <div class="sec-head"><span class="no">01</span>
     <div><h2>店铺与模板</h2><p>连接店小秘、选店铺、选模板商品。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p1.png" target="_blank"><img src="../assets/shots/p1.png" alt="店铺与模板 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p1_t0.png" alt="店铺与模板 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>读取并同步</strong><span>自动读取本机 Chrome/Edge 已登录的店小秘并同步店铺</span></div></li><li><b>02</b><div><strong>重新检测 Cookie</strong><span>Cookie 过期时点它重新读取</span></div></li><li><b>03</b><div><strong>粘贴 Cookie</strong><span>读不到时手动粘贴一次</span></div></li><li><b>04</b><div><strong>选择店铺</strong><span>切换要操作的店铺，下方显示在线/待发布/审核中数量</span></div></li><li><b>05</b><div><strong>模板来源</strong><span>在线 / 采集箱 / 本地模板</span></div></li><li><b>06</b><div><strong>类目来源</strong><span>自动分类（商品自带类目）或按模板</span></div></li><li><b>07</b><div><strong>类目映射 / 学习</strong><span>把采集类目映射到你的常用类目</span></div></li><li><b>08</b><div><strong>选择模板产品</strong><span>选一个模板商品，后续继承运费模板、属性、重量尺寸</span></div></li><li><b>09</b><div><strong>保存模板到本地</strong><span>把模板参数存到本地，断网也能用</span></div></li><li><b>10</b><div><strong>模板库</strong><span>管理多个模板</span></div></li><li><b>11</b><div><strong>读取模板参数</strong><span>读取类目、运费、属性数量、重量，并显示模板首图</span></div></li></ol>
   </div>
   <div class="tip">提示 · 模板商品决定类目/运费/属性；标题、SKU、图片仍按新商品生成。</div>
@@ -117,8 +121,8 @@
   <div class="sec-head"><span class="no">02</span>
     <div><h2>类目与属性</h2><p>类目、规格库存、属性默认值与 SKU 图替换。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p2.png" target="_blank"><img src="../assets/shots/p2.png" alt="类目与属性 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p2_t0.png" alt="类目与属性 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>类目</strong><span>显示当前生效方式；点「去店铺设置切换」改来源</span></div></li><li><b>02</b><div><strong>是否原箱</strong><span>按原箱计算运费与重量</span></div></li><li><b>03</b><div><strong>重量/长宽高</strong><span>默认规格，模板缺省时使用</span></div></li><li><b>04</b><div><strong>货值默认值</strong><span>申报价值，报关用</span></div></li><li><b>05</b><div><strong>高关注化学品 / 是否带电</strong><span>类目属性兜底，模板读不到时用这里</span></div></li><li><b>06</b><div><strong>属性模板与 SKU 图替换</strong><span>折叠区：搜索属性模板、清空已应用属性；把某个 SKU 图换成指定 URL</span></div></li><li><b>07</b><div><strong>欧盟资质</strong><span>需要时再填</span></div></li><li><b>08</b><div><strong>套装 SKU</strong><span>可选：为主 SKU 追加套装 SKU</span></div></li></ol>
   </div>
   <div class="tip">提示 · 属性冲突、重复属性会在执行前被检查出来，不用等平台报错。</div>
@@ -127,8 +131,8 @@
   <div class="sec-head"><span class="no">03</span>
     <div><h2>AI 文案</h2><p>英文标题、五点描述、SKU 名称。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p3.png" target="_blank"><img src="../assets/shots/p3.png" alt="AI 文案 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p3_t0.png" alt="AI 文案 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>生成范围</strong><span>标题 / 描述 / SKU 名称，可单独勾选</span></div></li><li><b>02</b><div><strong>提示词模板</strong><span>选择或编辑提示词，支持 {title} 等占位</span></div></li><li><b>03</b><div><strong>生成预览</strong><span>先预览再写入，避免直接改坏商品</span></div></li><li><b>04</b><div><strong>应用</strong><span>写回当前商品或本次批量</span></div></li><li><b>05</b><div><strong>模型</strong><span>固定使用配置好的文本模型，无需自选</span></div></li></ol>
   </div>
   <div class="tip">提示 · 建议先用 1 个商品预演，确认风格后再批量。</div>
@@ -137,8 +141,8 @@
   <div class="sec-head"><span class="no">04</span>
     <div><h2>内容审查</h2><p>违禁词检测与替换。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p4.png" target="_blank"><img src="../assets/shots/p4.png" alt="内容审查 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p4_t0.png" alt="内容审查 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>检测范围</strong><span>标题 / 属性 / SKU / 详情</span></div></li><li><b>02</b><div><strong>词库</strong><span>内置违禁词 + 自定义词</span></div></li><li><b>03</b><div><strong>开始检测</strong><span>扫描当前商品或本次批量</span></div></li><li><b>04</b><div><strong>结果</strong><span>标出命中的词与位置，可替换或忽略</span></div></li></ol>
   </div>
   <div class="tip">提示 · 上架前跑一次，能减少平台下架风险。</div>
@@ -147,8 +151,8 @@
   <div class="sec-head"><span class="no">05</span>
     <div><h2>AI 图片</h2><p>白底、去水印、翻译、精细化编辑。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p5.png" target="_blank"><img src="../assets/shots/p5.png" alt="AI 图片 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p5_t0.png" alt="AI 图片 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>简单编辑 / 精细化编辑</strong><span>两种模式切换</span></div></li><li><b>02</b><div><strong>常用预设</strong><span>只做白底 / 只去水印 / 只做翻译 / 全部关闭，点后先预览再执行</span></div></li><li><b>03</b><div><strong>主图白底</strong><span>开关 + 起始/结束序号，只处理指定张</span></div></li><li><b>04</b><div><strong>主图去水印/Logo</strong><span>独立开关与序号范围</span></div></li><li><b>05</b><div><strong>主图文字翻译</strong><span>翻译序号内的文字</span></div></li><li><b>06</b><div><strong>描述图 / SKU 图</strong><span>同一套开关，分别控制</span></div></li><li><b>07</b><div><strong>精细化编辑</strong><span>逐张任务：第几张 + 提示词 + 参考图 + 插入位置</span></div></li><li><b>08</b><div><strong>冲突检查</strong><span>执行前提示互相冲突的开关</span></div></li></ol>
   </div>
   <div class="tip">提示 · 白底/去水印约 ¥0.1/张；重复图片命中缓存与幂等键，不会重复扣费。</div>
@@ -157,8 +161,8 @@
   <div class="sec-head"><span class="no">06</span>
     <div><h2>价格</h2><p>倍率、区域定价、多 SKU 算价。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p6.png" target="_blank"><img src="../assets/shots/p6.png" alt="价格 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p6_t0.png" alt="价格 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>价格模式</strong><span>倍率 / 固定加价 / 成本利润</span></div></li><li><b>02</b><div><strong>倍率 / 汇率</strong><span>按倍率换算售价，支持区域倍率</span></div></li><li><b>03</b><div><strong>区域定价</strong><span>按国家/地区单独定价</span></div></li><li><b>04</b><div><strong>多 SKU 分别计算</strong><span>不同 SKU 可用不同价格与重量</span></div></li><li><b>05</b><div><strong>试算预览</strong><span>改完先看结果再保存</span></div></li><li><b>06</b><div><strong>平台上限</strong><span>超过 999999 会自动截断并提示</span></div></li></ol>
   </div>
   <div class="tip">提示 · 价格改完先试算，再批量跑，避免全店返工。</div>
@@ -167,8 +171,8 @@
   <div class="sec-head"><span class="no">07</span>
     <div><h2>变种与库存</h2><p>SKU 组合、库存、重量尺寸、编码回写。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p7.png" target="_blank"><img src="../assets/shots/p7.png" alt="变种与库存 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p7_t0.png" alt="变种与库存 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>SKU 组合</strong><span>选择属性生成组合</span></div></li><li><b>02</b><div><strong>库存</strong><span>批量设置库存</span></div></li><li><b>03</b><div><strong>重量尺寸</strong><span>每个 SKU 可单独设置</span></div></li><li><b>04</b><div><strong>SKU 编码</strong><span>自动生成规则；可回写到商品</span></div></li><li><b>05</b><div><strong>套装 SKU</strong><span>追加套装组合</span></div></li><li><b>06</b><div><strong>同步到商品</strong><span>把当前设置写入商品</span></div></li></ol>
   </div>
   <div class="tip">提示 · 多 SKU 商品若被「SKU 编码写回」卡住，可先关闭该开关再跑。</div>
@@ -177,8 +181,8 @@
   <div class="sec-head"><span class="no">08</span>
     <div><h2>发布队列</h2><p>待发布 / 发布失败 / 发布中，集中发布与重试。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p8.png" target="_blank"><img src="../assets/shots/p8.png" alt="发布队列 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p8_t0.png" alt="发布队列 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>待发布 / 发布失败 / 发布中</strong><span>三个数字，点开看对应列表</span></div></li><li><b>02</b><div><strong>刷新数量</strong><span>重新统计</span></div></li><li><b>03</b><div><strong>看待发布列表</strong><span>弹窗：按图数量排序，可多选发布</span></div></li><li><b>04</b><div><strong>看发布失败列表</strong><span>失败原因在列表与日志里</span></div></li><li><b>05</b><div><strong>批量发布</strong><span>二次确认后批量提交</span></div></li><li><b>06</b><div><strong>重试</strong><span>只重试失败的商品</span></div></li><li><b>07</b><div><strong>单条发布</strong><span>列表里每行右侧「发布」，成功后从列表移除</span></div></li></ol>
   </div>
   <div class="tip">提示 · 发布前确认商品在采集箱；待发布/在线商品不能再用 API 直存。</div>
@@ -187,8 +191,8 @@
   <div class="sec-head"><span class="no">09</span>
     <div><h2>图片工作台</h2><p>单商品手动调试图片。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p9.png" target="_blank"><img src="../assets/shots/p9.png" alt="图片工作台 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p9_t0.png" alt="图片工作台 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>① 单张处理</strong><span>白底 / 去水印 / 翻译 / 编辑</span></div></li><li><b>02</b><div><strong>② 组合与输出</strong><span>四合一、合成视频、上传、导出</span></div></li><li><b>03</b><div><strong>③ 维护</strong><span>清理旧图、清理缓存</span></div></li><li><b>04</b><div><strong>图片墙</strong><span>排序、只看有图、点图放大</span></div></li><li><b>05</b><div><strong>处理结果</strong><span>每张结果可点「对比」看处理前后</span></div></li><li><b>06</b><div><strong>任务队列</strong><span>进度条与待处理/完成/失败统计</span></div></li></ol>
   </div>
   <div class="tip">提示 · 调试图效果用这一页，不会写回商品。</div>
@@ -197,8 +201,8 @@
   <div class="sec-head"><span class="no">10</span>
     <div><h2>任务与日志</h2><p>实时日志、筛选、导出。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p10.png" target="_blank"><img src="../assets/shots/p10.png" alt="任务与日志 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p10_t0.png" alt="任务与日志 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>停止任务</strong><span>当前商品结束后停止</span></div></li><li><b>02</b><div><strong>日志级别</strong><span>全部 / INFO / WARN / ERROR</span></div></li><li><b>03</b><div><strong>搜索</strong><span>按产品 ID 或关键词</span></div></li><li><b>04</b><div><strong>清空筛选</strong><span>恢复全部日志</span></div></li><li><b>05</b><div><strong>跟随最新</strong><span>自动滚到最新一条</span></div></li><li><b>06</b><div><strong>导出筛选结果 / 导出 CSV</strong><span>导出当前筛选，CSV 可直接用 Excel 打开</span></div></li><li><b>07</b><div><strong>复制全部日志</strong><span>整段复制给客服排查</span></div></li><li><b>08</b><div><strong>清空日志</strong><span>二次确认后清空本地日志</span></div></li><li><b>09</b><div><strong>上传运行日志</strong><span>把最近日志上报授权后台，方便远程排查</span></div></li></ol>
   </div>
   <div class="tip">提示 · 出问题先按产品 ID 筛选，把对应几行发出来最快。</div>
@@ -207,8 +211,8 @@
   <div class="sec-head"><span class="no">11</span>
     <div><h2>设置</h2><p>授权、API、图床、界面与诊断。</p></div></div>
   <div class="sec-body">
-    <figure><a href="../assets/shots/p11.png" target="_blank"><img src="../assets/shots/p11.png" alt="设置 界面"/></a>
-      <figcaption>点击图片查看原图 · 界面截图 v1.0.4</figcaption></figure>
+    <figure><img class="zoomable" src="../assets/shots/p11_t0.png" alt="设置 界面" loading="lazy"/>
+      <figcaption>点击图片放大查看 · 界面截图 v1.0.5</figcaption></figure>
     <ol class="legend"><li><b>01</b><div><strong>机器码 / 复制 / 重新检测</strong><span>换机或授权异常时用</span></div></li><li><b>02</b><div><strong>授权状态</strong><span>到期时间与是否有效</span></div></li><li><b>03</b><div><strong>API 地址与 Key</strong><span>中转站配置</span></div></li><li><b>04</b><div><strong>推荐配置</strong><span>一键恢复图床 / API 默认值</span></div></li><li><b>05</b><div><strong>图床</strong><span>图片转存地址与 Key</span></div></li><li><b>06</b><div><strong>模型与价格</strong><span>当前模型与单价（只读）</span></div></li><li><b>07</b><div><strong>界面与运行</strong><span>启动页面、窗口大小、快捷键</span></div></li><li><b>08</b><div><strong>系统诊断</strong><span>API / 浏览器 / 店小秘 / ffmpeg / 磁盘；缺 ffmpeg 可一键下载</span></div></li></ol>
   </div>
   <div class="tip">提示 · 换电脑：复制机器码发给管理员，授权可迁移。</div>
@@ -221,11 +225,11 @@
     <section class="sec" id="download"><div class="sec-head"><span class="no">↓</span>
       <div><h2>下载与咨询</h2><p>Windows / macOS 安装包，免费更新</p></div></div>
       <div class="quick">
-        <a class="qs" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.4/AuroraList-Setup-1.0.4.exe">
+        <a class="qs" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-Setup-1.0.5.exe">
           <h3>Windows 安装包</h3><p>Setup · 约 48 MB</p></a>
-        <a class="qs" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.4/AuroraList-macos-arm64.zip">
+        <a class="qs" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-macos-arm64.zip">
           <h3>macOS（Apple 芯片）</h3><p>Zip · 约 71 MB</p></a>
-        <a class="qs" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.4/AuroraList-macos-x64.zip">
+        <a class="qs" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-macos-x64.zip">
           <h3>macOS（Intel）</h3><p>Zip · 约 72 MB</p></a>
         <a class="qs" href="manual.pdf"><h3>PDF 版手册</h3><p>离线查看 / 打印</p></a>
         <a class="qs" href="manual.docx"><h3>Word 版手册</h3><p>可编辑，方便改字</p></a>
@@ -234,5 +238,21 @@
     </section>
   </main>
 </div>
-<footer>极光上架 AuroraList · v1.0.4 · 咨询 QQ 3219904322 · https://ali.moneyfly.club</footer>
+<footer>极光上架 AuroraList · v1.0.5 · 咨询 QQ 3219904322 · https://ali.moneyfly.club</footer>
+<div class="lightbox" id="lb"><span class="x" id="lbx">&times;</span><img id="lbi" alt=""></div>
+<script>
+(function(){
+  var lb=document.getElementById('lb'), li=document.getElementById('lbi');
+  if(!lb) return;
+  document.querySelectorAll('img').forEach(function(im){
+    if(im.closest('.nav')||im.closest('footer')||im.width<120) return;
+    im.classList.add('zoomable');
+    im.addEventListener('click',function(){ li.src=im.src; lb.classList.add('open'); });
+  });
+  function close(){ lb.classList.remove('open'); li.src=''; }
+  lb.addEventListener('click',function(e){ if(e.target!==li) close(); });
+  document.getElementById('lbx').addEventListener('click',close);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') close(); });
+})();
+</script>
 </body></html>
