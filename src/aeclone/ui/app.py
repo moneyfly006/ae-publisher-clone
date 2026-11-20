@@ -160,29 +160,56 @@ def _tpl_lib_dump(lib: dict) -> str:
     return _j.dumps(lib or {}, ensure_ascii=False)
 
 
-def card(content, padding=20, expand=False):
-    return ft.Container(content=content, bgcolor=CARD, border_radius=16, padding=padding,
+# ---------- 设计令牌（字体 / 间距 / 圆角）----------
+FS_XS, FS_SM, FS_BASE, FS_MD, FS_LG, FS_XL = 12, 13, 14.5, 16, 19, 26
+SP_XS, SP_SM, SP_MD, SP_LG = 6, 10, 16, 24
+RADIUS_CARD, RADIUS_CTRL = 16, 10
+ROW_MIN_H = 44          # 列表行最小高度（可点击区域）
+
+
+def card(content, padding=SP_MD + 4, expand=False):
+    return ft.Container(content=content, bgcolor=CARD, border_radius=RADIUS_CARD, padding=padding,
                         expand=expand, border=ft.border.all(1, CARD_2))
 
 
-def h1i(icon, text, size=16.5, color=ACCENT):
+def h1i(icon, text, size=FS_MD, color=ACCENT):
     """带小图标的卡片标题。"""
     return ft.Row([ft.Icon(icon, size=size + 2, color=color),
                    ft.Text(text, size=size, weight=ft.FontWeight.BOLD, color=TEXT)],
-                  spacing=8)
+                  spacing=SP_SM)
 
 
 def empty_state(text, icon=ft.Icons.INBOX_OUTLINED):
     """统一空状态样式。"""
-    return ft.Row([ft.Icon(icon, size=17.5, color=MUTED), muted(text, 11)], spacing=8)
+    return ft.Row([ft.Icon(icon, size=FS_LG, color=MUTED), muted(text, FS_SM)],
+                  spacing=SP_SM)
 
 
-def h1(t, s=22):
+def h1(t, s=FS_XL):
     return ft.Text(t, size=s, weight=ft.FontWeight.BOLD, color=TEXT)
 
 
-def muted(t, s=12):
+def muted(t, s=FS_SM):
     return ft.Text(t, size=s, color=MUTED)
+
+
+def kpi_tile(label, value_ctrl, hint, color):
+    """发布队列/概览用的指标块：大数字 + 说明，统一高度与对齐。"""
+    try:
+        value_ctrl.size = FS_XL
+        value_ctrl.weight = ft.FontWeight.BOLD
+        value_ctrl.color = color
+    except Exception:
+        pass
+    return ft.Container(
+        content=ft.Column([
+            muted(label, FS_SM),
+            ft.Container(content=value_ctrl, height=34,
+                         alignment=ft.alignment.center_left),
+            muted(hint, FS_XS),
+        ], spacing=2),
+        padding=ft.padding.symmetric(horizontal=16, vertical=12),
+        bgcolor=CARD_2, border_radius=RADIUS_CTRL, expand=True)
 
 
 # 下拉选项的中文显示（配置里仍存英文 key，旧配置不受影响）
@@ -2238,7 +2265,7 @@ class App:
                                                        gallery=imgs)], spacing=2, tight=True),
                     title=ft.Text((it.get("title") or pid)[:80], size=14.5, color=TEXT, max_lines=2),
                     subtitle=ft.Text(f"{pid} · {it.get('status_type') or ''}", size=12.5, color=MUTED),
-                    dense=True))
+                    dense=False))
             col.controls = rows or [empty_state("没有匹配的商品")]
             info.value = f"共 {len(state['rows'])} 个（上下滚动查看全部）"
             _upd()
@@ -2397,7 +2424,7 @@ class App:
                     trailing=ft.TextButton("发布", icon=ft.Icons.SEND,
                                            on_click=lambda e, _p=pid:
                                            self._publish_one(_p, on_done=lambda: _after(_p))),
-                    dense=True))
+                    dense=False))
             col.controls = rows or [empty_state("这一栏没有商品")]
             try:
                 self._safe_update()
@@ -4999,7 +5026,7 @@ class App:
                      ft.DataColumn(ft.Text("合格", size=12.5, color=MUTED)),
                      ft.DataColumn(ft.Text("不合格", size=12.5, color=MUTED)),
                      ft.DataColumn(ft.Text("明细", size=12.5, color=MUTED))],
-            rows=rows, column_spacing=14, heading_row_height=28, data_row_min_height=26)
+            rows=rows, column_spacing=16, heading_row_height=36, data_row_min_height=ROW_MIN_H)
         head = ft.Text(
             f"阈值 {min_size}×{min_size}：共 {res.get('total', 0)} 张，"
             f"合格 {res.get('passed', 0)}，不合格 {res.get('failed', 0)}",
@@ -6009,10 +6036,6 @@ class App:
         self.pub_publishing_txt = ft.Text(str(cnt.get("publishing", "—")), size=23,
                                           weight=ft.FontWeight.BOLD, color=ACCENT_2)
 
-        def _kpi(label, ctrl, hint):
-            return ft.Column([muted(label, 11),
-                              ft.Container(content=ctrl, height=30, alignment=ft.alignment.center_left),
-                              muted(hint, 10.5)], spacing=2, expand=True)
 
         def refresh_counts():
             def go():
@@ -6032,10 +6055,10 @@ class App:
         queue_card = card(ft.Column([
             h1i(ft.Icons.QUEUE, "队列"),
             muted("商品保存后会进入「待发布」，提交发布后进入「发布中 → 审核中」"),
-            ft.Row([_kpi("待发布（可直接发布）", self.pub_wait_txt, "店小秘「待发布」"),
-                    _kpi("发布失败（可重试）", self.pub_fail_txt, "多数是类目/属性问题"),
-                    _kpi("发布中", self.pub_publishing_txt, "等待平台审核")],
-                   spacing=20, vertical_alignment=ft.CrossAxisAlignment.START),
+            ft.Row([kpi_tile("待发布", self.pub_wait_txt, "可直接发布", "#6EC6FF"),
+                    kpi_tile("发布失败", self.pub_fail_txt, "可重试", "#FF6B6B"),
+                    kpi_tile("发布中", self.pub_publishing_txt, "等待平台审核", ACCENT_2)],
+                   spacing=12, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
             ft.Row([
                 ft.ElevatedButton("刷新数量", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
                                   on_click=lambda e: refresh_counts()),
@@ -6826,7 +6849,9 @@ class App:
                      ft.DataColumn(ft.Text("级别", size=12.5, color=MUTED)),
                      ft.DataColumn(ft.Text("内容", size=12.5, color=MUTED)),
                      ft.DataColumn(ft.Text("按产品筛选", size=12.5, color=MUTED))],
-            rows=[], column_spacing=14, heading_row_height=28, data_row_min_height=24,
+            rows=[], column_spacing=18, heading_row_height=36, data_row_min_height=ROW_MIN_H,
+            heading_text_style=ft.TextStyle(size=FS_SM, color=MUTED),
+            data_text_style=ft.TextStyle(size=FS_BASE, color=TEXT),
         )
         if not getattr(self, "log_rows", None):
             self.log_rows = []          # 表格只显示本次运行；历史见「打开日志文件」
