@@ -108,11 +108,11 @@ def t7_no_ai_no_key_ok():
 
 
 def t8_multi_sku_hint():
-    print("\n[测试8] 多 SKU + 编码写回 → info 提示去哪关")
+    print("\n[测试8] 多 SKU + 编码写回 → 提示按原始变种身份核验")
     cfg = Cfg(max_sku_count=256, write_sku_codes_to_product=True)
     t = _texts(cfg)
-    assert any("变种设置" in x for x in t), t
-    print("  ✓", [x for x in t if "变种设置" in x][0])
+    assert any("原始变种身份" in x and "无法匹配时停止" in x for x in t), t
+    print("  ✓", [x for x in t if "原始变种身份" in x][0])
 
 
 def t9_plan_reads_like_chinese():

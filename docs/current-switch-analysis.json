@@ -1,0 +1,32 @@
+[
+  {
+    "instance": "日常实例",
+    "config_conflicts": [],
+    "image_conflicts": [],
+    "preflight": [
+      {
+        "level": "info",
+        "text": "多 SKU 保存前会核对原始变种身份；无法匹配时停止，避免写错变种"
+      },
+      {
+        "level": "info",
+        "text": "真实写入模式：会处理图片/文本并保存到店小秘（建议先只跑 1 个商品确认效果）"
+      }
+    ]
+  },
+  {
+    "instance": "本地验收",
+    "config_conflicts": [],
+    "image_conflicts": [],
+    "preflight": [
+      {
+        "level": "info",
+        "text": "多 SKU 保存前会核对原始变种身份；无法匹配时停止，避免写错变种"
+      },
+      {
+        "level": "info",
+        "text": "真实写入模式：会处理图片/文本并保存到店小秘（建议先只跑 1 个商品确认效果）"
+      }
+    ]
+  }
+]

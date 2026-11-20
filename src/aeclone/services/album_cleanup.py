@@ -183,7 +183,7 @@ def auto_clean(client, days: int = 30) -> dict:
         return {"ok": False, "message": f"创建清理任务失败：{str(ex)[:140]}"}
 
 
-# 店小秘这个接口在不少账号上直接回「功能暂未开放！」（老软件也踩过，见 ISSUES #37）
+# 店小秘这个接口在不少账号上直接回「功能暂未开放！」（见 ISSUES #37）
 _UNAVAILABLE_MARKS = ("功能暂未开放", "暂未开放", "not open", "not available", "unsupported")
 
 

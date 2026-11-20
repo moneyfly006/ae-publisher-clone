@@ -54,36 +54,26 @@ def rules_from_switches(cfg) -> list[dict]:
         except Exception:
             return default
 
-    # 主图
-    ops = []
-    if _on("white_bg_enable"):
-        ops.append("white")
-    if _on("watermark_enable"):
-        ops.append("watermark")
-    if _on("translate_main_pic_enable"):
-        ops.append("translate")
-    if ops:
-        if _on("white_bg_enable"):
-            rng = f"{_s('white_background_pic_1', '1')}-{_s('white_background_pic_2', '3')}"
-        elif _on("watermark_enable"):
-            rng = f"{_s('remove_watermark_pic_1', '1')}-{_s('remove_watermark_pic_2', '5')}"
-        else:
-            rng = _s("translate_main_pic_indices", "1-2")
-        out.append({"group": "main", "range": rng, "ops": ops})
+    # 各功能保留自己的范围，相同范围可以合并为一次调用。
+    def add(group, expr, op):
+        row = next((r for r in out if r["group"] == group and r["range"] == expr), None)
+        if row is None:
+            row = {"group": group, "range": expr, "ops": []}
+            out.append(row)
+        row["ops"].append(op)
 
-    # 详情图
-    ops = []
+    if _on("white_bg_enable"):
+        add("main", f"{_s('white_background_pic_1', '1')}-{_s('white_background_pic_2', '3')}", "white")
+    if _on("watermark_enable"):
+        add("main", f"{_s('remove_watermark_pic_1', '1')}-{_s('remove_watermark_pic_2', '5')}", "watermark")
+    if _on("translate_main_pic_enable"):
+        add("main", _s("translate_main_pic_indices", "1-2"), "translate")
     if _on("img_detail_white_bg"):
-        ops.append("white")
+        add("detail", _s("white_background_detail_pic_indices", "1-20"), "white")
     if _on("img_detail_remove_wm"):
-        ops.append("watermark")
+        add("detail", _s("white_background_detail_pic_indices", "1-20"), "watermark")
     if _on("translate_detail_pic_enable"):
-        ops.append("translate")
-    if ops:
-        out.append({"group": "detail",
-                    "range": _s("white_background_detail_pic_indices",
-                                _s("translate_detail_pic_indices", "1-20")) or "1-20",
-                    "ops": ops})
+        add("detail", _s("translate_detail_pic_indices", "1-20"), "translate")
 
     # SKU 图
     ops = []
@@ -159,7 +149,7 @@ def parse_jobs(raw) -> list[dict]:
                "prompt": str(r.get("prompt") or "").strip(), "mode": mode,
                "count": count, "insert": insert,
                "preset": str(r.get("preset") or "").strip()}
-        # 本地参考图（老软件：图1~图N 为本地参考图，其后才是产品原图）
+        # 本地参考图（图1~图N 为本地参考图，其后为产品原图）
         rp = r.get("ref_paths")
         if isinstance(rp, str):
             paths = [x.strip() for x in rp.replace("；", ";").split(";") if x.strip()]

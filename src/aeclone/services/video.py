@@ -246,7 +246,7 @@ def _pad_filter(size: str, fps: int = 30) -> str:
 def generate_carousel_video(images: list[Path], out_path: Path, slot_seconds: float = 2.5,
                             transition_seconds: float = 0.5, size: str = "1080x1080",
                             cover: bool = True, fade_edges: bool = True) -> Path:
-    """把多张主图合成带交叉淡化转场的轮播视频（对齐老软件 generate_carousel_video）。
+    """把多张主图合成带交叉淡化转场的轮播视频。
 
     Args:
         images: 图片路径列表（按播放顺序）
@@ -263,9 +263,6 @@ def generate_carousel_video(images: list[Path], out_path: Path, slot_seconds: fl
     imgs = [Path(p) for p in images if Path(p).exists()]
     if not imgs:
         raise VideoError("没有可用的图片")
-    if len(imgs) == 1:
-        return build_slideshow(imgs, out_path, seconds_per_image=max(slot_seconds, 1.0), size=size.replace(":", "x"))
-
     size = size.replace("*", ":").replace("x", ":")
     slot = max(float(slot_seconds), 0.6)
     trans = min(max(float(transition_seconds), 0.1), slot - 0.2 if slot > 0.8 else 0.1)
@@ -286,14 +283,15 @@ def generate_carousel_video(images: list[Path], out_path: Path, slot_seconds: fl
         parts.append(f"[{cur}][v{i}]xfade=transition=fade:duration={trans:.2f}:offset={offset:.2f}[{nxt}]")
         cur = nxt
 
+    total = len(imgs) * slot - (len(imgs) - 1) * trans
     if fade_edges:
-        total = len(imgs) * slot - (len(imgs) - 1) * trans
         parts.append(f"[{cur}]fade=t=in:st=0:d=0.4,fade=t=out:st={max(total - 0.5, 0):.2f}:d=0.5[vout]")
         cur = "vout"
 
     cmd += ["-filter_complex", ";".join(parts), "-map", f"[{cur}]",
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-            "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out_path)]
+            "-pix_fmt", "yuv420p", "-t", f"{total:.2f}",
+            "-movflags", "+faststart", str(out_path)]
     proc = run(cmd, capture_output=True, text=True, timeout=600)
     if proc.returncode != 0:
         raise VideoError(f"ffmpeg 失败：{proc.stderr[-500:]}")

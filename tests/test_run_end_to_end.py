@@ -136,7 +136,7 @@ def _cfg(**kw):
     return c
 
 
-def _run(cfg, product, big, small, state="editingRequired"):
+def _run(cfg, product, big, small, state="editingRequired", scheduler=None):
     from aeclone.services import publisher as pubmod
 
     # 屏蔽进度总线与提示词方案（避免任何网络/全局状态）
@@ -161,6 +161,7 @@ def _run(cfg, product, big, small, state="editingRequired"):
             "skus": p.get("skus") if getattr(self.cfg, "write_sku_codes_to_product", True) else None,
             "weight": ship[0], "length": ship[1], "width": ship[2], "height": ship[3],
             "clean_dup_attrs": bool(getattr(self.cfg, "auto_clean_dup_attributes", True)),
+            "action": action,
         })
         return FakeSave()
 
@@ -171,7 +172,7 @@ def _run(cfg, product, big, small, state="editingRequired"):
 
     dxm = FakeDxm(state)
     pub = pubmod.Publisher(cfg, dxm=dxm, text_service=FakeText(),
-                           image_service=FakeImage(big, small), ws_endpoint="ws://fake")
+                           image_service=FakeImage(big, small), ws_endpoint="ws://fake", scheduler=scheduler)
     pub._fetch = lambda u, workdir=None: (Path(str(u)) if Path(str(u)).exists()
                                           else (small if "small" in str(u) else big))
     res = pub.run(product, dry_run=False, manage_progress=False)
@@ -485,7 +486,7 @@ def t18_empty_sku_image_skipped():
         d = Path(td)
         big, small = _mk(d, "big.png"), _mk(d, "small.png")
         rules = [{"group": "sku", "range": "1-5", "ops": ["white"]}]
-        cfg = _cfg(image_simple_rules=json.dumps(rules))
+        cfg = _cfg(image_simple_rules=json.dumps(rules), img_sku_white_bg=True)
         prod = _product(3)
         prod["skus"] = [{"sku": "A", "stock": "1"}]        # 没有 image 字段
         res, cap, pub = _run(cfg, prod, big, small)

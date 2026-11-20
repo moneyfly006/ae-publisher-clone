@@ -51,6 +51,7 @@ class UIStateRegressionTests(unittest.TestCase):
             _log=lambda message: None,
             _safe_update=lambda: None,
             _switch=lambda page: None,
+            _close_dlg=lambda dlg: setattr(dlg, "open", False),
         )
         self.app._save_api_fields = lambda: self.ns["_save_api_fields"](self.app)
 

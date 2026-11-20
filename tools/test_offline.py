@@ -1,7 +1,7 @@
 """Run isolated regression tests, never application button automation.
 
 Run from the project root: python3 tools/test_offline.py
-Network/process/browser calls are denied. All home/config/cache locations point
+Network/process/browser calls are denied. Application configuration points
 at a temporary directory. test_api.py is a separate pytest module, not silently
 counted as covered by this unittest runner.
 """
@@ -32,9 +32,8 @@ def main():
     sys.path.insert(0, str(ROOT / "tests"))
     sys.dont_write_bytecode = True
     with tempfile.TemporaryDirectory(prefix="aurora-offline-") as root:
-        env = {"HOME": root, "USERPROFILE": root, "APPDATA": root,
-               "LOCALAPPDATA": root, "XDG_CONFIG_HOME": root,
-               "XDG_CACHE_HOME": root, "AURORA_INSTANCE": "offline-regression"}
+        env = {"AURORA_CONFIG_DIR": root, "AURORA_INSTANCE": "offline-regression",
+               "AURORA_SKIP_LICENSE": "1"}
         with patch.dict(os.environ, env), patch.object(socket.socket, "connect", denied), \
              patch.object(socket.socket, "connect_ex", denied), \
              patch.object(socket, "create_connection", denied), \

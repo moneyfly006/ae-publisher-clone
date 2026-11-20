@@ -22,8 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 def _fresh_config_module(tmp: Path):
     """在临时目录里重新导入 config 模块，避免碰真实配置。"""
-    os.environ["XDG_CONFIG_HOME"] = str(tmp)
-    os.environ["HOME"] = str(tmp)
+    os.environ["AURORA_CONFIG_DIR"] = str(tmp)
     for m in list(sys.modules):
         if m == "aeclone.config" or m.startswith("aeclone.config."):
             del sys.modules[m]

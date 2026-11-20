@@ -174,7 +174,7 @@ def t9_image_edit_fallback_on_524():
             return "https://ok/fb.png"
 
     svc = object.__new__(ImageService)
-    svc.cfg = type("C", (), {"prefer_dianxiaomi_album": False})()
+    svc.cfg = type("C", (), {"prefer_dianxiaomi_album": False, "image_retry_times": 0})()
     svc.client = FakeClient()
     svc._STABLE_HOSTS = ("moneyfly",)
     out = svc._img_edit("p", [], "qwen-image-3.0")

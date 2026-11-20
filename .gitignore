@@ -5,3 +5,5 @@ build/
 dist/
 *.spec.bak
 .DS_Store
+.playwright-cli/
+output/playwright/

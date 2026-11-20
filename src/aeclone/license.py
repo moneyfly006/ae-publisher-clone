@@ -135,7 +135,7 @@ def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
            public_key_pem: str = "", store_name: str = "") -> dict:
     """按多种设备标识格式依次校验，任一通过即算授权（向后兼容）。
 
-    - identity_override：客户从老软件复制过来的旧授权 ID，优先尝试；
+    - identity_override：客户已有设备授权 ID，优先尝试；
     - public_key_pem：服务端凭证公钥（可覆盖内置公钥）。
     """
     import platform

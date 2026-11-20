@@ -39,6 +39,9 @@ def _is_selfcheck(argv: list[str]) -> bool:
 
 
 if __name__ == "__main__":
+    if "--verify-local" in sys.argv:
+        from aeclone.localcheck import run as _verify_local
+        raise SystemExit(_verify_local())
     if _is_selfcheck(sys.argv):
         # 命令行自检：不打开界面，只打印环境/配置状态
         from aeclone.selfcheck import run as _selfcheck

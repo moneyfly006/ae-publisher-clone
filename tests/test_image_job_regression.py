@@ -16,7 +16,11 @@ class ImageJobTests(unittest.TestCase):
         module.parse_jobs = lambda raw: [job]
         module.refs_indices = lambda *a, **k: []
         module.migrate = lambda cfg: ([], [])
+        module.rules_from_switches = lambda cfg: []
+        module.merged_jobs = lambda cfg: ([], [job])
         module.GROUP_LABELS = {"main": "主图"}
+        index_module = ModuleType("offline_jobs.image_index")
+        index_module.parse_indices = extract("src/aeclone/services/image_index.py", "parse_indices")
         run = extract("src/aeclone/services/publisher.py", "_apply_image_jobs", method=True,
                       namespace={"__package__": "offline_jobs", "add_step": lambda *a: None})
         calls, reads, writes = [], [], []
@@ -27,15 +31,16 @@ class ImageJobTests(unittest.TestCase):
             reads.append(args)
             return cache_hit
         fake = SimpleNamespace(
-            cfg=SimpleNamespace(), _img_service=lambda: SimpleNamespace(edit_many=generate),
+            cfg=SimpleNamespace(img_fine_main_enable=True), _img_service=lambda: SimpleNamespace(edit_many=generate),
+            _aborted=lambda: False,
             _group_urls=lambda p, group: list(p["images"]),
             _set_group_list=lambda p, group, urls: p.update(images=urls),
             _set_group_url=lambda p, group, idx, url: p["images"].__setitem__(idx, url),
             _cache_get=get, _cache_put=lambda *args: writes.append(args),
-            _img_model=lambda: "model", _fetch=lambda url, workdir: workdir / "fake")
+            _prompt_model=lambda: "model", _fetch=lambda url, workdir: workdir / "fake")
         p = {"images": ["source"]}
         with tempfile.TemporaryDirectory() as root:
-            with patch.dict(sys.modules, {module.__name__: module}), patch("tempfile.mkdtemp", return_value=root):
+            with patch.dict(sys.modules, {module.__name__: module, index_module.__name__: index_module}), patch("tempfile.mkdtemp", return_value=root):
                 run(fake, p, None)
         return p, calls, reads, writes
 

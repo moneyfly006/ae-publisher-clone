@@ -454,7 +454,7 @@ def t24_type_condition_custom_dup_removed():
     print("\n[测试24] 自定义 Type/Condition/Model Number 与系统属性重名 → 自动删除")
     import json as _j
     # 目标有 系统 Type（有效 id）+ 自定义 Type（无 id，重名 → 删）
-    # 自定义 Condition / Model Number 现在也视为系统属性 → 删（与老软件对齐）
+    # 自定义 Condition / Model Number 现在也视为系统属性 → 删（与平台字段规范一致）
     product = _product()
     product["aeopAeProductPropertys"] = _j.dumps([
         {"attrName": "Type", "attrNameId": "9001", "attrValueId": "1001", "attrValue": "Phone Case"},
@@ -652,16 +652,20 @@ def t32_sku_freight_from_template():
 
 
 def t33_duplicate_sku_props_merged():
-    """8 个 SKU 同属性组合 → 平台 CHK_SKU_PROPS_DUPLICATE，必须去重。"""
+    """重复规格必须明确报错，不能静默删掉七条不同的SKU。"""
     props = [{"skuPropertyId": 14, "propertyValueId": 350686},
              {"skuPropertyId": 400079803, "propertyValueId": 1983474624}]
     skus = [{"skuCode": f"dx{i}", "aeopSKUProperty": json.dumps(props)} for i in range(8)]
     prod = {"aeopAeProductSKUs": json.dumps([
         {"skuCode": f"dx{i}", "aeopSKUProperty": props} for i in range(8)])}
-    out = A.merge_skus(prod, None)
-    combos = {tuple(sorted((x.get("skuPropertyId"), x.get("propertyValueId")) for x in s["aeopSKUProperty"]))
-              for s in out}
-    assert len(out) == 1 and len(combos) == 1, out
+    before = json.loads(prod["aeopAeProductSKUs"])
+    try:
+        A.merge_skus(prod, None)
+    except ValueError as error:
+        assert "规格属性组合重复" in str(error), str(error)
+    else:
+        raise AssertionError("不能静默删除SKU以绕过平台检查")
+    assert json.loads(prod["aeopAeProductSKUs"]) == before
 
 
 def t34_payload_sanitizer():

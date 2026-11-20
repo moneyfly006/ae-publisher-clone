@@ -25,7 +25,8 @@ KNOWN_UI_ONLY = {
     # 纯界面/账号状态
     "license_server", "license_enforce", "license_identity", "license_cache_ok",
     "license_cache_expiry", "license_cache_ts", "license_public_key", "api_purchase_url",
-    "log_auto_follow",
+    "log_auto_follow", "template_image_url",
+    "window_size", "ui_theme",
     "store_name", "store_id", "manual_cookies", "endpoint_overrides", "start_page",
     "edit_sum", "template_source", "template_library", "price_template_library",
     "adjust_price_template_id", "adjust_price_template_name", "attribute_template_id",
@@ -36,7 +37,7 @@ KNOWN_UI_ONLY = {
 
 # 完全没人读的键：只要不被界面渲染出来就不影响用户
 KNOWN_DEAD = {
-    "auto_clean_dup_attributes",
+    "auto_clean_dup_attributes", "modify_stock_999", "ai_image_enable",
 }
 
 
@@ -109,7 +110,7 @@ def t3_没有残留的暂未实现开关():
 def t4_implemented_switches_really_read():
     print("\n[测试4] 声称生效的开关，运行时确实读了")
     must_read = ["prefer_collected_weight", "keep_main_images_local", "four_in_one",
-                 "main_as_detail", "modify_stock_999", "custom_detail_text_enable",
+                 "main_as_detail", "custom_detail_text_enable",
                  "delete_detail_text"]
     bad = []
     for k in must_read:

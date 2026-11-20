@@ -3,9 +3,12 @@ import ast
 import datetime
 from pathlib import Path
 import threading
+import time
+import tempfile
+import os
 from types import MethodType, SimpleNamespace as NS
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "src/aeclone/ui/app.py"
@@ -15,7 +18,9 @@ def method(name, **namespace):
     tree = ast.parse(SOURCE.read_text(encoding="utf-8"))
     node = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == name)
     module = ast.Module(body=[node], type_ignores=[])
-    scope = {"Path": Path, "threading": threading, "datetime": datetime, **namespace}
+    scope = {"Path": Path, "threading": threading, "datetime": datetime,
+             "time": time, "tempfile": tempfile, "__package__": "aeclone.ui",
+             "ACCENT_2": "green", "DANGER_C": "red", **namespace}
     exec(compile(ast.fix_missing_locations(module), str(SOURCE), "exec"), scope)
     return scope[name]
 
@@ -137,13 +142,13 @@ class WorkbenchSafetyTests(unittest.TestCase):
                                  q=NS(pending=lambda: items, mark=Mock()),
                                  _cookies=forbidden, _ensure_browser_session=forbidden,
                                  _refresh_queue=Mock(), _log=Mock(), toast=Mock())
-                        method("_process_queue", Publisher=publisher, history=history,
-                               DianxiaomiClient=forbidden)(app)
+                        with patch.dict(os.environ, {"AURORA_NO_SAVE": "1"}):
+                            method("_process_queue", Publisher=publisher, history=history)(app)
                         self.assertFalse(app._running)
                         self.assertEqual(publisher.call_count, size)
                         for call in publisher.call_args_list:
                             self.assertEqual(call.args, (app.cfg,))
-                            self.assertEqual(call.kwargs, {})
+                            self.assertEqual(call.kwargs, {"dxm": None, "scheduler": None})
                         for call in publisher.return_value.run.call_args_list:
                             self.assertEqual(call.kwargs, {"dry_run": True, "manage_progress": False})
                         if size:

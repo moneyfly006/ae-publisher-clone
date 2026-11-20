@@ -148,6 +148,19 @@ class DianxiaomiClient:
         return data
 
     # ---------- 业务 ----------
+    def query_customs_metadata(self, product_id: str, shop_id: str, selected: list[dict]) -> dict:
+        """Read current customs schema for an existing product. Does not save or publish."""
+        if not product_id or not shop_id:
+            raise ValueError("查询海关监管属性缺少商品或店铺标识")
+        response = self._request("post", self.base + "/api/smtCommProduct/getGlobalHsCodeById.json",
+            params={"shopId": str(shop_id), "id": str(product_id)},
+            json={"selected_pv_list": selected}, timeout=self.timeout)
+        parsed = self._parse(response)
+        data = parsed.get("data") if isinstance(parsed, dict) and "data" in parsed else parsed
+        if not isinstance(data, dict):
+            raise DianxiaomiError("平台未返回海关监管属性数据")
+        return data
+
     def check_login(self) -> bool:
         try:
             info = self.user_info()

@@ -5,7 +5,7 @@ from __future__ import annotations
 def parse_indices(expr: str, total: int) -> list[int]:
     expr = (expr or "").strip()
     if not expr:
-        return list(range(total))
+        return list(range(1, total + 1))
     out: set[int] = set()
     for part in expr.split(","):
         part = part.strip()

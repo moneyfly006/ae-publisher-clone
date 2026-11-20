@@ -49,7 +49,7 @@ class ProductIsolationTests(unittest.TestCase):
         fake = SimpleNamespace(
             _cache_get=lambda url, action, model: cache.get((url, action, model)),
             _cache_put=lambda url, action, out, model: cache.update({(url, action, model): out}),
-            _img_model=lambda: "model", _fetch=lambda url: url,
+            _prompt_model=lambda: "model", _fetch=lambda url: url,
             _img_service=lambda: SimpleNamespace(edit=generate))
         first, second = "x" * 120 + " red", "x" * 120 + " blue"
         self.assertNotEqual(edit(fake, "source", first), edit(fake, "source", second))

@@ -30,7 +30,7 @@ class SafetyTests(unittest.TestCase):
         cfg 桩，并给所有会花钱/联网的方法装上计数器，断言一次都没被调用。
         """
         class Result:
-            def __init__(self, product_id, ok):
+            def __init__(self, product_id="", ok=True, **kwargs):
                 self.product_id, self.ok, self.steps = product_id, ok, []
 
         class Cfg:
@@ -52,6 +52,9 @@ class SafetyTests(unittest.TestCase):
             def _apply_image_jobs(self, p, res, dry_run=False):
                 return p
 
+            def _apply_sku_image_replace(self, p, res, dry_run=False):
+                return p
+
             def _img_service(self):
                 calls["n"] += 1
 
@@ -62,7 +65,7 @@ class SafetyTests(unittest.TestCase):
                 calls["n"] += 1
 
         run = extract("src/aeclone/services/publisher.py", "run", method=True,
-                      namespace={"PublishResult": Result,
+                      namespace={"__package__": "aeclone.services", "PublishResult": Result,
                                  "Step": lambda *a, **k: type("S", (), {
                                      "name": a[0] if a else "",
                                      "ok": a[1] if len(a) > 1 else True,

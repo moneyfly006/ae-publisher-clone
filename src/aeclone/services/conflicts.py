@@ -54,18 +54,10 @@ def check(cfg) -> list[Conflict]:
             add("warn", "主图白底已开启但序号范围为空",
                 "white_background_pic_1/2 未填", "填好序号范围，或关掉「主图白底」",
                 ("white_bg_enable",))
-    if _b(cfg, "watermark_enable") and not _s(cfg, "watermark"):
-        add("warn", "主图去水印已开启但没有水印文件",
-            "watermark 为空（去水印/去 Logo 需要参考图）",
-            "在「AI 图片 → 水印设置」选一张水印图，或关掉「主图去水印」",
-            ("watermark_enable", "watermark"))
-
-    # ---------- 详情：添加 vs 删除 语义冲突 ----------
-    if _b(cfg, "custom_detail_text_enable") and _b(cfg, "delete_detail_text"):
-        add("warn", "「添加自定义详情」与「删除详情原有文本」同时开启",
-            "两者语义相反：一个追加内容、一个先清空原详情，结果取决于执行顺序",
-            "想保留原详情就关掉「删除详情原有文本」；想只留自定义内容就关掉「添加自定义详情」",
-            ("custom_detail_text_enable", "delete_detail_text"))
+    if _b(cfg, "overlay_watermark_enable") and not _s(cfg, "watermark"):
+        add("error", "水印叠加已开启但未设置水印",
+            "叠加水印需要图片文件或文字；去除原图水印不需要参考水印文件",
+            "在「AI 图片 → 图片输出与水印」设置水印图片或文字", ("overlay_watermark_enable", "watermark"))
 
     # ---------- 详情：开了但没有内容 ----------
     if _b(cfg, "custom_detail_text_enable"):
@@ -95,7 +87,8 @@ def check(cfg) -> list[Conflict]:
             ("only_sku_prefix_checkbox", "custom_sku_prefix_enable"))
 
     # ---------- 视频来源互斥 ----------
-    if _b(cfg, "use_template_video") and _b(cfg, "generate_main_video"):
+    if (_s(cfg, "video_source") not in ("collected", "template", "generated", "none")
+            and _b(cfg, "use_template_video") and _b(cfg, "generate_main_video")):
         add("warn", "模板视频与生成视频同时开启",
             "两者都要产出主图视频，只有一个会生效",
             "只保留一种：用模板就关掉「生成主图视频」，反之亦然",
@@ -115,7 +108,8 @@ def check(cfg) -> list[Conflict]:
     # 图片统一走图床，不再对用户提示（避免每次启动一条无意义 WARN）。
 
     # ---------- 价格 ----------
-    if _b(cfg, "write_price_to_product"):
+    mode = _s(cfg, "price_mode", "multiplier")
+    if _b(cfg, "write_price_to_product") and mode in ("multiplier", "commission"):
         try:
             _m = float(_s(cfg, "price_multiplier", "1") or 1)
         except Exception:
@@ -127,18 +121,18 @@ def check(cfg) -> list[Conflict]:
             _c = float(_s(cfg, "platform_commission", "0") or 0)
         except Exception:
             _c = 0.0
-        if _c >= 100:
+        if mode == "commission" and _c >= 100:
             add("error", "平台佣金不能 ≥ 100%",
                 f"当前 platform_commission = {_c}", "改成 0~99 之间", ("platform_commission",))
 
     # ---------- 欧盟资质 ----------
     if _s(cfg, "eu_qualification", "否") == "是":
-        need = [k for k in ("eu_name", "eu_address", "eu_email", "eu_phone")
+        need = [k for k in ("eu_responsible_name", "eu_responsible_address", "eu_responsible_email", "eu_responsible_phone")
                 if not _s(cfg, k)]
         if need:
             add("error", "已选「提交欧盟资质」但责任人资料不全",
                 "缺失：" + "、".join(need),
-                "在「高级设置 → 欧盟资质」补全，或把资质改成「否」",
+                "在「类目与属性 → 欧盟资质」补全，或把资质改成「否」",
                 ("eu_qualification", *need))
 
     return out

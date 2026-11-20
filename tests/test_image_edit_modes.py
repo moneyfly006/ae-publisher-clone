@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""图片通用编辑（老软件结构）逻辑测试。
+"""图片通用编辑（通用与精细编辑）逻辑测试。
 
 验证：
 1. 总开关关闭 → 全部跳过
@@ -159,16 +159,16 @@ def run_apply(cfg, product, monkeypatch_edit_many=None):
 
 
 def t1_master_off():
-    print("\n[测试1] 总开关关闭 → 全部跳过")
+    print("\n[测试1] 兼容配置中的旧总开关不阻止已启用的图片任务")
     cfg = Cfg(ai_image_enable=False,
-              image_ai_jobs=rows_to_jobs([{"group": "main", "index": 1, "prompt": "改图"}]))
+              image_ai_jobs=rows_to_jobs([{"group": "main", "index": 1, "prompt": "改图", "insert": "replace"}]))
     p = make_product()
     before = list(p["images"])
     out, res, fp = run_apply(cfg, p)
-    assert out["images"] == before, "关闭总开关后主图不应变化"
-    assert not fp.calls, f"关闭总开关不应调用 AI，实际调用 {fp.calls}"
-    assert any("总开关已关闭" in s.detail for s in res.steps), res.steps
-    print("  ✓ 图片未变，未调用 AI：", res.steps[0].detail)
+    assert out["images"][0] != before[0]
+    assert out["images"][1:] == before[1:]
+    assert len(fp.calls) == 1, fp.calls
+    print("  ✓ 仅指定任务的第一张图生效")
 
 
 def t2_general_mode():
@@ -262,7 +262,8 @@ def t7_sku_gating():
 
 def t8_all_groups_off():
     print("\n[测试8] 三组都未启用 → 跳过编辑但简单规则照跑")
-    cfg = Cfg(image_edit_mode="fine",
+    cfg = Cfg(image_edit_mode="fine", white_bg_enable=True,
+              white_background_pic_1="1", white_background_pic_2="2",
               image_simple_rules=json.dumps([{"group": "main", "range": "1-2", "ops": ["white"]}]),
               img_fine_main_enable=False, img_fine_detail_enable=False, img_fine_sku_enable=False)
     p = make_product(10, 3)

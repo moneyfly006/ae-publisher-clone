@@ -1,4 +1,4 @@
-"""AuroraList 配置模型：覆盖老软件全部设置项（136 项的子集，含浏览器/模板/库存/SKU/价格/图片/AI）。"""
+"""AuroraList 配置模型：统一商品处理与发布设置（136 项的子集，含浏览器/模板/库存/SKU/价格/图片/AI）。"""
 from __future__ import annotations
 
 import json
@@ -16,7 +16,7 @@ DEFAULTS: dict = {
     "api_balance": -1.0,                                  # 最近一次已知余额（-1=未知）
     "license_server": "https://license.moneyfly.club",
     "license_enforce": True,                              # 未授权时禁止开始上架
-    "license_identity": "",                               # 可选：从老软件复制过来的旧授权 ID
+    "license_identity": "",                               # 可选：已有设备授权 ID
     "license_cache_ok": False,                            # 上次授权结果（避免每次启动阻塞网络）
     "license_cache_expiry": "",
     "license_cache_ts": 0,
@@ -67,32 +67,22 @@ DEFAULTS: dict = {
     "enable_ai_sku": False,
     "enable_ai_weight": False,
     "title_prompt": (
-        "你是一名资深AliExpress速卖通SEO运营专家。请对我提供的商品标题进行专业优化。\n"
+        "你是资深 AliExpress 机械/工业设备类目 SEO 运营专家。请优化用户给出的商品标题。\n"
         "要求：\n"
-        "1) 保留原标题的核心产品名称、产品属性和主要卖点，不改变产品实际用途；\n"
-        "2) 优化关键词布局，将核心关键词、长尾关键词、属性词合理组合；\n"
-        "3) 提升搜索匹配度，优先使用海外买家常用的搜索表达；\n"
-        "4) 删除重复、无效、堆砌的词语，避免语法错误；\n"
-        "5) 在原有标题基础上优化，不要完全推翻重写；\n"
-        "6) 英文标题字符控制在 125 字以内；\n"
-        "7) 只输出一行英文标题，不要引号、不要解释、不要中文。"
+        "1) 保留原产品英文名、型号、核心规格（功率/容量/尺寸/材质）与真实用途；\n"
+        "2) 核心关键词 + 长尾关键词 + 属性词合理组合；\n"
+        "3) 删除重复、无效、堆砌词，避免语法错误与绝对化用语；\n"
+        "4) 不得编造原文没有的型号、参数、认证（原文有 CE/ISO 才写）；\n"
+        "5) 英文标题 ≤125 字符；\n"
+        "6) 只输出一行英文标题。"
     ),
     "detail_prompt": (
-        "你是一名专业工业设备外贸营销专家。请基于用户提供的原始商品信息，重写一段可直接上架的英文详情。\n\n"
-        "内容重点：\n"
-        "1) 设备用途与适用场景；\n"
-        "2) 核心参数与性能（只用原文有依据的数据，禁止编造）；\n"
-        "3) 结构、操作与维护特点；\n"
-        "4) 适用行业与目标客户；\n"
-        "5) 质量与服务优势。\n\n"
-        "图片规则（重要）：\n"
-        "- 原始详情里的图片不在正文里，改用占位符 <img data-detail-img=\"序号\"> 表示，"
-        "序号从 1 开始，对应你收到的图片清单；\n"
-        "- 按内容逻辑把图片放到对应章节之后（不要全部堆在开头或结尾）；\n"
-        "- 至少使用 2 张、最多使用全部图片；没有图片就不写占位符。\n\n"
-        "排版规则：使用 <h3>、<p>、<ul><li>、<table> 组织，段落之间留空；总长度 1500~3500 字符。\n"
-        "合规硬规则：全英文；禁止中文、邮箱、电话、网址、二维码、支付方式、第三方平台名、促销返现；"
-        "禁止绝对化用语与医疗功效；不要写 <style>/<script>/iframe；只输出 HTML 片段，不要解释。"
+        "你是专业工业设备外贸营销专家。基于原始商品信息重写英文详情。\n\n"
+        "结构：用途与场景；核心参数（只用原文数据，禁止编造型号/参数/认证）；结构与操作；适用行业；质量与服务。\n\n"
+        "图片规则：原文图片改用占位符 <img data-detail-img=\"序号\"> 按章节插入，至少 2 张，不要堆在开头/结尾。\n\n"
+        "排版：<h3>/<p>/<ul><li>/<table>，1500~3500 字符。\n"
+        "合规：全英文；禁止中文、邮箱、电话、网址、二维码、支付方式、第三方平台名、促销返现、绝对化与医疗表述；"
+        "不要 style/script/iframe；只输出 HTML 片段。"
     ),
     "sku_prompt": (
         "你是速卖通 SKU 命名规范专家。用户会给出一组中文 SKU 名称（每行一个），请逐个改写为规范英文 SKU。\n"
@@ -139,7 +129,7 @@ DEFAULTS: dict = {
     "image_edit_mode": "fine",          # general（通用编辑：一条提示词）| fine（精细化编辑：逐图设置）
     "image_simple_rules": "[]",
     "image_ai_jobs": "[]",
-    # ---- 图片通用编辑（对齐老软件：一个总开关 + 通用编辑/精细化编辑二选一）----
+    # ---- 图片通用编辑（通用编辑与精细化编辑二选一）----
     "img_general_prompt": (
         "清理并本地化这张商品图：1）彻底去除画面中的水印、Logo、二维码、促销标签等多余叠加元素，"
         "并用周围背景自然填补；2）把图中的中文文字（卖点、说明、标注等）翻译并替换为准确的英文，"
@@ -148,7 +138,7 @@ DEFAULTS: dict = {
     ),
     "img_general_main_from": "1",       # 通用编辑：主图从第几张开始
     "img_general_main_to": "8",         # 通用编辑：主图编辑到第几张（不选则不处理主图）
-    # 精细化编辑：每组独立启用（老软件：主图/详情图/SKU 图各自开关）
+    # 精细化编辑：每组独立启用（主图、详情图、SKU 图分别启用）
     "img_fine_main_enable": True,
     "img_fine_detail_enable": False,
     "img_fine_detail_replace": False,   # 删除原有详情图，仅保留编辑结果
@@ -262,6 +252,8 @@ DEFAULTS: dict = {
     "schedule_publish": False,
     "schedule_time": "",
     # 套装 / 水印叠加 / SKU 图替换
+    # 变种属性组合完全重复时：恢复真实规格失败后，自动合并重复 SKU（保留首条、库存累加）
+    "auto_merge_duplicate_skus": True,
     "combo_enable": False,
     "combo_prefix": "套装",
     "combo_multiplier": "2",
@@ -372,6 +364,9 @@ DEFAULTS: dict = {
 
 
 def config_dir() -> Path:
+    override = os.environ.get("AURORA_CONFIG_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
     inst = os.environ.get("AURORA_INSTANCE", "").strip()
     base_dir = _base_dir()
     if inst and inst != "默认":

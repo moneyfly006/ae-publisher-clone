@@ -60,9 +60,8 @@ def image_plan_lines(cfg) -> list[str]:
     mode = _text(cfg, "image_edit_mode", "fine").lower()
     general_mode = mode in ("general", "simple")
 
-    # 规则表（迁移来的）先读，用来判断旧开关是否已被它覆盖
-    rules = _as_list(_get(cfg, "image_simple_rules", "[]"))
-    _rule_groups = {str(r.get("group")) for r in rules if isinstance(r, dict)}
+    from .image_jobs import rules_from_switches
+    rules = rules_from_switches(cfg)
 
     # 简单编辑（白底/去水印/翻译）
     simple = []
@@ -81,10 +80,8 @@ def image_plan_lines(cfg) -> list[str]:
         simple.append("SKU 图白底")
     if _truthy(cfg, "translate_main_pic_enable"):
         simple.append("主图翻译")
-    if simple and "main" not in _rule_groups:
+    if simple:
         out.append("图片简单编辑：" + "；".join(simple))
-    elif simple:
-        out.append("图片简单编辑：旧开关已并入下面的「图片方案」，不会重复处理")
 
     if rules:
         parts = []
@@ -149,9 +146,9 @@ def text_plan_lines(cfg) -> list[str]:
         out.append("AI 详情：开")
     if _truthy(cfg, "enable_ai_sku"):
         out.append("AI SKU：开")
-    if _truthy(cfg, "review_enable"):
+    if any(_truthy(cfg, key) for key in ("review_text_enable", "review_main_img_enable", "review_detail_img_enable")):
         out.append("内容审查：开")
-    if _truthy(cfg, "estimate_weight_enable"):
+    if _truthy(cfg, "enable_ai_weight"):
         out.append("AI 估重：开")
     return out or ["AI 文本：全部关闭（标题/详情/SKU 都不改）"]
 
@@ -161,17 +158,26 @@ def ai_active(cfg) -> bool:
 
     总开关已取消：图片是否处理由各自的功能开关/任务/规则决定。
     """
-    keys = ("enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_enable",
-            "estimate_weight_enable", "translate_main_pic_enable",
+    keys = ("enable_ai_title", "enable_ai_detail", "enable_ai_sku", "review_text_enable",
+            "review_main_img_enable", "review_detail_img_enable", "enable_ai_weight", "translate_main_pic_enable",
             "translate_detail_pic_enable", "translate_sku_pic",
-            "white_bg_enable", "watermark_enable", "edit_enable", "four_in_one",
+            "white_bg_enable", "watermark_enable", "edit_enable",
+            "img_detail_white_bg", "img_detail_remove_wm", "img_sku_white_bg", "img_sku_remove_wm", "white_background_sku_pic",
             "main_image_generate_enable")
     try:
         if any(_truthy(cfg, k) for k in keys):
             return True
-        for k in ("image_ai_jobs", "image_simple_rules"):
-            if str(_get(cfg, k, "") or "").strip() not in ("", "[]"):
+        if _truthy(cfg, "marketing_auto_generate") and _text(cfg, "marketing_source") == "ai":
+            return True
+        jobs = _as_list(_get(cfg, "image_ai_jobs", "[]"))
+        for job in jobs:
+            if not isinstance(job, dict) or job.get("preset") == "四合一主图":
+                continue
+            group = str(job.get("group") or "main")
+            if _truthy(cfg, f"img_fine_{group}_enable", group == "main") and job.get("prompt"):
                 return True
+        if _text(cfg, "image_edit_mode", "fine") in ("general", "simple") and _text(cfg, "img_general_prompt"):
+            return True
     except Exception:
         pass
     return False
@@ -190,6 +196,8 @@ def check(cfg) -> list[Issue]:
         issues.append(Issue("warn", "配置文件损坏，已从 config.bak 恢复——"
                                     "请确认 API Key / 店铺 / 模板是否还在"))
     ai_on = ai_active(cfg)
+    if _truthy(cfg, "combo_enable"):
+        issues.append(Issue("error", "套装 SKU 当前可预览，但尚不能安全创建平台变种；请关闭「生成套装 SKU」后运行"))
 
     if ai_on and not _text(cfg, "api_key"):
         issues.append(Issue("error", "开了 AI 功能但没填 API Key —— 每一步都会失败"))
@@ -241,9 +249,7 @@ def check(cfg) -> list[Issue]:
     try:
         sku_limit = int(_get(cfg, "max_sku_count", 256) or 256)
         if sku_limit > 1 and _truthy(cfg, "write_sku_codes_to_product", True):
-            issues.append(Issue("info",
-                                "多 SKU 商品会因「SKU 编码写回」被跳过；"
-                                "在「变种设置 → SKU 写回」关掉即可继续"))
+            issues.append(Issue("info", "多 SKU 保存前会核对原始变种身份；无法匹配时停止，避免写错变种"))
     except Exception:
         pass
 
@@ -254,8 +260,12 @@ def check(cfg) -> list[Issue]:
         if snap in ("", "{}"):
             issues.append(Issue("warn", "没选产品模板 —— 必填属性可能不完整，保存会被站点拒绝"))
 
-    issues.append(Issue("info", "真实写入模式：会处理图片/文本并保存到店小秘"
-                                "（建议先只跑 1 个商品确认效果）"))
+    import os
+    if os.environ.get("AURORA_NO_SAVE") or os.environ.get("AURORA_TEST"):
+        issues.append(Issue("info", "预演模式：不调用 AI、不保存商品、不提交发布"))
+    else:
+        issues.append(Issue("info", "真实写入模式：会处理图片/文本并保存到店小秘"
+                                    "（建议先只跑 1 个商品确认效果）"))
     return issues
 
 

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 
 # 保存动作 → op 值（逆向自 add.js 按钮 onClick）：
 #   保存 L(1)=1 / 立即发布 key=2 / 保存并移入待发布 L(3)=3 / 更新=4 / 定时发布 key=5
@@ -21,7 +22,7 @@ SYSTEM_ATTR_NAMES = {
     "Origin": "产地",
     "Charge Status": "是否带电",
     "High-concerned chemical": "高关注化学品",
-    # 与老软件对齐：type / model / condition 也是站点系统属性，
+    # 与平台字段规范一致：type / model / condition 也是站点系统属性，
     # 自定义属性里出现同名（含同义词）要删除，否则与系统属性重复导致保存失败
     "Type": "类型",
     "Model Number": "型号",
@@ -326,6 +327,23 @@ def to_submit_props(product: dict, template: dict | None = None,
     return out
 
 
+def validate_sku_combinations(skus: list[dict]) -> None:
+    """Reject duplicate variant specifications without silently deleting saleable rows."""
+    seen = {}
+    for index, sku in enumerate(skus):
+        properties = sku.get("aeopSKUProperty") or []
+        combination = tuple(sorted(tuple(str(prop.get(key) or "") for key in
+            ("skuPropertyId", "propertyValueId", "propertyValueDefinitionName", "parentPropertyId",
+             "parentValueId", "plug_parent_property_id", "plug_parent_value_id"))
+            for prop in properties if isinstance(prop, dict)))
+        if not combination:
+            continue
+        code = str(sku.get("skuCode") or sku.get("original_sku") or sku.get("sku") or index + 1)
+        if combination in seen:
+            raise ValueError(f"SKU {seen[combination]} 与 {code} 的规格属性组合重复；请恢复各SKU真实规格，本次未合并或删除变种")
+        seen[combination] = code
+
+
 def merge_skus(product: dict, template: dict | None) -> list[dict]:
     """把目标 SKU 缺失的字段（originalBox/logisticAttrList/specialProductTypeList）
     从模板 SKU 补上。"""
@@ -351,7 +369,7 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
     if not _prod_freight and template is not None:
         _prod_freight = str((template or {}).get("freightTemplateId") or "").strip()
     for sku in skus:
-        s = dict(sku)
+        s = deepcopy(sku)
         # 脏值过滤：采集数据里常见 "<none>" 字符串，店小秘会把它当成无效 SKU id，
         # 报 isv.13CHK_SKU_FREIGHT_TEMPLATE_NULL（"Please edit SKU's product information"）
         for k in ("id", "skuId", "productId"):
@@ -361,7 +379,7 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
         if tpl_skus:
             for k in ("originalBox", "logisticAttrList", "specialProductTypeList"):
                 if s.get(k) in (None, "", []) and tpl_skus.get(k) not in (None, "", []):
-                    s[k] = tpl_skus[k]
+                    s[k] = deepcopy(tpl_skus[k])
         # SKU 级运费模板：商品级 → 模板商品级 → 模板 SKU 级，逐级兜底。
         # 缺了平台就报 CHK_SKU_FREIGHT_TEMPLATE_NULL（采集商品常见的坑）。
         if not str(s.get("freightTemplateId") or "").strip():
@@ -398,20 +416,7 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
                 if not _has:
                     _s["aeopSKUProperty"] = [dict(x) for x in _tp if isinstance(x, dict)]
 
-    # SKU 属性组合去重：平台要求每个 SKU 的 (属性,值) 组合唯一，
-    # 采集数据里常见 8 个 SKU 全是同一组合 → isv.7CHK_SKU_PROPS_DUPLICATE。
-    _seen_combo = set()
-    _uniq = []
-    for _s in out:
-        _props = _s.get("aeopSKUProperty") or []
-        _combo = tuple(sorted((str(x.get("skuPropertyId")), str(x.get("propertyValueId")))
-                              for x in _props if isinstance(x, dict)))
-        if _combo and _combo in _seen_combo:
-            continue
-        if _combo:
-            _seen_combo.add(_combo)
-        _uniq.append(_s)
-    out = _uniq
+    validate_sku_combinations(out)
 
     for _t in (tr2 or []) if isinstance(tr2, list) else []:
         vid = str((_t or {}).get("id") or "").strip()
@@ -424,7 +429,7 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
     # 商品没有 SKU（采集草稿常见）时，用模板首个 SKU 当骨架，否则站点会报
     # 「是否原箱不能为空」「请完善填写 SKU 编码」。
     if not out:
-        _base = dict(tpl_skus) if tpl_skus else {}
+        _base = deepcopy(tpl_skus) if tpl_skus else {}
         _base.setdefault("skuCode", "SKU-1")
         _base.setdefault("skuPrice", str(_base.get("skuPrice") or "0"))
         _base.setdefault("ipmSkuStock", str(_base.get("ipmSkuStock") or "999"))
@@ -730,6 +735,41 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
     return json.dumps({"moduleList": modules, "version": "2.0.0"}, ensure_ascii=False)
 
 
+def match_processed_skus(source: list[dict], processed: list[dict]) -> list[dict | None]:
+    """按商品内 SKU 身份匹配，不用行号把名称或图片写到另一条变种。"""
+    if not processed:
+        return [None] * len(source)
+    def clean(value):
+        value = str(value or "").strip()
+        return "" if value.lower() in ("<none>", "none", "null", "undefined") else value
+    matched, used = [], set()
+    for row in source:
+        sid, name = clean(row.get("id") or row.get("skuId")), clean(row.get("skuCode") or row.get("sku"))
+        candidates = [i for i, item in enumerate(processed)
+                      if sid and sid == clean(item.get("_source_id") or item.get("id") or item.get("skuId"))]
+        # 平台 id 有时是属性组合而非行ID，多条商品SKU可能共享同一个值。
+        # 只在原始编码能在该ID集合中唯一定位时缩小匹配，仍禁止按行号写回。
+        if len(candidates) > 1 and name:
+            candidates = [i for i in candidates if name in {
+                clean(processed[i].get(k)) for k in ("original_sku", "skuCode", "sku", "name")}]
+        if not candidates and name:
+            candidates = [i for i, item in enumerate(processed)
+                          if name in {clean(item.get(k)) for k in
+                                      ("original_sku", "skuCode", "sku", "name")}]
+        if not candidates and len(source) == len(processed) == 1:
+            candidates = [0]
+        if len(candidates) > 1 or (candidates and candidates[0] in used):
+            raise ValueError("SKU 身份不唯一，已停止写回，避免修改错误的变种")
+        if candidates:
+            used.add(candidates[0])
+            matched.append(processed[candidates[0]])
+        else:
+            matched.append(None)
+    if len(used) != len(processed):
+        raise ValueError("处理后的 SKU 无法匹配原商品，请重新读取商品后重试")
+    return matched
+
+
 def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | None = None,
                        ship: tuple | None = None, template: dict | None = None) -> dict:
     """把 AI 产物（标题/描述/SKU/图片）转成 payload 的 overrides。
@@ -746,10 +786,10 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
         overrides["subject"] = p["title_en"]
 
     # 详情（PC 端 HTML）+ 同步生成无线端描述
-    if p.get("detail_html"):
+    if p.get("detail_html") and getattr(cfg, "write_detail_html_to_product", True):
         overrides["detail"] = p["detail_html"]
         overrides["mobileDetail"] = build_mobile_detail(p["detail_html"])
-    elif p.get("detail_local_images_html"):
+    elif p.get("detail_local_images_html") and getattr(cfg, "write_detail_html_to_product", True):
         # 没开 AI 详情时：把本地详情图追加到商品原有详情上
         _base = "" if getattr(cfg, "delete_detail_text", False) else str(product_edit.get("detail") or "")
         _pos = str(getattr(cfg, "detail_local_image_position", "tail") or "tail").lower()
@@ -760,11 +800,11 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     # 海关监管属性版本过期（CHK_GLOBAL_PROPERTY_VERSION_ERROR）：用模板里当前有效的
     # hsCode 覆盖商品上那份旧 schema 的值；模板也没有就清空，让平台按类目当前版本重算。
     try:
-        if "hsCode" in p and p.get("hs_code_override") is not None:
+        if p.get("hs_code_override") is not None:
             overrides["hsCode"] = str(p.get("hs_code_override") or "")
     except Exception:
         pass
-    if images:
+    if images and getattr(cfg, "write_main_images_to_product", True):
         overrides["imageURLs"] = ";".join(images)
 
     # SKU：在原 SKU 结构上套用 AI 名称 + 价格 + 库存
@@ -774,6 +814,8 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     try:
         # 传真实模板，merge_skus 才能用模板 SKU 的有效 id 修复脏 id（"<none>"）
         skus = merge_skus(product_edit, template or {})
+    except ValueError:
+        raise
     except Exception:
         raw_skus = product_edit.get("aeopAeProductSKUs")
         if isinstance(raw_skus, str):
@@ -783,6 +825,20 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
                 raw_skus = []
         skus = raw_skus if isinstance(raw_skus, list) else []
     ai_skus = p.get("skus") or []
+    matched_skus = match_processed_skus(skus, ai_skus)
+    # 平台选项定义：否=0，是=1；商品级与每条 SKU 需保持一致。
+    original_box = getattr(cfg, "original_box", None)
+    if isinstance(original_box, bool):
+        value = "1" if original_box else "0"
+        overrides["originalBox"] = value
+        for row in skus:
+            row["originalBox"] = value
+    if p.get("_sku_limit_applied"):
+        selected = [(row, ai) for row, ai in zip(skus, matched_skus) if ai is not None]
+        if not selected:
+            raise ValueError("SKU 上限裁剪后没有可验证的变种，已停止写回")
+        skus = [row for row, ai in selected]
+        matched_skus = [ai for row, ai in selected]
 
     # 模板首个 SKU：变种主题 / 物流属性 / 原箱等站点必填项都从它沿用
     _tpl_sku0 = None
@@ -824,19 +880,23 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
     except Exception:
         price = 0
 
+    if p.get("_preserve_existing_prices"):
+        # Revalidate the freshly fetched target; never reuse a stale snapshot's prices.
+        from .price_recovery import existing_sku_prices
+        existing_sku_prices(skus)
+        price = 0
+
     # 速卖通零售价上限 999999（超过会报 isv.13CHK_BASIC_MAXVALUE）
     _MAX_RETAIL = 999999.0
     if price and price > _MAX_RETAIL:
         price = _MAX_RETAIL
 
-    stock = str(getattr(cfg, "stock_quantity", "") or "").strip()
-    if not stock and skus:
-        stock = str(skus[0].get("ipmSkuStock") or "")
-
+    stock_value = getattr(cfg, "stock_quantity", "")
+    stock = str(stock_value if stock_value is not None else "").strip()
     for i, sku in enumerate(skus):
         # SKU 名称（AI）
-        if ai_skus and i < len(ai_skus) and getattr(cfg, "write_sku_codes_to_product", True):
-            ai = ai_skus[i]
+        ai = matched_skus[i]
+        if ai is not None and getattr(cfg, "write_sku_codes_to_product", True):
             name = (ai.get("optimized_name") or ai.get("name") or ai.get("sku") or "").strip()
             if name:
                 sku["skuCode"] = name[:20]
@@ -847,8 +907,8 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
         if stock:
             sku["ipmSkuStock"] = stock
         # SKU 图（AI 编辑后）
-        if ai_skus and i < len(ai_skus):
-            img = ai_skus[i].get("processed_image") or ai_skus[i].get("image")
+        if ai is not None:
+            img = ai.get("processed_image") or ai.get("image")
             if img:
                 prop = (sku.get("aeopSKUProperty") or [{}])
                 if prop and isinstance(prop, list):
@@ -884,7 +944,7 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
             for _k in ("logisticAttrList", "specialProductTypeList", "originalBox"):
                 if _s.get(_k) in (None, "", []) and _tpl_sku0.get(_k) not in (None, "", []):
                     _s[_k] = _tpl_sku0[_k]
-    if skus and (price > 0 or stock or ai_skus):
+    if skus and (price > 0 or stock or ai_skus or isinstance(original_box, bool)):
         overrides["aeopAeProductSKUs"] = _j.dumps(skus, ensure_ascii=False)
 
     # 价格同步：改 skuPrice 后 productMinPrice/MaxPrice 要一致

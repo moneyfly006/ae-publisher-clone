@@ -67,7 +67,9 @@ r = rules_from_switches(cfg)
 chk("只开去水印时规则只有 watermark", r and r[0]["ops"] == ["watermark"], str(r))
 cfg = Cfg(white_bg_enable=True, watermark_enable=True)
 r = rules_from_switches(cfg)
-chk("两个都开才合并", r and r[0]["ops"] == ["white", "watermark"], str(r))
+chk("不同范围保持各自动作", r == [
+    {"group": "main", "range": "1-3", "ops": ["white"]},
+    {"group": "main", "range": "1-5", "ops": ["watermark"]}], str(r))
 
 # 3) 关掉开关后，旧规则残留也不能执行（客户真实日志里的问题）
 cfg = Cfg(white_bg_enable=False, watermark_enable=False,

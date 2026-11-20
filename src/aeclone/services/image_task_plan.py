@@ -1,4 +1,4 @@
-"""图片任务计划：按配置生成可执行步骤，并给出阻断原因（对齐老软件 image_task_plan）。"""
+"""图片任务计划：按配置生成可执行步骤，并给出阻断原因。"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
