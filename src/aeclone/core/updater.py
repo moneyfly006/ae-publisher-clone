@@ -35,20 +35,23 @@ def _machine_arch() -> str:
     return "x64"
 
 
-def _asset_score(name: str) -> int:
+def _asset_score(name: str, platform: str | None = None,
+                 machine: str | None = None, nt: bool | None = None) -> int:
     """给 release asset 打分，越大越合适；0 表示不适用于当前平台。"""
     n = (name or "").lower()
-    if sys.platform == "darwin":
+    plat = platform or sys.platform
+    is_nt = os.name == "nt" if nt is None else nt
+    if plat == "darwin":
         if not (n.startswith("auroralist-macos") and n.endswith(".zip")):
             return 0
-        want = _machine_arch()
+        want = machine or _machine_arch()
         other = "x64" if want == "arm64" else "arm64"
         if want in n:
             return 100
         if other in n:
             return 10      # 架构不匹配，仅作兜底
         return 20
-    if os.name == "nt":
+    if is_nt:
         if n.startswith("auroralist-setup") and n.endswith(".exe"):
             return 100
         if "windows" in n and n.endswith(".zip"):
@@ -168,6 +171,16 @@ def download_with_progress(url: str, dest: Path | None = None,
     return dest
 
 
+def asset_filename(url: str, fallback: str = "aurora-update") -> str:
+    """从下载地址取真实文件名（Setup.exe 不能存成 .zip）。"""
+    try:
+        from urllib.parse import urlparse
+        name = Path(urlparse(str(url)).path).name
+        return name or fallback
+    except Exception:
+        return fallback
+
+
 def looks_like_installer(path: Path) -> bool:
     """粗校验：exe 应以 MZ 开头，zip 应以 PK 开头；HTML 错误页直接判坏。"""
     try:
@@ -183,9 +196,19 @@ def looks_like_installer(path: Path) -> bool:
 
 
 def windows_setup_args(app_dir: Path) -> list[str]:
-    """Inno Setup 静默参数：装回原目录（可能是 D 盘），并允许关闭正在运行的软件。"""
-    return ["/SILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES",
-            f'/DIR={Path(app_dir)}']
+    """Inno Setup 静默参数：装回原目录（可能是 D 盘），并允许关闭正在运行的软件。
+
+    只有目录里存在 unins000.exe（Inno 安装标记）时才带 /DIR，
+    便携包解压到临时目录的情况不能把程序装到临时目录里。
+    """
+    args = ["/SILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES"]
+    p = Path(app_dir)
+    try:
+        if (p / "unins000.exe").exists():
+            args.append(f"/DIR={p}")
+    except Exception:
+        pass
+    return args
 
 
 def windows_install_target(path: Path) -> Path | None:
@@ -193,6 +216,13 @@ def windows_install_target(path: Path) -> Path | None:
     import zipfile
     path = Path(path)
     ext = path.suffix.lower()
+    # 有些镜像会把 exe 存成 zip：按文件头纠正
+    try:
+        head = path.read_bytes()[:2]
+    except Exception:
+        head = b""
+    if head == b"MZ":
+        return path
     if ext == ".exe":
         return path
     if ext == ".zip":
@@ -209,6 +239,18 @@ def windows_install_target(path: Path) -> Path | None:
     return None
 
 
+def windows_install_plan(path: Path, exe_dir: Path | None = None) -> tuple[Path | None, list[str]]:
+    """返回 (要运行的文件, 启动参数)。Windows 更新安装的唯一决策点，便于验证。"""
+    target = windows_install_target(Path(path))
+    if target is None:
+        return None, []
+    # 名字是 AuroraList-Setup-1.0.2.exe，不是以 setup 开头
+    if target.suffix.lower() == ".exe" and "setup" in target.name.lower():
+        cur = Path(exe_dir) if exe_dir else Path(sys.executable).resolve().parent
+        return target, windows_setup_args(cur)
+    return target, []
+
+
 def install_update(path: Path, app_dir: str = "/Applications/AuroraList.app") -> bool:
     """安装更新并重启。
 
@@ -219,16 +261,14 @@ def install_update(path: Path, app_dir: str = "/Applications/AuroraList.app") ->
     path = Path(path)
     if os.name == "nt":
         try:
-            target = windows_install_target(path)
+            target, args = windows_install_plan(path)
             if target is None:
                 return False
-            import subprocess
-            if target.suffix.lower() == ".exe" and target.name.lower().startswith("setup"):
-                # Inno Setup：静默安装到「当前程序所在目录」，换盘符也能原地升级
-                cur = Path(sys.executable).resolve().parent
-                subprocess.Popen([str(target)] + windows_setup_args(cur), close_fds=True)
-                return True
-            os.startfile(str(target))  # type: ignore[attr-defined]
+            if args:
+                import subprocess
+                subprocess.Popen([str(target)] + args, close_fds=True)
+            else:
+                os.startfile(str(target))  # type: ignore[attr-defined]
             return True
         except Exception:
             return False

@@ -64,8 +64,11 @@ with zipfile.ZipFile(_zip2, "w") as _z:
     _z.writestr("AuroraList/AuroraList.exe", "MZ")
 _wt2 = updater.windows_install_target(_zip2)
 chk("Windows 便携 zip 找到主程序", _wt2 is not None and _wt2.name == "AuroraList.exe", str(_wt2))
-_args = updater.windows_setup_args(Path("D:/Apps/AuroraList"))
-chk("静默安装参数带原目录", any(a.startswith("/DIR=D:") for a in _args), str(_args))
+_inst = Path(tempfile.mkdtemp()) / "AuroraList"
+_inst.mkdir(parents=True)
+(_inst / "unins000.exe").write_bytes(b"MZ")
+_args = updater.windows_setup_args(_inst)
+chk("静默安装参数带原目录", any(a.startswith("/DIR=") and str(_inst) in a for a in _args), str(_args))
 chk("静默安装会关闭旧进程", "/CLOSEAPPLICATIONS" in _args, str(_args))
 print("=" * 60)
 print(f"结果: {ok} 通过, {fail} 失败")

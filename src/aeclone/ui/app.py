@@ -7928,8 +7928,7 @@ class App:
                 self.upd_status.value = "开始下载…"
                 self._safe_update()
                 # 按真实资产名保存（Setup.exe 不能存成 .zip，否则 Windows 会当压缩包打开）
-                from urllib.parse import urlparse as _uparse
-                _fname = Path(_uparse(url).path).name or f"aurora-update-{latest}"
+                _fname = _up.asset_filename(url, f"aurora-update-{latest}")
                 dest = Path(tempfile.gettempdir()) / _fname
 
                 def prog(frac):
