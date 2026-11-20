@@ -1071,8 +1071,8 @@ class App:
                 ft.ElevatedButton("启动", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color="white",
                                   on_click=lambda e: self._toggle_run()),
                 self.search_kw,
-                ft.ElevatedButton("应用范围", icon=ft.Icons.FILTER_ALT, bgcolor=CARD_2, color=TEXT,
-                                  on_click=lambda e: self._apply_search()),
+                ft.ElevatedButton("选择商品", icon=ft.Icons.CHECKLIST, bgcolor=CARD_2, color=TEXT,
+                                  on_click=lambda e: self._scope_dialog()),
                 ft.TextButton("清空", icon=ft.Icons.CLEAR, on_click=lambda e: self._clear_search()),
                 ft.OutlinedButton("搜索全部商品", icon=ft.Icons.SEARCH,
                                   on_click=lambda e: self._global_search_dialog()),
@@ -1660,7 +1660,8 @@ class App:
         if bool(getattr(self, "_running", False)) or bool(getattr(self, "_stop_requested", False)):
             self._request_stop()
         else:
-            self._start()
+            _ids = list(getattr(self, "run_scope_ids", []) or [])
+            self._start(only_ids=_ids or None)
         (getattr(self, '_sync_run_button', None) or (lambda: None))()
 
     def _retry_publish_failed(self):
@@ -2089,6 +2090,133 @@ class App:
             self._log(f"类目学习失败：{str(ex)[:150]}", "ERROR")
             self.toast(f"类目学习失败：{str(ex)[:80]}", False)
 
+    def _scope_dialog(self):
+        """选择商品：搜索/筛选采集箱商品，多选后只处理这些商品。"""
+        PAGE = 12
+        kw = ft.TextField(hint_text="标题关键词（留空=全部采集箱）", width=300, dense=True,
+                          bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        info = ft.Text("", size=11, color=MUTED)
+        col = ft.Column(spacing=2, height=360, scroll=ft.ScrollMode.AUTO)
+        picked: set[str] = set(str(x) for x in (getattr(self, "run_scope_ids", []) or []))
+        state = {"rows": [], "page": 1}
+        pager = ft.Text("", size=11, color=MUTED)
+        prev_btn = ft.OutlinedButton("上一页")
+        next_btn = ft.OutlinedButton("下一页")
+        sel_text = ft.Text(f"已选 {len(picked)} 个", size=11, color=ACCENT_2)
+        dlg_holder: dict = {}
+
+        def _upd():
+            try:
+                dlg_holder["dlg"].update()
+            except Exception:
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+        def render():
+            total = max(1, (len(state["rows"]) + PAGE - 1) // PAGE)
+            state["page"] = min(max(1, state["page"]), total)
+            lo = (state["page"] - 1) * PAGE
+            rows = []
+            for it in state["rows"][lo:lo + PAGE]:
+                pid = str(it.get("id") or "")
+                imgs = it.get("images") or []
+                cb = ft.Checkbox(value=pid in picked,
+                                 on_change=lambda e, _p=pid: (_toggle(_p, e.control.value)))
+                rows.append(ft.ListTile(
+                    leading=ft.Row([cb, self._zoom_img(imgs[0] if imgs else "", 38, 38, "主图",
+                                                       gallery=imgs)], spacing=2, tight=True),
+                    title=ft.Text((it.get("title") or pid)[:66], size=12, color=TEXT, max_lines=2),
+                    subtitle=ft.Text(pid, size=10, color=MUTED), dense=True))
+            col.controls = rows or [empty_state("没有匹配的商品")]
+            pager.value = f"第 {state['page']}/{total} 页 · 共 {len(state['rows'])} 个"
+            prev_btn.disabled = state["page"] <= 1
+            next_btn.disabled = state["page"] >= total
+            _upd()
+
+        def _toggle(pid, on):
+            (picked.add(pid) if on else picked.discard(pid))
+            sel_text.value = f"已选 {len(picked)} 个"
+
+        def go(delta):
+            state["page"] += delta
+            render()
+
+        prev_btn.on_click = lambda e: go(-1)
+        next_btn.on_click = lambda e: go(1)
+
+        def do_search(e=None):
+            info.value = "读取中…"
+            _upd()
+
+            def work():
+                try:
+                    from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+                    dxm = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                    k = (kw.value or "").strip()
+                    rows, _m = dxm.product_page(1, 200, self.cfg.store_id or None, "draft")
+                    if k:
+                        low = k.lower()
+                        rows = [x for x in rows if low in str(x.get("title") or "").lower()]
+                    state["rows"] = rows or []
+                    state["page"] = 1
+                    info.value = f"找到 {len(state['rows'])} 个采集箱商品"
+                    info.color = ACCENT_2
+                    render()
+                except Exception as ex:  # noqa: BLE001
+                    info.value = f"读取失败：{str(ex)[:100]}"
+                    info.color = "#FF6B6B"
+                    _upd()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def apply_scope(e=None):
+            self.run_scope_ids = sorted(picked)
+            try:
+                if self.search_hint is not None:
+                    if self.run_scope_ids:
+                        self.search_hint.value = f"当前：只处理已选 {len(self.run_scope_ids)} 个商品"
+                        self.search_hint.color = ACCENT_2
+                    else:
+                        self.search_hint.value = "当前：处理全部采集箱商品"
+                        self.search_hint.color = MUTED
+            except Exception:
+                pass
+            self._log(f"范围已更新：{len(self.run_scope_ids)} 个指定商品", "INFO")
+            self._close_dlg(dlg_holder.get("dlg"))
+            self._safe_update()
+
+        kw.on_submit = do_search
+        dlg = ft.AlertDialog(
+            title=ft.Text("选择要处理的商品"),
+            content=ft.Column([ft.Row([kw,
+                                       ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, bgcolor=ACCENT,
+                                                         color="white", on_click=do_search),
+                                       ft.TextButton("全选本页", on_click=lambda e: _all(True)),
+                                       ft.TextButton("清空", on_click=lambda e: _all(False))],
+                                      spacing=8, wrap=True),
+                               info, col,
+                               ft.Row([prev_btn, next_btn, pager, ft.Container(expand=True),
+                                       sel_text], spacing=10)], spacing=8, width=700),
+            actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg_holder.get("dlg"))),
+                     ft.ElevatedButton("只处理选中", bgcolor=ACCENT, color="white", on_click=apply_scope)],
+        )
+        dlg_holder["dlg"] = dlg
+
+        def _all(on):
+            if on:
+                lo = (state["page"] - 1) * PAGE
+                for it in state["rows"][lo:lo + PAGE]:
+                    picked.add(str(it.get("id")))
+            else:
+                picked.clear()
+            sel_text.value = f"已选 {len(picked)} 个"
+            render()
+
+        self._show_dlg(dlg)
+        do_search()
+
     def _global_search_dialog(self):
         """全局搜商品：关键词 + 状态，结果带缩略图与分页。"""
         PAGE = 12
@@ -2104,6 +2232,13 @@ class App:
         info = ft.Text("输入关键词后点搜索", size=11, color=MUTED)
         col = ft.Column(spacing=2, height=380, scroll=ft.ScrollMode.AUTO)
         state = {"rows": [], "page": 1}
+        picked: set[str] = set()
+        sel_text = ft.Text("已选 0 个", size=11, color=ACCENT_2)
+        dlg_holder: dict = {}
+
+        def _toggle(pid, on):
+            (picked.add(pid) if on else picked.discard(pid))
+            sel_text.value = f"已选 {len(picked)} 个"
         pager = ft.Text("", size=11, color=MUTED)
         prev_btn = ft.OutlinedButton("上一页")
         next_btn = ft.OutlinedButton("下一页")
@@ -2116,8 +2251,11 @@ class App:
             for it in state["rows"][lo:lo + PAGE]:
                 pid = str(it.get("id") or "")
                 imgs = it.get("images") or []
+                cb = ft.Checkbox(value=pid in picked,
+                                 on_change=lambda e, _p=pid: _toggle(_p, e.control.value))
                 rows.append(ft.ListTile(
-                    leading=self._zoom_img(imgs[0] if imgs else "", 42, 42, "主图", gallery=imgs),
+                    leading=ft.Row([cb, self._zoom_img(imgs[0] if imgs else "", 38, 38, "主图",
+                                                       gallery=imgs)], spacing=2, tight=True),
                     title=ft.Text((it.get("title") or pid)[:70], size=12, color=TEXT, max_lines=2),
                     subtitle=ft.Text(f"{pid} · {it.get('status_type') or ''}", size=10, color=MUTED),
                     dense=True))
@@ -2125,10 +2263,14 @@ class App:
             pager.value = f"第 {state['page']}/{total} 页 · 共 {len(state['rows'])} 个"
             prev_btn.disabled = state["page"] <= 1
             next_btn.disabled = state["page"] >= total
+            # 对话框内部刷新必须用 dlg.update()，用 page.update() 会让弹窗被关掉
             try:
-                self._safe_update()
+                dlg_holder["dlg"].update()
             except Exception:
-                pass
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
 
         def go(delta):
             state["page"] += delta
@@ -2177,9 +2319,23 @@ class App:
                                                          on_click=do_search)],
                                       spacing=8, wrap=True),
                                info, col,
-                               ft.Row([prev_btn, next_btn, pager], spacing=10)], spacing=8, width=680),
-            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
+                               ft.Row([prev_btn, next_btn, pager, ft.Container(expand=True),
+                                       sel_text], spacing=10)], spacing=8, width=700),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
+                     ft.ElevatedButton("处理选中商品", bgcolor=ACCENT, color="white",
+                                       on_click=lambda e: _run_picked())],
         )
+        dlg_holder["dlg"] = dlg
+
+        def _run_picked():
+            ids = sorted(picked)
+            if not ids:
+                self.toast("先勾选要处理的商品", False)
+                return
+            self._close_dlg(dlg)
+            self.run_scope_ids = ids
+            self._start(only_ids=ids)
+
         self._show_dlg(dlg)
         do_search()
 
@@ -2598,7 +2754,14 @@ class App:
             self._log(f"共 {len(all_prods)} 个产品，跳过审核中/已发布 {len(blocked)} 个", "INFO")
             limit = int(self.cfg.edit_sum or 0) or 0
             _fetch = (max(limit * 4, 40) if limit else 0)
-            prods = dxm.pending_products(limit=_fetch, shop_id=self.cfg.store_id or None)
+            if only_ids:
+                # 明确指定了商品：直接按 ID 取，避免它们不在 pending 前 N 条里
+                _want = {str(x) for x in only_ids}
+                _all, _m = dxm.product_page(1, 500, self.cfg.store_id or None, "draft")
+                prods = [x for x in _all if str(x.get("id")) in _want]
+                self._log(f"按指定商品读取：{len(prods)}/{len(_want)} 个", "INFO")
+            else:
+                prods = dxm.pending_products(limit=_fetch, shop_id=self.cfg.store_id or None)
             # 标题关键词筛选（留空=全部）
             _kw = str(getattr(self, "run_keyword", "") or "").strip()
             if _kw:
@@ -2918,6 +3081,7 @@ class App:
         except Exception:
             pass
         self.run_keyword = ""
+        self.run_scope_ids = []
         self.search_hint.value = "当前：处理全部采集箱商品"
         self.search_hint.color = MUTED
         self._safe_update()
