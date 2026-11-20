@@ -1,667 +1,315 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>极光上架 AuroraList · 速卖通 AI 批量上架工具</title>
-<meta name="description" content="极光上架 AuroraList：面向速卖通卖家的 AI 批量上架工具。采集箱一键跑完文案、图片、价格、变种与发布，支持 Windows 与 macOS。" />
-<link rel="icon" href="assets/logo.png" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>极光上架 AuroraList · 速卖通机械类目 AI 批量上架</title>
+<meta name="description" content="极光上架 AuroraList：为速卖通机械/工业设备卖家做的桌面工具。AI 文案与图片、价格与变种、批量发布与失败自愈，一次点击跑完。">
+<link rel="icon" href="assets/logo.png">
 <style>
 :root{
-  --bg:#06070C;
-  --bg-2:#0A0C14;
-  --ink:#F3F5FB;
-  --muted:#98A0B8;
-  --dim:#6B7288;
-  --violet:#7C5CFF;
-  --violet-2:#A78BFA;
-  --teal:#00D2A8;
-  --amber:#FFB020;
-  --line:rgba(255,255,255,.09);
-  --line-soft:rgba(255,255,255,.055);
-  --card:rgba(255,255,255,.035);
-  --card-2:rgba(255,255,255,.055);
-  --radius:22px;
-  --max:1240px;
-  --serif:"Noto Serif SC", "Songti SC", "STSong", serif;
-  --sans:"Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --mono:"JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --bg:#0B1217;--surface:#101A20;--card:#152129;--card2:#1A2932;--border:#23343D;
+  --text:#E9F2F3;--muted:#94A9B1;--accent:#58C9B7;--accent-deep:#0F766E;--warn:#EAC078;--danger:#FF9298;
+  --r-lg:20px;--r-md:14px;--maxw:1180px;
 }
-*{box-sizing:border-box}
+*{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{
-  margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans);
-  -webkit-font-smoothing:antialiased; overflow-x:hidden;
-  font-size:16px; line-height:1.7;
-}
-::selection{background:rgba(124,92,255,.45); color:#fff}
-a{color:inherit; text-decoration:none}
-img{max-width:100%; display:block}
-
-/* ---------- 背景：极光 ---------- */
-.aurora{position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden}
-.aurora .ribbon{position:absolute; filter:blur(90px); opacity:.55; mix-blend-mode:screen}
-.r1{width:1100px;height:520px; left:-12%; top:-12%;
-  background:radial-gradient(closest-side, rgba(124,92,255,.85), transparent 70%);
-  transform:rotate(-14deg); animation:drift1 22s ease-in-out infinite alternate}
-.r2{width:900px;height:480px; right:-14%; top:4%;
-  background:radial-gradient(closest-side, rgba(0,210,168,.55), transparent 70%);
-  transform:rotate(12deg); animation:drift2 26s ease-in-out infinite alternate}
-.r3{width:800px;height:500px; left:22%; top:38%;
-  background:radial-gradient(closest-side, rgba(64,120,255,.35), transparent 70%);
-  animation:drift3 30s ease-in-out infinite alternate}
-@keyframes drift1{to{transform:translate3d(70px,50px,0) rotate(-8deg) scale(1.08)}}
-@keyframes drift2{to{transform:translate3d(-60px,70px,0) rotate(18deg) scale(1.12)}}
-@keyframes drift3{to{transform:translate3d(40px,-50px,0) scale(.92)}}
-.grid-bg{position:fixed; inset:0; z-index:0; pointer-events:none;
-  background-image:linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
-                   linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
-  background-size:72px 72px;
-  mask-image:radial-gradient(ellipse at 50% 0%, #000 30%, transparent 78%);
-  -webkit-mask-image:radial-gradient(ellipse at 50% 0%, #000 30%, transparent 78%);
-  opacity:.5}
-.noise{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.05;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>")}
-
-main, header, footer{position:relative; z-index:2}
-.wrap{max-width:var(--max); margin:0 auto; padding:0 28px}
-
-/* ---------- 导航 ---------- */
-.nav{position:sticky; top:0; z-index:50; backdrop-filter:blur(18px) saturate(140%);
-  background:linear-gradient(180deg, rgba(6,7,12,.86), rgba(6,7,12,.55));
-  border-bottom:1px solid var(--line-soft)}
-.nav-in{max-width:var(--max); margin:0 auto; padding:14px 28px; display:flex; align-items:center; gap:26px}
-.brand{display:flex; align-items:center; gap:12px; font-weight:700; letter-spacing:.2px}
-.brand img{width:36px;height:36px;border-radius:11px; box-shadow:0 8px 26px rgba(124,92,255,.35)}
-.brand small{display:block; font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:.18em; font-weight:400; margin-top:1px}
-.nav-links{display:flex; gap:24px; margin-left:auto; font-size:14px; color:var(--muted)}
-.nav-links a{transition:color .2s}
-.nav-links a:hover{color:var(--ink)}
-.nav-cta{padding:9px 18px; border-radius:999px; font-size:13.5px; font-weight:500;
-  background:linear-gradient(120deg, rgba(124,92,255,.95), rgba(0,210,168,.9));
-  color:#07080D; box-shadow:0 10px 30px rgba(124,92,255,.35)}
-.nav-cta:hover{filter:brightness(1.08)}
-
-/* ---------- 通用 ---------- */
-.eyebrow{display:inline-flex; align-items:center; gap:10px; font-family:var(--mono);
-  font-size:11.5px; letter-spacing:.22em; color:var(--teal); text-transform:uppercase}
-.eyebrow::before{content:""; width:26px; height:1px; background:linear-gradient(90deg,var(--teal),transparent)}
-h1,h2,h3{font-family:var(--serif); font-weight:700; letter-spacing:-.02em; margin:0}
-.lead{color:var(--muted); font-size:17px; line-height:1.9; max-width:56ch}
-.section{padding:110px 0; position:relative}
-.section-head{display:flex; align-items:flex-end; justify-content:space-between; gap:40px; margin-bottom:52px}
-.section-head h2{font-size:clamp(30px,3.4vw,46px); line-height:1.25}
-.section-head p{margin:0; max-width:44ch}
-.tag{font-family:var(--mono); font-size:11px; letter-spacing:.18em; color:var(--dim);
-  border:1px solid var(--line); padding:6px 12px; border-radius:999px}
-
-/* ---------- Hero ---------- */
-.hero{padding:74px 0 40px}
-.hero-grid{display:grid; grid-template-columns:1.02fr .98fr; gap:46px; align-items:center}
-.hero h1{font-size:clamp(40px,4.7vw,64px); line-height:1.14; margin:18px 0 22px; font-weight:900}
-.hero h1 .grad{background:linear-gradient(110deg,#fff 10%, var(--violet-2) 45%, var(--teal) 82%);
-  -webkit-background-clip:text; background-clip:text; color:transparent}
-.hero .lead{font-size:17.5px}
-.hero-actions{display:flex; gap:14px; margin-top:34px; flex-wrap:wrap}
-.btn{display:inline-flex; align-items:center; gap:10px; padding:14px 24px; border-radius:14px;
-  font-size:15px; font-weight:500; transition:transform .2s, box-shadow .2s, filter .2s}
-.btn:hover{transform:translateY(-2px)}
-.btn-primary{background:linear-gradient(120deg,#8B6BFF,#00D2A8); color:#07080D; font-weight:700;
-  box-shadow:0 16px 44px rgba(124,92,255,.38)}
-.btn-ghost{border:1px solid var(--line); color:var(--ink); background:rgba(255,255,255,.03)}
-.btn svg{width:17px;height:17px}
-.hero-meta{display:flex; gap:26px; margin-top:30px; flex-wrap:wrap; font-family:var(--mono);
-  font-size:12px; color:var(--dim); letter-spacing:.06em}
-.hero-meta b{color:var(--ink); font-weight:600}
-
-/* 屏幕 */
-.screen-stage{position:relative; perspective:1400px}
-.screen{position:relative; border-radius:18px; overflow:hidden; border:1px solid rgba(255,255,255,.12);
-  background:#0B0D14; box-shadow:0 40px 120px rgba(0,0,0,.72), 0 0 0 1px rgba(124,92,255,.12),
-  0 30px 80px rgba(124,92,255,.18);
-  transform:rotateY(-9deg) rotateX(2.5deg) translateZ(0); transition:transform .6s cubic-bezier(.2,.8,.2,1)}
-.screen:hover{transform:rotateY(-4deg) rotateX(1deg) scale(1.012)}
-.screen img{width:100%; height:auto; filter:brightness(1.06) contrast(1.02)}
-.screen::after{content:""; position:absolute; inset:0; pointer-events:none;
-  background:linear-gradient(140deg, rgba(255,255,255,.16), transparent 34%, transparent 70%, rgba(0,210,168,.08))}
-.orbit{position:absolute; inset:-42px -30px -30px -42px; border-radius:50%;
-  border:1px solid rgba(124,92,255,.20); transform:rotate(-16deg); pointer-events:none}
-.orbit.b{inset:-78px -66px -60px -80px; border-color:rgba(0,210,168,.13)}
-.float{position:absolute; border-radius:16px; border:1px solid var(--line);
-  background:rgba(12,14,22,.78); backdrop-filter:blur(12px); padding:13px 16px; font-size:12px; color:var(--muted);
-  box-shadow:0 18px 44px rgba(0,0,0,.45)}
-.float b{display:block; color:var(--ink); font-size:15px; font-family:var(--mono); margin-top:3px}
-.f1{left:-30px; bottom:44px; animation:float1 7s ease-in-out infinite}
-.f2{right:-18px; top:34px; animation:float2 8s ease-in-out infinite}
-@keyframes float1{50%{transform:translateY(-10px)}}
-@keyframes float2{50%{transform:translateY(9px)}}
-
-/* ---------- 数据条 ---------- */
-.stats{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:64px}
-.stat{padding:22px 22px 20px; border:1px solid var(--line-soft); border-radius:18px;
-  background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012))}
-.stat b{display:block; font-family:var(--mono); font-size:30px; letter-spacing:-.02em;
-  background:linear-gradient(120deg,#fff,var(--violet-2)); -webkit-background-clip:text; background-clip:text; color:transparent}
-.stat span{font-size:12.5px; color:var(--muted)}
-
-/* ---------- 跑马灯 ---------- */
-.marquee{margin-top:70px; border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft);
-  overflow:hidden; padding:16px 0; mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent)}
-.marquee-in{display:flex; gap:48px; white-space:nowrap; width:max-content; animation:scroll 34s linear infinite;
-  font-family:var(--mono); font-size:12.5px; letter-spacing:.16em; color:var(--dim)}
-.marquee-in span{display:inline-flex; align-items:center; gap:12px}
-.marquee-in i{width:5px;height:5px;border-radius:50%;background:var(--teal); display:inline-block; font-style:normal}
-@keyframes scroll{to{transform:translateX(-50%)}}
-
-/* ---------- 界面展示 ---------- */
-.tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:26px}
-.tab{padding:9px 18px; border-radius:999px; border:1px solid var(--line); color:var(--muted);
-  font-size:13.5px; cursor:pointer; background:transparent; transition:.2s; font-family:var(--sans)}
-.tab:hover{color:var(--ink); border-color:rgba(255,255,255,.2)}
-.tab.on{background:rgba(124,92,255,.16); border-color:rgba(124,92,255,.55); color:#fff;
-  box-shadow:0 8px 26px rgba(124,92,255,.2)}
-.shot-frame{border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;
-  background:#0B0D14; box-shadow:0 40px 100px rgba(0,0,0,.6); position:relative}
-.shot-frame img{width:100%}
-.shot-cap{display:flex; justify-content:space-between; align-items:center; padding:16px 22px;
-  border-top:1px solid var(--line-soft); color:var(--muted); font-size:13px}
-.shot-cap b{color:var(--ink); font-weight:500}
-.pane{display:none; animation:fade .45s ease}
-.pane.on{display:block}
-@keyframes fade{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
-
-/* ---------- 流水线 ---------- */
-.flow{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:10px}
-.step{position:relative; padding:32px 26px; border-radius:20px; border:1px solid var(--line-soft);
-  background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012)); overflow:hidden}
-.step::before{content:""; position:absolute; top:0; left:26px; right:26px; height:1px;
-  background:linear-gradient(90deg,transparent, rgba(124,92,255,.7), transparent)}
-.step .num{font-family:var(--mono); font-size:12px; color:var(--teal); letter-spacing:.2em}
-.step h3{font-size:22px; margin:14px 0 10px}
-.step p{color:var(--muted); font-size:14px; margin:0}
-.arrow{display:none}
-
-/* ---------- 功能网格 ---------- */
-.bento{display:grid; grid-template-columns:repeat(12,1fr); gap:18px}
-.card{border:1px solid var(--line-soft); border-radius:20px; padding:26px;
-  background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.012));
-  transition:.25s; position:relative; overflow:hidden}
-.card:hover{transform:translateY(-3px); border-color:rgba(124,92,255,.35);
-  box-shadow:0 22px 60px rgba(0,0,0,.45)}
-.card .ico{width:42px;height:42px;border-radius:12px; display:grid; place-items:center; margin-bottom:18px;
-  background:rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.3)}
-.card .ico svg{width:21px;height:21px;stroke:var(--violet-2)}
-.card h3{font-size:18.5px; margin-bottom:8px}
-.card p{color:var(--muted); font-size:13.8px; margin:0; line-height:1.75}
-.card .k{display:inline-block; margin-top:14px; font-family:var(--mono); font-size:10.5px;
-  letter-spacing:.14em; color:var(--teal); border:1px solid rgba(0,210,168,.28);
-  border-radius:999px; padding:4px 10px}
-.c4{grid-column:span 4}
-.c6{grid-column:span 6}
-.c8{grid-column:span 8}
-.c3{grid-column:span 3}
-.card.hi{background:linear-gradient(140deg, rgba(124,92,255,.20), rgba(0,210,168,.07) 55%, rgba(255,255,255,.02));
-  border-color:rgba(124,92,255,.35)}
-
-/* ---------- 差异点 ---------- */
-.why{display:grid; grid-template-columns:repeat(3,1fr); gap:20px}
-.why > div{padding:30px 26px; border-radius:20px; border:1px solid var(--line-soft);
-  background:radial-gradient(120% 120% at 0% 0%, rgba(124,92,255,.14), transparent 55%), rgba(255,255,255,.02)}
-.why b{font-family:var(--serif); font-size:40px; display:block; line-height:1.1;
-  background:linear-gradient(120deg,#fff,var(--teal)); -webkit-background-clip:text; background-clip:text; color:transparent}
-.why h3{font-size:17px; margin:12px 0 8px}
-.why p{margin:0; color:var(--muted); font-size:13.6px}
-
-/* ---------- 下载 ---------- */
-.download{padding:96px 0 110px}
-.dl-panel{border:1px solid rgba(124,92,255,.3); border-radius:28px; padding:52px;
-  background:radial-gradient(120% 140% at 12% 0%, rgba(124,92,255,.22), transparent 55%),
-             radial-gradient(120% 140% at 92% 100%, rgba(0,210,168,.14), transparent 55%),
-             rgba(10,12,20,.85);
-  box-shadow:0 40px 120px rgba(0,0,0,.55); position:relative; overflow:hidden}
-.dl-panel h2{font-size:clamp(28px,3vw,42px)}
-.dl-cols{display:grid; grid-template-columns:1.12fr .88fr; gap:44px; align-items:center}
-.dl-shot{position:relative; border-radius:18px; border:1px solid rgba(255,255,255,.16); overflow:hidden;
-  box-shadow:0 30px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(124,92,255,.16);
-  transform:rotate(-2.2deg); transition:transform .5s}
-.dl-shot:hover{transform:rotate(0) translateY(-3px)}
-.dl-shot img{width:100%; height:auto}
-.dl-shot-cap{display:flex; justify-content:space-between; align-items:center; padding:10px 14px;
-  border-top:1px solid rgba(255,255,255,.08); background:rgba(8,9,14,.6);
-  font-size:12px; color:var(--muted)}
-.dl-shot-cap b{color:var(--ink); font-weight:500}
-.chips{display:flex; gap:10px; flex-wrap:wrap; margin-top:22px}
-.chips span{font-family:var(--mono); font-size:11px; letter-spacing:.08em; color:var(--muted);
-  border:1px solid var(--line); border-radius:999px; padding:6px 12px; background:rgba(255,255,255,.03)}
-.dl-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:34px}
-.dl{border:1px solid var(--line); border-radius:18px; padding:22px; background:rgba(255,255,255,.03);
-  transition:.2s; display:flex; flex-direction:column; gap:6px}
-.dl:hover{border-color:rgba(0,210,168,.5); background:rgba(0,210,168,.06); transform:translateY(-2px)}
-.dl .os{font-family:var(--mono); font-size:11px; letter-spacing:.16em; color:var(--dim)}
+body{background:var(--bg);color:var(--text);font-family:"PingFang SC","Noto Sans SC","Microsoft YaHei",system-ui,-apple-system,sans-serif;line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+.eyebrow{display:inline-block;font-size:12px;letter-spacing:.18em;color:var(--accent);font-weight:600}
+h1,h2,h3{line-height:1.25;letter-spacing:-.01em}
+/* nav */
+.nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);background:rgba(11,18,23,.78);border-bottom:1px solid var(--border)}
+.nav .wrap{display:flex;align-items:center;gap:28px;height:66px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700}
+.brand img{width:30px;height:30px;border-radius:8px}
+.nav-links{display:flex;gap:22px;margin-left:auto;font-size:14px;color:var(--muted)}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{background:var(--accent);color:#062621;font-weight:700;padding:9px 16px;border-radius:10px;font-size:14px}
+.nav-cta:hover{filter:brightness(1.06)}
+/* hero */
+.hero{padding:72px 0 48px;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-20% -10% auto;height:70%;background:radial-gradient(60% 60% at 30% 20%,rgba(88,201,183,.16),transparent 70%),radial-gradient(50% 50% at 80% 0%,rgba(15,118,110,.18),transparent 70%);pointer-events:none}
+.hero .wrap{position:relative;display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center}
+.hero h1{font-size:52px;font-weight:800;margin:14px 0 16px}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p.sub{color:var(--muted);font-size:17px;max-width:520px}
+.hero-actions{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;font-weight:700;font-size:15px;border:1px solid transparent}
+.btn.primary{background:var(--accent);color:#062621}
+.btn.ghost{border-color:var(--border);color:var(--text);background:rgba(255,255,255,.02)}
+.hero-note{margin-top:16px;color:var(--muted);font-size:13px}
+.hero-shot{border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--card);box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.hero-shot img{width:100%}
+/* stats */
+.stats{border-block:1px solid var(--border);background:var(--surface)}
+.stats .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding:22px 24px}
+.stat b{display:block;font-size:26px;color:var(--accent);letter-spacing:-.02em}
+.stat span{font-size:13px;color:var(--muted)}
+/* sections */
+section.block{padding:64px 0}
+.section-head{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:28px}
+.section-head h2{font-size:32px}
+.section-head p{color:var(--muted);max-width:560px}
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.step{background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);padding:20px}
+.step .no{font-size:12px;color:var(--accent);letter-spacing:.12em}
+.step h4{margin:8px 0 6px;font-size:16px}
+.step p{font-size:13.5px;color:var(--muted)}
+/* gallery */
+.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.shot{background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;transition:transform .18s ease,border-color .18s ease}
+.shot:hover{transform:translateY(-3px);border-color:rgba(88,201,183,.4)}
+.shot-frame{aspect-ratio:1400/950;overflow:hidden;background:#0d151a}
+.shot-frame img{width:100%;height:100%;object-fit:cover}
+.shot figcaption{padding:12px 14px;display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--border)}
+.shot figcaption b{font-size:14px}
+.shot figcaption span{font-size:12px;color:var(--muted)}
+/* features */
+.feature{display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:center;padding:34px 0;border-top:1px solid var(--border)}
+.feature:nth-child(even) .feature-media{order:2}
+.feature-media{border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;background:var(--card)}
+.feature-copy h3{font-size:26px;margin:10px 0 10px}
+.feature-copy .lead{font-size:16px;color:var(--text);margin-bottom:8px}
+.feature-copy p{color:var(--muted);font-size:14.5px}
+/* table */
+.compare{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;font-size:14px}
+.compare th,.compare td{padding:14px 18px;border-bottom:1px solid var(--border);text-align:left}
+.compare th{color:var(--muted);font-weight:600;font-size:13px;background:var(--card2)}
+.compare tr:last-child td{border-bottom:none}
+.compare td.good{color:var(--accent);font-weight:600}
+/* download */
+.download{background:linear-gradient(180deg,var(--surface),var(--bg));border-top:1px solid var(--border)}
+.dl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.dl{display:flex;flex-direction:column;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);padding:20px}
+.dl:hover{border-color:var(--accent)}
+.dl small{color:var(--muted);font-size:12.5px}
 .dl b{font-size:17px}
-.dl small{color:var(--muted); font-size:12.5px}
-.dl .go{margin-top:10px; font-size:13px; color:var(--teal); display:inline-flex; gap:8px; align-items:center}
-.dl-note{margin-top:24px; color:var(--dim); font-size:12.5px; font-family:var(--mono); letter-spacing:.04em}
-.dl-note a{color:var(--muted); border-bottom:1px dotted var(--dim)}
-
-/* ---------- FAQ ---------- */
-.faq{display:grid; grid-template-columns:1fr 1fr; gap:18px}
-.q{padding:24px 26px; border:1px solid var(--line-soft); border-radius:18px; background:rgba(255,255,255,.02)}
-.q h3{font-size:16px; margin-bottom:8px}
-.q p{margin:0; color:var(--muted); font-size:13.6px}
-
-/* ---------- 页脚 ---------- */
-footer{border-top:1px solid var(--line-soft); padding:44px 0 60px; color:var(--dim); font-size:13px}
-.foot{display:flex; justify-content:space-between; gap:24px; flex-wrap:wrap; align-items:center}
-.foot .brand img{width:30px;height:30px}
-.foot a{color:var(--muted)}
-.foot .tel{font-family:var(--mono); color:var(--ink); font-size:15px; letter-spacing:.04em}
-
-/* 出现动画 */
-.reveal{opacity:0; transform:translateY(26px); transition:opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1)}
-.reveal.in{opacity:1; transform:none}
-
-@media (max-width: 980px){
-  .hero-grid{grid-template-columns:1fr}
-  .screen{transform:none}
-  .stats{grid-template-columns:repeat(2,1fr)}
-  .flow{grid-template-columns:1fr}
-  .why{grid-template-columns:1fr}
-  .dl-grid{grid-template-columns:1fr}
-  .dl-cols{grid-template-columns:1fr; gap:28px}
-  .dl-shot{transform:none}
-  .faq{grid-template-columns:1fr}
-  .c4,.c6,.c8,.c3{grid-column:span 12}
-  .section{padding:74px 0}
+.dl span.go{margin-top:8px;color:var(--accent);font-size:13.5px}
+.dl-note{margin-top:16px;color:var(--muted);font-size:13px}
+.dl-note a{color:var(--accent)}
+/* faq */
+.faq details{border-bottom:1px solid var(--border);padding:16px 0}
+.faq summary{cursor:pointer;font-weight:600;font-size:15.5px}
+.faq p{color:var(--muted);font-size:14px;margin-top:8px}
+/* footer */
+footer{border-top:1px solid var(--border);padding:34px 0;color:var(--muted);font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+@media(max-width:960px){
+  .hero .wrap,.feature{grid-template-columns:1fr}
+  .gallery{grid-template-columns:repeat(2,1fr)}
+  .steps,.dl-grid,.stats .wrap{grid-template-columns:repeat(2,1fr)}
+  .hero h1{font-size:38px}
   .nav-links{display:none}
-  .dl-panel{padding:30px}
+}
+@media(max-width:620px){
+  .gallery,.steps,.dl-grid,.stats .wrap{grid-template-columns:1fr}
+  .hero h1{font-size:30px}
+  .section-head{flex-direction:column;align-items:start}
 }
 </style>
 </head>
 <body>
-
-<div class="aurora">
-  <div class="ribbon r1"></div>
-  <div class="ribbon r2"></div>
-  <div class="ribbon r3"></div>
-</div>
-<div class="grid-bg"></div>
-<div class="noise"></div>
-
-<header class="nav">
-  <div class="nav-in">
-    <a class="brand" href="#top">
-      <img src="assets/logo.png" alt="极光上架" />
-      <span>极光上架<small>AURORALIST</small></span>
-    </a>
-    <nav class="nav-links">
-      <a href="#showcase">界面</a>
-      <a href="#flow">流程</a>
-      <a href="#features">功能</a>
-      <a href="#why">差异</a>
-      <a href="#download">下载</a>
-      <a href="manual/">手册</a>
-    </nav>
-    <a class="nav-cta" href="#download">免费下载 v1.0.5</a>
-  </div>
-</header>
+<header class="nav"><div class="wrap">
+  <a class="brand" href="#top"><img src="assets/logo.png" alt="AuroraList">极光上架 <span style="color:var(--muted);font-weight:500;font-size:12px">v1.0.5</span></a>
+  <nav class="nav-links">
+    <a href="#interface">界面</a><a href="#features">功能</a><a href="#workflow">流程</a><a href="#why">差异</a><a href="#download">下载</a><a href="manual/">手册</a>
+  </nav>
+  <a class="nav-cta" href="#download">免费下载</a>
+</div></header>
 
 <main id="top">
-
-  <!-- HERO -->
-  <section class="hero">
-    <div class="wrap">
-      <div class="hero-grid">
-        <div class="reveal">
-          <span class="eyebrow">AURORALIST · 速卖通 AI 批量上架</span>
-          <h1>把上架，<br /><span class="grad">做成光的流水线</span></h1>
-          <p class="lead">
-            极光上架 AuroraList 是为速卖通卖家做的桌面工具：从采集箱开始，
-            AI 文案、白底/去水印/翻译、价格与利润、变种与库存、直到保存和发布，
-            <b style="color:var(--ink)">一次点击跑完</b>。断点续传、失败重试、全程日志可查。
-          </p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="#download">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-              下载 Windows 版
-            </a>
-            <a class="btn btn-ghost" href="#download">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-              下载 macOS 版
-            </a>
-          </div>
-          <div class="hero-meta">
-            <span>版本 <b>v1.0.5</b></span>
-            <span>Windows 10/11 · macOS 12+</span>
-            <span>数据只在本机</span>
-          </div>
-        </div>
-
-        <div class="screen-stage reveal">
-          <div class="orbit"></div>
-          <div class="orbit b"></div>
-          <div class="screen">
-            <img src="assets/shots/p0.png" alt="极光上架 概览界面" />
-          </div>
-          <div class="float f1">今日处理<b>85 个商品</b></div>
-          <div class="float f2">失败自动重试<b>0 重复扣费</b></div>
-        </div>
-      </div>
-
-      <div class="stats reveal">
-        <div class="stat"><b>12</b><span>功能页面，从准备到运行全覆盖</span></div>
-        <div class="stat"><b>1</b><span>次点击跑完文案 / 图片 / 价格 / 发布</span></div>
-        <div class="stat"><b>3</b><span>平台安装包：Windows · Apple 芯片 · Intel</span></div>
-        <div class="stat"><b>0</b><span>重复扣费：图片接口幂等重试</span></div>
-      </div>
-
-      <div class="marquee">
-        <div class="marquee-in">
-          <span><i></i>AI 标题 / 五点描述</span><span><i></i>白底图</span><span><i></i>去水印 / Logo</span>
-          <span><i></i>图片翻译</span><span><i></i>精细化编辑</span><span><i></i>价格倍率</span>
-          <span><i></i>区域定价</span><span><i></i>SKU 组合</span><span><i></i>违禁词检测</span>
-          <span><i></i>类目自动匹配</span><span><i></i>模板属性继承</span><span><i></i>批量发布</span>
-          <span><i></i>断点续传</span><span><i></i>失败重试</span><span><i></i>日志导出</span>
-          <span><i></i>AI 标题 / 五点描述</span><span><i></i>白底图</span><span><i></i>去水印 / Logo</span>
-          <span><i></i>图片翻译</span><span><i></i>精细化编辑</span><span><i></i>价格倍率</span>
-          <span><i></i>区域定价</span><span><i></i>SKU 组合</span><span><i></i>违禁词检测</span>
-          <span><i></i>类目自动匹配</span><span><i></i>模板属性继承</span><span><i></i>批量发布</span>
-          <span><i></i>断点续传</span><span><i></i>失败重试</span><span><i></i>日志导出</span>
-        </div>
-      </div>
+<section class="hero"><div class="wrap">
+  <div>
+    <span class="eyebrow">AURORALIST · 速卖通机械类目 AI 上架工作台</span>
+    <h1>把机械上架，<br>做成一条<em>流水线</em></h1>
+    <p class="sub">从采集箱到可发布商品：AI 文案、图片处理、价格与变种、批量发布与失败自愈。针对机械/工业设备优化，断点续传、全程日志、成本可控。</p>
+    <div class="hero-actions">
+      <a class="btn primary" href="#download">下载 Windows 版</a>
+      <a class="btn ghost" href="#download">下载 macOS 版</a>
     </div>
-  </section>
+    <p class="hero-note">版本 v1.0.5 · Windows 10/11 · macOS 12+ · 数据只保存在本机</p>
+  </div>
+  <div class="hero-shot"><img src="assets/shots/p0.png" alt="极光上架概览"></div>
+</div></section>
 
-  <!-- 界面展示 -->
-  <section class="section" id="showcase">
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div>
-          <span class="eyebrow">INTERFACE</span>
-          <h2 style="margin-top:14px">界面即产品，<br/>每一屏都在干活</h2>
-        </div>
-        <p class="lead" style="font-size:15px">不是把功能堆成菜单，而是按「准备 → 内容 → 刊登 → 运行」组织成 12 个页面。下面这些就是软件真实界面。</p>
+<div class="stats"><div class="wrap">
+  <div class="stat"><b>12</b><span>工作页面，从准备到发布</span></div>
+  <div class="stat"><b>52</b><span>机械行业文案提示词预设</span></div>
+  <div class="stat"><b>21</b><span>图片/营销图提示词预设</span></div>
+  <div class="stat"><b>0</b><span>重复扣费：幂等键 + 缓存</span></div>
+</div></div>
+
+<section class="block" id="workflow"><div class="wrap">
+  <div class="section-head"><div><span class="eyebrow">WORKFLOW</span><h2>采集箱进，可发布商品出</h2></div>
+  <p>软件只做三件事：把该改的改对、把该省的省掉、把结果写回去。每一步都看得见。</p></div>
+  <div class="steps">
+    <div class="step"><span class="no">STEP 01</span><h4>连接与模板</h4><p>读本机登录态或粘贴 Cookie；选店铺与模板，类目、运费、属性、重量自动继承。</p></div>
+    <div class="step"><span class="no">STEP 02</span><h4>AI 内容</h4><p>标题/详情/SKU/估重；白底、去水印、翻译、精细化改图；营销图自动补齐。</p></div>
+    <div class="step"><span class="no">STEP 03</span><h4>价格与变种</h4><p>倍率/包邮/含佣金/固定价；阶梯与区域调价；SKU 编码、库存、套装。</p></div>
+    <div class="step"><span class="no">STEP 04</span><h4>发布与自愈</h4><p>保存/发布到店小秘；失败自动修一轮：重复变种、plug、运费、海关、营销图。</p></div>
+  </div>
+</div></section>
+
+<section class="block" id="interface"><div class="wrap">
+  <div class="section-head"><div><span class="eyebrow">INTERFACE</span><h2>12 个页面，各司其职</h2></div>
+  <p>不是把功能堆成菜单，而是按「商品准备 → 内容处理 → 发布运行 → 工具设置」组织。</p></div>
+  <div class="gallery">
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p0.png" alt="概览" loading="lazy"></div>
+        <figcaption><b>概览</b><span>状态看板 · 一键启动 · 成本与今日结果</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p1.png" alt="店铺与模板" loading="lazy"></div>
+        <figcaption><b>店铺与模板</b><span>读 Cookie、切店铺、选模板、继承类目/运费/属性</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p2.png" alt="类目与属性" loading="lazy"></div>
+        <figcaption><b>类目与属性</b><span>自动分类、属性模板、自定义属性清理、欧盟资质</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p3.png" alt="AI 文案" loading="lazy"></div>
+        <figcaption><b>AI 文案</b><span>标题/详情/SKU/估重，18+18+10 套机械行业预设</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p4.png" alt="内容审查" loading="lazy"></div>
+        <figcaption><b>内容审查</b><span>文本、主图、详情图三重合规检查</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p5.png" alt="AI 图片" loading="lazy"></div>
+        <figcaption><b>AI 图片</b><span>白底/去水印/翻译/精细化编辑/营销图/视频</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p6.png" alt="价格" loading="lazy"></div>
+        <figcaption><b>价格</b><span>倍率/包邮/含佣金/固定价，阶梯与区域调价</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p7.png" alt="变种与库存" loading="lazy"></div>
+        <figcaption><b>变种与库存</b><span>SKU 编码规则、库存、变种属性、套装 SKU</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p8.png" alt="发布队列" loading="lazy"></div>
+        <figcaption><b>发布队列</b><span>运行设置、已编辑记录、失败重试</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p9.png" alt="任务与日志" loading="lazy"></div>
+        <figcaption><b>任务与日志</b><span>实时日志、按产品筛选、导出 TXT/CSV</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p10.png" alt="图片工作台" loading="lazy"></div>
+        <figcaption><b>图片工作台</b><span>单商品调试：取图→处理→对比→视频</span></figcaption>
+      </figure>
+      <figure class="shot">
+        <div class="shot-frame"><img src="assets/shots/p11.png" alt="设置" loading="lazy"></div>
+        <figcaption><b>设置</b><span>API Key、授权、图片模型、维护诊断</span></figcaption>
+      </figure>
+  </div>
+</div></section>
+
+<section class="block" id="features"><div class="wrap">
+  <div class="section-head"><div><span class="eyebrow">CAPABILITIES</span><h2>核心能力</h2></div>
+  <p>每一项都为机械类目做过取舍：参数不编造、比例不夸张、失败先自修。</p></div>
+    <section class="feature" id="f1">
+      <div class="feature-media"><img src="assets/shots/p1.png" alt="店铺与模板" loading="lazy"></div>
+      <div class="feature-copy">
+        <span class="eyebrow">PAGE · P1</span>
+        <h3>店铺与模板</h3>
+        <p class="lead">一次连接，后续全部继承</p>
+        <p>读 Chrome/Edge 已登录 Cookie 或粘贴一次；切店铺、选模板商品，类目、运费模板、属性、重量尺寸自动继承，标题/SKU/图片按新商品生成。</p>
       </div>
-
-      <div class="tabs reveal">
-        <button class="tab on" data-pane="pane-0">概览 · 一屏掌握</button>
-        <button class="tab" data-pane="pane-1">AI 图片</button>
-        <button class="tab" data-pane="pane-2">发布队列</button>
-        <button class="tab" data-pane="pane-3">图片工作台</button>
-        <button class="tab" data-pane="pane-4">价格与利润</button>
+    </section>
+    <section class="feature" id="f2">
+      <div class="feature-media"><img src="assets/shots/p3.png" alt="AI 文案" loading="lazy"></div>
+      <div class="feature-copy">
+        <span class="eyebrow">PAGE · P3</span>
+        <h3>AI 文案</h3>
+        <p class="lead">52 套机械行业提示词，直接套用</p>
+        <p>标题 18 套、详情 18 套、SKU 10 套、读图估重 6 套；覆盖工程机械、包装线、食品机械、数控机床、激光、注塑、真空搬运、输送线、泵阀、农机、木工、焊接、检测等。选行业→套用→可继续微调。</p>
       </div>
-
-      <div class="shot-frame reveal">
-        <div class="pane on" id="pane-0">
-          <img src="assets/shots/p0.png" alt="概览" />
-          <div class="shot-cap"><b>概览</b><span>状态数字 · 一键启动 · 今日 KPI · 成本趋势</span></div>
-        </div>
-        <div class="pane" id="pane-1">
-          <img src="assets/shots/p5.png" alt="AI 图片" />
-          <div class="shot-cap"><b>AI 图片</b><span>白底 / 去水印 / 翻译 / 精细化编辑，按序号精确到张</span></div>
-        </div>
-        <div class="pane" id="pane-2">
-          <img src="assets/shots/p8.png" alt="发布队列" />
-          <div class="shot-cap"><b>发布队列</b><span>待发布 / 发布失败 / 发布中，单条或批量发布与重试</span></div>
-        </div>
-        <div class="pane" id="pane-3">
-          <img src="assets/shots/p9.png" alt="图片工作台" />
-          <div class="shot-cap"><b>图片工作台</b><span>单商品调试：取图、处理、前后对比、生成视频</span></div>
-        </div>
-        <div class="pane" id="pane-4">
-          <img src="assets/shots/p6.png" alt="价格" />
-          <div class="shot-cap"><b>价格与利润</b><span>倍率 / 加价 / 区域定价，多 SKU 独立计算</span></div>
-        </div>
+    </section>
+    <section class="feature" id="f3">
+      <div class="feature-media"><img src="assets/shots/p5.png" alt="AI 图片" loading="lazy"></div>
+      <div class="feature-copy">
+        <span class="eyebrow">PAGE · P5</span>
+        <h3>AI 图片</h3>
+        <p class="lead">白底/去水印/翻译/精细化/营销图/视频</p>
+        <p>按第几张精确处理；营销图 1:1 + 3:4 自动补齐；webp 自动转 JPG、超 5MB 自动压缩；出现人物时强制真实人机比例，禁止人比机器高。</p>
       </div>
-    </div>
-  </section>
-
-  <!-- 流程 -->
-  <section class="section" id="flow">
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div>
-          <span class="eyebrow">PIPELINE</span>
-          <h2 style="margin-top:14px">采集箱进，<br/>可发布商品出</h2>
-        </div>
-        <p class="lead" style="font-size:15px">软件只做三件事：把该改的改对、把该省的省掉、把结果写回去。中间每一步都看得见、可回滚。</p>
+    </section>
+    <section class="feature" id="f4">
+      <div class="feature-media"><img src="assets/shots/p8.png" alt="发布与自愈" loading="lazy"></div>
+      <div class="feature-copy">
+        <span class="eyebrow">PAGE · P8</span>
+        <h3>发布与自愈</h3>
+        <p class="lead">发布失败，软件自己先修一遍</p>
+        <p>自动合并重复 SKU 组合并累加库存、补齐 plug/voltage 变种、补运费模板、刷新海关属性、清洗标题高风险词、补营销图；修不了才报错并给出可执行建议。</p>
       </div>
-      <div class="flow">
-        <div class="step reveal">
-          <span class="num">STEP 01</span>
-          <h3>读店铺 · 定模板</h3>
-          <p>自动读取已登录的店小秘 Cookie，拉店铺和模板商品：类目、运费、属性、重量尺寸一次继承，标题/SKU/图片按新商品生成。</p>
-        </div>
-        <div class="step reveal">
-          <span class="num">STEP 02</span>
-          <h3>AI 处理 · 逐项可控</h3>
-          <p>英文标题、五点描述、SKU 名称；白底、去水印、翻译、精细化改图；倍率价格与区域定价；违禁词检测。每项都能单独开关和限定范围。</p>
-        </div>
-        <div class="step reveal">
-          <span class="num">STEP 03</span>
-          <h3>保存发布 · 可追溯</h3>
-          <p>API 直存到店小秘，直接发布或落到待发布；失败的进重试清单。全程日志按产品 ID 可筛选、可导出 CSV。</p>
-        </div>
+    </section>
+    <section class="feature" id="f5">
+      <div class="feature-media"><img src="assets/shots/p6.png" alt="价格与变种" loading="lazy"></div>
+      <div class="feature-copy">
+        <span class="eyebrow">PAGE · P6</span>
+        <h3>价格与变种</h3>
+        <p class="lead">成本、倍率、区域、批发一次算清</p>
+        <p>倍率/包邮/含佣金/固定价格四种模式；阶梯倍率、区域调价、批发价；SKU 编码规则、库存、套装组合；试算与刊登同一套算法。</p>
       </div>
-    </div>
-  </section>
-
-  <!-- 功能 -->
-  <section class="section" id="features">
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div>
-          <span class="eyebrow">FEATURES</span>
-          <h2 style="margin-top:14px">该有的都有，<br/>不该花的钱不花</h2>
-        </div>
-        <p class="lead" style="font-size:15px">10 个核心能力，全部围绕“少点鼠标、少花冤枉钱、少出错”。</p>
+    </section>
+    <section class="feature" id="f6">
+      <div class="feature-media"><img src="assets/shots/p10.png" alt="工作台与日志" loading="lazy"></div>
+      <div class="feature-copy">
+        <span class="eyebrow">PAGE · P10</span>
+        <h3>工作台与日志</h3>
+        <p class="lead">每一步可回看、可导出</p>
+        <p>图片工作台单商品调试：加载→取图→处理→前后对比→合成视频；任务日志按产品 ID 过滤，导出 TXT/CSV，失败原因直接写清楚。</p>
       </div>
+    </section>
+</div></section>
 
-      <div class="bento">
-        <div class="card c8 hi reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 17l5-5 4 3 7-9"/><path d="M4 21h16"/></svg></div>
-          <h3>一键批量上架</h3>
-          <p>采集箱里的商品一键跑完：AI 文案 → 图片处理 → 价格计算 → 保存/发布。支持关键词筛选、应用范围、断点续传；中断后从上次的位置继续，不会重复处理。</p>
-          <span class="k">ONE CLICK PIPELINE</span>
-        </div>
-        <div class="card c4 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 9h10M7 13h6"/></svg></div>
-          <h3>AI 文案</h3>
-          <p>英文标题、五点描述、SKU 名称，按模板类目生成，可读图估重、可套用提示词模板。</p>
-          <span class="k">TITLE · BULLETS · SKU</span>
-        </div>
+<section class="block" id="why"><div class="wrap">
+  <div class="section-head"><div><span class="eyebrow">WHY AURORALIST</span><h2>不是能上架，是上得稳</h2></div>
+  <p>机械类目最贵的是「改错一次」：变种错、参数错、图片比例错，都会带来退货与差评。</p></div>
+  <table class="compare">
+    <tr><th>能力</th><th>普通批量工具</th><th>极光上架 AuroraList</th></tr>
+    <tr><td>SKU 变种</td><td>按行号写回，容易错位</td><td class="good">按 SKU 身份匹配；重复组合自动合并并累加库存</td></tr>
+    <tr><td>发布失败</td><td>报错后人工处理</td><td class="good">先自修：plug/电压、运费模板、海关属性、营销图、标题清洗</td></tr>
+    <tr><td>AI 文案</td><td>一条通用提示词</td><td class="good">52 套机械行业预设，按品类套用</td></tr>
+    <tr><td>图片合规</td><td>只做白底</td><td class="good">webp 转 JPG、超 5MB 压缩、营销图 1:1/3:4、人机比例约束</td></tr>
+    <tr><td>成本</td><td>重复处理重复扣费</td><td class="good">幂等键 + 网关缓存 + 已编辑记录，避免重复付费</td></tr>
+  </table>
+</div></section>
 
-        <div class="card c4 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M3 17l5-5 4 4 3-3 6 6"/></svg></div>
-          <h3>AI 图片</h3>
-          <p>白底、去水印/Logo、图片翻译、精细化编辑（第几张 + 提示词 + 参考图）。按序号精确到张，可只处理主图/详情图/SKU 图。</p>
-          <span class="k">WHITE · CLEAN · TRANSLATE</span>
-        </div>
-        <div class="card c4 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 3v18M6 8l6-5 6 5M6 16l6 5 6-5"/></svg></div>
-          <h3>价格与利润</h3>
-          <p>倍率、加价、包邮/不包邮、区域国家定价、分区倍率；多 SKU 可各自算价，自动校验平台价格上限。</p>
-          <span class="k">MARGIN CONTROL</span>
-        </div>
-        <div class="card c4 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="7" width="7" height="7" rx="2"/><rect x="14" y="7" width="7" height="7" rx="2"/><rect x="8" y="16" width="8" height="5" rx="2"/></svg></div>
-          <h3>变种与库存</h3>
-          <p>SKU 组合、库存、重量尺寸、套装 SKU；SKU 编码可回写商品，避免多 SKU 被平台卡住。</p>
-          <span class="k">VARIANTS · STOCK</span>
-        </div>
+<section class="block download" id="download"><div class="wrap">
+  <div class="section-head"><div><span class="eyebrow">DOWNLOAD v1.0.5</span><h2>现在下载，跑下一批商品</h2></div>
+  <p>Windows 为安装包；macOS 为 zip，解压后拖进「应用程序」。启动自动检查更新。</p></div>
+  <div class="dl-grid">
+    <a class="dl" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-Setup-1.0.5.exe">
+      <small>WINDOWS 10 / 11 · X64</small><b>Windows 安装包</b><small>Setup.exe · 约 49 MB</small><span class="go">下载 .exe →</span></a>
+    <a class="dl" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-macos-arm64.zip">
+      <small>MACOS 12+ · APPLE 芯片</small><b>macOS（M 系列）</b><small>Zip · 约 71 MB</small><span class="go">下载 .zip →</span></a>
+    <a class="dl" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-macos-x64.zip">
+      <small>MACOS 12+ · INTEL</small><b>macOS（Intel）</b><small>Zip · 约 72 MB</small><span class="go">下载 .zip →</span></a>
+  </div>
+  <p class="dl-note">版本 v1.0.5 · 发布于 2026-11-21 ·
+    <a href="https://github.com/moneyfly006/ae-publisher-clone/releases">全部版本</a> ·
+    <a href="manual/">在线操作手册</a> · <a href="manual/manual.pdf">PDF</a> · <a href="manual/manual.docx">Word</a></p>
+</div></section>
 
-        <div class="card c6 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="15" r="3"/></svg></div>
-          <h3>类目与属性</h3>
-          <p>自动匹配类目、继承模板属性、自定义属性补全、违禁词检测。属性冲突和重复值在执行前就拦下来，不用等到平台报错。</p>
-          <span class="k">CATEGORY · ATTRS</span>
-        </div>
-        <div class="card c6 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 12h16"/><path d="M4 6h16M4 18h16"/><circle cx="8" cy="12" r="2" fill="currentColor" stroke="none"/></svg></div>
-          <h3>发布队列</h3>
-          <p>待发布 / 发布失败 / 发布中分栏管理，支持单条发布、批量发布、一键重试；列表可按图片数量排序，直接看主图是否齐。</p>
-          <span class="k">QUEUE & RETRY</span>
-        </div>
-
-        <div class="card c6 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M8 21h8M12 18v3"/></svg></div>
-          <h3>图片工作台</h3>
-          <p>单商品手动调试：加载产品 → 取图 → 白底/去水印/翻译/编辑 → 四合一 → 合成视频。带处理前后对比和批量导出。</p>
-          <span class="k">MANUAL STUDIO</span>
-        </div>
-        <div class="card c6 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></div>
-          <h3>任务与日志</h3>
-          <p>实时日志、按产品 ID 筛选、导出 TXT/CSV；失败原因直接写在日志里，客服不用再猜“为什么没上架”。</p>
-          <span class="k">TRACEABLE LOGS</span>
-        </div>
-        <div class="card c6 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l4 2"/></svg></div>
-          <h3>自动更新</h3>
-          <p>启动检测新版本，后台下载、一键安装并重启；旧版本会被提示更新，保证大家用的都是修好的版本。</p>
-          <span class="k">AUTO UPDATE</span>
-        </div>
-        <div class="card c6 reveal">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 3l7 4v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div>
-          <h3>本地数据 · 授权可控</h3>
-          <p>配置、日志、缓存全部保存在本机；授权按机器码绑定，可迁移、可续期，不碰你的店铺密码。</p>
-          <span class="k">LOCAL FIRST</span>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 差异 -->
-  <section class="section" id="why">
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div>
-          <span class="eyebrow">WHY AURORALIST</span>
-          <h2 style="margin-top:14px">不是“能上架”，<br/>是“上得稳、算得清”</h2>
-        </div>
-      </div>
-      <div class="why">
-        <div class="reveal">
-          <b>50%</b>
-          <h3>图片成本透明</h3>
-          <p>白底/去水印走 turbo 模型，一张约 0.1 元；重复图片命中缓存与幂等键，不会重复扣费。</p>
-        </div>
-        <div class="reveal">
-          <b>0</b>
-          <h3>重复扣费</h3>
-          <p>客户端带幂等键 + 网关缓存：超时重试、手动重跑同一张图，都只算一次。</p>
-        </div>
-        <div class="reveal">
-          <b>12</b>
-          <h3>页面各司其职</h3>
-          <p>准备、内容、刊登、工具、运行分组，出问题知道去哪个页面修，而不是在一堆开关里找。</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 下载 -->
-  <section class="download" id="download">
-    <div class="wrap">
-      <div class="dl-panel reveal">
-        <div class="dl-cols">
-        <div>
-        <span class="eyebrow">DOWNLOAD v1.0.5</span>
-        <h2 style="margin-top:16px">现在下载，<br/>把下一批商品交给极光</h2>
-        <p class="lead" style="font-size:15.5px; margin-top:12px">
-          选择你的系统。Windows 版为安装包，macOS 版为 zip（解压后拖进「应用程序」）。安装后启动会自动检查更新。
-        </p>
-        <div class="chips">
-          <span>免费更新</span><span>本地数据</span><span>授权可迁移</span><span>一键安装</span>
-        </div>
-        </div>
-        <div class="dl-shot">
-          <img src="assets/shots/p8.png" alt="发布队列界面" />
-          <div class="dl-shot-cap"><b>发布队列</b><span>待发布 · 发布失败 · 发布中</span></div>
-        </div>
-        </div>
-        <div class="dl-grid">
-          <a class="dl" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-Setup-1.0.4.exe">
-            <span class="os">WINDOWS 10 / 11 · X64</span>
-            <b>Windows 安装包</b>
-            <small>Setup · 约 48 MB</small>
-            <span class="go">下载 .exe →</span>
-          </a>
-          <a class="dl" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-macos-arm64.zip">
-            <span class="os">MACOS 12+ · APPLE 芯片</span>
-            <b>macOS（M 系列）</b>
-            <small>Zip · 约 71 MB</small>
-            <span class="go">下载 .zip →</span>
-          </a>
-          <a class="dl" href="https://github.com/moneyfly006/ae-publisher-clone/releases/download/v1.0.5/AuroraList-macos-x64.zip">
-            <span class="os">MACOS 12+ · INTEL</span>
-            <b>macOS（Intel）</b>
-            <small>Zip · 约 72 MB</small>
-            <span class="go">下载 .zip →</span>
-          </a>
-        </div>
-        <p class="dl-note">
-          版本 v1.0.5 · 发布于 2026-11-20 ·
-          <a href="https://github.com/moneyfly006/ae-publisher-clone/releases">全部版本</a> ·
-          <a href="manual/">在线操作手册</a> ·
-          <a href="manual/manual.pdf">PDF</a> ·
-          <a href="manual/manual.docx">Word</a>
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- FAQ -->
-  <section class="section" style="padding-top:0">
-    <div class="wrap">
-      <div class="section-head reveal">
-        <div><span class="eyebrow">FAQ</span><h2 style="margin-top:14px; font-size:34px">常见问题</h2></div>
-      </div>
-      <div class="faq">
-        <div class="q reveal"><h3>需要装浏览器插件吗？</h3><p>不需要。软件通过本机已登录的店小秘 Cookie 或手动粘贴 Cookie 连接，全程不碰你的账号密码。</p></div>
-        <div class="q reveal"><h3>商品会被改坏吗？</h3><p>所有操作都有预演模式；真实写入前会做配置冲突检查，保存失败会保留原商品并记录原因。</p></div>
-        <div class="q reveal"><h3>换电脑授权还在吗？</h3><p>授权绑定机器码，可在授权后台解绑或迁移；到期前会提示续期。</p></div>
-        <div class="q reveal"><h3>支持多店铺吗？</h3><p>支持在「店铺与模板」切换店铺；每个店铺可使用各自的模板与价格策略。</p></div>
-      </div>
-    </div>
-  </section>
-
+<section class="block faq"><div class="wrap">
+  <div class="section-head"><div><span class="eyebrow">FAQ</span><h2>常见问题</h2></div></div>
+  <details open><summary>需要装浏览器插件吗？</summary><p>不需要。读取本机 Chrome/Edge 已登录的店小秘 Cookie，或手动粘贴一次，全程不接触账号密码。</p></details>
+  <details><summary>商品会被改坏吗？</summary><p>所有操作有预演模式；真实写入前做配置与 SKU 身份校验；发布失败先自动修复，修不了才停止并写明原因。</p></details>
+  <details><summary>换电脑授权还在吗？</summary><p>授权绑定机器码，可在授权后台解绑或迁移；到期前提示续期。</p></details>
+  <details><summary>支持多店铺吗？</summary><p>支持。店铺与模板页可切换店铺，每个店铺可用各自的模板与价格策略。</p></details>
+  <details><summary>机械类目的参数会不会被 AI 编造？</summary><p>不会。提示词与逻辑都要求「只用原文有依据的数据」，禁止编造型号、参数与认证。</p></details>
+</div></section>
 </main>
 
-<footer>
-  <div class="wrap foot">
-    <div style="display:flex; align-items:center; gap:12px">
-      <img src="assets/logo.png" alt="" style="width:30px;height:30px;border-radius:9px" />
-      <span>极光上架 AuroraList · 速卖通 AI 批量上架工具</span>
-    </div>
-    <div>咨询 QQ <span class="tel">3219904322</span></div>
-    <div>© 2026 AuroraList · <a href="manual/">操作手册</a> · <a href="#top">回到顶部</a></div>
-  </div>
-</footer>
-
-<script>
-// 标签切换
-document.querySelectorAll('.tab').forEach(function(t){
-  t.addEventListener('click', function(){
-    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on')});
-    document.querySelectorAll('.pane').forEach(function(x){x.classList.remove('on')});
-    t.classList.add('on');
-    var el = document.getElementById(t.dataset.pane);
-    if (el) el.classList.add('on');
-  });
-});
-
-// 滚动出现
-var io = new IntersectionObserver(function(entries){
-  entries.forEach(function(e){
-    if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
-  });
-}, {threshold:.12});
-document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
-
-</script>
+<footer><div class="wrap">
+  <div><img src="assets/logo.png" alt="" style="width:24px;height:24px;border-radius:6px;display:inline-block;vertical-align:-6px;margin-right:8px">极光上架 AuroraList · 速卖通机械类目 AI 批量上架</div>
+  <div>咨询 QQ 3219904322 · © 2026 AuroraList · <a href="manual/" style="color:var(--accent)">操作手册</a></div>
+</div></footer>
 </body>
 </html>
