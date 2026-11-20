@@ -1999,7 +1999,9 @@ class Publisher:
                 _sv = "collected"
         if _sv == "none":
             p["csp_video_id"] = ""          # 明确不要视频
-            add_step(res, "视频", True, "已选择「不要视频」，本次不写入视频")
+            p["video_url"] = ""             # 同时清掉采集/模板留下的视频地址
+            p["clear_video"] = True
+            add_step(res, "视频", True, "已选择「不要视频」，将清空商品原有视频")
             return
         if _sv == "collected":
             add_step(res, "视频", True, "使用采集到的产品视频（自动保留）")

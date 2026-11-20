@@ -161,6 +161,15 @@ def main() -> int:
         return restore()
 
     mods = CORE + (EXTRA if args.all else [])
+    # 开跑前统一刷新备份：即使某个模块编译失败、没走到“成功后再备份”，
+    # 退出时的 --restore 也不会把旧代码盖回当前源码。
+    BACKUP.mkdir(parents=True, exist_ok=True)
+    for rel in mods:
+        src = SRC / rel
+        if src.exists():
+            dst = BACKUP / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
     print(f"Nuitka 加固：编译 {len(mods)} 个模块（Python {sys.version.split()[0]}）")
     ok = 0
     for rel in mods:
