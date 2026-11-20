@@ -27,24 +27,31 @@ from ..services.queue import TaskQueue
 from ..services.scheduler import Scheduler
 
 ACCENT, ACCENT_2 = "#7C5CFF", "#00D2A8"
+INFO_C, DANGER_C, WARN_C = "#6EC6FF", "#FF6B6B", "#FFB020"
 BG, CARD, CARD_2 = "#0B0D12", "#141824", "#1B2030"
 TEXT, MUTED = "#E8EAF2", "#8B92A8"
 
 THEMES = {
     "dark": {"BG": "#0B0D12", "CARD": "#141824", "CARD_2": "#1B2030",
-             "TEXT": "#E8EAF2", "MUTED": "#8B92A8"},
-    "light": {"BG": "#F5F7FC", "CARD": "#FFFFFF", "CARD_2": "#E6EBF4",
-              "TEXT": "#0B1220", "MUTED": "#4A5468"},
+             "TEXT": "#E8EAF2", "MUTED": "#8B92A8",
+             "ACCENT": "#7C5CFF", "ACCENT_2": "#00D2A8",
+             "INFO": "#6EC6FF", "DANGER": "#FF6B6B", "WARN": "#FFB020"},
+    "light": {"BG": "#F5F7FC", "CARD": "#FFFFFF", "CARD_2": "#E4EAF4",
+              "TEXT": "#0B1220", "MUTED": "#45506A",
+              "ACCENT": "#5B3DF5", "ACCENT_2": "#0B7F63",
+              "INFO": "#1D5FB8", "DANGER": "#C62828", "WARN": "#9A5B00"},
 }
 
 
 def apply_theme(name: str) -> str:
     """切换全局配色（重绘界面后生效）。返回真正生效的主题名。"""
-    global BG, CARD, CARD_2, TEXT, MUTED
+    global BG, CARD, CARD_2, TEXT, MUTED, ACCENT, ACCENT_2, INFO_C, DANGER_C, WARN_C
     key = "light" if str(name or "").lower() == "light" else "dark"
     t = THEMES[key]
     BG, CARD, CARD_2 = t["BG"], t["CARD"], t["CARD_2"]
     TEXT, MUTED = t["TEXT"], t["MUTED"]
+    ACCENT, ACCENT_2 = t["ACCENT"], t["ACCENT_2"]
+    INFO_C, DANGER_C, WARN_C = t["INFO"], t["DANGER"], t["WARN"]
     return key
 
 CURRENCIES = ["USD", "EUR", "GBP", "CNY", "RUB", "BRL"]
@@ -763,13 +770,13 @@ class App:
         for key, label, hint in specs:
             fields[key] = ft.TextField(label=label, value=str(getattr(self.cfg, key, "") or ""),
                                        hint_text=hint, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        status = ft.Text("选「是」后站点要求填写欧盟责任人，否则保存会被拦截", size=12.5, color="#FFB020")
+        status = ft.Text("选「是」后站点要求填写欧盟责任人，否则保存会被拦截", size=12.5, color=WARN_C)
 
         def save(e):
             missing = [f.label for f in fields.values() if not str(f.value or "").strip()]
             if missing:
                 status.value = "还缺：" + "、".join(missing)
-                status.color = "#FF6B6B"
+                status.color = DANGER_C
                 self._safe_update()
                 return
             for k, f in fields.items():
@@ -1010,14 +1017,14 @@ class App:
                 self.cookie_src = src
                 self._cookie_ts = time.time()
                 self.ready_cookie.value = "✓ " + describe(src) if (src.ok and src.cookies) else "✗ 未读到（点这里去粘贴）"
-                self.ready_cookie.color = ACCENT_2 if (src.ok and src.cookies) else "#FF6B6B"
+                self.ready_cookie.color = ACCENT_2 if (src.ok and src.cookies) else DANGER_C
             except Exception as _e:
                 self.ready_cookie.value = f"✗ {str(_e)[:40]}"
-                self.ready_cookie.color = "#FF6B6B"
+                self.ready_cookie.color = DANGER_C
             # 模板
             _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
             self.ready_tpl.value = ("✓ " + str(getattr(self.cfg, "template_product_title", "") or "已选")[:24]) if _tid else "✗ 未选模板（API 保存必需）"
-            self.ready_tpl.color = ACCENT_2 if _tid else "#FF6B6B"
+            self.ready_tpl.color = ACCENT_2 if _tid else DANGER_C
             # API / 授权：先触发自动检测，再等结果（最多 12 秒），不要一上来就显示 ✗
             self.ready_api.value = "检测中…"
             self.ready_api.color = MUTED
@@ -1049,14 +1056,14 @@ class App:
                 self.ready_api.color = ACCENT_2
             else:
                 self.ready_api.value = ("✗ " + str(_st.get("detail", "API 未连通"))[:34]) if _st else "✗ API 未检测"
-                self.ready_api.color = "#FF6B6B"
+                self.ready_api.color = DANGER_C
             _ls = getattr(self, "license_state", None) or {}
             if _ls.get("ok"):
                 self.ready_auth.value = "✓ " + str(_ls.get("message", "已授权"))[:24]
                 self.ready_auth.color = ACCENT_2
             else:
                 self.ready_auth.value = ("✗ " + str(_ls.get("message", "未授权"))[:24]) if _ls else "✗ 未授权"
-                self.ready_auth.color = "#FF6B6B"
+                self.ready_auth.color = DANGER_C
             try:
                 self._safe_update()
             except Exception:
@@ -1081,10 +1088,10 @@ class App:
             return c
         tiles_row = ft.Row([
             _tile("draft", "采集箱", "待处理", TEXT),
-            _tile("editingRequired", "待发布", "可直接发布", "#6EC6FF", target=8),
-            _tile("publishFail", "发布失败", "可重试", "#FF6B6B", target=8),
+            _tile("editingRequired", "待发布", "可直接发布", INFO_C, target=8),
+            _tile("publishFail", "发布失败", "可重试", DANGER_C, target=8),
             _tile("onSelling", "在线", "已上架", ACCENT_2),
-            _tile("auditing", "审核中", "等待平台", "#FFB020"),
+            _tile("auditing", "审核中", "等待平台", WARN_C),
         ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
         self.ov_tiles_ts = ft.Text("尚未刷新", size=12, color=MUTED)
         tiles_head = ft.Row([muted("状态数字 · 缓存 30 秒", 10.5),
@@ -1141,9 +1148,9 @@ class App:
                             sub="自建站点 · 按量计费",
                             action=ft.TextButton("去设置", on_click=lambda e: self._switch(11))),
                         auth_card,
-                        svc("图片服务", ft.Text("约 15 秒/张", color="#FFB020", size=13.5,
+                        svc("图片服务", ft.Text("约 15 秒/张", color=WARN_C, size=13.5,
                                                 weight=ft.FontWeight.BOLD),
-                            ft.Icons.BOLT_OUTLINED, "#FFB020",
+                            ft.Icons.BOLT_OUTLINED, WARN_C,
                             sub=(str(getattr(self.cfg, "image_host_url", "") or "image.moneyfly.club")
                                  .replace("https://", "").replace("http://", "")))],
                        spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -1427,7 +1434,7 @@ class App:
                 ctrl.color = ACCENT_2
             else:
                 ctrl.value = f"连接失败：{st.get('detail', '')}"
-                ctrl.color = "#FF6B6B"
+                ctrl.color = DANGER_C
             self._safe_update()
         except Exception:
             pass
@@ -1570,7 +1577,7 @@ class App:
                 ctrl.color = MUTED
             elif bal < 0.2:
                 ctrl.value = f"¥{bal:.3f} 不足（AI 图片编辑约 ¥0.2/次）→ 去「设置」充值"
-                ctrl.color = "#FF6B6B"
+                ctrl.color = DANGER_C
             else:
                 ctrl.value = f"¥{bal:.3f}"
                 ctrl.color = ACCENT_2
@@ -1593,7 +1600,7 @@ class App:
                     detail.value = f"到期：{exp}" if exp else "永久有效"
             else:
                 ctrl.value = "未授权"
-                ctrl.color = "#FF6B6B"
+                ctrl.color = DANGER_C
                 if detail is not None:
                     detail.value = str(st.get("message") or "点「重新检测」或检查网络")[:40]
             self._safe_update()
@@ -2006,7 +2013,7 @@ class App:
         dlg = ft.AlertDialog(
             title=ft.Text("API 余额不足"),
             content=ft.Column([
-                ft.Text(f"当前余额：¥{bal:.3f}", size=14.5, color="#FF6B6B",
+                ft.Text(f"当前余额：¥{bal:.3f}", size=14.5, color=DANGER_C,
                         weight=ft.FontWeight.BOLD),
                 ft.Text("AI 图片编辑约 ¥0.2 / 次，余额不足时这一步会被自动跳过"
                         "（白底/去水印等本地免费步骤不受影响）。", size=13.5, color=TEXT),
@@ -2177,7 +2184,7 @@ class App:
                     render()
                 except Exception as ex:  # noqa: BLE001
                     info.value = f"读取失败：{str(ex)[:100]}"
-                    info.color = "#FF6B6B"
+                    info.color = DANGER_C
                     _upd()
 
             threading.Thread(target=work, daemon=True).start()
@@ -2289,7 +2296,7 @@ class App:
                     render()
                 except Exception as ex:  # noqa: BLE001
                     info.value = f"搜索失败：{str(ex)[:100]}"
-                    info.color = "#FF6B6B"
+                    info.color = DANGER_C
                     _upd()
 
             threading.Thread(target=work, daemon=True).start()
@@ -2483,7 +2490,7 @@ class App:
                 status.color = ACCENT_2
             except Exception as ex:  # noqa: BLE001
                 status.value = f"读取失败：{str(ex)[:120]}"
-                status.color = "#FF6B6B"
+                status.color = DANGER_C
             try:
                 self._safe_update()
             except Exception:
@@ -2560,7 +2567,7 @@ class App:
             self.ready_conflict.value = (f"✗ {len(errs)} 个阻断 / {len(warns)} 个提示"
                                          if errs else
                                          (f"⚠ {len(warns)} 个提示" if warns else "✓ 无冲突"))
-            self.ready_conflict.color = "#FF6B6B" if errs else ("#FFB020" if warns else ACCENT_2)
+            self.ready_conflict.color = DANGER_C if errs else (WARN_C if warns else ACCENT_2)
             self._safe_update()
         except Exception:
             pass
@@ -2574,7 +2581,7 @@ class App:
             return
         rows = []
         for c in items:
-            color = "#FF6B6B" if c.level == "error" else "#FFB020"
+            color = DANGER_C if c.level == "error" else WARN_C
             head = ("[阻断] " if c.level == "error" else "[提示] ") + c.title
             rows.append(ft.Container(
                 content=ft.Column([
@@ -2596,13 +2603,13 @@ class App:
         st = getattr(self, "license_text", None)
         if st is not None:
             st.value = "未授权"
-            st.color = "#FF6B6B"
+            st.color = DANGER_C
         dlg = ft.AlertDialog(
             title=ft.Text("未授权，暂时不能开始"),
             content=ft.Column([
                 ft.Text("把这台电脑的机器码发给管理员登记后，点「重新检测」即可：", size=13.5, color=TEXT),
                 ft.Text(code, size=17.5, weight=ft.FontWeight.BOLD, color=ACCENT_2, selectable=True),
-                ft.Text(str(message or "")[:120], size=12.5, color="#FFB020"),
+                ft.Text(str(message or "")[:120], size=12.5, color=WARN_C),
             ], spacing=8, width=460),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
                      ft.TextButton("复制机器码", on_click=lambda e: self._copy_machine(code)),
@@ -2624,7 +2631,7 @@ class App:
         try:
             if getattr(self, "run_status", None) is not None:
                 self.run_status.value = "状态：停止中…（正在中断当前步骤，不会继续保存）"
-                self.run_status.color = "#FFB020"
+                self.run_status.color = WARN_C
         except Exception:
             pass
         self._log("已请求停止：当前产品/任务结束后停止", "WARN")
@@ -2949,9 +2956,9 @@ class App:
 
         self.chip_online = ft.Text(str(cnt.get("onSelling", "—")), size=17.5, color=ACCENT_2,
                                    weight=ft.FontWeight.BOLD)
-        self.chip_wait = ft.Text(str(cnt.get("editingRequired", "—")), size=17.5, color="#6EC6FF",
+        self.chip_wait = ft.Text(str(cnt.get("editingRequired", "—")), size=17.5, color=INFO_C,
                                  weight=ft.FontWeight.BOLD)
-        self.chip_audit = ft.Text(str(cnt.get("auditing", "—")), size=17.5, color="#FFB020",
+        self.chip_audit = ft.Text(str(cnt.get("auditing", "—")), size=17.5, color=WARN_C,
                                   weight=ft.FontWeight.BOLD)
 
         def chip_col(label, ctrl):
@@ -2983,7 +2990,7 @@ class App:
                                          options=[ft.dropdown.Option("draft", "待发布"), ft.dropdown.Option("online", "在线")],
                                          on_change=lambda e: self._on_tpl_source())
         self.cookie_status = ft.Text(f"Cookie：{ck_text}",
-                                     size=12.5, color=ACCENT_2 if ck_ok else "#FFB020",
+                                     size=12.5, color=ACCENT_2 if ck_ok else WARN_C,
                                      selectable=True)
         self.store_status = ft.Text("点击「读取并同步」获取店铺与模板", size=13.5, color=MUTED)
 
@@ -2991,7 +2998,7 @@ class App:
             def go():
                 ok, text = self._cookie_status_text(refresh=True)
                 self.cookie_status.value = f"Cookie：{text}"
-                self.cookie_status.color = ACCENT_2 if ok else "#FFB020"
+                self.cookie_status.color = ACCENT_2 if ok else WARN_C
                 self.toast(("Cookie 可用：" if ok else "Cookie 仍不可用：") + text, ok)
             threading.Thread(target=go, daemon=True).start()
 
@@ -3454,7 +3461,7 @@ class App:
                 return
         except Exception as ex:  # noqa: BLE001
             self.tpl_snapshot_text.value = f"模板参数读取失败：{str(ex)[:80]}"
-            self.tpl_snapshot_text.color = "#FF6B6B"
+            self.tpl_snapshot_text.color = DANGER_C
             self._log(f"模板参数读取失败（API）：{str(ex)[:80]}", "WARN")
 
     def _sync_shops(self):
@@ -3488,7 +3495,7 @@ class App:
             self.store_status.color = ACCENT_2
         except Exception as ex:
             self.store_status.value = f"同步失败：{ex}"
-            self.store_status.color = "#FF6B6B"
+            self.store_status.color = DANGER_C
         self._safe_update()
 
     def _cookies(self, refresh: bool = False):
@@ -3757,7 +3764,7 @@ class App:
             except Exception as ex:  # noqa: BLE001
                 state["data"] = {}
                 status.value = f"读取失败：{str(ex)[:100]}"
-                status.color = "#FF6B6B"
+                status.color = DANGER_C
             render()
 
         threading.Thread(target=load, daemon=True).start()
@@ -3800,11 +3807,11 @@ class App:
         brand = _pick("brand", "品牌")
         origin = _pick("origin", "产地")
         chips = [
-            ("类目", _pick("category", "类目") or "-", "#6EC6FF"),
-            ("运费", _pick("freight", "运费模板") or "-", "#6EC6FF"),
+            ("类目", _pick("category", "类目") or "-", INFO_C),
+            ("运费", _pick("freight", "运费模板") or "-", INFO_C),
             ("品牌", brand or "-", ACCENT_2),
             ("产地", origin or "-", MUTED),
-            ("属性", f"{len(attrs)} 项", "#FFB020"),
+            ("属性", f"{len(attrs)} 项", WARN_C),
             ("抓取字段", f"{len(vals)} 个", ACCENT_2 if vals else MUTED),
         ]
         chip_row = ft.Row([
@@ -3860,7 +3867,7 @@ class App:
                     title=ft.Text(name, size=14.5, color=TEXT),
                     subtitle=ft.Text(f"{tid} · {len(pairs)} 条属性", size=12, color=MUTED),
                     on_click=apply))
-            self.attr_list.controls = rows or [ft.Text("没有属性模板（可先在店小秘创建）", size=13.5, color="#FFB020")]
+            self.attr_list.controls = rows or [ft.Text("没有属性模板（可先在店小秘创建）", size=13.5, color=WARN_C)]
             self.attr_status.value = f"共 {len(rows)} 个模板"
         except Exception as ex:
             self.attr_status.value = f"搜索失败：{ex}"
@@ -3961,7 +3968,7 @@ class App:
                 space_text.color = ACCENT_2
             except Exception as ex:  # noqa: BLE001
                 space_text.value = f"图片空间：读取失败（{str(ex)[:60]}）"
-                space_text.color = "#FF6B6B"
+                space_text.color = DANGER_C
             self._safe_update()
 
         def render():
@@ -3987,7 +3994,7 @@ class App:
                     cb,
                     ft.Text(fmt_time(c.created), size=12, color=MUTED, width=90),
                     ft.Text(album_cleanup.human_size(c.size), size=12, color=MUTED, width=60),
-                    ft.Text("🔒" if c.locked else "", size=12, color="#FFB020", width=20),
+                    ft.Text("🔒" if c.locked else "", size=12, color=WARN_C, width=20),
                     ft.Text((c.name or c.id)[:52], size=12, color=TEXT, expand=True),
                 ], spacing=6))
             result.controls = rows
@@ -3999,17 +4006,17 @@ class App:
             try:
                 d = int((days.value or "30").strip())
             except ValueError:
-                status.value = "天数要填数字"; status.color = "#FF6B6B"; self._safe_update(); return
+                status.value = "天数要填数字"; status.color = DANGER_C; self._safe_update(); return
             status.value = "扫描中…"; status.color = MUTED; self._safe_update()
             try:
                 plan = album_cleanup.scan(self._album_client(), d)
                 state["plan"] = plan
                 state["sel"] = set()
                 status.value = plan.brief() if plan.scanned else "没有符合条件的图片（可把天数改成 0）"
-                status.color = ACCENT_2 if plan.delete_count else "#FFB020"
+                status.color = ACCENT_2 if plan.delete_count else WARN_C
                 render()
             except Exception as ex:  # noqa: BLE001
-                status.value = f"扫描失败：{str(ex)[:100]}"; status.color = "#FF6B6B"; self._safe_update()
+                status.value = f"扫描失败：{str(ex)[:100]}"; status.color = DANGER_C; self._safe_update()
 
         def on_select_all(e):
             if state.get("rendering"):
@@ -4046,7 +4053,7 @@ class App:
                 if r.get("errors"):
                     msg += " · " + str(r["errors"][0])[:60]
                 status.value = msg
-                status.color = ACCENT_2 if r.get("ok") else "#FF6B6B"
+                status.color = ACCENT_2 if r.get("ok") else DANGER_C
                 self._log("图片清理（选中）：" + msg)
                 load_space(); scan_now()
             threading.Thread(target=go, daemon=True).start()
@@ -4063,7 +4070,7 @@ class App:
                 status.value = "删除中…"; status.color = MUTED; self._safe_update()
                 r = album_cleanup.delete_older_than(self._album_client(), d)
                 status.value = r.get("message") or ("完成" if r.get("ok") else "失败")
-                status.color = ACCENT_2 if r.get("ok") else "#FF6B6B"
+                status.color = ACCENT_2 if r.get("ok") else DANGER_C
                 self._log("图片清理（按时间）：" + status.value)
                 load_space(); scan_now()
             confirm_then(tip, lambda: threading.Thread(target=go, daemon=True).start())
@@ -4291,7 +4298,7 @@ class App:
             content=ft.Text(
                 "⚠ 四合一开启后会将主图1-4合成插入第一位，与「AI精细化编辑·主图1」冲突。\n"
                 "建议：关闭「AI精细化编辑·主图1」，或把四合一插入位置改为「末尾」。",
-                size=12, color="#FFB020"),
+                size=12, color=WARN_C),
             bgcolor="#FFF7E6", border_radius=8, padding=8,
             visible=four_in_one_on)
 
@@ -4427,7 +4434,7 @@ class App:
                     self.wm_preview.visible = False
             else:
                 self.wm_status.value = f"未找到该文件：{path}（也可以直接填文字做文字水印）"
-                self.wm_status.color = "#FFB020"
+                self.wm_status.color = WARN_C
                 self.wm_preview.visible = False
             try:
                 self._safe_update()
@@ -4561,7 +4568,7 @@ class App:
             self._log(f"水印预览：{out}")
         except Exception as ex:
             self.wm_status.value = f"测试失败：{str(ex)[:100]}"
-            self.wm_status.color = "#FF6B6B"
+            self.wm_status.color = DANGER_C
             self.toast(f"水印测试失败：{ex}", False)
         try:
             self._safe_update()
@@ -5402,7 +5409,7 @@ class App:
             _cf = detect_conflicts(self.cfg)
         except Exception:
             _cf = []
-        _colors = {"high": "#FF6B6B", "mid": "#FFB020", "low": MUTED}
+        _colors = {"high": DANGER_C, "mid": WARN_C, "low": MUTED}
         _icon = {"high": ft.Icons.ERROR_OUTLINE, "mid": ft.Icons.WARNING_AMBER_ROUNDED,
                  "low": ft.Icons.INFO_OUTLINE}
         conflict_card = card(ft.Column([
@@ -5913,7 +5920,7 @@ class App:
 
                 rows.append(ft.ListTile(title=ft.Text(name, size=14.5, color=TEXT),
                                         subtitle=ft.Text(tid, size=12, color=MUTED), on_click=apply))
-            self.tpl_list.controls = rows or [ft.Text("没有找到模板（可先在店小秘里创建区域调价模板）", size=13.5, color="#FFB020")]
+            self.tpl_list.controls = rows or [ft.Text("没有找到模板（可先在店小秘里创建区域调价模板）", size=13.5, color=WARN_C)]
             self.tpl_status.value = f"共 {len(rows)} 个模板"
         except Exception as ex:
             self.tpl_status.value = f"搜索失败：{str(ex)[:120]}"
@@ -6031,9 +6038,9 @@ class App:
         self._current = 8
         cnt = getattr(self, "store_counts", {}) or {}
         self.pub_wait_txt = ft.Text(str(cnt.get("editingRequired", "—")), size=23,
-                                    weight=ft.FontWeight.BOLD, color="#6EC6FF")
+                                    weight=ft.FontWeight.BOLD, color=INFO_C)
         self.pub_fail_txt = ft.Text(str(cnt.get("publishFail", "—")), size=23,
-                                    weight=ft.FontWeight.BOLD, color="#FF6B6B")
+                                    weight=ft.FontWeight.BOLD, color=DANGER_C)
         self.pub_publishing_txt = ft.Text(str(cnt.get("publishing", "—")), size=23,
                                           weight=ft.FontWeight.BOLD, color=ACCENT_2)
 
@@ -6056,8 +6063,8 @@ class App:
         queue_card = card(ft.Column([
             h1i(ft.Icons.QUEUE, "队列"),
             muted("商品保存后会进入「待发布」，提交发布后进入「发布中 → 审核中」"),
-            ft.Row([kpi_tile("待发布", self.pub_wait_txt, "可直接发布", "#6EC6FF"),
-                    kpi_tile("发布失败", self.pub_fail_txt, "可重试", "#FF6B6B"),
+            ft.Row([kpi_tile("待发布", self.pub_wait_txt, "可直接发布", INFO_C),
+                    kpi_tile("发布失败", self.pub_fail_txt, "可重试", DANGER_C),
                     kpi_tile("发布中", self.pub_publishing_txt, "等待平台审核", ACCENT_2)],
                    spacing=12, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
             ft.Row([
@@ -6113,7 +6120,7 @@ class App:
         ], spacing=4, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
         self.wb_conn = ft.Text(("Cookie：" + ck_text), size=13.5,
-                               color=ACCENT_2 if ok else "#FF6B6B")
+                               color=ACCENT_2 if ok else DANGER_C)
         self.wb_conn_hint = muted("加载不了产品时先看这里：没有 Cookie 就点「粘贴 Cookie」或「启动浏览器」")
         self.wb_status = ft.Text("未加载产品", color=MUTED, size=13.5)
         self.wb_results = ft.Column(spacing=4)
@@ -6134,7 +6141,7 @@ class App:
             def go():
                 ok2, txt2 = self._cookie_status_text(refresh=True)
                 self.wb_conn.value = "Cookie：" + txt2
-                self.wb_conn.color = ACCENT_2 if ok2 else "#FF6B6B"
+                self.wb_conn.color = ACCENT_2 if ok2 else DANGER_C
                 if ok2:
                     self._wb_check_login()
                 else:
@@ -6363,7 +6370,7 @@ class App:
             self.wb_conn.color = ACCENT_2
         except Exception as ex:  # noqa: BLE001
             self.wb_conn.value = f"登录检测失败：{str(ex)[:80]}"
-            self.wb_conn.color = "#FF6B6B"
+            self.wb_conn.color = DANGER_C
         try:
             self._safe_update()
         except Exception:
@@ -6422,11 +6429,11 @@ class App:
                                            f"共 {meta.get('total') or 0} 个")
                 self.wb_status.value = (f"已加载 {len(self.wb_rows)} 个产品"
                                         if self.wb_rows else "这一页没有产品（换个状态或关键词试试）")
-                self.wb_status.color = ACCENT_2 if self.wb_rows else "#FFB020"
+                self.wb_status.color = ACCENT_2 if self.wb_rows else WARN_C
                 self._wb_sel_refresh()
             except Exception as ex:  # noqa: BLE001
                 self.wb_status.value = f"加载失败：{str(ex)[:120]}（先检查上面的 Cookie）"
-                self.wb_status.color = "#FF6B6B"
+                self.wb_status.color = DANGER_C
                 self.toast(f"加载失败：{ex}", False)
             try:
                 self._safe_update()
@@ -6704,7 +6711,7 @@ class App:
         self.picked = got
         self.wb_sel_paths = {str(p) for p in got}
         self.wb_status.value = f"已下载 {len(got)}/{len(urls)} 张"
-        self.wb_status.color = ACCENT_2 if got else "#FF6B6B"
+        self.wb_status.color = ACCENT_2 if got else DANGER_C
         try:
             self._wb_render_wall()
         except Exception:
@@ -6777,7 +6784,7 @@ class App:
 
         def done(res):
             icon = ft.Icons.CHECK_CIRCLE if res.ok else ft.Icons.ERROR_OUTLINE
-            color = ACCENT_2 if res.ok else "#FF6B6B"
+            color = ACCENT_2 if res.ok else DANGER_C
             if not res.ok:
                 self._maybe_quota(res.error)
             _before = (getattr(self, "_wb_before", {}) or {}).get(res.index)
@@ -6819,7 +6826,7 @@ class App:
         _label = {"white": "白底", "watermark": "去水印", "translate": "翻译",
                   "edit": "编辑", "add_watermark": "加水印"}.get(kind, kind)
         self.wb_status.value = f"处理完成：成功 {ok}/{len(results)} · {_label} · 用时 {_el:.1f}s"
-        self.wb_status.color = ACCENT_2 if ok else "#FF6B6B"
+        self.wb_status.color = ACCENT_2 if ok else DANGER_C
         self._log(f"图片处理（{_label}）：成功 {ok}/{len(results)} · 用时 {_el:.1f}s",
                   "INFO" if ok else "WARN")
         # 处理完刷新图片墙与缩略图计数
@@ -6961,7 +6968,7 @@ class App:
             sched_rows.append(ft.Row([
                 ft.Text(str(j.product_id), size=12.5, color=TEXT, width=110),
                 ft.Text(time.strftime("%m-%d %H:%M", time.localtime(j.run_at)), size=12.5,
-                        color="#6EC6FF", width=96),
+                        color=INFO_C, width=96),
                 ft.Text(f"{remain // 60} 分钟后" if remain >= 60 else ("即将执行" if remain else "待执行"),
                         size=12, color=MUTED, width=76),
                 ft.Text((j.title or "")[:24], size=12.5, color=MUTED, expand=True),
@@ -7022,12 +7029,12 @@ class App:
                     self.toast(f"上报失败：{r.get('error') or r.get('status')}", False)
                     if getattr(self, "log_status", None) is not None:
                         self.log_status.value = f"上报失败：{r.get('error') or r.get('status')}"
-                        self.log_status.color = "#FF6B6B"
+                        self.log_status.color = DANGER_C
             except Exception as ex:  # noqa: BLE001
                 self.toast(f"上报失败：{str(ex)[:80]}", False)
                 if getattr(self, "log_status", None) is not None:
                     self.log_status.value = f"上报失败：{str(ex)[:80]}"
-                    self.log_status.color = "#FF6B6B"
+                    self.log_status.color = DANGER_C
             try:
                 self._safe_update()
             except Exception:
@@ -7129,7 +7136,7 @@ class App:
 
     @staticmethod
     def _log_color(lv: str) -> str:
-        return {"ERROR": "#FF6B6B", "WARN": "#FFB020"}.get(str(lv).upper(), MUTED)
+        return {"ERROR": DANGER_C, "WARN": WARN_C}.get(str(lv).upper(), MUTED)
 
     def _log_panel_items(self) -> list[tuple]:
         rows = getattr(self, "log_rows", [])[-300:]
@@ -7376,7 +7383,7 @@ class App:
             ft.DataRow(cells=[
                 ft.DataCell(ft.Text(t, size=12, color=MUTED, width=62)),
                 ft.DataCell(ft.Text(x, size=12, width=40,
-                                    color=ACCENT_2 if x == "INFO" else ("#FFB020" if x == "WARN" else "#FF6B6B"))),
+                                    color=ACCENT_2 if x == "INFO" else (WARN_C if x == "WARN" else DANGER_C))),
                 ft.DataCell(ft.Text(m, size=12.5, color=TEXT, width=600, selectable=True)),
                 ft.DataCell(self._filter_cell(m)),
             ]) for t, x, m in shown[-300:]
@@ -7493,7 +7500,7 @@ class App:
             exp = (self.license_state or {}).get("expiry") or ""
             self.lic_detail.value = f"到期：{exp}" if exp else "授权有效（长期）"
         else:
-            self.lic_status.color = "#FF6B6B"
+            self.lic_status.color = DANGER_C
             self.lic_detail.value = "如果刚登记过，点「重新检测」；换电脑/重装系统后机器码会变，需要重新登记"
 
         # ---------------- API ----------------
@@ -7534,7 +7541,7 @@ class App:
                 key = (self.cfg.api_key or "").strip()
                 if not key:
                     self.api_status.value = "连接失败：未填写 API Key"
-                    self.api_status.color = "#FF6B6B"
+                    self.api_status.color = DANGER_C
                     try:
                         self._safe_update()
                     except Exception:
@@ -7550,7 +7557,7 @@ class App:
                             "quota": " → 余额不足，请充值",
                             "other": " → 网络或服务端问题，可稍后重试"}.get(kind, "")
                     self.api_status.value = f"连接失败：{str(ex)[:80]}{hint}"
-                    self.api_status.color = "#FF6B6B"
+                    self.api_status.color = DANGER_C
                 try:
                     self._safe_update()
                 except Exception:
@@ -7617,11 +7624,11 @@ class App:
                     from ..services.hosting import clean_old
                     r = clean_old()          # 天数由 services 读配置决定
                     self.host_status.value = r.get("message", "")
-                    self.host_status.color = ACCENT_2 if r.get("ok") else "#FF6B6B"
+                    self.host_status.color = ACCENT_2 if r.get("ok") else DANGER_C
                     self._log(f"图床清理：{r.get('message','')}", "INFO" if r.get("ok") else "WARN")
                 except Exception as ex:  # noqa: BLE001
                     self.host_status.value = f"清理失败：{str(ex)[:110]}"
-                    self.host_status.color = "#FF6B6B"
+                    self.host_status.color = DANGER_C
                 try:
                     self._safe_update()
                 except Exception:
@@ -7665,7 +7672,7 @@ class App:
                     self._log(f"图床上传成功：{url}", "INFO")
                 except Exception as ex:  # noqa: BLE001
                     self.host_status.value = f"上传失败：{str(ex)[:110]}"
-                    self.host_status.color = "#FF6B6B"
+                    self.host_status.color = DANGER_C
                     self._log(f"图床上传失败：{ex}", "WARN")
                 try:
                     self._safe_update()
@@ -7884,7 +7891,7 @@ class App:
         rows = []
 
         def add(name, ok, msg="", warn=False):
-            color = "#FFB020" if warn else (ACCENT_2 if ok else "#FF6B6B")
+            color = WARN_C if warn else (ACCENT_2 if ok else DANGER_C)
             icon = ft.Icons.WARNING_AMBER if warn else (ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE)
             rows.append(ft.Row([ft.Icon(icon, size=16.5, color=color),
                                 ft.Text(name, size=13.5, color=TEXT, width=110),
@@ -7984,11 +7991,11 @@ class App:
                 self.diag_ff_btn.visible = False
             else:
                 tip.value = "下载失败（网络受限时请手动安装 ffmpeg）"
-                tip.color = "#FF6B6B"
+                tip.color = DANGER_C
                 self.toast("下载失败，请手动安装 ffmpeg", False)
         except Exception as ex:  # noqa: BLE001
             tip.value = f"下载失败：{str(ex)[:80]}"
-            tip.color = "#FF6B6B"
+            tip.color = DANGER_C
         finally:
             self.diag_ff_btn.disabled = False
             try:
@@ -8028,12 +8035,12 @@ class App:
             if items:
                 items.append(ft.Text("＊ 旧版模型名（gpt-6-luna、gpt-image-2.5-flare 等）已自动映射到对应模型，价格相同",
                                      size=12, color=MUTED))
-            self.price_list.controls = items or [ft.Text("价格获取失败", size=13.5, color="#FFB020")]
+            self.price_list.controls = items or [ft.Text("价格获取失败", size=13.5, color=WARN_C)]
             if getattr(self, "price_status", None) is not None:
                 self.price_status.value = f"共 {len(rows)} 个模型（缓存 5 分钟）"
                 self.price_status.color = MUTED
         except Exception as ex:
-            self.price_list.controls = [ft.Text(f"价格获取失败：{ex}", size=13.5, color="#FF6B6B")]
+            self.price_list.controls = [ft.Text(f"价格获取失败：{ex}", size=13.5, color=DANGER_C)]
             if getattr(self, "price_status", None) is not None:
                 self.price_status.value = "价格获取失败，检查 API Key/网络后点刷新"
         try:
@@ -8144,7 +8151,7 @@ class App:
         """ffmpeg 缺失提示：可一键下载安装，也可先跳过。"""
         from ..services.video import ensure_ffmpeg
         bar = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
-        tip = ft.Text("未检测到 ffmpeg（生成本地视频需要它）", size=12.5, color="#FFB020")
+        tip = ft.Text("未检测到 ffmpeg（生成本地视频需要它）", size=12.5, color=WARN_C)
         dl_btn = ft.ElevatedButton("立即下载安装", icon=ft.Icons.DOWNLOAD,
                                    bgcolor=ACCENT, color="white")
         skip_btn = ft.TextButton("先跳过（视频会少一条）")
@@ -8179,7 +8186,7 @@ class App:
                     skip_btn.text = "关闭"
                 else:
                     tip.value = "下载失败：请检查网络，或手动安装 ffmpeg 后重试"
-                    tip.color = "#FF6B6B"
+                    tip.color = DANGER_C
                     dl_btn.disabled = False
                 try:
                     self._safe_update()
@@ -8266,7 +8273,7 @@ class App:
             content=ft.Column([
                 ft.Text(f"当前版本 v{_up.CURRENT} · 最新 v{latest}", size=13.5, color=TEXT),
                 ft.Text("检测到新版本，更新完成后才能继续使用；下载会在后台自动进行。",
-                        size=12.5, color="#FFB020"),
+                        size=12.5, color=WARN_C),
                 (ft.Container(content=ft.Text(notes[:500], size=12.5, color=MUTED, selectable=True),
                               height=120, bgcolor=CARD_2, border_radius=8, padding=8)
                  if notes else ft.Container()),
@@ -8277,7 +8284,7 @@ class App:
         )
         if not url:
             self.upd_status.value = "服务器没有提供安装包地址，请联系管理员。"
-            self.upd_status.color = "#FF6B6B"
+            self.upd_status.color = DANGER_C
         self._show_dlg(dlg)
 
         if not url:
@@ -8317,7 +8324,7 @@ class App:
                 self._safe_update()
             except Exception as ex:  # noqa: BLE001
                 self.upd_status.value = f"下载失败：{str(ex)[:90]}（可退出后重试）"
-                self.upd_status.color = "#FF6B6B"
+                self.upd_status.color = DANGER_C
                 self._log(f"更新下载失败：{ex}", "ERROR")
                 try:
                     self._safe_update()
@@ -8343,7 +8350,7 @@ class App:
                 ft.Text(f"当前版本：v{updater.CURRENT}", size=13.5, color=TEXT),
                 ft.Text(notes[:600] or "（服务器未提供更新说明）", size=12.5, color=MUTED, selectable=True),
                 ft.Text("" if has_url else "服务器还没有配置安装包下载地址，请联系管理员。",
-                        size=12.5, color="#FFB020"),
+                        size=12.5, color=WARN_C),
             ], spacing=8, width=460),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
                      ft.ElevatedButton("下载并安装", bgcolor=ACCENT, color="white", disabled=not has_url,
@@ -8430,14 +8437,14 @@ class App:
             pass
         msg = res.get("message") or ("授权有效" if res.get("ok") else "未授权")
         self.license_text.value = "授权有效" if res.get("ok") else "未授权"
-        self.license_text.color = ACCENT_2 if res.get("ok") else "#FF6B6B"
+        self.license_text.color = ACCENT_2 if res.get("ok") else DANGER_C
         # 设置页的授权卡片同步刷新
         for attr in ("lic_status", "lic_detail"):
             if getattr(self, attr, None) is None:
                 continue
         if getattr(self, "lic_status", None) is not None:
             self.lic_status.value = msg
-            self.lic_status.color = ACCENT_2 if res.get("ok") else "#FF6B6B"
+            self.lic_status.color = ACCENT_2 if res.get("ok") else DANGER_C
         if getattr(self, "lic_detail", None) is not None:
             exp = res.get("expiry") or ""
             self.lic_detail.value = (f"到期：{exp}" if exp else
