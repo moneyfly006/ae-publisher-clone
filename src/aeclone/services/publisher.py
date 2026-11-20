@@ -324,7 +324,11 @@ class Publisher:
             return _hit
         svc = self._img_service()
         fp = self._fetch(url)
-        out = str(svc.edit(fp, prompt, model=_m or None))
+        try:
+            out = str(svc.edit(fp, prompt, model=_m or None))
+        except TypeError:
+            # 注入的旧版图片服务没有 model 参数
+            out = str(svc.edit(fp, prompt))
         self._cache_put(url, _act, out, _m)
         return out
 
@@ -731,9 +735,13 @@ class Publisher:
                         add_step(res, f"精细任务{n}·素材", False,
                                  f"模型最多接受 3 张输入，已用前 3 张（原 {len(files)} 张）")
                     for _ in range(max(1, min(3, count))):
-                        u = svc.edit_many(_use, prompt,
-                                          tag=f"精细任务{n}·{GROUP_LABELS.get(group, group)}",
-                                          model=_pm or None)
+                        try:
+                            u = svc.edit_many(_use, prompt,
+                                              tag=f"精细任务{n}·{GROUP_LABELS.get(group, group)}",
+                                              model=_pm or None)
+                        except TypeError:
+                            u = svc.edit_many(_use, prompt,
+                                              tag=f"精细任务{n}·{GROUP_LABELS.get(group, group)}")
                         if u:
                             made.append(str(u))
                 if not made:
@@ -2510,8 +2518,11 @@ class Publisher:
                             if not files:
                                 break
                             try:
-                                u = svc.edit_many(files, prompt, tag="主图生成(参考素材)",
-                                                  model=self._prompt_model() or None)
+                                try:
+                                    u = svc.edit_many(files, prompt, tag="主图生成(参考素材)",
+                                                      model=self._prompt_model() or None)
+                                except TypeError:
+                                    u = svc.edit_many(files, prompt, tag="主图生成(参考素材)")
                                 if u:
                                     gen.append(u)
                             except Exception:
