@@ -1274,6 +1274,14 @@ class App:
             page["i"] += delta
             _render()
 
+        def _reset(e=None):
+            page["i"] = 0
+            _render()
+
+        only_today.on_change = _reset
+        only_failed.on_change = _reset
+        kw.on_change = _reset
+
         prev_btn.on_click = lambda e: _go(-1)
         next_btn.on_click = lambda e: _go(1)
 
@@ -3583,6 +3591,7 @@ class App:
         status = ft.Text("正在读取模板产品…", size=11, color=MUTED)
         PAGE = 20
         state.update({"sort": "new", "page": 1, "filtered": []})
+        dlg_holder: dict = {}
         sort_dd = ft.Dropdown(
             value="new", width=150, dense=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             options=[ft.dropdown.Option("new", "最新优先"),
@@ -3666,7 +3675,13 @@ class App:
                                   color="#04231C" if state["source"] == "online" else TEXT,
                                   on_click=lambda e: switch("online")),
             ]
-            self._safe_update()
+            try:
+                dlg_holder["dlg"].update()
+            except Exception:
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
 
         def switch(src):
             state["source"] = src
@@ -3712,6 +3727,7 @@ class App:
                                status, list_col], spacing=10, width=660),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))],
         )
+        dlg_holder["dlg"] = dlg
         self._show_dlg(dlg)
         render()
 
@@ -6115,6 +6131,9 @@ class App:
                 self._wb_load_products(self.wb_page_no)
 
         def next_page(e):
+            if self.wb_page_no >= int(getattr(self, "wb_total_pages", 1) or 1):
+                self.toast("已经是最后一页", False)
+                return
             self.wb_page_no += 1
             self._wb_load_products(self.wb_page_no)
 
@@ -6335,7 +6354,9 @@ class App:
                                             size=10, color=MUTED)),
                     ]))
                 self.wb_prod_table.rows = rows
-                self.wb_page_info.value = (f"第 {meta.get('page') or page}/{meta.get('total_pages') or 1} 页 · "
+                self.wb_total_pages = int(meta.get("total_pages") or 1)
+                self.wb_page_no = int(meta.get("page") or page)
+                self.wb_page_info.value = (f"第 {self.wb_page_no}/{self.wb_total_pages} 页 · "
                                            f"共 {meta.get('total') or 0} 个")
                 self.wb_status.value = (f"已加载 {len(self.wb_rows)} 个产品"
                                         if self.wb_rows else "这一页没有产品（换个状态或关键词试试）")
