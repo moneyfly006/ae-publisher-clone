@@ -496,6 +496,44 @@ class Publisher:
         except Exception:
             return False
 
+    def _halt(self, res, where: str = ""):
+        """被「停止」打断：标记结果并立即返回，不继续花钱/写商品。"""
+        res.ok = False
+        res.stopped = True
+        res.error = "已按请求停止"
+        add_step(res, "停止", True,
+                 "已按请求停止" + (f"（在「{where}」之前中断）" if where else ""))
+        return res
+
+    def _run_interruptible(self, fn, timeout: float = 300):
+        """在子线程里跑一个耗时调用，主线程每 0.2s 检查停止标记。
+
+        返回 (status, value)：status = ok / stop / error。
+        停止时直接返回，不等 API 超时（后台线程自行结束）。
+        """
+        import threading as _th
+        box: dict = {}
+
+        def _w():
+            try:
+                box["v"] = fn()
+            except Exception as ex:  # noqa: BLE001
+                box["e"] = ex
+
+        t = _th.Thread(target=_w, daemon=True)
+        t.start()
+        waited = 0.0
+        while t.is_alive():
+            if self._aborted():
+                return "stop", None
+            t.join(0.2)
+            waited += 0.2
+            if waited >= timeout:
+                return "error", TimeoutError("调用超时")
+        if "e" in box:
+            return "error", box["e"]
+        return "ok", box.get("v")
+
     def _apply_image_jobs(self, p: dict, res, dry_run: bool = False) -> dict:
         """执行「简单规则 + 精细任务」（新引擎；旧配置自动迁移）。"""
         if not getattr(self.cfg, "ai_image_enable", True):
@@ -554,6 +592,9 @@ class Publisher:
             pass
         # ---- 简单规则（图片简单编辑：白底/去水印/翻译）----
         for rule in rules:
+            if self._aborted():
+                add_step(res, "停止", True, "已按请求停止（图片处理中断）")
+                return p
             group = rule["group"]
             urls = self._group_urls(p, group)
             if not urls:
@@ -610,6 +651,9 @@ class Publisher:
 
         # ---- 精细任务 ----
         for n, job in enumerate(jobs, 1):
+            if self._aborted():
+                add_step(res, "停止", True, "已按请求停止（精细任务中断）")
+                return p
             group = job["group"]
             if not _group_enable.get(group, False):
                 add_step(res, f"精细任务{n}", True,
@@ -2475,11 +2519,21 @@ class Publisher:
                         _f_t = _ex.submit(_do_title) if _need_title else None
                         _f_s = _ex.submit(_do_sku) if _need_sku else None
                         if _f_t is not None:
+                            import time as _t_wait
+                            while not _f_t.done():
+                                if self._aborted():
+                                    return self._halt(res, "AI 标题")
+                                _t_wait.sleep(0.2)
                             try:
                                 _title_res = _f_t.result()
                             except Exception:  # noqa: BLE001
                                 _title_res = None
                         if _f_s is not None:
+                            import time as _t_wait2
+                            while not _f_s.done():
+                                if self._aborted():
+                                    return self._halt(res, "AI SKU")
+                                _t_wait2.sleep(0.2)
                             try:
                                 _sku_res = _f_s.result()
                             except Exception:  # noqa: BLE001
@@ -2533,8 +2587,20 @@ class Publisher:
                             _src_imgs = _kept
                     except Exception:
                         pass
-                r = tp.make_detail(p.get("title_en") or p["title"], p.get("attributes_map"),
-                                   source_text=_src_text, images=_src_imgs)
+                _st, _val = self._run_interruptible(
+                    lambda: tp.make_detail(p.get("title_en") or p["title"],
+                                           p.get("attributes_map"),
+                                           source_text=_src_text, images=_src_imgs))
+                if _st == "stop":
+                    return self._halt(res, "AI 详情")
+                if _st == "error":
+                    class _R:  # 与 TextResult 对齐的失败结果
+                        ok = False
+                        value = ""
+                        error = str(_val)[:120]
+                    r = _R()
+                else:
+                    r = _val
                 add_step(res, "AI 详情", r.ok, (r.value[:60] if r.ok else r.error))
                 if r.ok:
                     html = r.value
@@ -2699,6 +2765,8 @@ class Publisher:
                 except Exception:
                     pass
 
+            if self._aborted():
+                return self._halt(res, "图片处理")
             if (p.get("images") or p.get("detail_images") or p.get("skus")) and _img_ops:
                 try:
                     p = self._ai_images(p, res)
@@ -3010,9 +3078,13 @@ class Publisher:
                         pass
 
                 # 主图视频：模板视频 / 生成轮播视频（本地 ffmpeg）→ 上传店小秘 → cspVideoId
+                if self._aborted():
+                    return self._halt(res, "主图视频")
                 self._prepare_video(p, res, product, dry_run)
 
                 # API 直存（唯一保存路径，无 DOM 模拟、支持并发）
+                if self._aborted():
+                    return self._halt(res, "保存")
                 r = self._save_via_api(p, res, _action, _ship, _img_for_save)
                 if r is None:
                     # 只有「没模板 / 没客户端」才会走到这里，提示要准确
