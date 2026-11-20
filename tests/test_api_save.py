@@ -629,6 +629,19 @@ def t30_standard_but_missing_plug_variant():
     print("  ✓ 已补上 plug 变种:", [(x.get("skuPropertyId"), x.get("propertyValueId")) for x in props])
 
 
+def t31_system_attr_deduped_by_id():
+    """同一个 attrNameId 出现两次（一次带名一次不带名）会导致平台 7010040。"""
+    prod = {"aeopAeProductPropertys": json.dumps([
+        {"attrNameId": "348", "attrValueId": "351626", "attrName": "Certification"},
+        {"attrNameId": "348", "attrValueId": "351626"},
+        {"attrNameId": "2", "attrValueId": "201", "attrName": "Brand"},
+    ])}
+    out = A.to_submit_props(prod, None, custom_attributes=[])
+    ids = [a.get("attrNameId") for a in out if a.get("attrNameId")]
+    assert ids.count("348") == 1, f"348 重复: {ids}"
+    assert len(ids) == len(set(ids)), f"仍有重复 attrNameId: {ids}"
+
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -650,7 +663,7 @@ if __name__ == "__main__":
              t26_market_image_mapping_order,
              t27_sku_cargo_price_filled, t28_sku_logistic_attr_from_template,
              t29_sku_variation_theme_from_template,
-             t30_standard_but_missing_plug_variant]
+             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id]
     ok = fail = 0
     for t in tests:
         try:

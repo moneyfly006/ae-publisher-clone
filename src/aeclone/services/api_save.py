@@ -251,6 +251,7 @@ def to_submit_props(product: dict, template: dict | None = None,
 
     out: list[dict] = []
     seen_system: set[str] = set()
+    seen_system_ids: set[str] = set()    # 系统属性按 attrNameId 去重（平台按 id 判重）
     seen_custom: set[str] = set()        # 自定义属性名（归一化）→ 同名去重
     have_names: set[str] = set()
 
@@ -277,9 +278,13 @@ def to_submit_props(product: dict, template: dict | None = None,
         if _valid_attr_id(name_id) and _valid_attr_id(value_id):
             _nm = name or _TPL_ATTR_NAMES.get(str(name_id), "")
             _key = _norm_attr_name(_nm) if _nm else f"id:{name_id}"
-            if _key not in seen_system:
+            _idk = str(name_id)
+            # 同一个 attrNameId 只能出现一次：平台报 7010040
+            # "Property value is duplicated"（Certification[348] 重复出现就是这么来的）
+            if _key not in seen_system and _idk not in seen_system_ids:
                 out.append({"attrNameId": str(name_id), "attrValueId": str(value_id)})
                 seen_system.add(_key)
+                seen_system_ids.add(_idk)
             if name:
                 have_names.add(name)
             continue
@@ -299,11 +304,12 @@ def to_submit_props(product: dict, template: dict | None = None,
 
     # 模板系统属性：目标缺的才补（只补 id 有效的）
     for ln, a in template_system.items():
-        if ln in seen_system:
+        _tid = str(a.get("attrNameId"))
+        if ln in seen_system or _tid in seen_system_ids:
             continue
-        out.insert(0, {"attrNameId": str(a.get("attrNameId")),
-                       "attrValueId": str(a.get("attrValueId"))})
+        out.insert(0, {"attrNameId": _tid, "attrValueId": str(a.get("attrValueId"))})
         seen_system.add(ln)
+        seen_system_ids.add(_tid)
 
     # 用户手动追加的自定义属性
     for c in (custom_attributes or []):
@@ -626,6 +632,13 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
         overrides["detail"] = (_mh + _base) if _pos == "head" else (_base + _mh)
 
     # 主图（公网 URL 分号连接）
+    # 海关监管属性版本过期（CHK_GLOBAL_PROPERTY_VERSION_ERROR）：用模板里当前有效的
+    # hsCode 覆盖商品上那份旧 schema 的值；模板也没有就清空，让平台按类目当前版本重算。
+    try:
+        if "hsCode" in p and p.get("hs_code_override") is not None:
+            overrides["hsCode"] = str(p.get("hs_code_override") or "")
+    except Exception:
+        pass
     if images:
         overrides["imageURLs"] = ";".join(images)
 

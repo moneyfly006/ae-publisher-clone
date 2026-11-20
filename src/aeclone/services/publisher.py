@@ -2441,6 +2441,22 @@ class Publisher:
                     pass
             p = self._normalize(product)
             self._apply_sku_image_replace(p, res)
+            # 海关监管属性版本过期：用模板当前的 hsCode 覆盖旧 schema 的值
+            try:
+                _err0 = str((product or {}).get("raw", {}).get("errMsg") or "")
+                if "CHK_GLOBAL_PROPERTY_VERSION_ERROR" in _err0 or "海关监管属性" in _err0:
+                    _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+                    _hs = ""
+                    if _tid and self.dxm is not None:
+                        try:
+                            _hs = str((_cached_template_edit(self.dxm, _tid) or {}).get("hsCode") or "")
+                        except Exception:
+                            _hs = ""
+                    p["hs_code_override"] = _hs
+                    add_step(res, "海关监管属性", True,
+                             "检测到属性版本过期，已用模板的 hsCode 重新提交")
+            except Exception:
+                pass
             add_step(res, "标准化", True,
                      f"{len(p['skus'])} 个 SKU / {len(p['images'])} 张图（上限 {self.cfg.max_sku_count}）")
             if p["skus"]:
