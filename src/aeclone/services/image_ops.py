@@ -69,6 +69,24 @@ def four_in_one(paths: list[Path], out: Path, size: int = 1200, gap: int = 8,
     return out
 
 
+def compress_jpeg(raw: bytes, out: Path, max_bytes: int = 5 * 1024 * 1024,
+                  max_side: int = 1600) -> Path:
+    """把任意图片压成 <5MB 的 JPG（详情图超过 5MB 平台会拒收）。"""
+    import io as _io
+    img = ensure_rgb(Image.open(_io.BytesIO(raw)))
+    img.thumbnail((max_side, max_side))
+    q = 88
+    while True:
+        img.save(out, "JPEG", quality=q, optimize=True)
+        if out.stat().st_size <= max_bytes or q <= 35:
+            return out
+        q -= 7
+        if q < 60:
+            # 质量降不动了，再缩尺寸
+            w, h = img.size
+            img = img.resize((max(1, int(w * 0.8)), max(1, int(h * 0.8))))
+
+
 def make_marketing(src: Path, out: Path, size: tuple[int, int] = (800, 800),
                    bg=(255, 255, 255), mode: str = "contain") -> Path:
     """把主图做成营销图（店小秘「一键生成」同款，纯本地处理，不花钱）。

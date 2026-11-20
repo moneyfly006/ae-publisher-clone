@@ -643,6 +643,8 @@ def build_save_payload(product: dict, template: dict | None = None,
         except Exception:
             pass
     try:
+        if overrides and "detail" in overrides and "mobileDetail" not in overrides:
+            p["mobileDetail"] = build_mobile_detail(p.get("detail") or "")
         _sanitize_payload(p, cfg)
         if not mobile_detail_ok(p.get("mobileDetail")):
             p["mobileDetail"] = build_mobile_detail(p.get("detail") or "")

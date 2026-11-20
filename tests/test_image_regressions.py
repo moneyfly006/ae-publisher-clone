@@ -128,6 +128,28 @@ pub2 = Publisher.__new__(Publisher)
 pub2.cfg = _m
 chk("publisher._prompt_model = turbo", Publisher._prompt_model(pub2) == "qwen-image-2.1-turbo")
 
+# 8) 超大图压缩到 5MB 以下（详情图超限会被平台拒收）
+try:
+    from aeclone.services.image_ops import compress_jpeg
+    import io as _io, tempfile as _tf
+    from pathlib import Path as _P2
+    from PIL import Image as _Img2
+    import random as _rnd
+    _im = _Img2.new("RGB", (2400, 2400))
+    _px = _im.load()
+    for _y in range(0, 2400, 3):
+        for _x in range(0, 2400, 3):
+            _v = _rnd.randint(0, 255)
+            _px[_x, _y] = (_v, (_v * 7) % 256, (_v * 13) % 256)
+    _buf = _io.BytesIO(); _im.save(_buf, "PNG")
+    _out = _P2(_tf.mkdtemp()) / "c.jpg"
+    compress_jpeg(_buf.getvalue(), _out, max_bytes=1_000_000, max_side=1200)
+    chk("超大图压缩 <1MB 且为 JPG",
+        _out.stat().st_size <= 1_000_000 and _Img2.open(_out).format == "JPEG",
+        str(_out.stat().st_size))
+except Exception as _ex:  # noqa: BLE001
+    chk("超大图压缩", False, repr(_ex))
+
 print("=" * 60)
 print(f"结果: {ok} 通过, {fail} 失败")
 sys.exit(1 if fail else 0)

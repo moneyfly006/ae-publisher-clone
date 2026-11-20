@@ -2000,18 +2000,19 @@ class Publisher:
         """主图/详情图里的 .webp → JPG 再上传（平台主图不支持 webp）。"""
         def _conv(url: str) -> str:
             u = str(url or "")
-            if not u.lower().split("?")[0].endswith(".webp"):
+            if not u.startswith("http"):
                 return u
             try:
-                import io as _io, tempfile as _tf, requests as _rq
+                import tempfile as _tf, requests as _rq
                 from pathlib import Path as _P
-                from PIL import Image as _Img
                 from .hosting import upload as _up
-                raw = _rq.get(u, timeout=40).content
-                im = _Img.open(_io.BytesIO(raw)).convert("RGB")
-                im.thumbnail((1200, 1200))
+                from .image_ops import compress_jpeg
+                raw = _rq.get(u, timeout=60).content
+                _need = u.lower().split("?")[0].endswith(".webp") or len(raw) > 5 * 1024 * 1024
+                if not _need:
+                    return u
                 fp = _P(_tf.mkdtemp()) / "m.jpg"
-                im.save(fp, "JPEG", quality=90)
+                compress_jpeg(raw, fp, max_bytes=4_800_000, max_side=1600)
                 return _up(fp)
             except Exception:
                 return u
@@ -2029,6 +2030,22 @@ class Publisher:
             newd = [_conv(u) for u in dimgs]
             if newd != dimgs:
                 p["detail_images"] = newd
+        except Exception:
+            pass
+        try:
+            import re as _re_w
+            html = str(p.get("detail") or "")
+            if html:
+                urls = set(_re_w.findall(r'<img[^>]+src=["\']([^"\']+)', html, _re_w.I))
+                changed = False
+                for uu in urls:
+                    nv = _conv(uu)
+                    if nv != uu:
+                        html = html.replace(uu, nv)
+                        changed = True
+                if changed:
+                    p["detail"] = html
+                    add_step(res, "详情图压缩", True, "超过 5MB / webp 的详情图已压缩并重新上传")
         except Exception:
             pass
 
