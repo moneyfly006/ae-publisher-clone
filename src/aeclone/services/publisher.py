@@ -1962,6 +1962,7 @@ class Publisher:
         except Exception:
             pass
 
+        self._fix_webp_images(p, res)
         # 营销图是发布必填项（缺了报「请补充营销图(1:1白底图)、(3:4场景图)」）：
         # 即使开关没勾，发布前也自动用主图本地裁切补上（免费，约 0.5 秒）。
         try:
@@ -1994,6 +1995,42 @@ class Publisher:
             return SaveResult(ok=True, published=True,
                               message=f"已在审核中（商品ID {pid}）：无需重复发布")
         return SaveResult(ok=False, message=f"发布失败：{_m2[:200]}")
+
+    def _fix_webp_images(self, p: dict, res) -> None:
+        """主图/详情图里的 .webp → JPG 再上传（平台主图不支持 webp）。"""
+        def _conv(url: str) -> str:
+            u = str(url or "")
+            if not u.lower().split("?")[0].endswith(".webp"):
+                return u
+            try:
+                import io as _io, tempfile as _tf, requests as _rq
+                from pathlib import Path as _P
+                from PIL import Image as _Img
+                from .hosting import upload as _up
+                raw = _rq.get(u, timeout=40).content
+                im = _Img.open(_io.BytesIO(raw)).convert("RGB")
+                im.thumbnail((1200, 1200))
+                fp = _P(_tf.mkdtemp()) / "m.jpg"
+                im.save(fp, "JPEG", quality=90)
+                return _up(fp)
+            except Exception:
+                return u
+
+        try:
+            imgs = list(p.get("images") or [])
+            new = [_conv(u) for u in imgs]
+            if new != imgs and any(x.lower().split("?")[0].endswith(".jpg") for x in new):
+                p["images"] = new
+                add_step(res, "主图转JPG", True, "webp 主图已转成 JPG 并重新上传")
+        except Exception:
+            pass
+        try:
+            dimgs = list(p.get("detail_images") or [])
+            newd = [_conv(u) for u in dimgs]
+            if newd != dimgs:
+                p["detail_images"] = newd
+        except Exception:
+            pass
 
     def _apply_four_in_one(self, p: dict, res) -> None:
         """四合一主图：本地 PIL 拼 2~4 张主图，插入首位/末尾（不调 AI）。"""

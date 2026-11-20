@@ -96,7 +96,7 @@ def t3_op_mapping():
 def t4_payload_has_63_keys_and_promise_zero():
     print("\n[测试4] payload 键完整、promiseTemplateId 默认 0")
     p = A.build_save_payload(_product(), _template(), action="save_only")
-    assert len(p) == 64, len(p)
+    assert len(p) >= 64, len(p)   # 清理器可能补 detail/nationalPriceMode
     assert "videoUrl" in p, "payload 应包含 videoUrl"
     assert p["promiseTemplateId"] == "0", p["promiseTemplateId"]
     assert p["aeopAeProductPropertys"].startswith("["), "属性应为 JSON 字符串"
@@ -664,6 +664,23 @@ def t33_duplicate_sku_props_merged():
     assert len(out) == 1 and len(combos) == 1, out
 
 
+def t34_payload_sanitizer():
+    """标题去重/重量转数字/属性清洗/PC 详情补空。"""
+    prod = _product()
+    prod["subject"] = "Ton Ton Bag Press 5 Ton"
+    prod["grossWeight"] = "约 1kg"
+    prod["packageLength"] = "999"
+    prod["detail"] = ""
+    prod["aeopAeProductPropertys"] = json.dumps([
+        {"attrName": "Material Type", "attrValue": "钢制 #A1"}])
+    p = A.build_save_payload(prod, _template(), action="save_only")
+    assert p["subject"].lower().count("ton") == 1, p["subject"]      # 重复词只留一个
+    assert p["grossWeight"] == "1", p["grossWeight"]
+    assert p["packageLength"] == "100", p["packageLength"]
+    assert "#" not in json.loads(p["aeopAeProductPropertys"])[-1]["attrValue"]
+    assert "<p>" in p["detail"] and p["mobileDetail"], "PC/无线详情不能为空"
+
+
 if __name__ == "__main__":
     tests = [t1_system_attrs_merged_with_ids, t2_skus_json_string_and_merged,
              t3_op_mapping, t4_payload_has_63_keys_and_promise_zero,
@@ -685,7 +702,7 @@ if __name__ == "__main__":
              t26_market_image_mapping_order,
              t27_sku_cargo_price_filled, t28_sku_logistic_attr_from_template,
              t29_sku_variation_theme_from_template,
-             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id, t32_sku_freight_from_template, t33_duplicate_sku_props_merged]
+             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id, t32_sku_freight_from_template, t33_duplicate_sku_props_merged, t34_payload_sanitizer]
     ok = fail = 0
     for t in tests:
         try:

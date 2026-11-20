@@ -384,6 +384,20 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
                 tr2 = json.loads(tr2)
             except Exception:
                 tr2 = []
+    # 平台强制 Voltage/Plug Type 变种：模板有 plug 属性而商品没有时，沿用模板属性
+    if tpl_skus:
+        _tp = tpl_skus.get("aeopSKUProperty")
+        _has_plug_tpl = isinstance(_tp, list) and any(
+            isinstance(x, dict) and (x.get("plug_parent_property_id") or x.get("parentPropertyId"))
+            for x in _tp)
+        if _has_plug_tpl:
+            for _s in out:
+                _p0 = _s.get("aeopSKUProperty") or []
+                _has = any(isinstance(x, dict) and (x.get("plug_parent_property_id") or x.get("parentPropertyId"))
+                           for x in _p0)
+                if not _has:
+                    _s["aeopSKUProperty"] = [dict(x) for x in _tp if isinstance(x, dict)]
+
     # SKU 属性组合去重：平台要求每个 SKU 的 (属性,值) 组合唯一，
     # 采集数据里常见 8 个 SKU 全是同一组合 → isv.7CHK_SKU_PROPS_DUPLICATE。
     _seen_combo = set()
@@ -424,6 +438,87 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
         if not str(s.get("skuCode") or "").strip():
             s["skuCode"] = str(s.get("sku") or "SKU-1")
     return out
+
+
+def _sanitize_payload(p: dict, cfg=None) -> None:
+    """平台硬性校验的兜底清理（采集数据常见脏值）。"""
+    import re as _rs
+
+    def _clean_attr(v: str) -> str:
+        s = str(v or "")
+        s = _rs.sub(r"[^A-Za-z0-9\s\-_/&().,%+]", " ", s)
+        return _rs.sub(r"\s{2,}", " ", s).strip()
+
+    # 标题：去重复词 + 去配置里的高风险词 + 截断
+    try:
+        t = str(p.get("subject") or "").strip()
+        if t:
+            seen, out = set(), []
+            for w in t.split():
+                k = w.lower().strip(",.|-|")
+                if k and k in seen and len(k) > 1:
+                    continue
+                seen.add(k)
+                out.append(w)
+            t = " ".join(out)
+            words = str(getattr(cfg, "title_high_risk_words", "") or "")
+            for bad in [x.strip() for x in _rs.split(r"[,，;；\s]+", words) if x.strip()]:
+                t = _rs.sub(r"\b" + _rs.escape(bad) + r"\b", " ", t, flags=_rs.I)
+            p["subject"] = _rs.sub(r"\s{2,}", " ", t).strip()[:128]
+    except Exception:
+        pass
+
+    # 重量/尺寸：必须是数字，且不超平台上限
+    def _num(v):
+        m = _rs.search(r"\d+(?:\.\d+)?", str(v if v is not None else ""))
+        return float(m.group()) if m else None
+
+    for k, lo, hi in (("grossWeight", 0.01, 100), ("packageLength", 1, 100),
+                      ("packageWidth", 1, 100), ("packageHeight", 1, 100)):
+        if p.get(k) in (None, ""):
+            continue
+        n = _num(p.get(k))
+        if n is None:
+            p[k] = ""
+        else:
+            p[k] = f"{min(max(n, lo), hi):g}"
+
+    # SKU 重量/尺寸同样处理
+    try:
+        sk = json.loads(p.get("aeopAeProductSKUs") or "[]")
+        for s2 in sk if isinstance(sk, list) else []:
+            for k, lo, hi in (("packageWeight", 0.01, 100), ("packageLength", 1, 100),
+                              ("packageWidth", 1, 100), ("packageHeight", 1, 100)):
+                if s2.get(k) in (None, ""):
+                    continue
+                n = _num(s2.get(k))
+                s2[k] = "" if n is None else f"{min(max(n, lo), hi):g}"
+        p["aeopAeProductSKUs"] = json.dumps(sk, ensure_ascii=False)
+    except Exception:
+        pass
+
+    # 自定义属性：只留平台允许字符
+    try:
+        props = json.loads(p.get("aeopAeProductPropertys") or "[]")
+        for a in props if isinstance(props, list) else []:
+            if a.get("attrName"):
+                a["attrName"] = _clean_attr(a["attrName"])
+            if a.get("attrValue"):
+                a["attrValue"] = _clean_attr(a["attrValue"])
+        p["aeopAeProductPropertys"] = json.dumps(props, ensure_ascii=False)
+    except Exception:
+        pass
+
+    # 区域调价方式：非合法枚举就置空（让平台用默认）
+    if str(p.get("nationalPriceMode") or "").strip() not in ("0", "1", "2", "3"):
+        p["nationalPriceMode"] = ""
+
+    # PC 详情为空：用标题 + 主图拼一个，避免「PC端为空」
+    if not str(p.get("detail") or "").strip():
+        title = str(p.get("subject") or "").strip()
+        imgs = [u for u in str(p.get("imageURLs") or "").split(";") if u][:6]
+        p["detail"] = ("<p>" + title + "</p>" if title else "") + "".join(
+            f'<p><img src="{u}" /></p>' for u in imgs)
 
 
 def build_save_payload(product: dict, template: dict | None = None,
@@ -547,6 +642,12 @@ def build_save_payload(product: dict, template: dict | None = None,
                 p["aeopAeProductSKUs"] = json.dumps(_sk, ensure_ascii=False)
         except Exception:
             pass
+    try:
+        _sanitize_payload(p, cfg)
+        if not mobile_detail_ok(p.get("mobileDetail")):
+            p["mobileDetail"] = build_mobile_detail(p.get("detail") or "")
+    except Exception:
+        pass
     return p
 
 
