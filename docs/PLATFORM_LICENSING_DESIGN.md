@@ -332,3 +332,20 @@ CAPABILITIES = {
 原应用实际渲染使用 `app/views/layout.php`（`app/layout.php` 是旧副本）。
 第一次只改了后者，导致新菜单没出现。现已修补 `views/layout.php`，验证后台左侧可见：
 套餐管理 / 支付设置 / 套餐订单 / 套餐用户 / 套餐授权 / 用户端。
+
+## 10. 支付 / SMTP 配置生效记录（2026-11-22）
+
+- 易支付（来自 api.moneyfly.club 的 new-api 配置）：
+  - 网关：https://mzf.mapay.cn/xpay/epay
+  - PID：11226（密钥已写入数据库，不在文档中明文）
+  - 方式：支付宝；模拟支付关闭
+- SMTP（来自 dy.moneyfly.top）：
+  - smtp.gmail.com:465 SSL，账号 moneyflysubssr@gmail.com，发件人同账号
+  - 实测发送成功（测试邮件已发到 3219904322@qq.com）
+- 验证通过的链路：
+  1. 下单生成真实易支付链接，签名按易支付规则 md5(urldecode(query)+key) 复算一致
+  2. 模拟 notify（合法签名）→ order paid → 自动签发授权（平台+功能包+365 天）
+  3. 非法签名 notify → sign error（拒绝）
+  4. software_login（邮箱+密码+机器码）→ 绑定机器并返回 token，客户端 HMAC 验签通过
+  5. 续费：同用户再次购买 → 到期日 2027-11-22 → 2028-11-21（叠加）
+- 测试数据已清理，仅保留 demo 账号

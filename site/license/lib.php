@@ -164,6 +164,7 @@ function setting_defaults(): array {
       'epay_pid' => $c['epay_pid'],
       'epay_key' => $c['epay_key'],
       'epay_type' => $c['epay_type'],
+      'site_url' => $c['site_url'],
       'allow_mock_pay' => $c['allow_mock_pay'] ? '1' : '0',
       'announcement' => '',
       'require_verify' => '0',
@@ -193,6 +194,7 @@ function effective_epay(): array {
       'pid' => get_setting('epay_pid'),
       'key' => get_setting('epay_key'),
       'type' => get_setting('epay_type', 'alipay'),
+      'site_url' => rtrim(get_setting('site_url', cfg()['site_url']), '/'),
     ];
 }
 

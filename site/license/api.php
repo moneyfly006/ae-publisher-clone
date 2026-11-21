@@ -146,8 +146,8 @@ case 'order_create': {
           'name'=>$p['name'], 'money'=>number_format($p['price_cents']/100, 2, '.', ''),
         ];
         ksort($params);
-        $params['sign'] = md5(urldecode(http_build_query($params)).$epay['epay_key']);
-        $payUrl = rtrim($epay['epay_gateway'], '/').'/submit.php?'.http_build_query($params);
+        $params['sign'] = md5(urldecode(http_build_query($params)).$epay['key']);
+        $payUrl = $epay['gateway'].'/submit.php?'.http_build_query($params);
     }
     out(['order_id'=>$oid, 'trade_no'=>$trade, 'amount'=>$p['price_cents']/100, 'pay_url'=>$payUrl,
          'mock_pay'=>(!$payUrl)]);
@@ -256,6 +256,7 @@ case 'admin_settings_get': {
       'allow_mock_pay'=>get_setting('allow_mock_pay'),
       'announcement'=>get_setting('announcement'),
       'require_verify'=>get_setting('require_verify'),
+      'site_url'=>get_setting('site_url'),
       'smtp_host'=>get_setting('smtp_host'),
       'smtp_port'=>get_setting('smtp_port'),
       'smtp_user'=>get_setting('smtp_user'),
@@ -268,7 +269,7 @@ case 'admin_settings_get': {
 case 'admin_settings_save': {
     require_admin();
     $in = body();
-    foreach (['site_name','epay_gateway','epay_pid','epay_key','epay_type','allow_mock_pay','announcement',
+    foreach (['site_name','site_url','epay_gateway','epay_pid','epay_key','epay_type','allow_mock_pay','announcement',
               'require_verify','smtp_host','smtp_port','smtp_user','smtp_pass','smtp_secure','smtp_from','debug_codes'] as $k) {
         if (array_key_exists($k, $in)) set_setting($k, (string)$in[$k]);
     }
