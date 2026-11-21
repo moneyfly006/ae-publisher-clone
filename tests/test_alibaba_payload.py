@@ -42,5 +42,44 @@ class AlibabaPayloadTests(unittest.TestCase):
         self.assertEqual(data["subject"], "s")
 
 
+
+
+class AlibabaRequiredTests(unittest.TestCase):
+    def test_autofill_uses_preset_then_other(self):
+        from aeclone.services.alibaba_payload import autofill_required_attributes
+        attrs, filled, unresolved = autofill_required_attributes(
+            {"attributes": [{"attribute_name": "Place of Origin", "value_name": "China"}]},
+            [{"attrNameId": "1", "nameEn": "Place of Origin", "required": 1, "values": []},
+             {"attrNameId": "2", "nameEn": "Color", "required": 1,
+              "values": [{"id": "1", "name_en": "White"}, {"id": "2", "name_en": "Other"}]},
+             {"attrNameId": "3", "nameEn": "Material", "required": 1,
+              "values": [{"id": "5", "name_en": "Other"}]},
+             {"attrNameId": "4", "nameEn": "Feature", "required": 0, "values": []}],
+            {"alibaba_attr_presets": '{"Color": "Blue"}'})
+        names = {a["attribute_name"]: a.get("value_name") for a in attrs}
+        self.assertEqual(names["Color"], "Blue")
+        self.assertEqual(names["Material"], "Other")
+        self.assertIn("Color=Blue", filled)
+        self.assertIn("Material=Other", filled)
+        self.assertEqual(unresolved, [])
+
+    def test_validate_reports_missing_required_and_bad_tiers(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        save = {"subject": "A", "keywords": "a, b", "mainImage": "",
+                "bulkDiscountPrices": '[{"start_quantity": 5, "price": 1},{"start_quantity": 1, "price": 2}]',
+                "wholesaleTrade": '{"min_order_quantity": 0, "package_size": ""}',
+                "attributes": "[]", "detailImage": "[]", "textDesc": ""}
+        issues = validate_alibaba_save({}, save, None,
+                                       [{"nameEn": "Color"}],
+                                       [{"fieldId": "textDesc"}, {"fieldId": "detailImage"}])
+        text = "；".join(issues)
+        self.assertIn("关键词", text)
+        self.assertIn("主图为空", text)
+        self.assertIn("阶梯价数量区间", text)
+        self.assertIn("MOQ", text)
+        self.assertIn("必填属性缺失：Color", text)
+        self.assertIn("textDesc", text)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

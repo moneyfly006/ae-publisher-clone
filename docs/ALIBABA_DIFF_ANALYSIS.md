@@ -226,3 +226,36 @@ Content-Type: multipart/form-data
 - Alibaba 版改造核心 = 把 `api_save.py` 的 payload 换成 `alibabaSave.txt` 结构；
   现有 AI 文案/图片/队列/日志全部可复用。
 - UI 修改点仍见上文（报价与贸易条款、关键词、审核队列）。
+
+---
+
+# 实现与验证记录（2026-11-21）
+
+## 已实现
+
+| 模块 | 内容 |
+|---|---|
+| `integrations/alibaba.py` | 详情/列表/保存/类目树/属性/schema/变种/违禁词；类目子节点（pcid）、关键词搜索、必填属性 |
+| `services/alibaba_payload.py` | 构建 alibabaSave 结构：标题/关键词/主图/详情图/属性/阶梯价/MOQ/包装/重量/HS/库存/分组；必填属性自动补齐（预设 > Other/China > 首值）；保存前校验 |
+| `services/alibaba_publish.py` | 读取 → 构建 → 校验 → 保存 一条链路 |
+| `config.py` | 新增 20+ Alibaba 预设键（Cookie/店铺/分组/类目/关键词/公司资料/属性预设/价格/贸易条款/包装/HS/库存/交期） |
+| `ui/app.py` | 设置页新增「Alibaba 刊登」：连接与类目（关键词搜索、子类目展开、读取必填）、预设资料、价格与贸易、必填校验/保存 |
+| `tests/test_alibaba_payload.py` | 4 项离线测试（载荷结构、zip、自动补齐、校验） |
+
+## 逐项验证（真实接口）
+
+1. **类目搜索**：`search_categories("包装")` → 包装印刷(23)、包装机(100010668)；包装机下有 27 个叶子类目（灌装机/贴标机/封口机等）。
+2. **必填项识别**：按类目真实 `required` 标记读取
+   - 泳池(202107201)：Place of Origin / Color / Material / Applicable People / Type
+   - 灌装机(100010756)：Machinery Capacity / Packaging Type / Packaging Material / Automatic Grade / Voltage / Power / Place of Origin / Model Number / Filling Material / Weight (kg)
+   - 涂层机械(100010763)：Voltage / Power / Place of Origin / Model Number / Warranty / Weight (kg)
+3. **自动填写**：泳池商品缺 Color/Material/Applicable People → 预设 Color=Blue，其余回退 Other，校验 0 问题。
+4. **保存验证**：商品 220114598434958580 用新标题/关键词/阶梯价/MOQ/包装/重量保存 → `您的产品编辑成功！`，回读一致：
+   - subject / keywords / bulkDiscountPrices([{1,4300},{5,4100}]) / MOQ 1 / package 300X200X150 / weight 300 / attrs(含 Color=Blue, Material=Fiberglass, Applicable People=Other)
+5. **UI**：设置 → Alibaba 刊登，4 个子页正常渲染（截图验证）。
+
+## 待继续
+
+- 把 AI 文案/图片流水线接到 Alibaba 保存链路（当前 publisher 仍走速卖通；Alibaba 侧已有独立 build/validate/save）
+- 草稿/审核队列（提交审核、审核失败原因拉取、重提）
+- 12 个页面逐页文案与字段替换（价格页→报价与贸易条款等）

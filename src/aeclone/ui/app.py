@@ -2493,6 +2493,46 @@ class App:
             (picked.add(pid) if on else picked.discard(pid))
             sel_text.value = f"已选 {len(picked)} 个"
 
+        def _load_children(node):
+            """非叶子类目：展开子类目供继续选择（机械类目常有两层）。"""
+            cid = str(node.get("categoryId") or "")
+            status.value = f"「{node.get('nameZh')}」不是末级类目，正在加载子类目…"
+            status.color = MUTED
+            try:self._safe_update()
+            except Exception: pass
+
+            def work():
+                try:
+                    ch = client().categories(cid)
+                    cat_box.controls = [h1(f"{node.get('nameZh')} 的子类目", 13)]
+                    for x in ch:
+                        leaf = int(x.get("isleaf") or 0) == 1
+                        def pick_child(ev, _x=x):
+                            self.cfg.set("alibaba_category_id", str(_x.get("categoryId") or ""))
+                            self.cfg.set("alibaba_category_name", f"{_x.get('nameZh')} / {_x.get('nameEn')}")
+                            full = str(_x.get("nodePathId") or _x.get("categoryId") or "")
+                            self.cfg.set("alibaba_full_cid", full.replace("/", ","))
+                            save_config(self.cfg)
+                            status.value = (f"已选类目：{_x.get('nameZh')}（{_x.get('categoryId')}）"
+                                            + ("· 末级类目" if leaf else "· 还有子类目"))
+                            status.color = SUCCESS_C
+                            if not leaf:
+                                _load_children(_x)
+                            try:self._safe_update()
+                            except Exception: pass
+                        cat_box.controls.append(ft.Row([
+                            ft.Text(f"{x.get('nameZh')} / {x.get('nameEn')} · {'末级' if leaf else 'L'+str(x.get('level'))} · {x.get('categoryId')}",
+                                    size=12.5, color=TEXT, expand=True),
+                            ft.OutlinedButton("选择", on_click=pick_child)], spacing=6))
+                    status.value = f"子类目 {len(ch)} 个；末级类目才能发布"
+                    status.color = SUCCESS_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"加载子类目失败：{ex}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
         def do_search(e=None):
             info.value = "读取中…"
             _upd()
@@ -8383,6 +8423,279 @@ class App:
                     ("图片与模型", [host_card, model_card, price_card]),
                     ("界面与实例", [ui_card, inst_card]),
                     ("维护与诊断", [upd, diag_card, rec_card]),
+                    ("Alibaba 刊登", self._alibaba_cards()),
+                ])]
+
+    def _alibaba_cards(self):
+        """Alibaba 刊登：连接、类目、预设资料、价格贸易、必填校验。"""
+        from ..integrations.alibaba import AlibabaClient
+        import json as _json
+
+        def client():
+            raw = str(getattr(self.cfg, "alibaba_cookies", "") or "").strip()
+            if not raw:
+                try:
+                    from ..integrations.chrome_cookies import read_chrome_cookies
+                    raw = read_chrome_cookies(["dianxiaomi.com"])
+                except Exception:
+                    raw = ""
+            if not raw:
+                raise RuntimeError("请先在「Alibaba 刊登」填 Cookie（或本机 Chrome 登录店小秘）")
+            return AlibabaClient(raw)
+
+        def tf(key, label, width=380, multiline=False, hint=""):
+            ctl = ft.TextField(label=label, width=width, bgcolor=CARD_2, border_color=CARD_2,
+                               color=TEXT, value=str(getattr(self.cfg, key, "") or ""),
+                               multiline=multiline, min_lines=3 if multiline else 1,
+                               hint_text=hint or None)
+            def on(e, _k=key):
+                self.cfg.set(_k, str(e.control.value or ""))
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
+        status = ft.Text("", size=12.5, color=MUTED, selectable=True)
+        required_box = ft.Column(spacing=2)
+        cat_box = ft.Column(spacing=2)
+
+        def run_bg(fn):
+            def wrapper(e=None):
+                def work():
+                    try:
+                        fn()
+                    except Exception as ex:  # noqa: BLE001
+                        status.value = f"失败：{ex}"
+                        status.color = DANGER_C
+                        try:
+                            self._safe_update()
+                        except Exception:
+                            pass
+                threading.Thread(target=work, daemon=True).start()
+            return wrapper
+
+        def test_connect(e=None):
+            try:
+                c = client()
+                p = c.product_detail(str(getattr(self.cfg, "alibaba_test_product_id", "") or "220114598434958580"))
+                status.value = f"连接成功：{p.get('id')} · {str(p.get('subject'))[:40]} · 类目 {p.get('categoryId')}"
+                status.color = SUCCESS_C
+            except Exception as ex:  # noqa: BLE001
+                status.value = f"连接失败：{ex}"
+                status.color = DANGER_C
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        search_kw = ft.TextField(label="搜索类目（中文/英文）", width=320, bgcolor=CARD_2,
+                                 border_color=CARD_2, color=TEXT,
+                                 value=str(getattr(self.cfg, "alibaba_category_name", "") or ""))
+
+        def do_search(e=None):
+            kw = str(search_kw.value or "").strip()
+            if not kw:
+                return
+            status.value = "搜索类目中…"
+            status.color = MUTED
+            try:self._safe_update()
+            except Exception: pass
+
+            def work():
+                try:
+                    hits = client().search_categories(kw, max_nodes=160)
+                    cat_box.controls = []
+                    for h in hits[:30]:
+                        label = f"{h.get('nameZh') or ''} / {h.get('nameEn') or ''} · L{h.get('level')} · {h.get('categoryId')}"
+                        def pick(ev, _h=h):
+                            self.cfg.set("alibaba_category_id", str(_h.get("categoryId") or ""))
+                            self.cfg.set("alibaba_category_name", f"{_h.get('nameZh')} / {_h.get('nameEn')}")
+                            full = str(_h.get("nodePathId") or _h.get("categoryId") or "")
+                            self.cfg.set("alibaba_full_cid", full.replace("/", ","))
+                            save_config(self.cfg)
+                            status.value = f"已选类目：{_h.get('nameZh')}（{_h.get('categoryId')}）· 路径 {full}"
+                            status.color = SUCCESS_C
+                            if int(_h.get("isleaf") or 0) == 0:
+                                _load_children(_h)
+                            try:self._safe_update()
+                            except Exception: pass
+                        cat_box.controls.append(ft.Row([
+                            ft.Text(label, size=12.5, color=TEXT, expand=True),
+                            ft.OutlinedButton("选择", on_click=pick)], spacing=6))
+                    status.value = f"搜索到 {len(hits)} 个类目；点击「选择」设为当前类目"
+                    status.color = SUCCESS_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"搜索失败：{ex}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        cat_now = ft.Text(f"当前类目：{getattr(self.cfg, 'alibaba_category_name', '') or '未选择'}（{getattr(self.cfg, 'alibaba_category_id', '') or '-'}）",
+                          size=12.5, color=MUTED)
+
+        def load_required(e=None):
+            cid = str(getattr(self.cfg, "alibaba_category_id", "") or "").strip()
+            if not cid:
+                status.value = "先搜索并选择一个类目"
+                status.color = WARN_C
+                try:self._safe_update()
+                except Exception: pass
+                return
+
+            def work():
+                try:
+                    c = client()
+                    attrs = c.required_attributes(cid)
+                    fields = c.category_schema(cid)["fields"]
+                    required_box.controls = [h1("类目必填项", 13)]
+                    for a in attrs:
+                        vals = _json.loads(a.get("values") or "[]") if isinstance(a.get("values"), str) else (a.get("values") or [])
+                        names = [str(v.get("name_en") or v.get("name") or "") for v in vals][:6]
+                        required_box.controls.append(ft.Text(
+                            f"• 属性 {a.get('nameEn')}（attrNameId={a.get('attrNameId')}）可选：{', '.join(names)}",
+                            size=12, color=TEXT))
+                    for f in fields:
+                        required_box.controls.append(ft.Text(
+                            f"• 模块 {f.get('fieldId')}：{f.get('name')}", size=12, color=TEXT))
+                    self.cfg.set("alibaba_last_category_required", _json.dumps(
+                        {"attrs": [a.get("nameEn") for a in attrs],
+                         "fields": [f.get("fieldId") for f in fields]}, ensure_ascii=False))
+                    save_config(self.cfg)
+                    status.value = f"类目 {cid}：{len(attrs)} 个必填属性，{len(fields)} 个模块字段"
+                    status.color = SUCCESS_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"读取失败：{ex}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def build_and_check(e=None):
+            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            if not pid:
+                status.value = "填一个商品 ID 再校验"
+                status.color = WARN_C
+                try:self._safe_update()
+                except Exception: pass
+                return
+
+            def work():
+                try:
+                    from ..services.alibaba_payload import build_alibaba_save, validate_alibaba_save
+                    c = client()
+                    p = c.product_detail(pid)
+                    cid = str(getattr(self.cfg, "alibaba_category_id", "") or p.get("categoryId") or "")
+                    req = c.required_attributes(cid) if cid else []
+                    sch = c.category_schema(cid)["fields"] if cid else []
+                    save = build_alibaba_save(p, self.cfg, attr_defs=req)
+                    issues = validate_alibaba_save(p, save, self.cfg, req, sch)
+                    required_box.controls = [h1("构建与校验结果", 13),
+                                             ft.Text(f"商品：{p.get('subject')}", size=12.5, color=TEXT),
+                                             ft.Text(f"自动补齐：{', '.join(save.get('_autofilled') or []) or '无'}", size=12, color=MUTED)]
+                    if issues:
+                        for i in issues:
+                            required_box.controls.append(ft.Text("✗ " + i, size=12.5, color=DANGER_C))
+                        status.value = f"校验未通过：{len(issues)} 项"
+                        status.color = DANGER_C
+                    else:
+                        required_box.controls.append(ft.Text("✓ 必填项全部满足，可以保存", size=13, color=SUCCESS_C))
+                        status.value = "校验通过"
+                        status.color = SUCCESS_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"校验失败：{ex}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def do_save(e=None):
+            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            if not pid:
+                status.value = "填一个商品 ID 再保存"
+                status.color = WARN_C
+                try:self._safe_update()
+                except Exception: pass
+                return
+
+            def work():
+                try:
+                    from ..services.alibaba_publish import save_to_alibaba
+                    cfg_snapshot = self.cfg
+                    overrides = {}
+                    res = save_to_alibaba(pid, cfg_snapshot, overrides)
+                    data = (res.get("result") or {}).get("data") or {}
+                    status.value = f"保存成功：{data.get('msg') or data}"
+                    status.color = SUCCESS_C
+                    required_box.controls = [h1("保存结果", 13),
+                                             ft.Text(f"商品 {pid} · {data.get('msg')}", size=12.5, color=TEXT),
+                                             ft.Text(f"自动补齐：{', '.join(res.get('autofilled') or []) or '无'}", size=12, color=MUTED)]
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"保存失败：{ex}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        conn = card(ft.Column([
+            h1("Alibaba 连接（店小秘 ICBU）", FS_MD),
+            muted("粘贴店小秘 Cookie（含 dxm_* / JSESSIONID）；留空尝试读本机 Chrome 登录态"),
+            tf("alibaba_cookies", "Cookie", 720, True),
+            ft.Row([tf("alibaba_shop_id", "店铺 ID（可选）", 200),
+                    tf("alibaba_test_product_id", "测试商品 ID", 260),
+                    ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING, bgcolor=ACCENT,
+                                      color=ON_ACCENT, on_click=test_connect)], spacing=10, wrap=True),
+        ], spacing=8))
+
+        cat_card = card(ft.Column([
+            h1("类目选择（按关键词搜索）", FS_MD),
+            cat_now,
+            ft.Row([search_kw, ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, bgcolor=ACCENT,
+                                                 color=ON_ACCENT, on_click=do_search),
+                    ft.OutlinedButton("读取必填属性", icon=ft.Icons.CHECKLIST, on_click=load_required),
+                    ft.OutlinedButton("展开子类目", icon=ft.Icons.ACCOUNT_TREE,
+                                      on_click=lambda e: _load_children({"categoryId": str(getattr(self.cfg, "alibaba_category_id", "") or ""), "nameZh": str(getattr(self.cfg, "alibaba_category_name", "") or "")}))],
+                   spacing=10, wrap=True),
+            cat_box,
+        ], spacing=8))
+
+        preset_card = card(ft.Column([
+            h1("预设资料（必填自动填写）", FS_MD),
+            muted("这些信息会用于每次刊登：分组、公司信息、默认关键词、属性预设、价格与贸易条款"),
+            ft.Row([tf("alibaba_group_id", "产品分组 ID", 200), tf("alibaba_group_name", "分组名称", 220),
+                    tf("alibaba_keywords", "默认关键词（逗号分隔）", 360)], spacing=10, wrap=True),
+            ft.Row([tf("alibaba_company_name", "公司名称", 260),
+                    tf("alibaba_company_website", "公司网站", 260)], spacing=10, wrap=True),
+            tf("alibaba_company_desc", "公司介绍（英文）", 720, True),
+            tf("alibaba_company_faq", "公司 FAQ（英文，可空）", 720, True),
+            tf("alibaba_attr_presets", "属性预设 JSON（如 {\"Place of Origin\":\"China\",\"Certification\":\"CE\"}）", 720, True),
+        ], spacing=8))
+
+        trade_card = card(ft.Column([
+            h1("价格与贸易条款", FS_MD),
+            ft.Row([tf("alibaba_min_order_quantity", "MOQ", 120), tf("alibaba_unit_type", "单位", 120),
+                    tf("alibaba_package_size", "包装尺寸 LxWxH(cm)", 220),
+                    tf("alibaba_weight", "重量 kg", 140), tf("alibaba_stock", "库存", 120)], spacing=10, wrap=True),
+            tf("alibaba_price_tiers", "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）", 720, True),
+            ft.Row([tf("alibaba_trade_terms", "贸易条款", 140), tf("alibaba_port", "港口", 160),
+                    tf("alibaba_payment_terms", "付款方式", 160), tf("alibaba_lead_time", "交期(天)", 120),
+                    tf("alibaba_hs_code", "HS 编码", 160)], spacing=10, wrap=True),
+        ], spacing=8))
+
+        check_card = card(ft.Column([
+            h1("必填校验 / 保存前检查", FS_MD),
+            muted("读取类目真实 required 标记，自动补齐属性，再逐项校验"),
+            ft.Row([ft.ElevatedButton("构建并校验", icon=ft.Icons.FACT_CHECK, bgcolor=ACCENT,
+                                      color=ON_ACCENT, on_click=build_and_check),
+                    ft.ElevatedButton("保存到 Alibaba", icon=ft.Icons.CLOUD_UPLOAD,
+                                      bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=do_save)], spacing=10),
+            required_box, status,
+        ], spacing=8))
+
+        return [workspace_tabs([
+                    ("连接与类目", [conn, cat_card]),
+                    ("预设资料", [preset_card]),
+                    ("价格与贸易", [trade_card]),
+                    ("必填校验", [check_card]),
                 ])]
 
     def _price_of(self, model: str) -> float:

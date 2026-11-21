@@ -96,9 +96,52 @@ class AlibabaClient:
 
     # ---------- 类目 / 属性 ----------
     def categories(self, parent_id: str | None = None) -> list[dict]:
-        params = {"categoryId": parent_id} if parent_id else {}
+        """类目列表；传 parent_id 时取其子类目（店小秘用 pcid 参数）。"""
+        params = {"pcid": str(parent_id)} if parent_id else {}
         d = self._get("/alibabaIcbuCategory/list.json", params)
-        return (d.get("data") or {}).get("categoryList") or []
+        data = d.get("data") or []
+        if isinstance(data, dict):
+            return data.get("categoryList") or []
+        return data
+
+    def search_categories(self, keyword: str, max_nodes: int = 400,
+                          max_depth: int = 4) -> list[dict]:
+        """按中英文名在类目树里搜索（BFS，带内存缓存），返回叶子/匹配节点。"""
+        kw = (keyword or "").strip().lower()
+        if not kw:
+            return []
+        cache = getattr(self, "_cat_cache", None)
+        if cache is None:
+            cache = self._cat_cache = {}
+        if not cache:
+            for root in self.categories():
+                cache[str(root["categoryId"])] = root
+        hits, queue, seen, scanned = [], [str(r["categoryId"]) for r in cache.values()], set(), 0
+        while queue and scanned < max_nodes:
+            cid = queue.pop(0)
+            if cid in seen:
+                continue
+            seen.add(cid); scanned += 1
+            node = cache.get(cid)
+            if not node:
+                continue
+            name = f'{node.get("nameZh","")} {node.get("nameEn","")} {node.get("nodePath","")}'.lower()
+            if kw in name:
+                hits.append(node)
+            if int(node.get("level") or 1) < max_depth:
+                try:
+                    children = self.categories(cid)
+                except Exception:
+                    children = []
+                for ch in children:
+                    ch["_parent"] = cid
+                    cache[str(ch["categoryId"])] = ch
+                    queue.append(str(ch["categoryId"]))
+        return hits
+
+    def required_attributes(self, category_id: str) -> list[dict]:
+        return [a for a in self.category_attributes(category_id).get("attributes", [])
+                if int(a.get("required") or 0) == 1]
 
     def category_detail(self, category_id: str) -> dict:
         d = self._get("/alibabaIcbuCategory/getByCategoryId.json",
@@ -106,12 +149,16 @@ class AlibabaClient:
         return d.get("data") or {}
 
     def category_attributes(self, category_id: str) -> dict:
-        return self._get("/alibabaIcbuCategory/attributeList.json",
-                         {"categoryId": str(category_id)}).get("data") or {}
+        data = self._get("/alibabaIcbuCategory/attributeList.json",
+                         {"categoryId": str(category_id)}).get("data") or []
+        attrs = data if isinstance(data, list) else (data.get("attributes") or data.get("list") or [])
+        return {"attributes": attrs}
 
     def category_schema(self, category_id: str) -> dict:
-        return self._get("/alibabaIcbuCategory/schemaList.json",
-                         {"categoryId": str(category_id)}).get("data") or {}
+        data = self._get("/alibabaIcbuCategory/schemaList.json",
+                         {"categoryId": str(category_id)}).get("data") or []
+        fields = data if isinstance(data, list) else (data.get("fields") or data.get("list") or [])
+        return {"fields": fields}
 
     def variation_names(self, category_id: str) -> list:
         d = self._get("/variationTemplate/com/alibaba/getNameListByCategory.json",
