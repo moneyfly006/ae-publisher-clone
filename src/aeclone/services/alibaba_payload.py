@@ -296,23 +296,28 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
     save["_unresolved"] = unresolved
 
     # 价格类型：sku_price 按规格 / ladder_price 按数量 / fob_price 单一区间
-    # 没有显式覆盖时不能把商品原本的定价模型静默改掉（尤其 sku_price → ladder_price，
-    # 会让按规格报价的商品变成空阶梯价）。用户显式配置了阶梯价档位才视为要改模型。
+    # 没有显式覆盖时不能把商品原本的定价模型静默改掉（sku_price→空阶梯价、
+    # fob_price→阶梯价）。只有用户在 UI 显式选过定价方式（alibaba_price_type_explicit）
+    # 或给了阶梯价档位/overrides 时，才以配置为准。
     _VALID_PTYPES = {"sku_price", "ladder_price", "fob_price"}
     prod_ptype = str(product.get("priceType") or "").strip()
     cfg_ptype = str(_cfg_get(cfg, "alibaba_price_type", "") or "").strip()
     ov_ptype = str(ov.get("price_type") or "").strip()
     cfg_tiers = ov.get("price_tiers") or _cfg_get(cfg, "alibaba_price_tiers", "") or ""
+    _explicit = str(_cfg_get(cfg, "alibaba_price_type_explicit", "") or "").strip().lower() \
+        in ("1", "true", "yes", "on")
+    # 只有「没选过 + 配置仍是默认 ladder_price + 没填阶梯档位」才算隐式默认，
+    # 这时跟随商品原定价模型；配置里明确写了 sku_price/fob_price 则尊重配置。
+    _implicit_default = (not _explicit) and (not cfg_tiers) and cfg_ptype in ("", "ladder_price")
     if ov_ptype:
         ptype = ov_ptype
-    elif prod_ptype in _VALID_PTYPES:
-        if prod_ptype == "sku_price" and cfg_ptype == "ladder_price" and not cfg_tiers:
-            # 默认配置就是 ladder_price，不代表用户要改；保留按规格定价。
-            ptype = "sku_price"
-        else:
-            ptype = cfg_ptype or prod_ptype
+    elif _explicit or cfg_tiers:
+        ptype = cfg_ptype or (prod_ptype if prod_ptype in _VALID_PTYPES else "ladder_price")
+    elif prod_ptype in _VALID_PTYPES and _implicit_default:
+        # 跟随商品原有定价模型（更新已有商品最安全）
+        ptype = prod_ptype
     else:
-        ptype = cfg_ptype or "ladder_price"
+        ptype = cfg_ptype or (prod_ptype if prod_ptype in _VALID_PTYPES else "ladder_price")
     tiers = price_tiers(cfg, ov)
     if ptype == "fob_price":
         fob = {

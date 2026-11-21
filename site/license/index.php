@@ -136,6 +136,8 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
         <a data-p="status">软件运行状态</a>
         <a data-p="products">刊登产品</a>
         <a data-p="orders">订单记录</a>
+        <a data-p="invoice">发票申请</a>
+        <a data-p="tickets">工单支持</a>
         <a data-p="help">帮助</a>
       </nav>
       <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:10px">
@@ -181,6 +183,41 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
       <section class="panel" id="p-orders">
         <h2>订单记录</h2><div class="sub">最近 50 笔订单</div>
         <table id="orderTable"><tr><th>订单号</th><th>套餐</th><th>金额</th><th>状态</th><th>时间</th></tr></table>
+      </section>
+      <section class="panel" id="p-invoice">
+        <h2>发票申请</h2><div class="sub">支持电子普通发票；提交后 1~3 个工作日处理</div>
+        <div class="card">
+          <h3>申请开票</h3>
+          <div class="row">
+            <select id="invOrder" style="width:280px"></select>
+            <input id="invTitle" placeholder="发票抬头（公司或个人）" style="width:260px">
+            <input id="invTax" placeholder="税号（企业必填）" style="width:220px">
+            <input id="invEmail" placeholder="接收邮箱" style="width:230px">
+            <button class="btn primary small" id="invSubmit">提交申请</button>
+          </div>
+          <div class="hint" id="invMsg"></div>
+        </div>
+        <div class="card"><h3>开票记录</h3><div id="invList" class="muted">加载中…</div></div>
+      </section>
+      <section class="panel" id="p-tickets">
+        <h2>工单支持</h2><div class="sub">平均 2 小时内回复；紧急问题可联系 QQ 3219904322</div>
+        <div class="card">
+          <h3>提交工单</h3>
+          <div class="row">
+            <input id="tkSubject" placeholder="问题标题" style="width:300px">
+            <select id="tkCat" style="width:160px">
+              <option value="license">授权/激活</option>
+              <option value="payment">支付/退款</option>
+              <option value="software">软件使用</option>
+              <option value="other">其他</option>
+            </select>
+            <input id="tkBody" placeholder="问题描述（可留空）" style="width:420px">
+            <button class="btn primary small" id="tkSubmit">提交</button>
+          </div>
+          <div class="hint" id="tkMsg"></div>
+        </div>
+        <div class="card"><h3>我的工单</h3><div id="tkList" class="muted">加载中…</div></div>
+        <div class="card" id="tkDetailCard" style="display:none"><h3>工单详情</h3><div id="tkDetail"></div></div>
       </section>
       <section class="panel" id="p-help">
         <h2>帮助</h2><div class="sub">常见问题</div>
@@ -293,6 +330,8 @@ document.querySelectorAll('.snav a').forEach(a=>a.onclick=()=>{
   if(a.dataset.p==='status') renderStatus();
   if(a.dataset.p==='products') renderProducts();
   if(a.dataset.p==='orders') renderOrders();
+  if(a.dataset.p==='invoice') loadInvoices();
+  if(a.dataset.p==='tickets') loadTickets();
 });
 
 async function boot(){
@@ -373,6 +412,47 @@ function renderOrders(){
       <td><span class="st ${o.status==='paid'?'ok':'bad'}">${o.status==='paid'?'已支付':'待支付'}</span></td>
       <td>${new Date(o.created_at*1000).toLocaleString()}</td></tr>`).join('');
 }
+async function loadInvoices(){
+  const r=await api('invoices');
+  const list=r.data||[];
+  const sel=$('#invOrder'); const paid=(ORDERS||[]).filter(o=>o.status==='paid');
+  sel.innerHTML=paid.map(o=>`<option value="${o.id}">${esc(o.trade_no)} · ¥${(o.amount_cents/100).toFixed(2)}</option>`).join('')||'<option value="0">暂无已支付订单</option>';
+  $('#invList').innerHTML=list.length? `<table><tr><th>ID</th><th>抬头</th><th>金额</th><th>状态</th><th>时间</th></tr>`+
+    list.map(i=>`<tr><td>${i.id}</td><td>${esc(i.title)}</td><td>¥${(i.amount_cents/100).toFixed(2)}</td>
+      <td>${i.status==='issued'?'已开票':'处理中'}</td><td>${new Date(i.created_at*1000).toLocaleDateString()}</td></tr>`).join('')+'</table>'
+    : '暂无开票记录';
+}
+$('#invSubmit') && ($('#invSubmit').onclick=async()=>{
+  const r=await api('invoice_request',{order_id:+$('#invOrder').value,title:$('#invTitle').value.trim(),
+    tax_no:$('#invTax').value.trim(),email:$('#invEmail').value.trim()||ME.email});
+  $('#invMsg').textContent=r.code===0?'已提交，等待开票':'提交失败：'+r.msg;
+  $('#invMsg').style.color=r.code===0?'var(--accent)':'var(--danger)';
+  if(r.code===0) loadInvoices();
+});
+async function loadTickets(){
+  const r=await api('tickets'); const list=r.data||[];
+  $('#tkList').innerHTML=list.length? `<table><tr><th>ID</th><th>标题</th><th>分类</th><th>状态</th><th>时间</th><th>操作</th></tr>`+
+    list.map(t=>`<tr><td>${t.id}</td><td>${esc(t.subject)}</td><td>${esc(t.category)}</td>
+      <td>${t.status==='open'?'待回复':(t.status==='replied'?'已回复':'已关闭')}</td>
+      <td>${new Date(t.created_at*1000).toLocaleDateString()}</td>
+      <td><a style="color:var(--accent);cursor:pointer" data-tk="${t.id}">查看</a></td></tr>`).join('')+'</table>'
+    : '暂无工单';
+  document.querySelectorAll('[data-tk]').forEach(a=>a.onclick=()=>showTicket(+a.dataset.tk));
+}
+async function showTicket(id){
+  const r=await api('ticket_detail',{ticket_id:id}); if(r.code!==0){alert(r.msg);return;}
+  const d=r.data; $('#tkDetailCard').style.display='block';
+  $('#tkDetail').innerHTML=`<div class="muted">#${d.ticket.id} ${esc(d.ticket.subject)}</div>`+
+    (d.replies||[]).map(x=>`<div style="margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:8px">
+      <div class="muted">${x.is_admin==1?'客服':'我'} · ${new Date(x.created_at*1000).toLocaleString()}</div>
+      <div style="white-space:pre-wrap">${esc(x.body)}</div></div>`).join('');
+}
+$('#tkSubmit') && ($('#tkSubmit').onclick=async()=>{
+  const r=await api('ticket_create',{subject:$('#tkSubject').value.trim(),category:$('#tkCat').value,body:$('#tkBody').value.trim()});
+  $('#tkMsg').textContent=r.code===0?'工单已提交':'提交失败：'+r.msg;
+  $('#tkMsg').style.color=r.code===0?'var(--accent)':'var(--danger)';
+  if(r.code===0){ loadTickets(); }
+});
 async function refreshStatus(){
   const r=await api('status'); window.__HB=r.data?.heartbeat||null;
   renderStatus(); renderProducts(); renderDash();

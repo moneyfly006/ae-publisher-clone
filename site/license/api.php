@@ -195,6 +195,15 @@ case 'ticket_create': {
     if (!$ok) fail($err);
     out(['ok'=>true, 'ticket_id'=>$tid]);
 }
+case 'ticket_detail': {
+    $u = require_user(); $in = body(); $tid = (int)($in['ticket_id'] ?? 0);
+    $st = ops_pdo()->prepare('SELECT * FROM tickets WHERE id=? AND user_id=?');
+    $st->execute([$tid, $u['id']]); $t = $st->fetch();
+    if (!$t) fail('工单不存在');
+    $st = ops_pdo()->prepare('SELECT * FROM ticket_replies WHERE ticket_id=? ORDER BY id');
+    $st->execute([$tid]);
+    out(['ticket'=>$t, 'replies'=>$st->fetchAll(PDO::FETCH_ASSOC)]);
+}
 case 'tickets': {
     $u = require_user();
     out(user_tickets((int)$u['id']));

@@ -2359,6 +2359,16 @@ class App:
         return True
 
     def _start(self, ignore_conflicts: bool = False, only_ids: list | None = None):
+        # Alibaba 平台不能用 SMT/速卖通批量管线（端点与商品都不通），
+        # 无论从侧栏「启动任务」、⌘R 还是定时器进来都统一重定向。
+        if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
+            self.toast("Alibaba 商品请在「Alibaba 刊登」页选择并保存（批量管线仅用于速卖通）", False)
+            self._log("已阻止在 Alibaba 平台启动速卖通批量管线，请使用「Alibaba 刊登」页", "WARN")
+            try:
+                self._switch(12)
+            except Exception:
+                pass
+            return
         # 启动前先把当前配置全部落盘（含未失焦的输入）
         self._save_api_fields()
         # 启动前检查图片开关冲突：有冲突先提醒，用户可强制继续
@@ -3248,6 +3258,10 @@ class App:
 
         only_ids: 只跑这些商品 ID（「重跑上次失败」用），并忽略已编辑记录。
         """
+        # 服务层兜底：Alibaba 平台永远不走这条 SMT 管线（UI 之外也不允许误接）。
+        if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
+            self._log("Alibaba 平台禁止调用速卖通批量管线，已拦截", "ERROR")
+            return
         if getattr(self, "_running", False):
             self._log("已有任务在运行，忽略本次启动", "WARN")
             return
@@ -5042,6 +5056,14 @@ class App:
                 ], width=200, tooltip_text="产品保存后放在哪个位置"),
                 self._sw("check_banned_word", "违禁词检查",
                    tooltip_text="发布前检查标题/详情是否有违禁词"),
+            ], spacing=16, wrap=True),
+            muted("定时发布（仅速卖通链路）：开启后先保存到待发布，到点由调度器发布；"
+                  "创建后可在「任务与日志 → 定时发布」查看/取消。", 11),
+            ft.Row([
+                self._sw("schedule_publish", "定时发布",
+                   tooltip_text="保存后不立即发布，到指定时间再发布"),
+                self._tf("schedule_time", "发布时间（如 2026-11-25 09:00）", width=260,
+                   tooltip_text="本地时间；必须是将来时间，格式 2026-11-25 09:00"),
             ], spacing=16, wrap=True),
         ], spacing=10))
 
@@ -8984,6 +9006,20 @@ class App:
             ctl.on_change = on
             return ctl
 
+        def dd(key, label, options, width=200, hint=""):
+            """写回配置的下拉；options = [(value, text), ...]。"""
+            ctl = ft.Dropdown(label=label, width=width, bgcolor=CARD_2,
+                              border_color=CARD_2, color=TEXT,
+                              value=str(getattr(self.cfg, key, "") or ""),
+                              options=[ft.dropdown.Option(k, v) for k, v in options],
+                              tooltip=hint or None)
+
+            def on(e, _k=key):
+                self.cfg.set(_k, str(e.control.value or ""))
+                save_config(self.cfg)
+            ctl.on_change = on
+            return ctl
+
         status = ft.Text("", size=12.5, color=MUTED, selectable=True)
         required_box = ft.Column(spacing=2)
         cat_box = ft.Column(spacing=2)
@@ -9549,11 +9585,15 @@ class App:
 
         prod_card = card(ft.Column([
             h1("选择商品（草稿 / 在线）", FS_MD),
-            muted("直接从店小秘 Alibaba 商品列表选择；选中的商品 ID 会用于下面的预演/保存"),
+            muted("直接从店小秘 Alibaba 商品列表选择；可按标题/ID 搜索并翻页，"
+                  "选中的商品 ID 会用于下面的预演/保存"),
             prod_now,
-            ft.Row([prod_state,
+            ft.Row([prod_state, prod_kw,
                     ft.ElevatedButton("读取商品", icon=ft.Icons.REFRESH, bgcolor=ACCENT,
-                                      color=ON_ACCENT, on_click=load_products)], spacing=10, wrap=True),
+                                      color=ON_ACCENT, on_click=load_products),
+                    ft.OutlinedButton("上一页", on_click=prod_prev),
+                    ft.OutlinedButton("下一页", on_click=prod_next),
+                    prod_page_info], spacing=10, wrap=True),
             prod_box,
         ], spacing=8))
 
@@ -9571,25 +9611,58 @@ class App:
 
         preset_card = card(ft.Column([
             h1("预设资料（必填自动填写）", FS_MD),
-            muted("这些信息会用于每次刊登：分组、公司信息、默认关键词、属性预设、价格与贸易条款"),
-            ft.Row([tf("alibaba_group_id", "产品分组 ID", 200), tf("alibaba_group_name", "分组名称", 220),
+            muted("分组 / 关键词 / 属性预设会写入保存包；公司名称、网站、FAQ 目前仅本地保存"
+                  "（companyDesc 属于类目 schema 字段，暂未自动提交）"),
+            ft.Row([tf("alibaba_group_id", "产品分组 ID", 200), tf("alibaba_group_name", "分组名称（本地）", 220),
                     tf("alibaba_keywords", "默认关键词（逗号分隔）", 360)], spacing=10, wrap=True),
-            ft.Row([tf("alibaba_company_name", "公司名称", 260),
-                    tf("alibaba_company_website", "公司网站", 260)], spacing=10, wrap=True),
+            ft.Row([tf("alibaba_company_name", "公司名称（本地）", 260),
+                    tf("alibaba_company_website", "公司网站（本地）", 260)], spacing=10, wrap=True),
             tf("alibaba_company_desc", "公司介绍（英文）", 720, True),
-            tf("alibaba_company_faq", "公司 FAQ（英文，可空）", 720, True),
+            tf("alibaba_company_faq", "公司 FAQ（英文，可空，本地）", 720, True),
             tf("alibaba_attr_presets", "属性预设 JSON（如 {\"Place of Origin\":\"China\",\"Certification\":\"CE\"}）", 720, True),
         ], spacing=8))
 
+        price_type_dd = dd("alibaba_price_type", "定价方式",
+                           [("", "保留商品原定价（推荐）"),
+                            ("ladder_price", "按数量阶梯价"),
+                            ("sku_price", "按规格 SKU 价"),
+                            ("fob_price", "单一区间 FOB")], 230,
+                           hint="不选则沿用商品原有 priceType；选 FOB 需填下面币种/最低/最高价")
+
+        def _on_price_type(e):
+            val = str(e.control.value or "").strip()
+            self.cfg.set("alibaba_price_type", val)
+            # 只有用户显式选择过，保存时才覆盖商品原有定价模型
+            self.cfg.set("alibaba_price_type_explicit", "1" if val else "")
+            save_config(self.cfg)
+        price_type_dd.on_change = _on_price_type
+
         trade_card = card(ft.Column([
             h1("价格与贸易条款", FS_MD),
-            ft.Row([tf("alibaba_min_order_quantity", "MOQ", 120), tf("alibaba_unit_type", "单位", 120),
-                    tf("alibaba_package_size", "包装尺寸 LxWxH(cm)", 220),
-                    tf("alibaba_weight", "重量 kg", 140), tf("alibaba_stock", "库存", 120)], spacing=10, wrap=True),
-            tf("alibaba_price_tiers", "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）", 720, True),
-            ft.Row([tf("alibaba_trade_terms", "贸易条款", 140), tf("alibaba_port", "港口", 160),
-                    tf("alibaba_payment_terms", "付款方式", 160), tf("alibaba_lead_time", "交期(天)", 120),
+            muted("这些值会写进 alibabaSave：priceType / bulkDiscountPrices / "
+                  "sourcingTrade / wholesaleTrade"),
+            ft.Row([
+                price_type_dd,
+                dd("alibaba_sale_type", "销售方式",
+                   [("normal", "按件（normal）"), ("batch", "批发（batch）")], 190),
+                tf("alibaba_batch_number", "批发起批量", 150),
+                tf("alibaba_freight_template_id", "运费模板 ID", 190),
+            ], spacing=10, wrap=True),
+            ft.Row([tf("alibaba_fob_currency", "FOB 币种", 120),
+                    tf("alibaba_fob_min_price", "FOB 最低价", 140),
+                    tf("alibaba_fob_max_price", "FOB 最高价", 140),
+                    tf("alibaba_min_order_quantity", "MOQ", 120),
+                    tf("alibaba_unit_type", "单位", 120)], spacing=10, wrap=True),
+            ft.Row([tf("alibaba_package_size", "包装尺寸 LxWxH(cm)", 220),
+                    tf("alibaba_weight", "重量 kg", 140), tf("alibaba_stock", "库存", 120),
                     tf("alibaba_hs_code", "HS 编码", 160)], spacing=10, wrap=True),
+            tf("alibaba_price_tiers", "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）", 720, True),
+            muted("下面几项目前只保存在本地资料里、暂不写入保存包（Alibaba 保存格式无对应字段）："
+                  "贸易条款 / 港口 / 付款方式 / 交期", 11),
+            ft.Row([tf("alibaba_trade_terms", "贸易条款（本地）", 140),
+                    tf("alibaba_port", "港口（本地）", 160),
+                    tf("alibaba_payment_terms", "付款方式（本地）", 160),
+                    tf("alibaba_lead_time", "交期(天)（本地）", 120)], spacing=10, wrap=True),
         ], spacing=8))
 
         check_card = card(ft.Column([

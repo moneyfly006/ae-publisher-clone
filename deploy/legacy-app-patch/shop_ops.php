@@ -274,3 +274,192 @@ function cron_cleanup_orders(): int
     $st->execute([time() - 7 * 86400]);
     return $st->rowCount();
 }
+
+/* ---------- 经营报表 ---------- */
+function shop_report_data(): array
+{
+    $db = ops_pdo();
+    $total = (int)$db->query("SELECT COALESCE(SUM(amount_cents),0) FROM orders WHERE status='paid'")->fetchColumn();
+    $monthStart = strtotime(date('Y-m-01'));
+    $st = $db->prepare("SELECT COALESCE(SUM(amount_cents),0) FROM orders WHERE status='paid' AND paid_at>=?");
+    $st->execute([$monthStart]); $month = (int)$st->fetchColumn();
+    $refund = (int)$db->query("SELECT COALESCE(SUM(amount_cents),0) FROM refunds WHERE status='done'")->fetchColumn();
+    $orders = (int)$db->query("SELECT COUNT(*) FROM orders WHERE status='paid'")->fetchColumn();
+    $customers = (int)$db->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    $licenses = (int)$db->query('SELECT COUNT(*) FROM licenses WHERE revoked=0')->fetchColumn();
+    // 近 6 个月收入
+    $months = [];
+    for ($i = 5; $i >= 0; $i--) {
+        $start = strtotime(date('Y-m-01', strtotime("-$i month")));
+        $end = strtotime(date('Y-m-01', strtotime("-" . ($i - 1) . " month")));
+        $st = $db->prepare("SELECT COALESCE(SUM(amount_cents),0) FROM orders WHERE status='paid' AND paid_at>=? AND paid_at<?");
+        $st->execute([$start, $end]);
+        $months[] = ['label' => date('Y-m', $start), 'cents' => (int)$st->fetchColumn()];
+    }
+    // 按套餐
+    $byPkg = $db->query("SELECT p.name, COUNT(o.id) AS n, COALESCE(SUM(o.amount_cents),0) AS cents
+        FROM orders o LEFT JOIN packages p ON p.id=o.package_id WHERE o.status='paid'
+        GROUP BY o.package_id ORDER BY cents DESC LIMIT 10")->fetchAll();
+    return ['total'=>$total,'month'=>$month,'refund'=>$refund,'orders'=>$orders,
+            'customers'=>$customers,'licenses'=>$licenses,'months'=>$months,'by_pkg'=>$byPkg];
+}
+
+function page_shop_reports(): void
+{
+    require_admin();
+    $d = shop_report_data();
+    $refunds = ops_pdo()->query("SELECT r.*, u.email FROM refunds r LEFT JOIN users u ON u.id=r.user_id
+        WHERE r.status='done' ORDER BY r.id DESC LIMIT 20")->fetchAll();
+    render('shop_reports', ['title' => '经营报表', 'd' => $d, 'refunds' => $refunds]);
+}
+
+function page_shop_export(): void
+{
+    require_admin();
+    $type = (string)($_GET['type'] ?? 'orders');
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $type . '_' . date('Ymd_His') . '.csv"');
+    echo "\xEF\xBB\xBF";
+    $out = fopen('php://output', 'w');
+    if ($type === 'refunds') {
+        fputcsv($out, ['退款ID','订单ID','用户','金额(元)','原因','状态','创建时间','处理时间']);
+        foreach (ops_pdo()->query('SELECT r.*, u.email, o.trade_no FROM refunds r LEFT JOIN users u ON u.id=r.user_id LEFT JOIN orders o ON o.id=r.order_id ORDER BY r.id DESC') as $r) {
+            fputcsv($out, [$r['id'], $r['order_id'], $r['email'] ?? '', ((int)$r['amount_cents'])/100,
+                           $r['reason'], $r['status'], date('Y-m-d H:i', (int)$r['created_at']),
+                           $r['handled_at'] ? date('Y-m-d H:i', (int)$r['handled_at']) : '']);
+        }
+    } else {
+        fputcsv($out, ['订单ID','订单号','用户','套餐','金额(元)','状态','创建时间','支付时间']);
+        foreach (ops_pdo()->query('SELECT o.*, u.email, p.name AS pkg FROM orders o LEFT JOIN users u ON u.id=o.user_id LEFT JOIN packages p ON p.id=o.package_id ORDER BY o.id DESC') as $r) {
+            fputcsv($out, [$r['id'], $r['trade_no'], $r['email'] ?? '', $r['pkg'] ?? '',
+                           ((int)$r['amount_cents'])/100, $r['status'],
+                           date('Y-m-d H:i', (int)$r['created_at']), $r['paid_at'] ? date('Y-m-d H:i', (int)$r['paid_at']) : '']);
+        }
+    }
+    fclose($out);
+    exit;
+}
+
+/* ---------- 管理员 2FA（TOTP） ---------- */
+function totp_b32decode(string $b32): string
+{
+    $map = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    $b32 = strtoupper(preg_replace('/[^A-Z2-7]/i', '', $b32));
+    $bits = '';
+    for ($i = 0; $i < strlen($b32); $i++) {
+        $val = strpos($map, $b32[$i]);
+        if ($val === false) continue;
+        $bits .= str_pad(decbin($val), 5, '0', STR_PAD_LEFT);
+    }
+    $out = '';
+    foreach (str_split($bits, 8) as $byte) {
+        if (strlen($byte) === 8) $out .= chr(bindec($byte));
+    }
+    return $out;
+}
+
+function totp_code(string $secret, ?int $slice = null): string
+{
+    $slice = $slice ?? intdiv(time(), 30);
+    $key = totp_b32decode($secret);
+    $bin = pack('N*', 0) . pack('N*', $slice);
+    $hash = hash_hmac('sha1', $bin, $key, true);
+    $offset = ord(substr($hash, -1)) & 0x0F;
+    $part = substr($hash, $offset, 4);
+    $val = unpack('N', $part)[1] & 0x7FFFFFFF;
+    return str_pad((string)($val % 1000000), 6, '0', STR_PAD_LEFT);
+}
+
+function totp_verify(string $secret, string $code): bool
+{
+    $code = preg_replace('/\D/', '', $code);
+    if (strlen($code) !== 6) return false;
+    $t = intdiv(time(), 30);
+    for ($i = -1; $i <= 1; $i++) {
+        if (hash_equals(totp_code($secret, $t + $i), $code)) return true;
+    }
+    return false;
+}
+
+function admin_totp_columns(): void
+{
+    $db = function_exists('db') ? db() : null;
+    if (!$db) return;
+    try { $db->exec('ALTER TABLE admins ADD COLUMN totp_secret TEXT'); } catch (Exception $e) {}
+    try { $db->exec('ALTER TABLE admins ADD COLUMN totp_enabled INTEGER DEFAULT 0'); } catch (Exception $e) {}
+}
+
+function page_admin_2fa_form(): void
+{
+    session_boot();
+    if (current_admin()) { redirect('/admin'); }
+    $uid = (int)($_SESSION['admin_2fa_pending'] ?? 0);
+    if (!$uid) { redirect('/admin/login'); }
+    render('admin_2fa', ['title' => '两步验证']);
+}
+
+function page_admin_2fa_post(): void
+{
+    session_boot(); csrf_check();
+    $uid = (int)($_SESSION['admin_2fa_pending'] ?? 0);
+    if (!$uid) { redirect('/admin/login'); }
+    admin_totp_columns();
+    $st = db()->prepare('SELECT * FROM admins WHERE id=? AND is_active=1');
+    $st->execute([$uid]); $a = $st->fetch();
+    if (!$a || !totp_verify((string)$a['totp_secret'], (string)($_POST['code'] ?? ''))) {
+        flash('bad', '验证码不正确');
+        redirect('/admin/2fa');
+    }
+    unset($_SESSION['admin_2fa_pending']);
+    session_regenerate_id(true);
+    $_SESSION['admin_id'] = (int)$a['id'];
+    $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    audit('登录后台(2FA)', 'admin:' . $a['id'], '', $a['username']);
+    redirect('/admin');
+}
+
+function page_admin_security(): void
+{
+    require_admin(); admin_totp_columns();
+    $a = current_admin();
+    $st = db()->prepare('SELECT totp_secret, totp_enabled FROM admins WHERE id=?');
+    $st->execute([$a['id']]); $row = $st->fetch();
+    $secret = (string)($row['totp_secret'] ?? '');
+    if ($secret === '' && empty($_SESSION['new_totp_secret'])) {
+        $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; $s = '';
+        for ($i = 0; $i < 32; $i++) $s .= $chars[random_int(0, 31)];
+        $_SESSION['new_totp_secret'] = $s;
+        $secret = $s;
+    }
+    $secret = $secret ?: (string)($_SESSION['new_totp_secret'] ?? '');
+    $uri = 'otpauth://totp/AuroraList:' . rawurlencode((string)$a['username'])
+        . '?secret=' . $secret . '&issuer=AuroraList&period=30&digits=6';
+    render('admin_security', ['title' => '安全设置', 'enabled' => (int)($row['totp_enabled'] ?? 0),
+                              'secret' => $secret, 'uri' => $uri]);
+}
+
+function page_admin_totp_enable(): void
+{
+    require_admin(); csrf_check(); admin_totp_columns();
+    $a = current_admin();
+    $secret = (string)($_SESSION['new_totp_secret'] ?? '');
+    if (!$secret || !totp_verify($secret, (string)($_POST['code'] ?? ''))) {
+        flash('bad', '验证码不正确，请确认手机时间准确');
+        redirect('/admin/security');
+    }
+    db()->prepare('UPDATE admins SET totp_secret=?, totp_enabled=1 WHERE id=?')->execute([$secret, $a['id']]);
+    unset($_SESSION['new_totp_secret']);
+    audit('开启 2FA', 'admin:' . $a['id']);
+    flash('ok', '两步验证已开启');
+    redirect('/admin/security');
+}
+
+function page_admin_totp_disable(): void
+{
+    require_admin(); csrf_check(); admin_totp_columns();
+    $a = current_admin();
+    db()->prepare('UPDATE admins SET totp_enabled=0 WHERE id=?')->execute([$a['id']]);
+    audit('关闭 2FA', 'admin:' . $a['id']);
+    flash('ok', '两步验证已关闭');
+    redirect('/admin/security');
+}

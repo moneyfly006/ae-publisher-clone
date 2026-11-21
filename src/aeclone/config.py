@@ -381,6 +381,9 @@ DEFAULTS: dict = {
     "alibaba_unit_type": "Piece",
     "alibaba_price_tiers": "",
     "alibaba_price_type": "ladder_price",
+    # 用户在 UI 显式选过定价方式才置 1；否则保存时保留商品原有 priceType
+    # （避免默认 ladder_price 把 sku_price/fob_price 商品静默改成阶梯价）。
+    "alibaba_price_type_explicit": "",
     "alibaba_sale_type": "normal",
     "alibaba_batch_number": "",
     "alibaba_fob_currency": "USD",

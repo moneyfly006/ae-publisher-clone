@@ -332,6 +332,21 @@ class AlibabaPriceTypePreserveTests(unittest.TestCase):
         # 没有配置阶梯价档位时保留商品原有阶梯价，不清空
         self.assertEqual(json.loads(save["bulkDiscountPrices"])[0]["price"], 4001.4)
 
+    def test_fob_product_not_rewritten_by_default_ladder_config(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        product = _pool_product(priceType="fob_price", bulkDiscountPrices=[])
+        save = build_alibaba_save(product, _cfg())
+        self.assertEqual(save["priceType"], "fob_price")
+        self.assertTrue(json.loads(save["sourcingTrade"] or "{}"))
+
+    def test_explicit_marker_allows_config_to_change_model(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        cfg = _cfg(alibaba_price_type_explicit="1",
+                   alibaba_price_tiers='[{"start_quantity":1,"price":88}]')
+        save = build_alibaba_save(self._sku_product(), cfg)
+        self.assertEqual(save["priceType"], "ladder_price")
+        self.assertEqual(json.loads(save["bulkDiscountPrices"])[0]["price"], 88)
+
 
 if __name__ == "__main__":
     result = unittest.main(verbosity=2, exit=False)
