@@ -106,8 +106,10 @@ function page_shop_refund_complete(int $id): void
     $st = $db->prepare('SELECT * FROM refunds WHERE id=?'); $st->execute([$id]);
     $r = $st->fetch();
     if (!$r) { flash('bad', '退款单不存在'); redirect('/admin/shop-refunds'); }
+    [$refundOk, $refundErr] = function_exists('epay_refund_order') ? epay_refund_order((int)$r['order_id']) : [false, '未实现'];
     $db->beginTransaction();
-    $db->prepare("UPDATE refunds SET status='done', handled_at=? WHERE id=?")->execute([time(), $id]);
+    $db->prepare("UPDATE refunds SET status='done', handled_at=?, note=? WHERE id=?")
+       ->execute([time(), ($refundOk ? '易支付原路退款成功' : '渠道退款失败/需人工：' . $refundErr), $id]);
     $db->prepare("UPDATE orders SET status='refunded' WHERE id=?")->execute([$r['order_id']]);
     $db->prepare('UPDATE licenses SET revoked=1 WHERE user_id=? AND revoked=0')->execute([$r['user_id']]);
     $db->commit();
@@ -210,6 +212,7 @@ function user_invoice_request(int $uid, array $in): array
     ops_pdo()->prepare('INSERT INTO invoices(user_id,order_id,title,tax_no,email,amount_cents,status,created_at) VALUES(?,?,?,?,?,?,?,?)')
         ->execute([$uid, $orderId, $title, trim((string)($in['tax_no'] ?? '')),
                    trim((string)($in['email'] ?? '')), (int)$o['amount_cents'], 'pending', time()]);
+    if (function_exists('notify_admin_mail')) notify_admin_mail('新的发票申请', "用户ID {$uid} 申请发票：{$title}，金额 ¥" . number_format(((int)$o['amount_cents'])/100,2));
     return [true, ''];
 }
 
@@ -226,6 +229,7 @@ function user_ticket_create(int $uid, array $in): array
         $db->prepare('INSERT INTO ticket_replies(ticket_id,admin_id,body,is_admin,created_at) VALUES(?,?,?,?,?)')
            ->execute([$tid, 0, $body, 0, time()]);
     }
+    if (function_exists('notify_admin_mail')) notify_admin_mail('新的客户工单 #' . $tid, "用户ID {$uid}：{$subject}\n{$body}\n请登录后台处理。");
     return [true, '', $tid];
 }
 
@@ -714,4 +718,38 @@ function cron_reconcile(): array
     $db->prepare('INSERT INTO reconcile_runs(checked,fixed,note,created_at) VALUES(?,?,?,?)')
        ->execute([$checked, $fixed, $note, time()]);
     return ['checked' => $checked, 'fixed' => $fixed];
+}
+
+/* ---------- 易支付退款 / 管理员邮件通知 ---------- */
+function epay_refund_order(int $orderId): array
+{
+    $shopLib = '/www/wwwroot/license.moneyfly.club/public/shop/lib.php';
+    if (!is_file($shopLib)) return [false, '缺少支付配置'];
+    require_once $shopLib;
+    $e = effective_epay();
+    if (!$e['pid'] || !$e['key']) return [false, '易支付未配置'];
+    $st = ops_pdo()->prepare('SELECT * FROM orders WHERE id=?');
+    $st->execute([$orderId]); $o = $st->fetch();
+    if (!$o) return [false, '订单不存在'];
+    $params = ['act'=>'refund','pid'=>$e['pid'],'key'=>$e['key'],
+               'out_trade_no'=>$o['trade_no'],'money'=>number_format(((int)$o['amount_cents'])/100,2,'.','')];
+    $url = 'https://mzf.mapay.cn/xpay/epay/api.php?' . http_build_query($params);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>15]);
+    $resp = curl_exec($ch); $err = curl_error($ch); curl_close($ch);
+    if ($resp === false) return [false, '网关请求失败：' . $err];
+    $d = json_decode((string)$resp, true);
+    if (is_array($d) && ((int)($d['code'] ?? -1) === 1 || (string)($d['status'] ?? '') === '1')) {
+        return [true, ''];
+    }
+    return [false, is_array($d) ? (string)($d['msg'] ?? json_encode($d, JSON_UNESCAPED_UNICODE)) : substr((string)$resp,0,120)];
+}
+
+function notify_admin_mail(string $subject, string $body): void
+{
+    $shopLib = '/www/wwwroot/license.moneyfly.club/public/shop/lib.php';
+    if (!is_file($shopLib)) return;
+    require_once $shopLib;
+    $to = get_setting('admin_notice_email', '3219904322@qq.com');
+    @smtp_send($to, $subject, $body);
 }
