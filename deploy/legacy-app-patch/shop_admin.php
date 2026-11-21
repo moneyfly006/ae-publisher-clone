@@ -131,7 +131,7 @@ function page_shop_packages_save(): void
         redirect('/admin/shop-packages');
     }
     if ($id > 0) {
-        $st = shop_pdo()->prepare('UPDATE packages SET name=?, platforms=?, features=?, price_cents=?, days=?, active=? WHERE id=?');
+        $st = shop_pdo()->prepare('UPDATE packages SET name=?, platforms=?, features=?, price_cents=?, days=?, active=?, device_limit=? WHERE id=?');
         $st->execute([
             trim((string)($_POST['name'] ?? '')),
             json_encode(array_values(array_filter(array_map('trim', explode(',', (string)($_POST['platforms'] ?? ''))))), JSON_UNESCAPED_UNICODE),
@@ -139,18 +139,19 @@ function page_shop_packages_save(): void
             (int)round(((float)($_POST['price'] ?? 0)) * 100),
             (int)($_POST['days'] ?? 365),
             (int)($_POST['active'] ?? 1),
+            max(1, (int)($_POST['device_limit'] ?? 1)),
             $id,
         ]);
         audit('修改套餐', 'package:' . $id);
         flash('ok', '套餐已保存');
     } else {
-        $st = shop_pdo()->prepare('INSERT INTO packages(name,platforms,features,price_cents,days,active,sort,description,created_at) VALUES(?,?,?,?,?,?,?,?,?)');
+        $st = shop_pdo()->prepare('INSERT INTO packages(name,platforms,features,price_cents,days,active,sort,description,created_at,device_limit) VALUES(?,?,?,?,?,?,?,?,?,?)');
         $st->execute([
             trim((string)($_POST['name'] ?? '新套餐')),
             json_encode(array_values(array_filter(array_map('trim', explode(',', (string)($_POST['platforms'] ?? 'alibaba'))))), JSON_UNESCAPED_UNICODE),
             json_encode(array_values(array_filter(array_map('trim', explode(',', (string)($_POST['features'] ?? 'listing,category'))))), JSON_UNESCAPED_UNICODE),
             (int)round(((float)($_POST['price'] ?? 0)) * 100),
-            (int)($_POST['days'] ?? 365), 1, 99, '', time(),
+            (int)($_POST['days'] ?? 365), 1, 99, '', time(), max(1, (int)($_POST['device_limit'] ?? 1)),
         ]);
         audit('新增套餐', 'package:new');
         flash('ok', '套餐已新增');

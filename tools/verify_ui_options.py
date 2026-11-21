@@ -8,7 +8,7 @@ import flet as ft
 
 def main():
     results=[]
-    for page in range(12):
+    for page in range(13):  # 含新增 12 号 Alibaba 刊登页
         with sandbox():
             app=build_app(); app._switch(page)
             specs=[(i,label(c),[False,True] if isinstance(c,(ft.Switch,ft.Checkbox)) else

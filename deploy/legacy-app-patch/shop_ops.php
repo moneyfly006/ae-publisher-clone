@@ -77,7 +77,7 @@ function coupon_use(int $couponId, int $userId, int $orderId): void
 /* ---------- 退款 ---------- */
 function page_shop_refunds(): void
 {
-    require_admin();
+    require_admin(); require_owner();
     $rows = ops_pdo()->query('SELECT r.*, u.email, o.trade_no FROM refunds r
         LEFT JOIN users u ON u.id=r.user_id LEFT JOIN orders o ON o.id=r.order_id
         ORDER BY r.id DESC LIMIT 200')->fetchAll();
@@ -86,7 +86,7 @@ function page_shop_refunds(): void
 
 function page_shop_refund_create(): void
 {
-    require_admin(); csrf_check();
+    require_admin(); require_owner(); csrf_check();
     $oid = (int)($_POST['order_id'] ?? 0);
     $reason = trim((string)($_POST['reason'] ?? ''));
     $st = ops_pdo()->prepare('SELECT * FROM orders WHERE id=? AND status="paid"');
@@ -101,7 +101,7 @@ function page_shop_refund_create(): void
 
 function page_shop_refund_complete(int $id): void
 {
-    require_admin(); csrf_check();
+    require_admin(); require_owner(); csrf_check();
     $db = ops_pdo();
     $st = $db->prepare('SELECT * FROM refunds WHERE id=?'); $st->execute([$id]);
     $r = $st->fetch();
@@ -420,7 +420,7 @@ function page_admin_2fa_post(): void
 
 function page_admin_security(): void
 {
-    require_admin(); admin_totp_columns();
+    require_admin(); require_owner(); admin_totp_columns();
     $a = current_admin();
     $st = db()->prepare('SELECT totp_secret, totp_enabled FROM admins WHERE id=?');
     $st->execute([$a['id']]); $row = $st->fetch();
@@ -462,4 +462,38 @@ function page_admin_totp_disable(): void
     audit('关闭 2FA', 'admin:' . $a['id']);
     flash('ok', '两步验证已关闭');
     redirect('/admin/security');
+}
+
+/* ---------- RBAC / 设备数 ---------- */
+function require_owner(): void
+{
+    $a = current_admin();
+    if (!$a || (string)($a['role'] ?? 'owner') !== 'owner') {
+        flash('bad', '权限不足：仅 owner 可访问该页面');
+        redirect('/admin');
+    }
+}
+
+function shop_device_limit_for_user(int $uid): int
+{
+    $db = ops_pdo();
+    $st = $db->prepare("SELECT MAX(COALESCE(p.device_limit,1)) AS lim FROM licenses l
+        LEFT JOIN orders o ON o.id=l.order_id LEFT JOIN packages p ON p.id=o.package_id
+        WHERE l.user_id=? AND l.revoked=0");
+    $st->execute([$uid]);
+    $lim = (int)($st->fetchColumn() ?: 0);
+    if ($lim <= 0) {
+        $st = $db->prepare('SELECT v FROM settings WHERE k=?'); $st->execute(['device_limit']);
+        $v = $st->fetchColumn();
+        $lim = max(1, (int)($v ?: 1));
+    }
+    return $lim;
+}
+
+function shop_bound_devices(int $uid): array
+{
+    $st = ops_pdo()->prepare("SELECT DISTINCT machine_code FROM licenses
+        WHERE user_id=? AND revoked=0 AND machine_code<>''");
+    $st->execute([$uid]);
+    return array_column($st->fetchAll(), 'machine_code');
 }

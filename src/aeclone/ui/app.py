@@ -9244,6 +9244,10 @@ class App:
                                bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         prod_page_info = ft.Text("", size=12, color=MUTED)
         prod_page = {"no": 1, "pages": 1}
+        prod_id_tf = ft.TextField(
+            label="按商品 ID 打开（可空）", width=220, bgcolor=CARD_2,
+            border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "alibaba_test_product_id", "") or ""))
 
         def set_product(pid, subject="", category=""):
             self.cfg.set("alibaba_test_product_id", str(pid))
@@ -9253,6 +9257,38 @@ class App:
             prod_now.value = f"当前商品：{pid} · {str(subject)[:44]}" + (
                 f" · 类目 {category}" if category else "")
             prod_now.color = ACCENT_2
+            try:
+                prod_id_tf.value = str(pid)
+            except Exception:
+                pass
+
+        def open_by_id(e=None):
+            """按商品 ID 直接打开（在线 2600+ 时不必翻页找）。"""
+            pid = str(getattr(prod_id_tf, "value", "") or "").strip() or \
+                str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            if not pid:
+                self.toast("填一个商品 ID 再打开", False)
+                return
+            status.value = f"正在读取商品 {pid}…"
+            status.color = MUTED
+            try:self._safe_update()
+            except Exception: pass
+
+            def work():
+                try:
+                    p = client().product_detail(pid)
+                    if not p:
+                        raise RuntimeError("读不到商品（可能已删除或不属于当前店铺）")
+                    set_product(pid, str(p.get("subject") or ""),
+                                str(p.get("categoryId") or ""))
+                    status.value = f"已打开商品 {pid} · {str(p.get('subject') or '')[:40]}"
+                    status.color = SUCCESS_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"打开失败：{str(ex)[:120]}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
 
         def load_products(e=None, page=None):
             st = str(prod_state.value or "draft")
@@ -9283,8 +9319,15 @@ class App:
                         if not pid:
                             continue
                         subj = str(r.get("subject") or "")
+                        cat = str(r.get("categoryId") or "").strip()
+                        ptype = str(r.get("priceType") or "").strip()
+                        cat_label = cat if cat and cat.lower() not in ("none", "null") else "未选类目"
+                        cat_color = MUTED if cat_label != "未选类目" else DANGER_C
+                        price_label = {"ladder_price": "按数量",
+                                       "sku_price": "按规格",
+                                       "fob_price": "FOB"}.get(ptype, ptype or "-")
 
-                        def pick(ev, _pid=pid, _s=subj, _c=r.get("categoryId")):
+                        def pick(ev, _pid=pid, _s=subj, _c=cat):
                             set_product(_pid, _s, _c)
                             status.value = f"已选择商品 {_pid}；接下来可「预演（不保存）」或保存"
                             status.color = SUCCESS_C
@@ -9292,8 +9335,14 @@ class App:
                             except Exception: pass
 
                         boxes.append(ft.Row([
-                            ft.Text(f"{pid} · {subj[:64]}", size=12.5, color=TEXT,
-                                    expand=True, max_lines=2),
+                            ft.Column([
+                                ft.Text(f"{pid} · {subj[:60]}", size=12.5, color=TEXT,
+                                        max_lines=2),
+                                ft.Row([
+                                    ft.Text(f"类目 {cat_label}", size=11, color=cat_color),
+                                    ft.Text(f"· 定价 {price_label}", size=11, color=MUTED),
+                                ], spacing=4),
+                            ], spacing=1, expand=True),
                             ft.OutlinedButton("选择", on_click=pick),
                         ], spacing=6))
                     prod_box.controls = boxes
@@ -9594,6 +9643,9 @@ class App:
                     ft.OutlinedButton("上一页", on_click=prod_prev),
                     ft.OutlinedButton("下一页", on_click=prod_next),
                     prod_page_info], spacing=10, wrap=True),
+            ft.Row([prod_id_tf,
+                    ft.OutlinedButton("按 ID 打开", icon=ft.Icons.OPEN_IN_NEW,
+                                      on_click=open_by_id)], spacing=10, wrap=True),
             prod_box,
         ], spacing=8))
 

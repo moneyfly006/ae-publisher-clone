@@ -135,6 +135,8 @@ case 'order_create': {
     $p = $st->fetch(PDO::FETCH_ASSOC);
     if (!$p) fail('套餐不存在');
     // 优惠券（可选）
+    $payType = strtolower(trim((string)($in['pay_type'] ?? '')));
+    if ($payType !== '' && !in_array($payType, ['alipay','wxpay'], true)) fail('不支持的支付方式');
     $couponCode = trim((string)($in['coupon_code'] ?? ''));
     $amount = (int)$p['price_cents'];
     $coupon = null;
@@ -155,7 +157,7 @@ case 'order_create': {
     $payUrl = '';
     if ($epay['pid'] && $epay['key']) {
         $params = [
-          'pid'=>$epay['pid'], 'type'=>$epay['type'],
+          'pid'=>$epay['pid'], 'type'=>($payType ?: $epay['type']),
           'out_trade_no'=>$trade, 'notify_url'=>$epay['site_url'].'/pay/notify.php',
           'return_url'=>$epay['site_url'].'/?paid=1',
           'name'=>$p['name'], 'money'=>number_format($amount/100, 2, '.', ''),
@@ -251,7 +253,21 @@ case 'software_login': {
     if (!$l) fail('该账号还没有开通套餐，请先在授权中心购买');
     if (strtotime($l['expires_at']) < time()) fail('授权已过期，请续费');
     $plats = json_decode($l['platforms'], true) ?: [];
-    if ($l['machine_code'] && $l['machine_code'] !== $mc) fail('该授权已绑定其他设备，请在用户端解绑后再登录');
+    // 设备数限制（按套餐 device_limit，默认 1）
+    $bound = shop_bound_devices((int)$u['id']);
+    $limit = shop_device_limit_for_user((int)$u['id']);
+    if ($l['machine_code'] && $l['machine_code'] !== $mc && !in_array($mc, $bound, true)) {
+        if (count($bound) >= $limit) {
+            fail('设备数已满（' . $limit . ' 台），请在用户端解绑或购买更高设备数套餐');
+        }
+        // 多设备：为该机器克隆一条同套餐授权
+        $newToken = issue_token($mc, $plats, $l['expires_at']);
+        db()->prepare('INSERT INTO licenses(user_id,order_id,machine_code,token,expires_at,platforms,created_at) VALUES(?,?,?,?,?,?,?)')
+            ->execute([$u['id'], (int)$l['order_id'], $mc, $newToken, $l['expires_at'],
+                       json_encode($plats, JSON_UNESCAPED_UNICODE), now()]);
+        out(['token'=>$newToken, 'expires_at'=>$l['expires_at'], 'platforms'=>$plats,
+             'user'=>['id'=>$u['id'],'email'=>$u['email'],'name'=>$u['name']]]);
+    }
     if (!$l['machine_code']) {
         db()->prepare('UPDATE licenses SET machine_code=? WHERE id=?')->execute([$mc, $l['id']]);
     }

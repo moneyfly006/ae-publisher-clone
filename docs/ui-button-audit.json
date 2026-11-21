@@ -1,8 +1,8 @@
 {
   "counts": {
-    "OK": 217,
-    "DEFERRED": 129,
-    "NATIVE": 6,
+    "OK": 262,
+    "DEFERRED": 125,
+    "NATIVE": 9,
     "EXTERNAL": 8,
     "ERROR": 0
   },
@@ -25,11 +25,11 @@
     },
     {
       "page": 0,
-      "label": "03  发布商品",
+      "label": "03  Alibaba 刊登",
       "event": "on_click",
-      "status": "DEFERRED",
+      "status": "OK",
       "scenario": "default",
-      "detail": "go"
+      "detail": ""
     },
     {
       "page": 0,
@@ -43,21 +43,13 @@
       "page": 0,
       "label": "点一下去处理",
       "event": "on_click",
-      "status": "DEFERRED",
+      "status": "OK",
       "scenario": "default",
-      "detail": "go"
+      "detail": ""
     },
     {
       "page": 0,
-      "label": "点一下去处理",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "go"
-    },
-    {
-      "page": 0,
-      "label": "启动",
+      "label": "去 Alibaba 刊登",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -83,9 +75,9 @@
       "page": 0,
       "label": "选择商品",
       "event": "on_click",
-      "status": "DEFERRED",
+      "status": "OK",
       "scenario": "default",
-      "detail": "work"
+      "detail": ""
     },
     {
       "page": 0,
@@ -99,9 +91,9 @@
       "page": 0,
       "label": "搜索全部商品",
       "event": "on_click",
-      "status": "DEFERRED",
+      "status": "OK",
       "scenario": "default",
-      "detail": "work"
+      "detail": ""
     },
     {
       "page": 0,
@@ -198,6 +190,14 @@
       "status": "DEFERRED",
       "scenario": "default",
       "detail": "_sync_shops"
+    },
+    {
+      "page": 1,
+      "label": "切换到有商品的店铺",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
     },
     {
       "page": 1,
@@ -433,6 +433,30 @@
     },
     {
       "page": 3,
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
       "label": "启用 AI 标题",
       "event": "on_change",
       "status": "DEFERRED",
@@ -441,7 +465,15 @@
     },
     {
       "page": 3,
-      "label": "标题提示词",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
+      "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
       "scenario": "default",
@@ -473,7 +505,15 @@
     },
     {
       "page": 3,
-      "label": "详情提示词",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
+      "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
       "scenario": "default",
@@ -489,7 +529,15 @@
     },
     {
       "page": 3,
-      "label": "SKU 提示词",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
+      "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
       "scenario": "default",
@@ -505,7 +553,15 @@
     },
     {
       "page": 3,
-      "label": "估重提示词",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
+      "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
       "scenario": "default",
@@ -609,7 +665,7 @@
     },
     {
       "page": 4,
-      "label": "文本审查提示词",
+      "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
       "scenario": "default",
@@ -633,7 +689,7 @@
     },
     {
       "page": 4,
-      "label": "主图审查提示词",
+      "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
       "scenario": "default",
@@ -649,7 +705,7 @@
     },
     {
       "page": 4,
-      "label": "详情图审查提示词",
+      "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
       "scenario": "default",
@@ -1129,6 +1185,14 @@
     },
     {
       "page": 5,
+      "label": "选择本地视频",
+      "event": "on_click",
+      "status": "NATIVE",
+      "scenario": "default",
+      "detail": "pick_files"
+    },
+    {
+      "page": 5,
       "label": "每张停留秒数",
       "event": "on_change",
       "status": "OK",
@@ -1505,54 +1569,6 @@
     },
     {
       "page": 8,
-      "label": "处理产品数量",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 8,
-      "label": "编辑完成后去向",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 8,
-      "label": "违禁词检查",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 8,
-      "label": "清空已编辑记录",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 8,
-      "label": "重跑上次失败的商品",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 8,
-      "label": "只重试发布失败（0 个·不花钱）",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "work"
-    },
-    {
-      "page": 8,
       "label": "刷新数量",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1561,7 +1577,7 @@
     },
     {
       "page": 8,
-      "label": "看待发布列表",
+      "label": "查看草稿",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -1569,7 +1585,7 @@
     },
     {
       "page": 8,
-      "label": "看发布失败列表",
+      "label": "查看在线",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -1577,15 +1593,7 @@
     },
     {
       "page": 8,
-      "label": "批量发布「待发布」",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 8,
-      "label": "重试「发布失败」",
+      "label": "去 Alibaba 刊登",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -1662,6 +1670,14 @@
       "status": "OK",
       "scenario": "default",
       "detail": ""
+    },
+    {
+      "page": 9,
+      "label": "导入本地图片",
+      "event": "on_click",
+      "status": "NATIVE",
+      "scenario": "default",
+      "detail": "pick_files"
     },
     {
       "page": 9,
@@ -1985,6 +2001,14 @@
     },
     {
       "page": 11,
+      "label": "保存并刷新授权",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
       "label": "清理旧图",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2102,6 +2126,326 @@
       "status": "DEFERRED",
       "scenario": "default",
       "detail": "<lambda>"
+    },
+    {
+      "page": 12,
+      "label": "Cookie（可留空自动沿用）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "店铺 ID（可选）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "当前商品 ID",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "测试连接",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "读取商品",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 12,
+      "label": "上一页",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "下一页",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "搜索",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "读取必填属性",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "展开子类目",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 12,
+      "label": "产品分组 ID",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "分组名称（本地）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "默认关键词（逗号分隔）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "公司名称（本地）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "公司网站（本地）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "公司介绍（英文）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "公司 FAQ（英文，可空，本地）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "属性预设 JSON（如 {\"Place of Origin\":\"China\",\"Certification\":\"CE\"}）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "销售方式",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "批发起批量",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "运费模板 ID",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "FOB 币种",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "FOB 最低价",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "FOB 最高价",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "MOQ",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "单位",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "包装尺寸 LxWxH(cm)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "重量 kg",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "库存",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "HS 编码",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "贸易条款（本地）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "港口（本地）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "付款方式（本地）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "交期(天)（本地）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "预演（不保存）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "保存到 Alibaba",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "AI 预演（不保存）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "label": "AI 生成并保存",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
     },
     {
       "page": 5,
@@ -2694,6 +3038,14 @@
       "status": "OK",
       "scenario": "populated",
       "detail": ""
+    },
+    {
+      "page": 5,
+      "label": "选择本地视频",
+      "event": "on_click",
+      "status": "NATIVE",
+      "scenario": "populated",
+      "detail": "pick_files"
     },
     {
       "page": 5,

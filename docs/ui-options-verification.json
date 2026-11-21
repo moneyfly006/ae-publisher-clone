@@ -1,7 +1,7 @@
 {
   "counts": {
-    "CONFIG_SAVED": 150,
-    "NO_CONFIG_CHANGE": 56
+    "CONFIG_SAVED": 153,
+    "NO_CONFIG_CHANGE": 57
   },
   "results": [
     {
@@ -714,6 +714,33 @@
       "page": 5,
       "label": "AI 提示词预设（机械类目）",
       "value": "展会/交付场景",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "3:4 竖版场景",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "高端暗调",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "多场景合并",
       "status": "CONFIG_SAVED",
       "changed": [
         "marketing_image_prompt"
@@ -1486,51 +1513,6 @@
       ]
     },
     {
-      "page": 8,
-      "label": "编辑完成后去向",
-      "value": "save_only",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "publish_action"
-      ]
-    },
-    {
-      "page": 8,
-      "label": "编辑完成后去向",
-      "value": "save_to_waiting",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "publish_action"
-      ]
-    },
-    {
-      "page": 8,
-      "label": "编辑完成后去向",
-      "value": "publish",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "publish_action"
-      ]
-    },
-    {
-      "page": 8,
-      "label": "违禁词检查",
-      "value": false,
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "check_banned_word"
-      ]
-    },
-    {
-      "page": 8,
-      "label": "违禁词检查",
-      "value": true,
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "check_banned_word"
-      ]
-    },
-    {
       "page": 9,
       "label": "只看有图",
       "value": false,
@@ -1744,6 +1726,59 @@
       "status": "CONFIG_SAVED",
       "changed": [
         "window_size"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "value": "",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_price_type"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "value": "ladder_price",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_price_type",
+        "alibaba_price_type_explicit"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "value": "sku_price",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_price_type"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "value": "fob_price",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_price_type"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "销售方式",
+      "value": "normal",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 12,
+      "label": "销售方式",
+      "value": "batch",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_sale_type"
       ]
     }
   ]

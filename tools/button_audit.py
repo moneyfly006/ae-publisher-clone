@@ -30,7 +30,7 @@ def populate(app, index):
 
 def audit():
     results = []
-    cases = [(index, False) for index in range(12)] + [(5, True), (10, True)]
+    cases = [(index, False) for index in range(13)] + [(5, True), (10, True)]
     for index, populated in cases:
         with sandbox():
             app = build_app()

@@ -6,7 +6,7 @@
 <div class="card" style="padding:8px 16px">
   <?php if (!$rows): ?><div class="empty">还没有套餐</div><?php else: ?>
   <table>
-    <thead><tr><th>ID</th><th>名称</th><th>平台</th><th>功能</th><th>价格(元)</th><th>天数</th><th>启用</th><th style="text-align:right">操作</th></tr></thead>
+    <thead><tr><th>ID</th><th>名称</th><th>平台</th><th>功能</th><th>价格(元)</th><th>天数</th><th>设备数</th><th>启用</th><th style="text-align:right">操作</th></tr></thead>
     <tbody>
     <?php foreach ($rows as $r): ?>
       <tr>
@@ -23,6 +23,7 @@
             <input type="hidden" name="features" value="<?= e(implode(',', $r['features_arr'])) ?>">
             <input type="number" step="0.01" name="price" value="<?= e((string)$r['price']) ?>" style="width:100px">
             <input type="number" name="days" value="<?= (int)$r['days'] ?>" style="width:80px">
+            <input type="number" name="device_limit" min="1" value="<?= (int)($r['device_limit'] ?: 1) ?>" style="width:70px">
             <select name="active" style="width:90px">
               <option value="1" <?= (int)$r['active'] === 1 ? 'selected' : '' ?>>启用</option>
               <option value="0" <?= (int)$r['active'] !== 1 ? 'selected' : '' ?>>停用</option>
@@ -50,6 +51,7 @@
       <input name="name" placeholder="套餐名" required>
       <input name="price" type="number" step="0.01" placeholder="价格(元)" required style="width:110px">
       <input name="days" type="number" value="365" style="width:90px">
+      <input name="device_limit" type="number" min="1" value="1" placeholder="设备数" style="width:90px">
       <input name="platforms" value="alibaba" placeholder="平台: alibaba,amazon" style="width:220px">
       <input name="features" value="listing,category" placeholder="功能: listing,category,ai_text" style="width:260px">
       <button class="btn" type="submit">新增</button>
