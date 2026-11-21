@@ -3,8 +3,8 @@ $dir = '/www/backups/license';
 $log = '/www/wwwlogs/license_offsite.log';
 $line = date('c') . ' ';
 $rclone = trim((string)@shell_exec('command -v rclone 2>/dev/null'));
-$remote = getenv('LICENSE_BACKUP_REMOTE') ?: 'oss:auroralist-license-backup';
-if ($rclone && getenv('LICENSE_BACKUP_REMOTE')) {
+$remote = getenv('LICENSE_BACKUP_REMOTE') ?: 'oss:auroralist-backup/license-backups';
+if ($rclone && $remote) {
     $out = []; $code = 0;
     exec("$rclone copy $dir $remote --max-age 48h 2>&1", $out, $code);
     file_put_contents($log, $line . ($code === 0 ? 'RCLONE_OK ' : 'RCLONE_FAIL ') . implode(' | ', array_slice($out, -3)) . "\n", FILE_APPEND);

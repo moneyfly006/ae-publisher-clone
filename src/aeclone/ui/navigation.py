@@ -29,10 +29,18 @@ DESTINATIONS = (
     Destination(10, "发布与运行", "任务与日志", "RECEIPT_LONG_OUTLINED", "跟踪任务进度、定时发布与运行日志", "诊断 导出 报错"),
     Destination(9, "工具与设置", "图片工作台", "GRID_VIEW", "手动取图、处理、拼图、生成视频和上传结果", "本地 调试 相册"),
     Destination(11, "工具与设置", "设置", "SETTINGS_OUTLINED", "管理 API、授权、图片服务、界面与多开实例", "连接 图床 余额 更新 诊断"),
+    # 13 号：Amazon 刊登工作台（平台导航 pages 里只在 Amazon 平台露出）。
+    Destination(13, "刊登", "Amazon 刊登", "PUBLISH",
+                "Amazon 采集箱编辑、站点、五点描述、AI、保存",
+                "amazon 亚马逊 采集箱 站点 五点 卖点 bullet 类目 价格 库存 保存 发布 ai 翻译 预演"),
 )
 
 BY_INDEX = {item.index: item for item in DESTINATIONS}
 
 
 def destination(index: int) -> Destination:
-    return BY_INDEX[int(index) % len(DESTINATIONS)]
+    # 13 号加入后 DESTINATIONS 长度=13，不能再用纯 % len（13%13=0 会取到概览）。
+    i = int(index)
+    if i in BY_INDEX:
+        return BY_INDEX[i]
+    return BY_INDEX[i % len(DESTINATIONS)]

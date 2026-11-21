@@ -21,7 +21,8 @@ class Step:
 
 
 _FAIL_WORDS = ("失败", "错误", "不能", "只有", "无效", "不存在", "未找到", "不允许",
-               "异常", "isv.", "error", "failed", "invalid", "not allowed", "cannot")
+               "异常", "未填写", "请填写", "不能为空", "必填",
+               "isv.", "error", "failed", "invalid", "not allowed", "cannot")
 
 
 def is_failure_msg(msg: str) -> bool:

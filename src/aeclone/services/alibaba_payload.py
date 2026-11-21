@@ -384,10 +384,39 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         stock = num("alibaba_stock", None)
         if stock and stock > 0:
             trade["inventory"] = [{"warehouseCode": "CN_LOCAL_01", "value": int(stock)}]
+        # 发货期：平台发布必填（实测格式 [{"quantity":3,"process_period":15}]），
+        # 缺失时发布会被拒「发货期信息未填写」。
+        try:
+            _qty = int(float(str(getattr(cfg, "alibaba_deliver_quantity", "") or "1")))
+        except Exception:
+            _qty = 1
+        _raw_days = str(getattr(cfg, "alibaba_process_period", "") or "").strip()
+        try:
+            _days = int(float(_raw_days)) if _raw_days else int(float(
+                getattr(cfg, "alibaba_lead_time", 30) or 30))
+        except Exception:
+            _days = 30
+        if _qty > 0 and _days > 0:
+            trade["deliver_periods"] = [{"quantity": _qty,
+                                         "process_period": _days}]
     if ptype == "fob_price":
         # FOB 下不允许带 HS 关税行（前端逻辑：tariffsHsCodeConfig && !fob && !overseaSpot）
         trade.pop("tariffsHsCode", None)
     save["wholesaleTrade"] = json.dumps(trade, ensure_ascii=False)
+
+    if cfg is not None:
+        # 物流属性：平台校验「重量/长宽高/物流属性要么全填要么全清」，
+        # 只填了重量尺寸而没有物流属性时，发布会被拒。
+        _logistics = str(getattr(cfg, "alibaba_logistics_property", "") or "").strip()
+        if not _logistics:
+            _logistics = str(product.get("logisticsProperty") or "").strip()
+        try:
+            _wt = json.loads(save.get("wholesaleTrade") or "{}")
+        except Exception:
+            _wt = {}
+        # 平台规则：重量/长宽高/物流属性必须同时填写或同时清空。
+        if _logistics and _wt.get("package_size") and _wt.get("weight"):
+            save["logisticsProperty"] = _logistics
 
     group = str(getattr(cfg, "alibaba_group_id", "") or "").strip() if cfg is not None else ""
     if group:
@@ -478,6 +507,37 @@ def autofill_required_attributes(product: dict, attr_defs: list | None, cfg=None
         presets = {str(k).strip().lower(): v for k, v in raw.items()}
     have = {str(a.get("attribute_name") or "").strip().lower() for a in attrs}
     filled, unresolved = [], []
+
+    def _value_id_for(attr_def, canon):
+        for cand in _as_list(attr_def.get("values")):
+            nm = str(cand.get("name_en") or cand.get("name") or "").strip()
+            if nm.lower() == str(canon).lower():
+                return cand.get("id")
+        return None
+
+    # 显式预设要能「覆盖已有属性值」：27 个采集草稿存在 Other/占位值，
+    # 只补缺失改不掉它们，发布前必须能按真实规格修正。
+    for d in attr_defs or []:
+        name = str(d.get("nameEn") or d.get("nameZh") or "").strip()
+        key = name.lower()
+        if not name or key not in have or key not in presets:
+            continue
+        val = presets.get(key)
+        v_name = (val.get("value_name") or val.get("name")) if isinstance(val, dict) else (
+            str(val) if val is not None else "")
+        canon = match_attribute_value(d, v_name or "")
+        if not canon:
+            unresolved.append(f"{name}（预设值「{v_name}」不在类目候选里）")
+            continue
+        vid = _value_id_for(d, canon)
+        for a in attrs:
+            if str(a.get("attribute_name") or "").strip().lower() == key:
+                a["value_name"] = canon
+                if vid is not None:
+                    a["value_id"] = str(vid)
+                filled.append(f"{name}={canon}(覆盖)")
+                break
+
     for d in attr_defs or []:
         if int(d.get("required") or 0) != 1:
             continue

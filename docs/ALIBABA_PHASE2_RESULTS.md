@@ -130,3 +130,5 @@
   5) 发布队列单条「发布」无二次确认 → 改为确认弹窗。
 - P2 修复：套用预设不再跳回第一个 Tab；设置「启动时打开」补 Alibaba 刊登页；侧栏按钮在 Alibaba 平台显示「去 Alibaba 刊登」。
 - 新增 `tests/test_ui_alibaba_actions.py`（5 项）：预演按钮、保存二次确认（取消不写入）、AI 生成并保存（use_ai=True、dry_run=False）、按 ID 打开、平台启动守卫。
+
+> 平台 UI 匹配（Alibaba 去除速卖通专属 UI、其他平台不受影响）见 [PLATFORM_UI_MATCH.md](PLATFORM_UI_MATCH.md)。

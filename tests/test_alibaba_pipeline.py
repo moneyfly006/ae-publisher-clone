@@ -331,10 +331,19 @@ class SafetyGuardTests(unittest.TestCase):
         self.assertEqual(client.saved, [], "授权未通过不允许保存")
 
     def test_real_save_op_passthrough(self):
+        class _OkScore:
+            total = 4.8
+            passed = True
+            fixes = []
+            blockers = []
+
+        from unittest.mock import patch as _patch
         for op in (OP_SAVE, OP_PUBLISH, OP_MOVE_PENDING, OP_SCHEDULE):
             with self.subTest(op=op):
                 client = FakeClient()
-                with clean_env(AURORA_SKIP_LICENSE="1"):
+                with clean_env(AURORA_SKIP_LICENSE="1"), \
+                        _patch("aeclone.services.alibaba_score.score_product",
+                               return_value=_OkScore()):
                     r = run_alibaba_product("pid-1", make_cfg(), dry_run=False, op=op,
                                             client=client, text_pipeline=FakeTextPipeline())
                 self.assertTrue(r.ok, r.error)
@@ -343,6 +352,17 @@ class SafetyGuardTests(unittest.TestCase):
                 self.assertEqual(len(client.saved), 1)
                 self.assertEqual(client.saved[0][2], op)
                 self.assertIn(OP_LABELS[op], step(r, "保存到 Alibaba").detail)
+
+    def test_inner_business_code_failure_is_failed(self):
+        """外层 code=0、data.code=-1（如「发货期信息未填写」）必须判失败。"""
+        client = FakeClient(save_resp={"code": 0, "msg": "Successful",
+                                       "data": {"msg": "发货期信息未填写", "code": -1}})
+        with clean_env(AURORA_SKIP_LICENSE="1"):
+            r = run_alibaba_product("pid-1", make_cfg(), dry_run=False, op="1",
+                                    client=client, text_pipeline=FakeTextPipeline())
+        self.assertFalse(r.ok)
+        self.assertIn("发货期", r.error)
+        self.assertNotIn("保存到 Alibaba", [s.name for s in r.steps if s.ok and s.name == "保存到 Alibaba"])
 
     def test_code_zero_but_failure_message_is_failed(self):
         client = FakeClient(save_resp=SAVE_FAIL_MSG)

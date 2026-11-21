@@ -65,6 +65,9 @@ class AlibabaRunResult:
     banned_words: list[str] = field(default_factory=list)
     save_result: dict = field(default_factory=dict)
     ai_used: bool = False
+    score: float = 0.0
+    score_passed: bool = False
+    score_fixes: list[str] = field(default_factory=list)
 
     @property
     def incomplete_steps(self) -> list[AlibabaStep]:
@@ -458,6 +461,28 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         if not res.error:
             res.ok = True
 
+        # 刊登评分门禁：op=2 提交审核/发布必须 ≥4.5；低分要指出缺什么。
+        try:
+            from .alibaba_score import PASS_SCORE, score_product
+            _sc = score_product(product, cfg, save=save, required_attrs=req)
+            res.score = round(_sc.total, 2)
+            res.score_passed = bool(_sc.passed)
+            res.score_fixes = list(_sc.fixes[:8])
+            _step(res, "刊登评分", _sc.passed,
+                  f"{_sc.total:.2f}/5（发布线 {PASS_SCORE:.1f}）")
+            for _f in _sc.fixes[:3]:
+                res.warnings.append("评分建议：" + _f)
+            if op == OP_PUBLISH and not _sc.passed:
+                res.ok = False
+                _why = "；".join((_sc.blockers + _sc.fixes)[:5])
+                res.error = (f"刊登评分 {_sc.total:.2f}/5 未达发布线 {PASS_SCORE:.1f}，"
+                             f"已阻止提交审核。需要修复：{_why}")
+                _step(res, "发布门禁", False, "评分未达标，已阻止提交审核")
+                res.preview = True
+                return res
+        except Exception as e:  # noqa: BLE001
+            _step(res, "刊登评分", True, f"评分跳过：{str(e)[:80]}")
+
         # e. 违禁词（只读接口，仅作提示，不阻断；所以不记失败步骤）
         try:
             banned = _banned_hits(c.check_banned_words(
@@ -516,6 +541,12 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
             return _fail(res, "保存到 Alibaba", f"保存失败：{msg or f'code={code}'}")
         data = resp.get("data") if isinstance(resp.get("data"), dict) else {}
         msg = str(data.get("msg") or resp.get("msg") or "")
+        inner_code = data.get("code")
+        # 外层 code=0 不代表成功：实测发布缺发货期时返回
+        # {"code":0,"data":{"msg":"发货期信息未填写","code":-1}}。
+        if inner_code not in (None, 0, "0"):
+            return _fail(res, "保存到 Alibaba",
+                         f"保存失败（业务码 {inner_code}）：{msg[:200]}")
         # 店小秘可能出现 code=0 但 msg 是失败语义（「只有处在采集箱中的产品…」）
         if is_failure_msg(msg):
             return _fail(res, "保存到 Alibaba", f"保存失败：{msg[:200]}")

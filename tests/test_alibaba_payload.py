@@ -315,6 +315,23 @@ class AlibabaKeywordsPreserveTests(unittest.TestCase):
         self.assertNotIn("fiberglass pool", save["keywords"])
 
 
+class AlibabaDeliverPeriodTests(unittest.TestCase):
+    def test_deliver_periods_written_from_config(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        cfg = _cfg(alibaba_process_period="15", alibaba_deliver_quantity="3")
+        save = build_alibaba_save(_pool_product(), cfg)
+        trade = json.loads(save["wholesaleTrade"])
+        self.assertEqual(trade["deliver_periods"], [{"quantity": 3, "process_period": 15}])
+
+    def test_deliver_periods_defaults_to_lead_time(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        cfg = _cfg(alibaba_lead_time=20)
+        save = build_alibaba_save(_pool_product(), cfg)
+        trade = json.loads(save["wholesaleTrade"])
+        self.assertEqual(trade["deliver_periods"][0]["process_period"], 20)
+        self.assertGreaterEqual(trade["deliver_periods"][0]["quantity"], 1)
+
+
 class AlibabaPriceTypePreserveTests(unittest.TestCase):
     """更新已有商品时不能把定价模型静默改掉（sku_price → 空阶梯价）。"""
 

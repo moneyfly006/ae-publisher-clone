@@ -391,7 +391,8 @@ DEFAULTS: dict = {
     "alibaba_fob_currency": "USD",
     "alibaba_fob_min_price": "",
     "alibaba_fob_max_price": "",
-    "alibaba_freight_template_id": "",
+    "alibaba_freight_template_id": "",   # 运费模板 ID（发布时与重量/尺寸一起校验）
+    "alibaba_logistics_property": "general_cargo_0",  # 物流属性；实测 online 商品用 general_cargo_0
     "alibaba_op": 1,
     "alibaba_package_size": "",
     "alibaba_weight": "",
@@ -400,8 +401,41 @@ DEFAULTS: dict = {
     "alibaba_payment_terms": "T/T",
     "alibaba_trade_terms": "FOB",
     "alibaba_port": "Shanghai",
-    "alibaba_lead_time": 30,
+    "alibaba_lead_time": 30,          # 发货期天数（写入 deliver_periods.process_period）
+    "alibaba_deliver_quantity": "1",  # 发货期起订量（deliver_periods.quantity）
+    "alibaba_process_period": "",     # 空=用 alibaba_lead_time
     "alibaba_attr_presets": "",
+    # ---------------- Amazon（亚马逊）刊登预设 ----------------
+    "amazon_cookies": "",
+    "amazon_shop_id": "",
+    "amazon_shop_name": "",
+    "amazon_site": "",              # marketPlaceId（如 A2EUQ1WTGCTBG2）
+    "amazon_site_code": "",         # 站点代码（US/CA/MX/BR…）
+    "amazon_site_name": "",
+    "amazon_test_product_id": "",
+    "amazon_list_state": "draft",
+    "amazon_category_id": "",
+    "amazon_category_path": "",     # nodePath a/b/c
+    "amazon_category_name": "",
+    "amazon_last_category_required": "",
+    "amazon_price": "",
+    "amazon_sale_price": "",
+    "amazon_quantity": 0,
+    "amazon_fulfillment": "MFN",    # MFN/FBA
+    "amazon_handling_time": 2,
+    "amazon_shipping_template": "",
+    "amazon_brand": "",
+    "amazon_manufacturer": "",
+    "amazon_sku": "",
+    "amazon_bullet_count": 5,       # AI 生成条数（5）；加载已有商品最多 10 条，保存不得截断
+    "amazon_op": 1,
+    "amazon_use_ai": False,
+    "amazon_ai_preset": "generic",
+    "amazon_title_prompt": "",        # 空=内置
+    "amazon_bullet_prompt": "",
+    "amazon_description_prompt": "",
+    "amazon_search_terms_prompt": "",
+    "amazon_last_status": "",
     "window_size": "1280x800",
     "ui_theme": "dark",             # dark | light
     "image_retry_times": 1,         # 图片接口 5xx 自动重试次数（0=不重试）      # 启动窗口大小（小 1100x760 / 中 1280x800 / 大 1512x945）

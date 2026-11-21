@@ -1,22 +1,24 @@
 {
   "counts": {
-    "OK": 262,
-    "DEFERRED": 125,
-    "NATIVE": 9,
+    "OK": 228,
+    "DEFERRED": 111,
+    "NATIVE": 8,
     "EXTERNAL": 8,
     "ERROR": 0
   },
   "results": [
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "01  商品准备",
       "event": "on_click",
-      "status": "DEFERRED",
+      "status": "OK",
       "scenario": "default",
-      "detail": "_sync_shops"
+      "detail": ""
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "02  内容处理",
       "event": "on_click",
       "status": "OK",
@@ -25,6 +27,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "03  Alibaba 刊登",
       "event": "on_click",
       "status": "OK",
@@ -33,6 +36,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "04  运行记录",
       "event": "on_click",
       "status": "OK",
@@ -41,6 +45,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "点一下去处理",
       "event": "on_click",
       "status": "OK",
@@ -49,6 +54,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "去 Alibaba 刊登",
       "event": "on_click",
       "status": "OK",
@@ -57,6 +63,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "商品标题关键词（留空处理全部）",
       "event": "on_change",
       "status": "OK",
@@ -65,6 +72,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "商品标题关键词（留空处理全部）",
       "event": "on_submit",
       "status": "OK",
@@ -73,6 +81,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "选择商品",
       "event": "on_click",
       "status": "OK",
@@ -81,6 +90,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "清空",
       "event": "on_click",
       "status": "OK",
@@ -89,6 +99,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "搜索全部商品",
       "event": "on_click",
       "status": "OK",
@@ -97,6 +108,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "刷新数量",
       "event": "on_click",
       "status": "OK",
@@ -105,22 +117,25 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "前往店铺与模板",
       "event": "on_click",
-      "status": "DEFERRED",
+      "status": "OK",
       "scenario": "default",
-      "detail": "_sync_shops"
+      "detail": ""
     },
     {
       "page": 0,
-      "label": "前往店铺与模板",
+      "platform": "alibaba",
+      "label": "前往 Alibaba 刊登",
       "event": "on_click",
-      "status": "DEFERRED",
+      "status": "OK",
       "scenario": "default",
-      "detail": "_sync_shops"
+      "detail": ""
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "前往账号与连接",
       "event": "on_click",
       "status": "DEFERRED",
@@ -129,6 +144,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "前往账号与连接",
       "event": "on_click",
       "status": "DEFERRED",
@@ -137,6 +153,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "检查配置冲突",
       "event": "on_click",
       "status": "OK",
@@ -145,6 +162,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "去设置",
       "event": "on_click",
       "status": "DEFERRED",
@@ -153,6 +171,7 @@
     },
     {
       "page": 0,
+      "platform": "alibaba",
       "label": "重新检测",
       "event": "on_click",
       "status": "DEFERRED",
@@ -161,14 +180,7 @@
     },
     {
       "page": 1,
-      "label": "读取并同步",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "_sync_shops"
-    },
-    {
-      "page": 1,
+      "platform": "alibaba",
       "label": "重新检测 Cookie",
       "event": "on_click",
       "status": "DEFERRED",
@@ -177,6 +189,7 @@
     },
     {
       "page": 1,
+      "platform": "alibaba",
       "label": "粘贴 Cookie",
       "event": "on_click",
       "status": "OK",
@@ -185,159 +198,53 @@
     },
     {
       "page": 1,
-      "label": "当前店铺",
-      "event": "on_change",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "_sync_shops"
-    },
-    {
-      "page": 1,
-      "label": "切换到有商品的店铺",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 1,
-      "label": "模板来源",
-      "event": "on_change",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "load"
-    },
-    {
-      "page": 1,
-      "label": "类目来源",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 1,
-      "label": "类目映射 / 学习",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 1,
-      "label": "选择模板产品",
+      "platform": "alibaba",
+      "label": "测试 ICBU 连接",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
-      "detail": "load"
+      "detail": "go"
     },
     {
       "page": 1,
-      "label": "保存模板到本地",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "_save_tpl_local_quick"
-    },
-    {
-      "page": 1,
-      "label": "模板库",
-      "event": "on_click",
+      "platform": "alibaba",
+      "label": "ICBU 店铺 ID（可选）",
+      "event": "on_change",
       "status": "OK",
       "scenario": "default",
       "detail": ""
     },
     {
       "page": 1,
-      "label": "读取模板参数",
+      "platform": "alibaba",
+      "label": "测试商品 ID（可选）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 1,
+      "platform": "alibaba",
+      "label": "去 Alibaba 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 1,
+      "platform": "alibaba",
+      "label": "查看发布队列（只读）",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
-      "detail": "_read_template"
+      "detail": "go"
     },
     {
       "page": 2,
-      "label": "去店铺设置切换",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "_sync_shops"
-    },
-    {
-      "page": 2,
-      "label": "是否原箱",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "重量(kg)",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "长(cm)",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "宽(cm)",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "高(cm)",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "货值默认值",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "高关注化学品",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "是否带电",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "搜索",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "_search_attr_templates"
-    },
-    {
-      "page": 2,
-      "label": "清空已应用",
+      "platform": "alibaba",
+      "label": "去选类目 / 读取必填",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -345,86 +252,16 @@
     },
     {
       "page": 2,
-      "label": "强制删除的自定义属性（逗号分隔）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "+ brand",
+      "platform": "alibaba",
+      "label": "去属性预设",
       "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "+ type",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "+ model",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "+ condition",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "是否提交欧盟资质",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "欧盟责任人名称",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "责任人地址",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "电子邮箱",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "label": "联系电话",
-      "event": "on_change",
       "status": "OK",
       "scenario": "default",
       "detail": ""
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "恢复默认",
       "event": "on_click",
       "status": "OK",
@@ -433,6 +270,25 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
+      "label": "Dropdown",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "套用预设",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
       "label": "套用",
       "event": "on_click",
       "status": "OK",
@@ -441,6 +297,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "套用",
       "event": "on_click",
       "status": "OK",
@@ -449,6 +306,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "套用",
       "event": "on_click",
       "status": "OK",
@@ -457,6 +315,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "启用 AI 标题",
       "event": "on_change",
       "status": "DEFERRED",
@@ -465,6 +324,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "套用",
       "event": "on_click",
       "status": "OK",
@@ -473,6 +333,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -481,6 +342,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "标题前缀",
       "event": "on_change",
       "status": "DEFERRED",
@@ -489,6 +351,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "标题后缀",
       "event": "on_change",
       "status": "DEFERRED",
@@ -497,6 +360,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "启用 AI 详情",
       "event": "on_change",
       "status": "DEFERRED",
@@ -505,6 +369,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "套用",
       "event": "on_click",
       "status": "OK",
@@ -513,6 +378,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -521,6 +387,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "启用 AI 优化 SKU",
       "event": "on_change",
       "status": "DEFERRED",
@@ -529,6 +396,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "套用",
       "event": "on_click",
       "status": "OK",
@@ -537,6 +405,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -545,6 +414,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "启用 AI 估重",
       "event": "on_change",
       "status": "DEFERRED",
@@ -553,6 +423,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "套用",
       "event": "on_click",
       "status": "OK",
@@ -561,6 +432,7 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -568,87 +440,8 @@
       "detail": "background"
     },
     {
-      "page": 3,
-      "label": "启用（总开关）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "label": "详情图合规过滤",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "label": "文字插入位置",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "label": "图片插入位置",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "label": "开头文字（可留空）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "label": "结尾文字（可留空）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "label": "选择图片",
-      "event": "on_click",
-      "status": "NATIVE",
-      "scenario": "default",
-      "detail": "pick_files"
-    },
-    {
-      "page": 3,
-      "label": "清空",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "label": "复制SKU到详情",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "label": "删除详情原有文本",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
       "page": 4,
+      "platform": "alibaba",
       "label": "恢复默认",
       "event": "on_click",
       "status": "OK",
@@ -657,6 +450,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "启用文本审查",
       "event": "on_change",
       "status": "DEFERRED",
@@ -665,6 +459,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -673,6 +468,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "违禁词检查",
       "event": "on_change",
       "status": "DEFERRED",
@@ -681,6 +477,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "主图审查",
       "event": "on_change",
       "status": "DEFERRED",
@@ -689,6 +486,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -697,6 +495,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "详情图审查",
       "event": "on_change",
       "status": "DEFERRED",
@@ -705,6 +504,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -713,6 +513,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "详情图审查前 N 张",
       "event": "on_change",
       "status": "DEFERRED",
@@ -721,6 +522,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "详情图审查后 N 张",
       "event": "on_change",
       "status": "DEFERRED",
@@ -729,6 +531,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "不合规时拦截发布",
       "event": "on_change",
       "status": "DEFERRED",
@@ -737,6 +540,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "恢复默认",
       "event": "on_click",
       "status": "OK",
@@ -745,6 +549,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "只做白底",
       "event": "on_click",
       "status": "OK",
@@ -753,6 +558,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "只去水印",
       "event": "on_click",
       "status": "OK",
@@ -761,6 +567,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "只做翻译",
       "event": "on_click",
       "status": "OK",
@@ -769,6 +576,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "全部关闭",
       "event": "on_click",
       "status": "OK",
@@ -777,6 +585,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图白底",
       "event": "on_change",
       "status": "DEFERRED",
@@ -785,6 +594,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "白底起始序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -793,6 +603,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "白底结束序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -801,6 +612,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图去水印/去Logo",
       "event": "on_change",
       "status": "DEFERRED",
@@ -809,6 +621,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "去水印起始序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -817,6 +630,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "去水印结束序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -825,6 +639,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图文字翻译",
       "event": "on_change",
       "status": "DEFERRED",
@@ -833,6 +648,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "翻译序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -841,6 +657,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "描述图序号（白底/去水印/编辑共用）",
       "event": "on_change",
       "status": "DEFERRED",
@@ -849,6 +666,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "描述图白底",
       "event": "on_change",
       "status": "DEFERRED",
@@ -857,6 +675,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "描述图去水印",
       "event": "on_change",
       "status": "DEFERRED",
@@ -865,6 +684,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "描述图文字翻译",
       "event": "on_change",
       "status": "DEFERRED",
@@ -873,6 +693,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "翻译序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -881,6 +702,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图序号（白底/去水印/编辑共用）",
       "event": "on_change",
       "status": "DEFERRED",
@@ -889,6 +711,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "处理 SKU 图",
       "event": "on_change",
       "status": "DEFERRED",
@@ -897,6 +720,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图白底",
       "event": "on_change",
       "status": "DEFERRED",
@@ -905,6 +729,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图去水印",
       "event": "on_change",
       "status": "DEFERRED",
@@ -913,6 +738,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图文字翻译",
       "event": "on_change",
       "status": "DEFERRED",
@@ -921,6 +747,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 判断图片是否需要翻译",
       "event": "on_change",
       "status": "OK",
@@ -929,6 +756,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图也做精细编辑",
       "event": "on_change",
       "status": "OK",
@@ -937,6 +765,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 主图编辑",
       "event": "on_change",
       "status": "OK",
@@ -945,6 +774,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "+ 添加",
       "event": "on_click",
       "status": "OK",
@@ -953,6 +783,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "批量 1-8 张",
       "event": "on_click",
       "status": "OK",
@@ -961,6 +792,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 详情图编辑",
       "event": "on_change",
       "status": "OK",
@@ -969,6 +801,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "+ 添加",
       "event": "on_click",
       "status": "OK",
@@ -977,6 +810,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "批量 1-8 张",
       "event": "on_click",
       "status": "OK",
@@ -985,6 +819,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "删除原有详情图，仅保留 AI 编辑结果",
       "event": "on_change",
       "status": "OK",
@@ -993,6 +828,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI SKU 图编辑",
       "event": "on_change",
       "status": "OK",
@@ -1001,6 +837,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "+ 添加",
       "event": "on_click",
       "status": "OK",
@@ -1009,6 +846,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "批量 1-8 张",
       "event": "on_click",
       "status": "OK",
@@ -1017,6 +855,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "图片尺寸校验",
       "event": "on_change",
       "status": "OK",
@@ -1025,6 +864,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "最小边长(px)",
       "event": "on_change",
       "status": "DEFERRED",
@@ -1033,6 +873,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "检查图片尺寸",
       "event": "on_click",
       "status": "OK",
@@ -1041,6 +882,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "连原图里也不合规的一起去掉（默认关，避免误删主图）",
       "event": "on_change",
       "status": "OK",
@@ -1049,38 +891,7 @@
     },
     {
       "page": 5,
-      "label": "生成营销图（写进营销图片 1:1 / 3:4）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 5,
-      "label": "营销图来源",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 5,
-      "label": "AI 提示词预设（机械类目）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 5,
-      "label": "营销图提示词",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 5,
+      "platform": "alibaba",
       "label": "四合一主图（将主图1-4合成一张）",
       "event": "on_change",
       "status": "OK",
@@ -1089,6 +900,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "四合一位置",
       "event": "on_change",
       "status": "OK",
@@ -1097,6 +909,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图同时作为详情图",
       "event": "on_change",
       "status": "OK",
@@ -1105,6 +918,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图不足时从详情图补齐",
       "event": "on_change",
       "status": "OK",
@@ -1113,6 +927,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "保留主图到本地",
       "event": "on_change",
       "status": "OK",
@@ -1121,6 +936,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "叠加水印到主图（发布时逐张叠加）",
       "event": "on_change",
       "status": "OK",
@@ -1129,6 +945,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "水印位置",
       "event": "on_change",
       "status": "OK",
@@ -1137,6 +954,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "透明度 0-1",
       "event": "on_change",
       "status": "OK",
@@ -1145,6 +963,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "水印图片路径（透明 PNG 最佳）",
       "event": "on_change",
       "status": "OK",
@@ -1153,6 +972,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "选择文件",
       "event": "on_click",
       "status": "NATIVE",
@@ -1161,6 +981,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "测试叠加",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1169,6 +990,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "视频来源",
       "event": "on_change",
       "status": "OK",
@@ -1177,6 +999,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "本地视频路径（可选；留空=用模板商品的视频）",
       "event": "on_change",
       "status": "OK",
@@ -1185,6 +1008,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "选择本地视频",
       "event": "on_click",
       "status": "NATIVE",
@@ -1193,6 +1017,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "每张停留秒数",
       "event": "on_change",
       "status": "OK",
@@ -1201,6 +1026,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "转场秒数",
       "event": "on_change",
       "status": "OK",
@@ -1209,6 +1035,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "视频尺寸",
       "event": "on_change",
       "status": "OK",
@@ -1217,6 +1044,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "铺满裁剪（关闭则留白）",
       "event": "on_change",
       "status": "OK",
@@ -1225,6 +1053,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "首尾淡入淡出",
       "event": "on_change",
       "status": "OK",
@@ -1233,6 +1062,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "覆盖商品已有视频",
       "event": "on_change",
       "status": "OK",
@@ -1241,6 +1071,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "视频输出目录（留空使用默认目录）",
       "event": "on_change",
       "status": "OK",
@@ -1248,327 +1079,8 @@
       "detail": ""
     },
     {
-      "page": 6,
-      "label": "价格模式",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "价格倍率（如 2）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "固定加价（元）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "默认商品成本（元）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "平台佣金 %（试算）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "计算",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "启用阶梯倍率",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "添加一档",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "套用示例（3 档）",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "启用批发",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "购买 N 件以上",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "减免 X%",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "一件代发折扣 Y%",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "启用区域调价",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "添加国家",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "国家/地区",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "绝对价（元）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "IconButton",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "国家/地区",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "绝对价（元）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "IconButton",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "搜索",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "_search_templates"
-    },
-    {
-      "page": 6,
-      "label": "清除已选",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "保存当前",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "应用",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 6,
-      "label": "删除",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "SKU 编码写回商品",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "启用自定义前缀",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "前缀",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "分隔符",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "自动生成编码（前缀-001）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "只用前缀（丢掉原编码）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "库存数量",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "打开替换表",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "去价格页",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "生成套装 SKU",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "套装编码前缀",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "套装价格倍率",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "示例 SKU（逗号分隔，用于预览套装效果）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 7,
-      "label": "预览",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
       "page": 8,
+      "platform": "alibaba",
       "label": "刷新数量",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1577,6 +1089,7 @@
     },
     {
       "page": 8,
+      "platform": "alibaba",
       "label": "查看草稿",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1585,6 +1098,7 @@
     },
     {
       "page": 8,
+      "platform": "alibaba",
       "label": "查看在线",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1593,6 +1107,7 @@
     },
     {
       "page": 8,
+      "platform": "alibaba",
       "label": "去 Alibaba 刊登",
       "event": "on_click",
       "status": "OK",
@@ -1601,6 +1116,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "重新检测 Cookie",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1609,6 +1125,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "粘贴 Cookie",
       "event": "on_click",
       "status": "OK",
@@ -1617,6 +1134,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "打开店小秘",
       "event": "on_click",
       "status": "EXTERNAL",
@@ -1625,54 +1143,7 @@
     },
     {
       "page": 9,
-      "label": "加载",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "work"
-    },
-    {
-      "page": 9,
-      "label": "只看有图",
-      "event": "on_change",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "work"
-    },
-    {
-      "page": 9,
-      "label": "上一页",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
-      "label": "下一页",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
-      "label": "全选本页",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
-      "label": "取选中图片",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
+      "platform": "alibaba",
       "label": "导入本地图片",
       "event": "on_click",
       "status": "NATIVE",
@@ -1681,6 +1152,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "白底",
       "event": "on_click",
       "status": "OK",
@@ -1689,6 +1161,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "去水印",
       "event": "on_click",
       "status": "OK",
@@ -1697,6 +1170,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "加水印",
       "event": "on_click",
       "status": "OK",
@@ -1705,6 +1179,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "翻译成英文",
       "event": "on_click",
       "status": "OK",
@@ -1713,6 +1188,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "按提示词编辑",
       "event": "on_click",
       "status": "OK",
@@ -1721,6 +1197,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "四合一拼图",
       "event": "on_click",
       "status": "OK",
@@ -1729,6 +1206,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "生成视频",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1737,6 +1215,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "上传结果到相册",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1745,6 +1224,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "清理旧图 / 空间",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1753,6 +1233,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "加载图片",
       "event": "on_click",
       "status": "OK",
@@ -1761,6 +1242,7 @@
     },
     {
       "page": 9,
+      "platform": "alibaba",
       "label": "从已拉取产品取图",
       "event": "on_click",
       "status": "OK",
@@ -1768,39 +1250,8 @@
       "detail": ""
     },
     {
-      "page": 9,
-      "label": "产品入队",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
-      "label": "处理队列",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
-      "label": "清理已完成",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
-      "label": "重试失败",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
       "page": 10,
+      "platform": "alibaba",
       "label": "停止任务",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1809,6 +1260,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "上报运行日志",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1817,6 +1269,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "导出日志",
       "event": "on_click",
       "status": "OK",
@@ -1825,6 +1278,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "打开日志文件",
       "event": "on_click",
       "status": "EXTERNAL",
@@ -1833,6 +1287,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "清空",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1841,6 +1296,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "清空已编辑记录",
       "event": "on_click",
       "status": "OK",
@@ -1849,6 +1305,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "复制全部日志",
       "event": "on_click",
       "status": "OK",
@@ -1857,6 +1314,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "导出筛选结果",
       "event": "on_click",
       "status": "EXTERNAL",
@@ -1865,6 +1323,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "导出 CSV",
       "event": "on_click",
       "status": "EXTERNAL",
@@ -1873,6 +1332,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "清空日志",
       "event": "on_click",
       "status": "OK",
@@ -1881,6 +1341,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "Dropdown",
       "event": "on_change",
       "status": "DEFERRED",
@@ -1889,6 +1350,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -1897,6 +1359,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "清空筛选",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1905,6 +1368,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "跟随最新",
       "event": "on_change",
       "status": "OK",
@@ -1912,15 +1376,8 @@
       "detail": ""
     },
     {
-      "page": 10,
-      "label": "刷新",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "background"
-    },
-    {
       "page": 11,
+      "platform": "alibaba",
       "label": "API Key",
       "event": "on_change",
       "status": "OK",
@@ -1929,6 +1386,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "并发数（同时处理几个产品）",
       "event": "on_change",
       "status": "OK",
@@ -1937,6 +1395,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "超时（秒）",
       "event": "on_change",
       "status": "OK",
@@ -1945,6 +1404,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "保存",
       "event": "on_click",
       "status": "OK",
@@ -1953,6 +1413,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "测试连接",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1961,6 +1422,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "检测余额",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1969,6 +1431,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "购买 / 充值 API",
       "event": "on_click",
       "status": "EXTERNAL",
@@ -1977,6 +1440,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "复制机器码",
       "event": "on_click",
       "status": "OK",
@@ -1985,6 +1449,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "重新检测",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1993,6 +1458,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "旧版授权 ID（可选）",
       "event": "on_change",
       "status": "OK",
@@ -2001,6 +1467,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "保存并刷新授权",
       "event": "on_click",
       "status": "OK",
@@ -2009,6 +1476,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "清理旧图",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2017,6 +1485,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "保存",
       "event": "on_click",
       "status": "OK",
@@ -2025,6 +1494,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "测试上传",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2033,6 +1503,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "恢复推荐图床",
       "event": "on_click",
       "status": "OK",
@@ -2041,6 +1512,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "刷新价格",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2049,6 +1521,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "启动时打开",
       "event": "on_change",
       "status": "OK",
@@ -2057,6 +1530,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "窗口大小",
       "event": "on_change",
       "status": "OK",
@@ -2065,6 +1539,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "创建实例",
       "event": "on_click",
       "status": "OK",
@@ -2073,6 +1548,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "创建并启动",
       "event": "on_click",
       "status": "OK",
@@ -2081,6 +1557,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "检查更新",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2089,6 +1566,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "开始诊断",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2097,6 +1575,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "下载并安装 ffmpeg（约 70MB）",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2105,6 +1584,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "恢复图床",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2113,6 +1593,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "恢复 API 地址",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2121,6 +1602,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "全部恢复推荐值",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2129,6 +1611,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "Cookie（可留空自动沿用）",
       "event": "on_change",
       "status": "OK",
@@ -2137,6 +1620,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "店铺 ID（可选）",
       "event": "on_change",
       "status": "OK",
@@ -2145,6 +1629,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "当前商品 ID",
       "event": "on_change",
       "status": "OK",
@@ -2153,6 +1638,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "测试连接",
       "event": "on_click",
       "status": "OK",
@@ -2161,6 +1647,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "读取商品",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2169,6 +1656,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "上一页",
       "event": "on_click",
       "status": "OK",
@@ -2177,6 +1665,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "下一页",
       "event": "on_click",
       "status": "OK",
@@ -2185,6 +1674,16 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
+      "label": "按 ID 打开",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
       "label": "搜索",
       "event": "on_click",
       "status": "OK",
@@ -2193,6 +1692,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "读取必填属性",
       "event": "on_click",
       "status": "OK",
@@ -2201,7 +1701,8 @@
     },
     {
       "page": 12,
-      "label": "展开子类目",
+      "platform": "alibaba",
+      "label": "生成属性预设模板",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -2209,6 +1710,25 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
+      "label": "AI 建议缺失属性",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "展开子类目",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
       "label": "产品分组 ID",
       "event": "on_change",
       "status": "OK",
@@ -2217,6 +1737,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "分组名称（本地）",
       "event": "on_change",
       "status": "OK",
@@ -2225,6 +1746,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "默认关键词（逗号分隔）",
       "event": "on_change",
       "status": "OK",
@@ -2233,6 +1755,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "公司名称（本地）",
       "event": "on_change",
       "status": "OK",
@@ -2241,6 +1764,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "公司网站（本地）",
       "event": "on_change",
       "status": "OK",
@@ -2249,6 +1773,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "公司介绍（英文）",
       "event": "on_change",
       "status": "OK",
@@ -2257,6 +1782,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "公司 FAQ（英文，可空，本地）",
       "event": "on_change",
       "status": "OK",
@@ -2265,6 +1791,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "属性预设 JSON（如 {\"Place of Origin\":\"China\",\"Certification\":\"CE\"}）",
       "event": "on_change",
       "status": "OK",
@@ -2273,6 +1800,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "定价方式",
       "event": "on_change",
       "status": "OK",
@@ -2281,6 +1809,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "销售方式",
       "event": "on_change",
       "status": "OK",
@@ -2289,6 +1818,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "批发起批量",
       "event": "on_change",
       "status": "OK",
@@ -2297,6 +1827,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "运费模板 ID",
       "event": "on_change",
       "status": "OK",
@@ -2305,6 +1836,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "FOB 币种",
       "event": "on_change",
       "status": "OK",
@@ -2313,6 +1845,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "FOB 最低价",
       "event": "on_change",
       "status": "OK",
@@ -2321,6 +1854,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "FOB 最高价",
       "event": "on_change",
       "status": "OK",
@@ -2329,6 +1863,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "MOQ",
       "event": "on_change",
       "status": "OK",
@@ -2337,6 +1872,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "单位",
       "event": "on_change",
       "status": "OK",
@@ -2345,6 +1881,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "包装尺寸 LxWxH(cm)",
       "event": "on_change",
       "status": "OK",
@@ -2353,6 +1890,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "重量 kg",
       "event": "on_change",
       "status": "OK",
@@ -2361,6 +1899,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "库存",
       "event": "on_change",
       "status": "OK",
@@ -2369,6 +1908,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "HS 编码",
       "event": "on_change",
       "status": "OK",
@@ -2377,6 +1917,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）",
       "event": "on_change",
       "status": "OK",
@@ -2385,6 +1926,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "贸易条款（本地）",
       "event": "on_change",
       "status": "OK",
@@ -2393,6 +1935,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "港口（本地）",
       "event": "on_change",
       "status": "OK",
@@ -2401,6 +1944,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "付款方式（本地）",
       "event": "on_change",
       "status": "OK",
@@ -2409,6 +1953,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "交期(天)（本地）",
       "event": "on_change",
       "status": "OK",
@@ -2417,6 +1962,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "预演（不保存）",
       "event": "on_click",
       "status": "OK",
@@ -2425,6 +1971,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "保存到 Alibaba",
       "event": "on_click",
       "status": "OK",
@@ -2433,6 +1980,25 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
+      "label": "Dropdown",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "套用预设",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
       "label": "AI 预演（不保存）",
       "event": "on_click",
       "status": "OK",
@@ -2441,6 +2007,7 @@
     },
     {
       "page": 12,
+      "platform": "alibaba",
       "label": "AI 生成并保存",
       "event": "on_click",
       "status": "OK",
@@ -2448,7 +2015,368 @@
       "detail": ""
     },
     {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "价格模式",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "价格倍率（如 2）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "固定加价（元）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "默认商品成本（元）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "平台佣金 %（试算）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "计算",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "启用阶梯倍率",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "添加一档",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "套用示例（3 档）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "启用批发",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "购买 N 件以上",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "减免 X%",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "一件代发折扣 Y%",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "启用区域调价",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "添加国家",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "国家/地区",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "绝对价（元）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "IconButton",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "国家/地区",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "绝对价（元）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "IconButton",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "搜索",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_search_templates"
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "清除已选",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "保存当前",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "应用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 6,
+      "platform": "aliexpress",
+      "label": "删除",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "SKU 编码写回商品",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "启用自定义前缀",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "前缀",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "分隔符",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "自动生成编码（前缀-001）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "只用前缀（丢掉原编码）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "库存数量",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "打开替换表",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "去价格页",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "生成套装 SKU",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "套装编码前缀",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "套装价格倍率",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "示例 SKU（逗号分隔，用于预览套装效果）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 7,
+      "platform": "aliexpress",
+      "label": "预览",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
       "page": 5,
+      "platform": "alibaba",
       "label": "恢复默认",
       "event": "on_click",
       "status": "OK",
@@ -2457,6 +2385,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "只做白底",
       "event": "on_click",
       "status": "OK",
@@ -2465,6 +2394,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "只去水印",
       "event": "on_click",
       "status": "OK",
@@ -2473,6 +2403,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "只做翻译",
       "event": "on_click",
       "status": "OK",
@@ -2481,6 +2412,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "全部关闭",
       "event": "on_click",
       "status": "OK",
@@ -2489,6 +2421,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图白底",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2497,6 +2430,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "白底起始序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2505,6 +2439,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "白底结束序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2513,6 +2448,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图去水印/去Logo",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2521,6 +2457,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "去水印起始序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2529,6 +2466,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "去水印结束序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2537,6 +2475,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图文字翻译",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2545,6 +2484,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "翻译序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2553,6 +2493,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "描述图序号（白底/去水印/编辑共用）",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2561,6 +2502,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "描述图白底",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2569,6 +2511,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "描述图去水印",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2577,6 +2520,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "描述图文字翻译",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2585,6 +2529,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "翻译序号",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2593,6 +2538,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图序号（白底/去水印/编辑共用）",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2601,6 +2547,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "处理 SKU 图",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2609,6 +2556,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图白底",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2617,6 +2565,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图去水印",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2625,6 +2574,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图文字翻译",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2633,6 +2583,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 判断图片是否需要翻译",
       "event": "on_change",
       "status": "OK",
@@ -2641,6 +2592,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "SKU 图也做精细编辑",
       "event": "on_change",
       "status": "OK",
@@ -2649,6 +2601,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 主图编辑",
       "event": "on_change",
       "status": "OK",
@@ -2657,6 +2610,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "+ 添加",
       "event": "on_click",
       "status": "OK",
@@ -2665,6 +2619,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "批量 1-8 张",
       "event": "on_click",
       "status": "OK",
@@ -2673,6 +2628,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "图片位置",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2681,6 +2637,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI提示词预设",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2689,6 +2646,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "删除这一条",
       "event": "on_click",
       "status": "OK",
@@ -2697,6 +2655,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 提示词",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2705,6 +2664,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "参考图（0/5）",
       "event": "on_click",
       "status": "NATIVE",
@@ -2713,6 +2673,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "清空参考图",
       "event": "on_click",
       "status": "OK",
@@ -2721,6 +2682,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 详情图编辑",
       "event": "on_change",
       "status": "OK",
@@ -2729,6 +2691,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "+ 添加",
       "event": "on_click",
       "status": "OK",
@@ -2737,6 +2700,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "批量 1-8 张",
       "event": "on_click",
       "status": "OK",
@@ -2745,6 +2709,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "删除原有详情图，仅保留 AI 编辑结果",
       "event": "on_change",
       "status": "OK",
@@ -2753,6 +2718,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "图片位置",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2761,6 +2727,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI提示词预设",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2769,6 +2736,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "删除这一条",
       "event": "on_click",
       "status": "OK",
@@ -2777,6 +2745,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 提示词",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2785,6 +2754,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "参考图（0/5）",
       "event": "on_click",
       "status": "NATIVE",
@@ -2793,6 +2763,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "清空参考图",
       "event": "on_click",
       "status": "OK",
@@ -2801,6 +2772,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI SKU 图编辑",
       "event": "on_change",
       "status": "OK",
@@ -2809,6 +2781,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "+ 添加",
       "event": "on_click",
       "status": "OK",
@@ -2817,6 +2790,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "批量 1-8 张",
       "event": "on_click",
       "status": "OK",
@@ -2825,6 +2799,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "图片位置",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2833,6 +2808,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI提示词预设",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2841,6 +2817,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "删除这一条",
       "event": "on_click",
       "status": "OK",
@@ -2849,6 +2826,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "AI 提示词",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2857,6 +2835,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "参考图（0/5）",
       "event": "on_click",
       "status": "NATIVE",
@@ -2865,6 +2844,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "清空参考图",
       "event": "on_click",
       "status": "OK",
@@ -2873,6 +2853,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "图片尺寸校验",
       "event": "on_change",
       "status": "OK",
@@ -2881,6 +2862,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "最小边长(px)",
       "event": "on_change",
       "status": "DEFERRED",
@@ -2889,6 +2871,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "检查图片尺寸",
       "event": "on_click",
       "status": "OK",
@@ -2897,6 +2880,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "连原图里也不合规的一起去掉（默认关，避免误删主图）",
       "event": "on_change",
       "status": "OK",
@@ -2905,38 +2889,7 @@
     },
     {
       "page": 5,
-      "label": "生成营销图（写进营销图片 1:1 / 3:4）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "populated",
-      "detail": ""
-    },
-    {
-      "page": 5,
-      "label": "营销图来源",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "populated",
-      "detail": ""
-    },
-    {
-      "page": 5,
-      "label": "AI 提示词预设（机械类目）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "populated",
-      "detail": ""
-    },
-    {
-      "page": 5,
-      "label": "营销图提示词",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "populated",
-      "detail": ""
-    },
-    {
-      "page": 5,
+      "platform": "alibaba",
       "label": "四合一主图（将主图1-4合成一张）",
       "event": "on_change",
       "status": "OK",
@@ -2945,6 +2898,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "四合一位置",
       "event": "on_change",
       "status": "OK",
@@ -2953,6 +2907,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图同时作为详情图",
       "event": "on_change",
       "status": "OK",
@@ -2961,6 +2916,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "主图不足时从详情图补齐",
       "event": "on_change",
       "status": "OK",
@@ -2969,6 +2925,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "保留主图到本地",
       "event": "on_change",
       "status": "OK",
@@ -2977,6 +2934,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "叠加水印到主图（发布时逐张叠加）",
       "event": "on_change",
       "status": "OK",
@@ -2985,6 +2943,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "水印位置",
       "event": "on_change",
       "status": "OK",
@@ -2993,6 +2952,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "透明度 0-1",
       "event": "on_change",
       "status": "OK",
@@ -3001,6 +2961,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "水印图片路径（透明 PNG 最佳）",
       "event": "on_change",
       "status": "OK",
@@ -3009,6 +2970,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "选择文件",
       "event": "on_click",
       "status": "NATIVE",
@@ -3017,6 +2979,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "测试叠加",
       "event": "on_click",
       "status": "DEFERRED",
@@ -3025,6 +2988,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "视频来源",
       "event": "on_change",
       "status": "OK",
@@ -3033,6 +2997,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "本地视频路径（可选；留空=用模板商品的视频）",
       "event": "on_change",
       "status": "OK",
@@ -3041,6 +3006,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "选择本地视频",
       "event": "on_click",
       "status": "NATIVE",
@@ -3049,6 +3015,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "每张停留秒数",
       "event": "on_change",
       "status": "OK",
@@ -3057,6 +3024,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "转场秒数",
       "event": "on_change",
       "status": "OK",
@@ -3065,6 +3033,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "视频尺寸",
       "event": "on_change",
       "status": "OK",
@@ -3073,6 +3042,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "铺满裁剪（关闭则留白）",
       "event": "on_change",
       "status": "OK",
@@ -3081,6 +3051,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "首尾淡入淡出",
       "event": "on_change",
       "status": "OK",
@@ -3089,6 +3060,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "覆盖商品已有视频",
       "event": "on_change",
       "status": "OK",
@@ -3097,6 +3069,7 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
       "label": "视频输出目录（留空使用默认目录）",
       "event": "on_change",
       "status": "OK",
@@ -3105,6 +3078,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "停止任务",
       "event": "on_click",
       "status": "DEFERRED",
@@ -3113,6 +3087,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "上报运行日志",
       "event": "on_click",
       "status": "DEFERRED",
@@ -3121,6 +3096,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "导出日志",
       "event": "on_click",
       "status": "OK",
@@ -3129,6 +3105,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "打开日志文件",
       "event": "on_click",
       "status": "EXTERNAL",
@@ -3137,6 +3114,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "清空",
       "event": "on_click",
       "status": "DEFERRED",
@@ -3145,6 +3123,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "清空已编辑记录",
       "event": "on_click",
       "status": "OK",
@@ -3153,6 +3132,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "复制全部日志",
       "event": "on_click",
       "status": "OK",
@@ -3161,6 +3141,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "导出筛选结果",
       "event": "on_click",
       "status": "EXTERNAL",
@@ -3169,6 +3150,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "导出 CSV",
       "event": "on_click",
       "status": "EXTERNAL",
@@ -3177,6 +3159,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "清空日志",
       "event": "on_click",
       "status": "OK",
@@ -3185,6 +3168,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "Dropdown",
       "event": "on_change",
       "status": "DEFERRED",
@@ -3193,6 +3177,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "TextField",
       "event": "on_change",
       "status": "DEFERRED",
@@ -3201,6 +3186,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "清空筛选",
       "event": "on_click",
       "status": "DEFERRED",
@@ -3209,35 +3195,12 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "跟随最新",
       "event": "on_change",
       "status": "OK",
       "scenario": "populated",
       "detail": ""
-    },
-    {
-      "page": 10,
-      "label": "刷新",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "populated",
-      "detail": "background"
-    },
-    {
-      "page": 10,
-      "label": "立即发布",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "populated",
-      "detail": "_publish_scheduled_now"
-    },
-    {
-      "page": 10,
-      "label": "取消",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "populated",
-      "detail": "background, background"
     }
   ]
 }

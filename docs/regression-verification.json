@@ -233,5 +233,10 @@
     "name": "test_ui_alibaba_actions",
     "status": "PASS",
     "exit_code": 0
+  },
+  {
+    "name": "test_platform_ui_filter",
+    "status": "PASS",
+    "exit_code": 0
   }
 ]

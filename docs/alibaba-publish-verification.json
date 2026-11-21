@@ -1,0 +1,185 @@
+{
+  "generated_at": "2026-11-22T02:04:40+0800",
+  "product_id": "220114598434958580",
+  "op": "2",
+  "before": {
+    "dxmState": "draft",
+    "productStatusType": null,
+    "dxmOfflineState": null,
+    "publishStatus": null,
+    "auditStatus": null,
+    "productId": null
+  },
+  "edit": {
+    "overrides": {
+      "category_id": "202107201",
+      "full_cid": "18,100005657,100005663,202107201",
+      "attributes": {
+        "Applicable People": "All"
+      }
+    },
+    "hs_code": "9506999000"
+  },
+  "result": {
+    "ok": false,
+    "saved": false,
+    "preview": false,
+    "score": 4.8,
+    "error": "保存失败（业务码 -1）：重量、长宽高、物流属性要么全部填写，要么全部清除",
+    "save_result": {
+      "code": 0,
+      "msg": "Successful",
+      "msgCode": null,
+      "data": {
+        "msg": "重量、长宽高、物流属性要么全部填写，要么全部清除",
+        "code": -1
+      }
+    },
+    "steps": [
+      {
+        "name": "连接 Alibaba",
+        "ok": true,
+        "detail": "Cookie 可用，客户端已创建"
+      },
+      {
+        "name": "读取商品详情",
+        "ok": true,
+        "detail": "Customized Fiberglass Container Pool - Ready-Made Prefabrica · 类目 202107201"
+      },
+      {
+        "name": "读取类目规则",
+        "ok": true,
+        "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+      },
+      {
+        "name": "AI 文案",
+        "ok": true,
+        "detail": "未启用 AI，使用商品原标题/详情"
+      },
+      {
+        "name": "关键词",
+        "ok": true,
+        "detail": "fiberglass container pool, prefabricated outdoor pool, villa pool, custom fiberglass pool, low-maintenance swimming pool"
+      },
+      {
+        "name": "保存前校验",
+        "ok": true,
+        "detail": "必填项全部满足"
+      },
+      {
+        "name": "刊登评分",
+        "ok": true,
+        "detail": "4.80/5（发布线 4.5）"
+      },
+      {
+        "name": "违禁词检查",
+        "ok": true,
+        "detail": "未命中"
+      },
+      {
+        "name": "授权校验",
+        "ok": true,
+        "detail": "通过"
+      },
+      {
+        "name": "保存到 Alibaba",
+        "ok": false,
+        "detail": "保存失败（业务码 -1）：重量、长宽高、物流属性要么全部填写，要么全部清除"
+      }
+    ]
+  },
+  "elapsed_sec": 0.7,
+  "states_after": [
+    {
+      "t": 5,
+      "state": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "dxmOfflineState": null,
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 10,
+      "state": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "dxmOfflineState": null,
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 15,
+      "state": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "dxmOfflineState": null,
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 20,
+      "state": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "dxmOfflineState": null,
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 25,
+      "state": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "dxmOfflineState": null,
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 30,
+      "state": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "dxmOfflineState": null,
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 35,
+      "state": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "dxmOfflineState": null,
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 40,
+      "state": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "dxmOfflineState": null,
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    }
+  ],
+  "draft_total": 28,
+  "online_total": 3671,
+  "offline_total": 0
+}
