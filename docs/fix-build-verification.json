@@ -1,0 +1,320 @@
+[
+  {
+    "issue": "01",
+    "change": "发布队列先显示运行与发布设置",
+    "tests": "16 UI regressions passed",
+    "build": "dist/verified-01-queue-order",
+    "sha256": "71fb502ff2e0bdd6165ed4cd7a3b80040f021f2d0c62bb959ff9fa650396f1c1",
+    "verified_at": "2026-11-20T23:19:03.784507"
+  },
+  {
+    "issue": "02-isolated-build",
+    "build": "dist/verified-02-isolated-build-20261120-231924/AuroraList.app",
+    "tests": [
+      "tests/test_packaging_spec.py",
+      "tests/test_build_scripts.py"
+    ],
+    "sha256": "faec50aabfc7b1c33ce69acca8efe7a65dae10b03e71e7b31c1195bfecc8f353",
+    "verified_at": "2026-11-20T23:19:42.959433",
+    "signature": "PASS"
+  },
+  {
+    "issue": "03-video-layout",
+    "build": "dist/verified-03-video-layout-20261120-232019/AuroraList.app",
+    "tests": [
+      "tests/test_ui_redesign.py",
+      "tests/test_runtime_verification.py"
+    ],
+    "sha256": "01a49c23cab335cf6c26c96d0abb1fa310b0b2278eff8632b38989d33172fb28",
+    "verified_at": "2026-11-20T23:20:39.113551",
+    "signature": "PASS"
+  },
+  {
+    "issue": "04-preview-failure",
+    "build": "dist/verified-04-preview-failure-20261120-232150/AuroraList.app",
+    "tests": [
+      "tests/test_pipeline_result_semantics.py",
+      "tests/test_run_end_to_end.py",
+      "tests/test_ui_redesign.py"
+    ],
+    "sha256": "f0c65fb69e6135e1c2bae1d308a1fd0dd8a79007d8fade75e2fa09d50a0ffa1f",
+    "verified_at": "2026-11-20T23:22:10.495024",
+    "signature": "PASS"
+  },
+  {
+    "issue": "05-video-options",
+    "build": "dist/verified-05-video-options-20261120-232248/AuroraList.app",
+    "tests": [
+      "tests/test_video_settings.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "ebce51345effc28eafdbc8af696b64986aab9c165f5958ca7d4b2f30f0c4aaaa",
+    "verified_at": "2026-11-20T23:23:06.978189",
+    "signature": "PASS"
+  },
+  {
+    "issue": "06-conflict-checks",
+    "build": "dist/verified-06-conflict-checks-20261120-232340/AuroraList.app",
+    "tests": [
+      "tests/test_conflict_effectiveness.py",
+      "tests/test_ui_redesign.py"
+    ],
+    "sha256": "4f638718bc3864932a6da5e8375c3265e480be16adfa0a4dbeec3541cf2e8b39",
+    "verified_at": "2026-11-20T23:23:59.110290",
+    "signature": "PASS"
+  },
+  {
+    "issue": "07-image-switches",
+    "build": "dist/verified-07-image-switches-20261120-232503/AuroraList.app",
+    "tests": [
+      "tests/test_image_switch_execution.py",
+      "tests/test_run_end_to_end.py",
+      "tests/test_image_regressions.py"
+    ],
+    "sha256": "aea746fc225c59b2299616db64e4e8671f3a107f03104bc60ee800e86567cd79",
+    "verified_at": "2026-11-20T23:25:22.505345",
+    "signature": "PASS"
+  },
+  {
+    "issue": "08-run-validation",
+    "build": "dist/verified-08-run-validation-20261120-232542/AuroraList.app",
+    "tests": [
+      "tests/test_ui_redesign.py",
+      "tests/test_conflict_effectiveness.py"
+    ],
+    "sha256": "482de3ad5019e6f3a70a7b3b59b42c00e5ec5ccfd57f9b9ddba796c90a7106fc",
+    "verified_at": "2026-11-20T23:26:00.868508",
+    "signature": "PASS"
+  },
+  {
+    "issue": "09-sku-limit",
+    "build": "dist/verified-09-sku-limit-20261120-232727/AuroraList.app",
+    "tests": [
+      "tests/test_sku_write_safety.py",
+      "tests/test_variants_regression.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "52fb56c2dbed283f22dc446a6b96c3c759997dad9ccab808e44fcc24e73e1f94",
+    "verified_at": "2026-11-20T23:27:45.495846",
+    "signature": "PASS"
+  },
+  {
+    "issue": "10-packaged-runtime",
+    "build": "dist/verified-10-packaged-runtime-20261120-232922/AuroraList.app",
+    "tests": [
+      "tests/test_frozen_localcheck.py",
+      "tests/test_pipeline_result_semantics.py"
+    ],
+    "sha256": "bd8f1a53e19061bbb4f8a06f1d15c6a0f3f9a7dce096b59d75d2eb0dbc1fedd6",
+    "verified_at": "2026-11-20T23:29:42.113254",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "11-full-prompt-cache",
+    "build": "dist/verified-11-full-prompt-cache-20261120-233026/AuroraList.app",
+    "tests": [
+      "tests/test_full_prompt_cache.py",
+      "tests/test_image_switch_execution.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "de115a4fd5c1ea9b011cba95d22e7e8a44ff6efb23ce1ccfa68955ee488db6b8",
+    "verified_at": "2026-11-20T23:30:46.552234",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "12-original-box",
+    "build": "dist/verified-12-original-box-20261120-233347/AuroraList.app",
+    "tests": [
+      "tests/test_sku_write_safety.py",
+      "tests/test_api_save.py",
+      "tests/test_price_write_safety.py"
+    ],
+    "sha256": "e9a42232c9413c1fab1df55d75726bad109df835739a7159d2e66080acb18977",
+    "verified_at": "2026-11-20T23:34:06.877876",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "13-schedule-destination",
+    "build": "dist/verified-13-schedule-destination-20261120-233436/AuroraList.app",
+    "tests": [
+      "tests/test_schedule_destination.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "ce96c5eb27c4bc342131e53b0ee44ae4b37c1f279f95901f372f077f3d005ff7",
+    "verified_at": "2026-11-20T23:34:55.362321",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "14-detail-options",
+    "build": "dist/verified-14-detail-options-20261120-233557/AuroraList.app",
+    "tests": [
+      "tests/test_detail_content.py",
+      "tests/test_run_end_to_end.py",
+      "tests/test_price_write_safety.py"
+    ],
+    "sha256": "0bba29b0c0603f447048b5c5a3edf912c048d85d29b56ad4a490ab8aa47271d6",
+    "verified_at": "2026-11-20T23:36:17.038016",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "15-runtime-status",
+    "build": "dist/verified-15-runtime-status-20261120-233640/AuroraList.app",
+    "tests": [
+      "tests/test_pipeline_result_semantics.py",
+      "tests/test_ui_redesign.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "407afa5319c6ffd6b26f3e4ad9b93b318bcfce22208cd2c5d22e4c37decbf919",
+    "verified_at": "2026-11-20T23:37:00.915965",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "16-combo-visibility",
+    "build": "dist/verified-16-combo-visibility-20261120-233705/AuroraList.app",
+    "tests": [
+      "tests/test_conflict_effectiveness.py",
+      "tests/test_ui_redesign.py",
+      "tests/test_preflight_config.py"
+    ],
+    "sha256": "09874bfdc0b7222ade4c9dcf24ea568c8edb699ff8996704d5033268f349955a",
+    "verified_at": "2026-11-20T23:37:25.082192",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "17-qa-publish-boundaries",
+    "build": "dist/verified-17-qa-publish-boundaries-20261120-233934/AuroraList.app",
+    "tests": [
+      "tests/test_runtime_verification.py",
+      "tests/test_schedule_destination.py",
+      "tests/test_ui_redesign.py"
+    ],
+    "sha256": "cc6c39c944324946dce400fe2283d77edf08e7a143920bbe775e9b29716d9ae7",
+    "verified_at": "2026-11-20T23:39:55.995869",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "18-shared-platform-sku-id",
+    "build": "dist/verified-18-shared-platform-sku-id-20261120-235646/AuroraList.app",
+    "tests": [
+      "tests/test_sku_write_safety.py",
+      "tests/test_runtime_verification.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "23b9e08c7b70d513db572ef9124119556c1e1e4186020456987a7a89a615e109",
+    "verified_at": "2026-11-20T23:57:06.798793",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "19-missing-source-price",
+    "build": "dist/verified-19-missing-source-price-20261120-235733/AuroraList.app",
+    "tests": [
+      "tests/test_missing_price_safety.py",
+      "tests/test_run_end_to_end.py",
+      "tests/test_pricing_regression.py"
+    ],
+    "sha256": "14cbf0cf354f0945e4ca00ed6212c1933998630aca590a16e104feeabdd5dba2",
+    "verified_at": "2026-11-20T23:57:52.686072",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "20-preserve-duplicate-variants",
+    "build": "dist/verified-20-preserve-duplicate-variants-20261120-235839/AuroraList.app",
+    "tests": [
+      "tests/test_sku_write_safety.py",
+      "tests/test_api_save.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "90fd3a141e851e998815a8b885ec1174649308f408517de92bf488e1fb48fbeb",
+    "verified_at": "2026-11-20T23:58:59.270222",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "21-mode-summary",
+    "build": "dist/verified-21-mode-summary-20261120-235931/AuroraList.app",
+    "tests": [
+      "tests/test_pipeline_result_semantics.py",
+      "tests/test_preflight_config.py"
+    ],
+    "sha256": "24a0bd80fd3375b6288ae001b7804698ccbbb95fe6f858a13428da314b80ef19",
+    "verified_at": "2026-11-20T23:59:50.822734",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "22-customs-version",
+    "build": "dist/verified-22-customs-version-20261121-000254/AuroraList.app",
+    "tests": [
+      "tests/test_customs_metadata.py",
+      "tests/test_api_save.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "f76f47dbe7a09c0ada23eda007166297e33c45a473357c236fb8330a1aae94f0",
+    "verified_at": "2026-11-21T00:03:13.932685",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "23-preserve-prices",
+    "build": "dist/verified-23-preserve-prices-20261121-001232/AuroraList.app",
+    "tests": [
+      "tests/test_missing_price_safety.py",
+      "tests/test_price_write_safety.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "2a2e0e5032562fcbaa41f1a60629c8867c82a442c21fb96d02867081f5a146ae",
+    "verified_at": "2026-11-21T00:12:52.177072",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "24-sku-auto-recovery",
+    "build": "dist/verified-24-sku-auto-recovery-20261121-001512/AuroraList.app",
+    "tests": [
+      "tests/test_sku_recovery.py",
+      "tests/test_sku_write_safety.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "629ed17f9ee0977854e360b7d2303e978b5a4534c7524ad3f2ff70599c0231bf",
+    "verified_at": "2026-11-21T00:15:32.203254",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "25-customs-auto-query",
+    "build": "dist/verified-25-customs-auto-query-20261121-001642/AuroraList.app",
+    "tests": [
+      "tests/test_customs_metadata.py",
+      "tests/test_api_save.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "c89d20218e9e8005050ccff65be333c6cbcda69887bba3fc939666ea5496f9a4",
+    "verified_at": "2026-11-21T00:17:01.870587",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "26-publication-retry-repair",
+    "build": "dist/verified-26-publication-retry-repair-20261121-001834/AuroraList.app",
+    "tests": [
+      "tests/test_publish_repair.py",
+      "tests/test_customs_metadata.py",
+      "tests/test_sku_recovery.py",
+      "tests/test_run_end_to_end.py"
+    ],
+    "sha256": "5f8357f20df05fd4c7c705d5b9a35aa3081b0ca47f43aa65e96861ec671ed548",
+    "verified_at": "2026-11-21T00:18:54.380346",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  }
+]

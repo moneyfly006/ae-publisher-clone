@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;height:1440px;overflow:hidden}
+  body{
+    font-family:"Noto Sans SC",sans-serif;background:#07080D;color:#F3F5FB;
+    position:relative;
+  }
+  .bg{position:absolute;inset:0;overflow:hidden}
+  .glow{position:absolute;border-radius:50%;filter:blur(90px);opacity:.55}
+  .g1{width:760px;height:520px;left:-160px;top:-180px;background:#7C5CFF}
+  .g2{width:620px;height:460px;right:-180px;top:120px;background:#00D2A8;opacity:.35}
+  .g3{width:700px;height:500px;left:180px;bottom:-260px;background:#3B6CFF;opacity:.25}
+  .grid{position:absolute;inset:0;opacity:.35;
+    background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(ellipse at 50% 0%,#000 25%,transparent 75%);
+    -webkit-mask-image:radial-gradient(ellipse at 50% 0%,#000 25%,transparent 75%);}
+  .wrap{position:relative;padding:70px 72px;height:100%;display:flex;flex-direction:column}
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:20px;letter-spacing:.22em;color:#00D2A8}
+  h1{font-family:"Noto Serif SC",serif;font-weight:900;line-height:1.16;letter-spacing:-.02em}
+  .pains{margin-top:44px;display:flex;flex-direction:column;gap:20px}
+  .pain{display:flex;gap:18px;align-items:flex-start;background:rgba(255,255,255,.035);
+    border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:22px 24px}
+  .x{flex:none;width:34px;height:34px;border-radius:10px;background:rgba(255,80,80,.14);
+    border:1px solid rgba(255,80,80,.35);color:#FF6B6B;display:grid;place-items:center;
+    font-size:19px;font-weight:700;margin-top:2px}
+  .pain b{font-size:27px;font-weight:700;display:block;margin-bottom:4px}
+  .pain span{font-size:21px;color:#98A0B8;line-height:1.5}
+  .turn{margin-top:36px;display:flex;align-items:center;gap:16px;color:#8B92A8;font-size:20px}
+  .turn i{flex:1;height:1px;background:linear-gradient(90deg,rgba(124,92,255,.6),transparent)}
+  .brandline{display:flex;align-items:center;gap:16px;margin-top:24px}
+  .brandline img{width:66px;height:66px;border-radius:18px;box-shadow:0 16px 44px rgba(124,92,255,.45)}
+  .brandline b{font-family:"Noto Serif SC",serif;font-size:40px;font-weight:900}
+  .brandline small{display:block;font-family:"JetBrains Mono",monospace;font-size:15px;color:#8B92A8;letter-spacing:.2em;margin-top:2px;font-weight:500}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:28px;margin-bottom:30px}
+  .stat{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:20px 18px}
+  .stat b{font-family:"JetBrains Mono",monospace;font-size:44px;line-height:1;
+    background:linear-gradient(120deg,#fff,#A78BFA);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat span{display:block;margin-top:8px;font-size:18px;color:#98A0B8;line-height:1.45}
+  .footer{margin-top:auto;display:flex;align-items:center;justify-content:space-between;
+    border-top:1px solid rgba(255,255,255,.1);padding-top:26px}
+  .foot-l{font-size:19px;color:#8B92A8}
+  .foot-l b{display:block;font-size:26px;color:#F3F5FB;margin-top:6px;letter-spacing:.02em}
+  .cta{background:linear-gradient(120deg,#8B6BFF,#00D2A8);color:#07080D;font-weight:700;
+    padding:18px 26px;border-radius:16px;font-size:22px;text-align:center;line-height:1.3}
+  .cta small{display:block;font-size:15px;font-weight:500;opacity:.8;margin-top:2px}
+</style></head>
+<body>
+<div class="bg">
+  <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+  <div class="grid"></div>
+</div>
+<div class="wrap">
+  <div class="eyebrow">速卖通卖家的日常</div>
+  <h1 style="font-size:66px;margin-top:18px">一天 3 小时，<br/><span style="background:linear-gradient(110deg,#fff,#A78BFA 45%,#00D2A8);-webkit-background-clip:text;background-clip:text;color:transparent">只上了 10 个链接？</span></h1>
+
+  <div class="pains">
+    <div class="pain"><div class="x">×</div><div><b>一个商品 40 分钟</b><span>改标题、写英文五点、修图、填属性，一天下来腰都直不起来</span></div></div>
+    <div class="pain"><div class="x">×</div><div><b>白底 / 去水印一张 1~2 元</b><span>外包还要排队，100 个商品光修图就是几百块</span></div></div>
+    <div class="pain"><div class="x">×</div><div><b>价格汇率算错</b><span>不是亏本就是过不了平台上限，改一次全店重算</span></div></div>
+    <div class="pain"><div class="x">×</div><div><b>类目属性一填错，发布就失败</b><span>报错看不懂，翻半天日志也找不到是哪一项</span></div></div>
+  </div>
+
+  <div class="turn"><span>换一种做法</span><i></i></div>
+
+  <div class="brandline">
+    <img src="../assets/logo.png" alt="" />
+    <div><b>极光上架 AuroraList</b><small>AURORALIST · AI 批量上架</small></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b>1</b><span>键跑完文案 / 图片 / 价格 / 发布</span></div>
+    <div class="stat"><b>¥0.1</b><span>白底去水印，一张的成本</span></div>
+    <div class="stat"><b>0</b><span>重复扣费，重试不花第二次钱</span></div>
+  </div>
+
+  <div class="footer">
+    <div class="foot-l">免费下载 v1.0.2 · Windows / macOS<b>咨询 QQ 3219904322</b></div>
+    <div class="cta">领取试用<small>发商品链接，现场跑一遍</small></div>
+  </div>
+</div>
+</body></html>

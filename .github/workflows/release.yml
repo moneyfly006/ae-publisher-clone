@@ -1,0 +1,131 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (e.g. 1.0.0)"
+        required: false
+        default: "1.0.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Silicon (M1/M2/M3/M4)
+          - os: macos-latest
+            artifact: AuroraList-macos-arm64
+            arch: arm64
+          # Intel Mac (x86_64) — macos-13 was retired on 2025-12-04,
+          # GitHub's official replacement is macos-15-intel
+          - os: macos-15-intel
+            artifact: AuroraList-macos-x64
+            arch: x64
+          - os: windows-latest
+            artifact: AuroraList-windows
+            arch: x64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller nuitka
+
+      - name: Run tests (smoke)
+        shell: bash
+        run: |
+          PYTHONPATH=src python tests/test_api_save.py || true
+
+      - name: Harden (Nuitka compile core modules)
+        shell: bash
+        run: |
+          python tools/harden.py
+
+      - name: Build with PyInstaller
+        shell: bash
+        run: |
+          pyinstaller app.spec --noconfirm --log-level WARN
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd dist
+          # -y 保留 .app 内的符号链接，否则解压后无法运行
+          zip -r -y ../AuroraList-macos-${{ matrix.arch }}.zip AuroraList.app
+          cd ..
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/AuroraList/* -DestinationPath AuroraList-windows-x64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            AuroraList-*.zip
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Show artifacts
+        run: find artifacts -type f | head -20
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}
+          name: AuroraList ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}
+          draft: false
+          prerelease: false
+          body: |
+            ## What's new
+
+            - **Hardened build** — core modules are compiled to native code (Nuitka); no Python bytecode for the license/publisher/payload logic.
+            - **Core-layer license enforcement** — ECDSA voucher verification happens inside `Publisher.run`, so patching UI flags no longer bypasses the license.
+            - **Fixed: publish-failed scanner** — the store list API returns stale state; the scanner now verifies each candidate through the product-detail API.
+            - **UI** — redesigned "Tasks & Logs" page (software) and a cleaner, denser admin user-detail layout (website).
+            - **Cleanup** — removed unused config keys, dead methods and unused imports.
+
+            ## Downloads
+
+            - macOS — Apple Silicon (M1/M2/M3/M4): `AuroraList-macos-arm64.zip`
+            - macOS — Intel (x86_64): `AuroraList-macos-x64.zip`
+            - Windows portable: `AuroraList-windows-x64.zip`
+            - Windows installer: `AuroraList-Setup-<version>.exe`
+
+            > Pick the macOS package that matches your chip. To check: Apple menu → About This Mac → Chip (Apple M…) or Processor (Intel).
+          files: |
+            artifacts/**/AuroraList-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

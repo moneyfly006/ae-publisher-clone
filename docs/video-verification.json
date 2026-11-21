@@ -1,0 +1,18 @@
+[
+  {
+    "cover": true,
+    "fade": true,
+    "width": 320,
+    "height": 320,
+    "duration": "2.533333",
+    "bytes": 4513
+  },
+  {
+    "cover": false,
+    "fade": false,
+    "width": 320,
+    "height": 320,
+    "duration": "2.533333",
+    "bytes": 4661
+  }
+]

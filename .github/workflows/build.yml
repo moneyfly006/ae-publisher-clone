@@ -1,0 +1,72 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller nuitka
+
+      - name: Syntax check
+        run: python -m compileall -q src main.py
+
+      - name: Harden (Nuitka compile core modules)
+        run: python tools/harden.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller --noconfirm --clean app.spec
+
+      - name: Package portable zip
+        run: Compress-Archive -Path dist/AuroraList/* -DestinationPath dist/AuroraList-windows.zip -Force
+        shell: pwsh
+
+      - name: Sync installer version from tag
+        shell: bash
+        run: |
+          V="${{ github.ref_name }}"
+          V="${V#v}"
+          if [ -n "$V" ]; then
+            sed -i "s/MyAppVersion \"[^\"]*\"/MyAppVersion \"$V\"/" installer.iss
+          fi
+          grep MyAppVersion installer.iss
+
+      - name: Build installer (Inno Setup)
+        run: |
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AuroraList-windows
+          path: |
+            dist/AuroraList-windows.zip
+            dist/AuroraList-Setup-*.exe
+
+      - name: Attach to Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/AuroraList-windows.zip
+            dist/AuroraList-Setup-*.exe

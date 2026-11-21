@@ -1,0 +1,118 @@
+{
+  "last_checked": "2026-11-21T00:04:19.095632",
+  "submitted_this_run": false,
+  "ai_called_this_run": false,
+  "run_time": "2026-11-20 23:55:07",
+  "result": "0 succeeded, 5 blocked before AI/save",
+  "products": [
+    {
+      "id": "184807709052713671",
+      "identity_matching": "PASS",
+      "platform_data_issues": [
+        "SKU 109111075028 与 109111075029 的规格属性组合重复；请恢复各SKU真实规格，本次未合并或删除变种",
+        "未读取到采集价格，默认成本也未填写；无法重算售价。请填写默认成本或关闭价格写回以保留原价"
+      ]
+    },
+    {
+      "id": "184807709052714083",
+      "identity_matching": "PASS",
+      "platform_data_issues": [
+        "SKU 109113582620 与 109113582621 的规格属性组合重复；请恢复各SKU真实规格，本次未合并或删除变种",
+        "未读取到采集价格，默认成本也未填写；无法重算售价。请填写默认成本或关闭价格写回以保留原价"
+      ]
+    },
+    {
+      "id": "184807709052713885",
+      "identity_matching": "PASS",
+      "platform_data_issues": [
+        "SKU 109111112284 与 109111112285 的规格属性组合重复；请恢复各SKU真实规格，本次未合并或删除变种",
+        "未读取到采集价格，默认成本也未填写；无法重算售价。请填写默认成本或关闭价格写回以保留原价"
+      ]
+    },
+    {
+      "id": "184807709052712175",
+      "identity_matching": "PASS",
+      "platform_data_issues": [
+        "SKU 109108896259 与 109108896260 的规格属性组合重复；请恢复各SKU真实规格，本次未合并或删除变种",
+        "未读取到采集价格，默认成本也未填写；无法重算售价。请填写默认成本或关闭价格写回以保留原价"
+      ]
+    },
+    {
+      "id": "184807709052714025",
+      "identity_matching": "PASS",
+      "platform_data_issues": [
+        "SKU 109111183630 与 109111183631 的规格属性组合重复；请恢复各SKU真实规格，本次未合并或删除变种",
+        "未读取到采集价格，默认成本也未填写；无法重算售价。请填写默认成本或关闭价格写回以保留原价"
+      ]
+    },
+    {
+      "id": "184807709052714289",
+      "platform_data_issues": [
+        "商品与模板使用同一份过期海关监管属性；请先在店小秘刷新并重新选择商品真实监管属性，再保存模板"
+      ]
+    },
+    {
+      "id": "184807709052714229",
+      "platform_data_issues": [
+        "商品与模板使用同一份过期海关监管属性；请先在店小秘刷新并重新选择商品真实监管属性，再保存模板"
+      ]
+    },
+    {
+      "id": "184807709052712731",
+      "platform_data_issues": [
+        "海关监管属性已过期，当前没有同类目的更新模板；请在店小秘重新选择真实监管属性并保存模板"
+      ]
+    },
+    {
+      "id": "184807709052714381",
+      "platform_data_issues": [
+        "商品与模板使用同一份过期海关监管属性；请先在店小秘刷新并重新选择商品真实监管属性，再保存模板"
+      ]
+    },
+    {
+      "id": "184807709052714347",
+      "platform_data_issues": [
+        "商品与模板使用同一份过期海关监管属性；请先在店小秘刷新并重新选择商品真实监管属性，再保存模板"
+      ]
+    }
+  ],
+  "tests": {
+    "regression_modules": 40,
+    "offline_tests": 63
+  },
+  "latest_build": "dist/verified-22-customs-version-20261121-000254/AuroraList.app",
+  "latest_run": {
+    "run_time": "2026-11-21 00:07:41",
+    "result": "0 succeeded; 5 blocked due to duplicate SKU specifications",
+    "platform_checked_at": "2026-11-21T00:08:06",
+    "states": [
+      {
+        "id": "184807709052713671",
+        "status": "draft",
+        "error": ""
+      },
+      {
+        "id": "184807709052713885",
+        "status": "draft",
+        "error": ""
+      },
+      {
+        "id": "184807709052712175",
+        "status": "draft",
+        "error": ""
+      },
+      {
+        "id": "184807709052714025",
+        "status": "draft",
+        "error": ""
+      },
+      {
+        "id": "184807709052714083",
+        "status": "draft",
+        "error": ""
+      }
+    ],
+    "submitted": false,
+    "ai_called": false
+  }
+}

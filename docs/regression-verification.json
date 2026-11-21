@@ -1,0 +1,212 @@
+[
+  {
+    "name": "test_api_save",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_category_map",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_config_robustness",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_preflight_config",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_regressions",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_plan_conflicts",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_edit_modes",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_ai_image_flow",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_publisher_pipeline_sim",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_size_validation",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_hosting_protocol",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_hosting_fix",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_prompt_plumbing",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_api_preflight",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_audit_pending_skip",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_build_scripts",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_packaging_spec",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_host_cleanup",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_selfcheck_cli",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_windows_update",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_updater",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_preset",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_ui_pages",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_ai_features_comprehensive",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_integration",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_real_ai_execution",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_ui_redesign",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_runtime_verification",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_pipeline_result_semantics",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_video_settings",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_conflict_effectiveness",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_switch_execution",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_sku_write_safety",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_price_write_safety",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_full_prompt_cache",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_detail_content",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_schedule_destination",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_frozen_localcheck",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_missing_price_safety",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_customs_metadata",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_sku_recovery",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_publish_repair",
+    "status": "PASS",
+    "exit_code": 0
+  }
+]

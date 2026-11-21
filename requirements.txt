@@ -1,0 +1,6 @@
+flet==0.25.2
+flet-desktop==0.25.2
+requests==2.32.3
+Pillow==11.0.0
+browser_cookie3==0.19.1
+pycryptodome==3.21.0
