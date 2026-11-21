@@ -90,6 +90,43 @@ class AlibabaClient:
             params["searchValue"] = search
         return self._get("/alibabaIcbuProduct/list.json", params)
 
+    def online_category_scope(self, max_pages: int = 10, page_size: int = 100) -> dict:
+        """扫描在线商品列表的 categoryId，近似判断「经营类目范围」。
+
+        平台发布时会校验类目是否在店铺经营范围内（PUB_BIZCHECK_CAT_PUB_RESTRICT），
+        但没有暴露「经营类目清单」接口；在线商品必然已通过该类目校验，所以用
+        在线商品类目做样本预检。结果只是近似，最终以卖家中心经营类目设置为准。
+        """
+        cache = getattr(self, "_online_scope_cache", None)
+        if cache is not None:
+            return cache
+        from collections import Counter
+        cats: Counter = Counter()
+        scanned = 0
+        total = None
+        used_pages = 0
+        for page in range(1, max(1, int(max_pages)) + 1):
+            d = self.list_products(page, page_size, "online")
+            po = ((d.get("data") or {}).get("page") or {})
+            if page == 1:
+                total = po.get("totalSize")
+            rows = po.get("list") or []
+            used_pages = page
+            if not rows:
+                break
+            for r in rows:
+                cid = str(r.get("categoryId") or "").strip()
+                if cid:
+                    cats[cid] += 1
+            scanned += len(rows)
+            if total and scanned >= int(total):
+                break
+        out = {"categories": dict(cats), "scanned": scanned,
+               "total": int(total) if str(total or "").isdigit() else total,
+               "pages": used_pages, "page_size": page_size}
+        self._online_scope_cache = out
+        return out
+
     def shops(self) -> list[dict]:
         d = self._post("/alibabaIcbuShopInfoSync/list.json", data={})
         data = d.get("data") or {}

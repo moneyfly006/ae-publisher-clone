@@ -282,6 +282,88 @@ class CategoryAndAuxTests(unittest.TestCase):
         self.assertEqual(c.check_banned_words(title="x"), [])
 
 
+class RetryTests(unittest.TestCase):
+    """店小秘瞬时繁忙/网络抖动：只读接口有界重试，写接口绝不重试。"""
+
+    def test_busy_then_success_retries_once(self):
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [
+            FakeResponse({"code": 2005, "msg": "系统繁忙,请稍后重试!!!",
+                          "data": None}, text='{"code":2005}'),
+            ok({"currency": "CAD"}),
+        ])
+        with patch("aeclone.integrations.amazon.time.sleep") as sleep:
+            currency = c.currency("9408005", "A2EUQ1WTGCTBG2")
+        self.assertEqual(currency, "CAD")
+        self.assertEqual(len(calls), 2)
+        sleep.assert_called_once_with(1.5)
+
+    def test_busy_msg_hint_retries_even_with_other_code(self):
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [
+            FakeResponse({"code": -1, "msg": "系统繁忙，请稍后重试", "data": None},
+                         text='{"code":-1}'),
+            ok([{"templateId": "t", "templateName": "T"}]),
+        ])
+        with patch("aeclone.integrations.amazon.time.sleep"):
+            out = c.logistics("9408005", "A2EUQ1WTGCTBG2")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(out[0]["templateId"], "t")
+
+    def test_repeated_busy_raises_after_three_attempts(self):
+        c = AmazonClient("a=1")
+        busy = lambda: FakeResponse({"code": 2005, "msg": "系统繁忙,请稍后重试!!!",
+                                     "data": None}, text='{"code":2005}')
+        calls = install_responses(self, [busy, busy, busy])
+        with patch("aeclone.integrations.amazon.time.sleep") as sleep:
+            with self.assertRaises(AmazonError) as ctx:
+                c.category_roots("CA")
+        self.assertEqual(len(calls), 3)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [1.5, 3.0])
+        self.assertIn("系统繁忙", str(ctx.exception))
+
+    def test_connection_error_retries(self):
+        c = AmazonClient("a=1")
+
+        def boom():
+            raise requests.ConnectionError("connection reset")
+        calls = install_responses(self, [boom, ok({"currency": "CAD"})])
+        with patch("aeclone.integrations.amazon.time.sleep"):
+            self.assertEqual(c.currency("9408005", "A2EUQ1WTGCTBG2"), "CAD")
+        self.assertEqual(len(calls), 2)
+
+    def test_login_expired_never_retries(self):
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [
+            FakeResponse({"code": 2001, "msg": "未登录"}, text='{"code":2001}')])
+        with patch("aeclone.integrations.amazon.time.sleep") as sleep:
+            with self.assertRaises(AmazonError):
+                c.category_roots("CA")
+        self.assertEqual(len(calls), 1)
+        sleep.assert_not_called()
+
+    def test_http_4xx_never_retries(self):
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [
+            FakeResponse({}, status_code=404, text="not found")])
+        with patch("aeclone.integrations.amazon.time.sleep") as sleep:
+            with self.assertRaises(AmazonError):
+                c.category_roots("CA")
+        self.assertEqual(len(calls), 1)
+        sleep.assert_not_called()
+
+    def test_other_business_error_never_retries(self):
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [
+            FakeResponse({"code": 500, "msg": "参数错误", "data": None},
+                         text='{"code":500}')])
+        with patch("aeclone.integrations.amazon.time.sleep") as sleep:
+            with self.assertRaises(AmazonError):
+                c.category_roots("CA")
+        self.assertEqual(len(calls), 1)
+        sleep.assert_not_called()
+
+
 class SaveProductTests(unittest.TestCase):
     def _payload(self):
         from aeclone.services.amazon_payload import SAVE_KEYS
@@ -330,6 +412,22 @@ class SaveProductTests(unittest.TestCase):
         with self.assertRaises(AmazonError) as ctx:
             c.save_product(self._payload())
         self.assertIn("类目不可用", str(ctx.exception))
+
+    def test_save_never_retries_busy_error(self):
+        """写接口不得自动重试（重试可能造成重复写入）：只调用 1 次并抛错。"""
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [
+            FakeResponse({"code": 2005, "msg": "系统繁忙,请稍后重试!!!", "data": None},
+                         text='{"code":2005}'),
+            FakeResponse({"code": 0, "msg": "Successful",
+                          "data": {"id": "1"}}),
+        ])
+        with patch("aeclone.integrations.amazon.time.sleep") as sleep:
+            with self.assertRaises(AmazonError) as ctx:
+                c.save_product(self._payload())
+        self.assertEqual(len(calls), 1)
+        sleep.assert_not_called()
+        self.assertIn("系统繁忙", str(ctx.exception))
 
     def test_save_code_zero_but_failure_msg_raises(self):
         c = AmazonClient("a=1")

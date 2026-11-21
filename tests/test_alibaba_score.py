@@ -43,13 +43,16 @@ def good_product(**over):
         "attributes": json.dumps(attrs, ensure_ascii=False),
         "mainImage": ",".join(f"https://img.example.com/m{i}.jpg" for i in range(6)),
         "detailImage": json.dumps(detail_imgs),
-        "textDesc": ("<h3>Overview</h3><p>" + "High quality fiberglass container pool for villa and resort. " * 40
-                     + "</p><h3>Specifications</h3><table><tr><td>Size</td><td>20ft</td></tr></table>"
-                       "<ul><li>30 years lifespan</li><li>Easy installation</li></ul>"),
+        "textDesc": ("1) Overview\n"
+                     + "High quality fiberglass container pool for villa and resort. " * 20
+                     + "\n2) Specifications\nSize: 20ft\nMaterial: Fiberglass\n"
+                       "Lifespan: 30 years\n3) Installation\nEasy installation with local support."),
+        "logisticsProperty": "general_cargo_0",
         "priceType": "ladder_price",
         "bulkDiscountPrices": json.dumps([{"start_quantity": 1, "price": 4300.0}]),
         "wholesaleTrade": json.dumps({
             "min_order_quantity": 1, "package_size": "300X200X150", "weight": "300",
+            "deliver_periods": [{"quantity": 1, "process_period": 30}],
             "tariffsHsCode": [{"toCountry": "US", "hsCode": "9506999000"}],
             "inventory": [{"warehouseCode": "CN_LOCAL_01", "value": 10}],
             "unit_type": "Piece", "sale_type": "normal"}),

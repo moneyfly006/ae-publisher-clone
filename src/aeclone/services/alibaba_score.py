@@ -307,14 +307,14 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
         detail_score = 4.0
         dp.append(f"详情 {n_chars} 字符（建议 1800+）")
         df.append("增加参数表/安装/维护段落")
-    if html and not re.search(r"<(h[1-6]|p|ul|ol|table|li)\b", html, re.I):
+    if re.search(r"<[a-zA-Z/][^>]*>", html):
         detail_score -= 1.0
-        dp.append("详情没有 HTML 结构（h3/p/ul/table）")
-        df.append("用 AI 详情（输出 HTML）替换纯文本")
-    if len(html) > 2000:
+        dp.append("详情含 HTML 标签（平台 textDesc 只接受纯文本，保存时会被剥掉）")
+        df.append("详情用纯文本分节（1)/2)/3) + 换行），不要 HTML")
+    if len(plain) > 2000:
         detail_score -= 2.0
-        dp.append(f"详情 HTML {len(html)} 字符，超过平台上限 2000")
-        df.append("压缩详情到 2000 字符内（AI 详情会自动截断，建议提示词要求 800~1500 字符）")
+        dp.append(f"详情纯文本 {len(plain)} 字符，超过平台上限 2000（1000 汉字）")
+        df.append("压缩详情到 2000 字符内（AI 详情会自动截断，提示词要求 800~1500 字符）")
     if len(detail_imgs) < 3:
         detail_score -= 1.0
         dp.append(f"详情图仅 {len(detail_imgs)} 张（建议 ≥3）")

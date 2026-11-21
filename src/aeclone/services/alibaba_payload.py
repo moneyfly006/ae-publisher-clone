@@ -282,8 +282,8 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         save["detailImage"] = json.dumps([{"displayName": "default", "value": -2, "url": u,
                                            "text": ""} for u in det], ensure_ascii=False)
 
-    if ov.get("text_desc"):
-        save["textDesc"] = str(ov["text_desc"])
+    # 平台 textDesc 只接受纯文本且 ≤2000 字符（HTML 会报「不能输入HTML脚本」）
+    save["textDesc"] = text_desc_plain(str(ov.get("text_desc") or save.get("textDesc") or ""))
 
     attrs = merge_attributes(product, cfg, ov)
     filled, unresolved = [], []
@@ -587,6 +587,47 @@ def autofill_required_attributes(product: dict, attr_defs: list | None, cfg=None
 
 
 _INVALID_CATEGORY_VALUES = {"none", "null", "nan", "undefined"}
+
+
+import html as _html_mod
+
+MAX_TEXT_DESC = 2000   # 平台实测：textDesc 不能超过 1000 汉字或 2000 字符
+
+
+def text_desc_plain(raw: str, limit: int = MAX_TEXT_DESC) -> str:
+    """把详情转成平台要求的纯文本（textDesc 不接受 HTML）。
+
+    平台实测错误：
+    - textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符
+    - textDesc:isv.parameter-parse-error:textDesc:不能输入HTML脚本
+    在线商品的 textDesc 实测均为纯文本、无标签；因此这里统一：
+    去 script/style/所有标签 → 块级标签转换行 → 反转义实体 → 压缩空白 → 截断 2000。
+    """
+    s = str(raw or "")
+    s = re.sub(r"<(script|style|iframe)[^>]*>[\s\S]*?</\1>", " ", s, flags=re.I)
+    s = re.sub(r"<!--[\s\S]*?-->", " ", s)
+    # 块级/换行标签 → 换行；单元格/列表项 → 分隔
+    s = re.sub(r"<\s*br\s*/?\s*>", "\n", s, flags=re.I)
+    s = re.sub(r"</\s*(p|h[1-6]|ul|ol|table|div|section|article)\s*>", "\n", s, flags=re.I)
+    s = re.sub(r"</\s*(li|tr)\s*>", "\n", s, flags=re.I)
+    s = re.sub(r"</\s*(td|th)\s*>", " | ", s, flags=re.I)
+    s = re.sub(r"<[^>]+>", "", s)
+    s = _html_mod.unescape(s)
+    s = s.replace("\xa0", " ")
+    lines = [re.sub(r"[ \t]+", " ", ln).strip(" |\t") for ln in s.splitlines()]
+    lines = [ln for ln in lines if ln and ln not in ("|",)]
+    out = "\n".join(lines)
+    out = re.sub(r"\n{3,}", "\n\n", out).strip()
+    if len(out) > limit:
+        out = out[:limit]
+        # 别把最后一行截成半个词
+        if "\n" in out[-60:]:
+            out = out[:out.rfind("\n")].rstrip()
+    return out
+
+
+# 兼容旧名字（早期实现叫 sanitize_detail_html）
+sanitize_detail_html = text_desc_plain
 
 
 def _json_container(v):

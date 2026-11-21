@@ -28,6 +28,7 @@ from __future__ import annotations
 import io
 import json
 import re
+import time
 import zipfile
 
 import requests
@@ -45,6 +46,18 @@ _LANG_NAMES = {
     "tr": "土耳其语", "ar": "阿拉伯语", "zh": "中文",
 }
 _LOGIN_HINTS = ("登录", "未登录", "login", "session", "重新登录", "会话")
+
+# 店小秘「瞬时繁忙」重试（只读接口专用；写接口绝不自动重试，避免重复写入）
+RETRY_MAX_ATTEMPTS = 3                 # 最多 3 次尝试（首次 + 2 次重试）
+RETRY_BACKOFF = (1.5, 3.0)             # 第 1 次重试等 1.5s，第 2 次等 3s
+RETRY_BUSY_CODE = 2005                 # 实测「系统繁忙,请稍后重试!!!」返回 code=2005
+RETRY_BUSY_HINTS = ("系统繁忙", "稍后重试", "请稍后再试", "请求过于频繁", "too many")
+# 写接口路径：命中时强制 retry=False（保存重试可能造成重复写入）
+WRITE_PATH_HINTS = ("/add.json",)
+
+
+class _Retryable(Exception):
+    """内部信号：本次失败可重试（最终对外仍抛 AmazonError）。"""
 
 
 def parse_cookie(text: str) -> dict:
@@ -109,13 +122,40 @@ class AmazonClient:
 
     def _request(self, method: str, path: str, *, params: dict | None = None,
                  data: dict | None = None, files: dict | None = None,
-                 headers: dict | None = None) -> dict:
-        """发请求并把 HTTP/JSON/code 错误统一转成中文 ``AmazonError``。"""
+                 headers: dict | None = None, retry: bool = True) -> dict:
+        """发请求并把 HTTP/JSON/code 错误统一转成中文 ``AmazonError``。
+
+        只读接口对「瞬时繁忙/网络抖动」做有界重试（最多 3 次尝试，backoff 1.5s/3s）；
+        登录失效（401/403/2001）、其它业务错误、HTTP 4xx 不重试。
+        **写接口（含 ``/add.json``）永不自动重试**（保存重试可能重复写入）。
+        """
+        if any(hint in str(path or "") for hint in WRITE_PATH_HINTS):
+            retry = False
+        attempts = RETRY_MAX_ATTEMPTS if retry else 1
+        last_error = ""
+        for attempt in range(1, attempts + 1):
+            try:
+                return self._request_once(method, path, params=params, data=data,
+                                          files=files, headers=headers)
+            except _Retryable as exc:
+                last_error = str(exc)
+                if attempt >= attempts:
+                    break
+                delay = RETRY_BACKOFF[min(attempt - 1, len(RETRY_BACKOFF) - 1)]
+                time.sleep(max(0.0, float(delay)))
+        raise AmazonError(last_error or "请求失败：请稍后重试")
+
+    def _request_once(self, method: str, path: str, *, params: dict | None = None,
+                      data: dict | None = None, files: dict | None = None,
+                      headers: dict | None = None) -> dict:
         try:
             r = self.s.request(method, self._url(path), params=params, data=data,
                                files=files, headers=headers, timeout=self.timeout)
         except requests.Timeout as exc:
-            raise AmazonError(f"请求超时（{self.timeout}s）：{path}，请检查网络或稍后重试") from exc
+            raise _Retryable(
+                f"请求超时（{self.timeout}s）：{path}，请检查网络或稍后重试") from exc
+        except requests.ConnectionError as exc:
+            raise _Retryable(f"网络连接失败：{str(exc)[:160]}") from exc
         except requests.RequestException as exc:
             raise AmazonError(f"网络请求失败：{str(exc)[:160]}") from exc
 
@@ -144,6 +184,11 @@ class AmazonClient:
             low = (msg + " " + str(code)).lower()
             if any(h in msg for h in _LOGIN_HINTS) or "unauthorized" in low:
                 raise AmazonError(msg or "登录已失效：请重新粘贴店小秘 Cookie")
+            # 店小秘「系统繁忙」类瞬时错误：读接口可重试，写接口由外层 retry=False 拦住
+            busy = (str(code) == str(RETRY_BUSY_CODE)
+                    or any(h in msg or h in low for h in RETRY_BUSY_HINTS))
+            if busy:
+                raise _Retryable(msg or f"系统繁忙，请稍后重试（code={code}）")
             raise AmazonError(msg or f"接口错误 code={code}")
         return payload
 
@@ -403,11 +448,13 @@ class AmazonClient:
         blob = self.build_save_zip(payload)
         headers = {"Referer": f"{self.base}/web/amazon/edit?id={payload.get('id') or ''}"}
         try:
+            # 写接口禁止自动重试：保存重试可能造成重复写入（path 命中也会强制 retry=False）
             d = self._request(
                 "POST", "/api/amazonProductSp/add.json",
                 data={"op": op},
                 files={"file": ("blob", blob, "application/zip")},
                 headers=headers,
+                retry=False,
             )
         except AmazonError:
             raise

@@ -89,7 +89,9 @@
 
 ### 3.2 写 #2：`op=1` AI 文案编辑（2026-11-22T02:07:14）
 
-- 路径：`run_amazon_product(..., dry_run=False, use_ai=True) → save_to_amazon`（唯一写收口）；
+- 路径：AI 文案由 `amazon_pipeline.ai_generate_all` 生成（CA/英语：标题 152 字符、5 条卖点、
+  描述 2672 字符 HTML、Search Terms 235 字节），作为 `overrides` 传入
+  `run_amazon_product(..., dry_run=False, use_ai=False, op=1) → save_to_amazon`（唯一写收口）；
 - 预演先行：`preview_ok=true`、`preview_issues=[]`；warnings 仅 5 条草稿提醒
   （标题 152 字符、描述 2672 字符、库存 0、价格 0、品牌 Generic）——均非阻断；
 - 写入结果：`save_ok=true`、`save_result.code=0`、`data=220114595363182310`；

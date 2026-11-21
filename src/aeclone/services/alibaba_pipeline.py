@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from .alibaba_payload import (
     MAX_KEYWORDS, MAX_SUBJECT, MIN_KEYWORDS, build_alibaba_save,
     clean_keywords, detail_urls, keywords_effective, resolve_category,
-    validate_alibaba_save,
+    text_desc_plain, validate_alibaba_save,
 )
 from .alibaba_publish import (
     OP_MOVE_PENDING, OP_PUBLISH, OP_SAVE, OP_SCHEDULE, make_client,
@@ -70,6 +70,8 @@ class AlibabaRunResult:
     score_passed: bool = False
     score_fixes: list[str] = field(default_factory=list)
     publish_state: dict = field(default_factory=dict)
+    scope: dict = field(default_factory=dict)
+    auditing: bool = False
 
     @property
     def incomplete_steps(self) -> list[AlibabaStep]:
@@ -393,12 +395,13 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                                     source_text=plain_source, images=detail_urls(product))
                 if _tr_ok(dr):
                     _raw_desc = _tr_value(dr)
-                    text_desc = clip_detail_html(_raw_desc)
+                    text_desc = text_desc_plain(_raw_desc)
                     _clipped = len(text_desc) != len(_raw_desc)
                     _step(res, "AI 详情", True,
-                          f"HTML {len(text_desc)} 字符 · 纯文本 {len(_plain_text(text_desc))} 字符"
-                          + (f"（已截断自 {len(_raw_desc)}，平台上限 {MAX_TEXT_DESC}）"
-                             if _clipped else ""))
+                          f"纯文本 {len(text_desc)} 字符"
+                          + (f"（已从 {len(_raw_desc)} 截断，平台上限 {MAX_TEXT_DESC}）"
+                             if _clipped else "")
+                          + " · 平台 textDesc 仅收纯文本")
                     for note in _tr_notes(dr)[:3]:
                         res.warnings.append(note)
                 else:
@@ -478,7 +481,7 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
             save_ov.setdefault("subject", subject or source_subject)
             save_ov.setdefault("text_desc", text_desc)
             save_ov.setdefault("keywords", kws)
-            save_ov["text_desc"] = clip_detail_html(save_ov.get("text_desc") or "")
+            save_ov["text_desc"] = text_desc_plain(save_ov.get("text_desc") or "")
             save = build_alibaba_save(product, cfg, save_ov, attr_defs=req)
         except Exception as e:  # noqa: BLE001
             return _fail(res, "构建保存载荷", f"build_alibaba_save 失败：{e}")
@@ -525,6 +528,27 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                 return res
         except Exception as e:  # noqa: BLE001
             _step(res, "刊登评分", True, f"评分跳过：{str(e)[:80]}")
+
+        # d2. 经营类目范围预检（只读；平台硬校验，提前提醒避免发布后才发现）
+        if op == OP_PUBLISH:
+            try:
+                from .alibaba_scope import check_category_scope
+                _scope = check_category_scope(c, res.category_id, max_pages=6)
+                res.scope = {"category_id": _scope.category_id,
+                             "in_scope_guess": _scope.in_scope_guess,
+                             "evidence_count": _scope.evidence_count,
+                             "scanned": _scope.scanned,
+                             "total": _scope.total,
+                             "detail": _scope.detail,
+                             "advice": _scope.advice}
+                _step(res, "类目经营范围", _scope.in_scope_guess, _scope.detail)
+                if not _scope.in_scope_guess:
+                    res.warnings.append(
+                        "经营类目预检：该末级类目未出现在在线商品类目样本中，"
+                        "发布可能被平台拒绝（PUB_BIZCHECK_CAT_PUB_RESTRICT）。"
+                        + _scope.advice)
+            except Exception as e:  # noqa: BLE001
+                _step(res, "类目经营范围", True, f"预检跳过：{str(e)[:80]}")
 
         # e. 违禁词（只读接口，仅作提示，不阻断；所以不记失败步骤）
         try:
@@ -585,9 +609,23 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         data = resp.get("data") if isinstance(resp.get("data"), dict) else {}
         msg = str(data.get("msg") or resp.get("msg") or "")
         inner_code = data.get("code")
+        # 已在审核中：说明之前已提交成功，重复提交被平台拒绝；按「已提交审核」处理。
+        if "PRODUCT_IN_AUDITING" in msg:
+            res.saved = True
+            res.ok = True
+            res.auditing = True
+            _step(res, "保存到 Alibaba", True, "商品已在平台审核中，无需重复提交")
+            _step(res, "发布结果", True, "审核中（平台拒绝重复提交，视为已提交成功）")
+            return res
         # 外层 code=0 不代表成功：实测发布缺发货期时返回
         # {"code":0,"data":{"msg":"发货期信息未填写","code":-1}}。
         if inner_code not in (None, 0, "0"):
+            if "PUB_BIZCHECK_CAT_PUB_RESTRICT" in msg:
+                from .alibaba_scope import CUSTOMER_ADVICE
+                _cid = res.category_id or str(save.get("categoryId") or "")
+                return _fail(res, "保存到 Alibaba",
+                             f"发布被平台拒绝（经营类目）：类目 {_cid} 不在店铺经营类目范围内。"
+                             + CUSTOMER_ADVICE)
             return _fail(res, "保存到 Alibaba",
                          f"保存失败（业务码 {inner_code}）：{msg[:200]}")
         # 店小秘可能出现 code=0 但 msg 是失败语义（「只有处在采集箱中的产品…」）
