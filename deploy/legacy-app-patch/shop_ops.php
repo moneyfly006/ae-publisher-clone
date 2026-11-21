@@ -465,15 +465,6 @@ function page_admin_totp_disable(): void
 }
 
 /* ---------- RBAC / 设备数 ---------- */
-function require_owner(): void
-{
-    $a = current_admin();
-    if (!$a || (string)($a['role'] ?? 'owner') !== 'owner') {
-        flash('bad', '权限不足：仅 owner 可访问该页面');
-        redirect('/admin');
-    }
-}
-
 function shop_device_limit_for_user(int $uid): int
 {
     $db = ops_pdo();

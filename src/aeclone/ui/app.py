@@ -9744,9 +9744,34 @@ class App:
         藏在设置里；设置页只保留与其它平台共用的配置。
         """
         self._current = 12
+
+        def step(n, title, hint, color=ACCENT):
+            return ft.Container(
+                padding=ft.padding.symmetric(horizontal=12, vertical=7),
+                bgcolor=CARD_2, border_radius=999,
+                content=ft.Row([
+                    ft.Container(width=20, height=20, border_radius=10, bgcolor=color,
+                                 alignment=ft.alignment.center,
+                                 content=ft.Text(str(n), size=11.5, color=ON_ACCENT,
+                                                 weight=ft.FontWeight.BOLD)),
+                    ft.Text(title, size=12.5, color=TEXT),
+                    muted(hint, 10.5),
+                ], spacing=6))
+        steps = ft.Row([
+            step(1, "连接", "沿用店小秘 Cookie"),
+            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
+            step(2, "选商品", "草稿/在线，可搜索"),
+            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
+            step(3, "选类目/资料", "必填自动补齐"),
+            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
+            step(4, "预演", "不保存、不花钱"),
+            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
+            step(5, "确认保存", "默认只存草稿", SUCCESS_C),
+        ], spacing=4, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
         return [
             page_header("Alibaba 刊登",
                         "选择商品 → 确认类目/资料 → 预演校验 → 确认保存（草稿/待发布/审核）"),
+            steps,
             *self._alibaba_cards(),
         ]
 

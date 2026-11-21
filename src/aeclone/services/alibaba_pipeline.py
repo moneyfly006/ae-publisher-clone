@@ -124,8 +124,16 @@ def _plain_text(markup: str) -> str:
 
 
 def clip_title(title: str, limit: int = MAX_SUBJECT) -> str:
-    """Alibaba subject ≤128：本地截断（按空格），不调用付费 AI 压缩。"""
-    t = re.sub(r"\s+", " ", str(title or "")).strip().strip('"')
+    """Alibaba subject ≤128：清洗 + 本地截断（按空格），不调用付费 AI 压缩。
+
+    AI 有时输出 en/em dash（– —）、全角标点或中文；Alibaba 英文标题用 ASCII
+    更稳妥，这里统一替换成普通连字符并去掉不可见控制字符。
+    """
+    t = str(title or "")
+    t = (t.replace("\u2013", "-").replace("\u2014", "-").replace("\u2212", "-")
+          .replace("\u00a0", " ").replace("\u200b", "").replace("\ufeff", ""))
+    t = re.sub(r"[\u3000-\u303f\uff00-\uffef]", " ", t)  # 全角标点
+    t = re.sub(r"\s+", " ", t).strip().strip('"').strip("'")
     if len(t) <= limit:
         return t
     cut = t[:limit]
@@ -239,7 +247,8 @@ def _top_up_keywords(kws: list[str], subject: str, plain_detail: str) -> list[st
 # ---------------- 主流程 ----------------
 def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                         op: str = OP_SAVE, use_ai: bool = True,
-                        client=None, text_pipeline=None) -> AlibabaRunResult:
+                        client=None, text_pipeline=None,
+                        overrides: dict | None = None) -> AlibabaRunResult:
     """AI 文案 → Alibaba 保存结构 → 校验 → 违禁词 → 预演/保存。
 
     参数
@@ -251,6 +260,8 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
     use_ai     : True 调 TextPipeline（付费 API）；离线核验传 False
     client     : 可注入 AlibabaClient（测试/脚本）；None 时按 Cookie 顺序创建
     text_pipeline : 可注入 TextPipeline（测试/离线桩）
+    overrides  : 覆盖保存字段（如 category_id/full_cid/price_type/price_tiers），
+                 批量测试或 UI 临时选择类目时不必改全局 cfg
 
     返回 AlibabaRunResult；任何异常都以 ok=False + error 返回，不抛出。
     """
@@ -281,7 +292,8 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
               f"{str(product.get('subject') or '')[:60]} · 类目 {product.get('categoryId')}")
 
         # b. 类目 required attrs + schema（与保存用同一类目上下文）
-        cid, _full_cid = resolve_category(product, cfg)
+        ov = dict(overrides or {})
+        cid, _full_cid = resolve_category(product, cfg, ov)
         req: list = []
         schema: list = []
         if cid:
@@ -376,10 +388,11 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
 
         # d. 构建 + 校验
         try:
-            save = build_alibaba_save(
-                product, cfg,
-                {"subject": subject or source_subject, "text_desc": text_desc, "keywords": kws},
-                attr_defs=req)
+            save_ov = dict(ov)
+            save_ov.setdefault("subject", subject or source_subject)
+            save_ov.setdefault("text_desc", text_desc)
+            save_ov.setdefault("keywords", kws)
+            save = build_alibaba_save(product, cfg, save_ov, attr_defs=req)
         except Exception as e:  # noqa: BLE001
             return _fail(res, "构建保存载荷", f"build_alibaba_save 失败：{e}")
 
