@@ -106,10 +106,21 @@ class AlibabaClient:
 
     def search_categories(self, keyword: str, max_nodes: int = 400,
                           max_depth: int = 4) -> list[dict]:
-        """按中英文名在类目树里搜索（BFS，带内存缓存），返回叶子/匹配节点。"""
-        kw = (keyword or "").strip().lower()
+        """按关键词搜索类目：优先服务端 searchCategory 接口（category 参数）。"""
+        kw = (keyword or "").strip()
         if not kw:
             return []
+        try:
+            d = self._post("/alibabaIcbuCategory/searchCategory.json", data={"category": kw})
+            rows = d.get("data") or []
+            if isinstance(rows, dict):
+                rows = rows.get("list") or rows.get("categoryList") or []
+            if rows:
+                return rows[:max_nodes]
+        except Exception:
+            pass
+        kw = kw.lower()
+        max_nodes = min(max_nodes, 120)
         cache = getattr(self, "_cat_cache", None)
         if cache is None:
             cache = self._cat_cache = {}
@@ -143,20 +154,27 @@ class AlibabaClient:
         return [a for a in self.category_attributes(category_id).get("attributes", [])
                 if int(a.get("required") or 0) == 1]
 
-    def category_detail(self, category_id: str) -> dict:
-        d = self._get("/alibabaIcbuCategory/getByCategoryId.json",
-                      {"categoryId": str(category_id)})
+    def category_detail(self, category_id: str, shop_id: str | None = None) -> dict:
+        params = {"categoryId": str(category_id)}
+        if shop_id:
+            params["shopId"] = str(shop_id)
+        d = self._post("/alibabaIcbuCategory/getByCategoryId.json", data=params)
         return d.get("data") or {}
 
+    def category_history(self, category_id: str) -> list[str]:
+        d = self._post("/alibabaIcbuCategory/getHistoryCategory.json",
+                       data={"categoryId": str(category_id)})
+        return d.get("data") or []
+
     def category_attributes(self, category_id: str) -> dict:
-        data = self._get("/alibabaIcbuCategory/attributeList.json",
-                         {"categoryId": str(category_id)}).get("data") or []
+        data = self._post("/alibabaIcbuCategory/attributeList.json",
+                          data={"categoryId": str(category_id)}).get("data") or []
         attrs = data if isinstance(data, list) else (data.get("attributes") or data.get("list") or [])
         return {"attributes": attrs}
 
     def category_schema(self, category_id: str) -> dict:
-        data = self._get("/alibabaIcbuCategory/schemaList.json",
-                         {"categoryId": str(category_id)}).get("data") or []
+        data = self._post("/alibabaIcbuCategory/schemaList.json",
+                          data={"categoryId": str(category_id)}).get("data") or []
         fields = data if isinstance(data, list) else (data.get("fields") or data.get("list") or [])
         return {"fields": fields}
 
@@ -216,8 +234,10 @@ class AlibabaClient:
             z.writestr(SAVE_NAME, json.dumps(save_dict, ensure_ascii=False))
         return buf.getvalue()
 
-    def save_product(self, product: dict, save_dict: dict | None = None) -> dict:
-        data = save_dict or self.build_save_dict(product)
+    def save_product(self, product: dict, save_dict: dict | None = None,
+                     op: str | int = "1") -> dict:
+        data = dict(save_dict or self.build_save_dict(product))
+        data["op"] = str(op)
         blob = self.zip_payload(data)
         files = {"file": (SAVE_NAME.replace(".txt", ".zip"), blob,
                           "application/octet-stream")}
@@ -230,6 +250,25 @@ class AlibabaClient:
             files = {"file": (Path(zip_path).name, fh.read(),
                               "application/octet-stream")}
         return self._post("/alibabaIcbuProduct/add.json", data={"op": op}, files=files)
+
+    # ---------- 分组 / 运费 / 店铺选项 ----------
+    def product_groups(self, shop_id: str) -> list[dict]:
+        d = self._get(f"/alibabaIcbuShopInfoSync/syncProductGroupNoAll.json?shopId={shop_id}")
+        data = d.get("data") or {}
+        return data.get("alibabaIcbuProductGroupList") or []
+
+    def freight_templates(self, shop_id: str) -> list[dict]:
+        d = self._post("/alibabaIcbuShopInfoSync/freightList.json",
+                       data={"shopId": str(shop_id)})
+        return (d.get("data") or {}).get("freightTemplateList") or []
+
+    def shop_options(self) -> dict:
+        """店铺级下拉数据：国家/单位/省份映射。"""
+        return self._post("/alibabaIcbuShopInfoSync/getSpecialInfo.json", data={}).get("data") or {}
+
+    def units(self) -> list[dict]:
+        unit = (self.shop_options() or {}).get("unit") or {}
+        return [{"label": k, "value": v} for k, v in unit.items()]
 
     # ---------- 违禁词 ----------
     def check_banned_words(self, text: str) -> dict:

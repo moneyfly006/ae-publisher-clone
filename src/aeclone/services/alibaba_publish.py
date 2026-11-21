@@ -33,13 +33,19 @@ def prepare_save(product_id: str, cfg, overrides: dict | None = None,
     return product, save, req, issues
 
 
+OP_SAVE = "1"          # 保存（编辑/草稿）
+OP_PUBLISH = "2"       # 立即发布（或在线更新）
+OP_MOVE_PENDING = "3"  # 保存并移入待发布
+OP_SCHEDULE = "5"      # 定时发布
+
+
 def save_to_alibaba(product_id: str, cfg, overrides: dict | None = None,
-                    allow_invalid: bool = False) -> dict:
+                    allow_invalid: bool = False, op: str = OP_SAVE) -> dict:
     """执行保存；必填不完整时默认拒绝，allow_invalid=True 时仅警告。"""
     c = make_client(cfg)
     product, save, req, issues = prepare_save(product_id, cfg, overrides, client=c)
     if issues and not allow_invalid:
         raise ValueError("保存前校验未通过：" + "；".join(issues))
-    res = c.save_product(product, save)
+    res = c.save_product(product, save, op=op)
     return {"result": res, "issues": issues, "autofilled": save.get("_autofilled") or [],
             "product_id": product.get("id")}

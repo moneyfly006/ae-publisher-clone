@@ -202,10 +202,27 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
     save["_autofilled"] = filled
     save["_unresolved"] = unresolved
 
+    # 价格类型：sku_price 按规格 / ladder_price 按数量 / fob_price 单一区间
+    ptype = str(ov.get("price_type") or _cfg_get(cfg, "alibaba_price_type", "ladder_price")
+                or "ladder_price")
     tiers = price_tiers(cfg, ov)
-    if tiers:
+    if ptype == "fob_price":
+        fob = {
+            "fob_unit_type": str(_cfg_get(cfg, "alibaba_unit_type", "") or ""),
+            "fob_currency": str(_cfg_get(cfg, "alibaba_fob_currency", "USD") or "USD"),
+            "fob_min_price": _num(_cfg_get(cfg, "alibaba_fob_min_price", "")),
+            "fob_max_price": _num(_cfg_get(cfg, "alibaba_fob_max_price", "")),
+            "min_order_quantity": int(_num(_cfg_get(cfg, "alibaba_min_order_quantity", 1)) or 1),
+            "min_order_unit_type": str(_cfg_get(cfg, "alibaba_unit_type", "") or ""),
+            "sale_type": str(_cfg_get(cfg, "alibaba_sale_type", "normal") or "normal"),
+        }
+        save["priceType"] = "fob_price"
+        save["sourcingTrade"] = json.dumps(fob, ensure_ascii=False)
+    elif tiers:
         save["priceType"] = "ladder_price"
         save["bulkDiscountPrices"] = json.dumps(tiers, ensure_ascii=False)
+    else:
+        save["priceType"] = ptype
 
     # wholesaleTrade：MOQ / 包装 / 重量 / HS / 库存
     try:
@@ -223,6 +240,13 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         moq = num("alibaba_min_order_quantity", None)
         trade["min_order_quantity"] = int(moq) if moq and moq > 0 else int(trade.get("min_order_quantity") or 1)
         trade["unit_type"] = str(getattr(cfg, "alibaba_unit_type", trade.get("unit_type") or "Piece") or "Piece")
+        sale_type = str(getattr(cfg, "alibaba_sale_type", "") or "normal")
+        trade["sale_type"] = sale_type
+        batch = str(getattr(cfg, "alibaba_batch_number", "") or "").strip()
+        trade["batch_number"] = int(batch) if sale_type == "batch" and batch.isdigit() else None
+        freight_id = str(getattr(cfg, "alibaba_freight_template_id", "") or "").strip()
+        if freight_id:
+            trade["shipping_line_template_id"] = freight_id
         pkg = str(getattr(cfg, "alibaba_package_size", "") or "").strip()
         if pkg:
             trade["package_size"] = pkg
@@ -230,7 +254,7 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         if weight and weight > 0:
             trade["weight"] = str(int(weight) if weight == int(weight) else round(weight, 2))
         hs = str(getattr(cfg, "alibaba_hs_code", "") or "").strip()
-        if hs:
+        if hs and ptype != "fob_price":
             rows = trade.get("tariffsHsCode") or []
             if not rows:
                 rows = [{"toCountry": "US", "hsCode": hs}]
@@ -252,6 +276,13 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
     return save
 
 
+
+
+def _num(v, default=None):
+    try:
+        return float(v) if v not in (None, "") else default
+    except Exception:
+        return default
 
 
 GENERIC_VALUES = ("other", "others", "not applicable", "none", "no")
@@ -321,8 +352,8 @@ def validate_alibaba_save(product: dict, save: dict, cfg=None,
         issues.append(f"产品名称 {len(subject)} 字符，超过 {MAX_SUBJECT}")
 
     kws = [k for k in str(save.get("keywords") or "").split(",") if k.strip()]
-    if len(kws) < MIN_KEYWORDS:
-        issues.append(f"关键词 {len(kws)} 个，至少 {MIN_KEYWORDS} 个")
+    if not kws:
+        issues.append("关键词为空（至少 1 个，建议 3~5 个）")
     elif len(kws) > MAX_KEYWORDS:
         issues.append(f"关键词 {len(kws)} 个，最多 {MAX_KEYWORDS} 个")
 
@@ -332,10 +363,25 @@ def validate_alibaba_save(product: dict, save: dict, cfg=None,
     elif len(imgs) > MAX_MAIN_IMAGES:
         issues.append(f"主图 {len(imgs)} 张，最多 {MAX_MAIN_IMAGES} 张")
 
+    ptype = str(save.get("priceType") or "ladder_price")
     tiers = _as_list(save.get("bulkDiscountPrices"))
-    if not tiers:
-        issues.append("阶梯价为空")
-    else:
+    if ptype == "fob_price":
+        try:
+            fob = json.loads(save.get("sourcingTrade") or "{}")
+        except Exception:
+            fob = {}
+        if not fob.get("fob_min_price") or not fob.get("fob_max_price"):
+            issues.append("FOB 价格区间（fob_min_price / fob_max_price）未填写")
+        elif float(fob.get("fob_min_price")) > float(fob.get("fob_max_price")):
+            issues.append("FOB 最低价不能大于最高价")
+        if not fob.get("fob_currency"):
+            issues.append("FOB 币种未填写")
+    elif ptype == "sku_price":
+        if not _as_list(save.get("productSku")):
+            issues.append("按规格定价时缺少 SKU 数据")
+    elif not tiers:
+        issues.append("阶梯价为空（按数量定价必须有数量区间）")
+    if tiers:
         qs = [int(t.get("start_quantity") or 0) for t in tiers if isinstance(t, dict)]
         if qs != sorted(qs) or len(set(qs)) != len(qs):
             issues.append("阶梯价数量区间必须递增且不重复")
@@ -350,6 +396,8 @@ def validate_alibaba_save(product: dict, save: dict, cfg=None,
         issues.append("MOQ（min_order_quantity）必须 > 0")
     if trade.get("package_size") in (None, "", "0X0X0"):
         issues.append("包装尺寸 package_size 未填写")
+    if not _num(trade.get("weight")):
+        issues.append("包装重量 weight 未填写")
 
     have = {str(a.get("attribute_name") or "").strip().lower()
             for a in _as_list(save.get("attributes")) if isinstance(a, dict)}

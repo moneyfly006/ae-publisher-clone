@@ -65,7 +65,7 @@ class AlibabaRequiredTests(unittest.TestCase):
 
     def test_validate_reports_missing_required_and_bad_tiers(self):
         from aeclone.services.alibaba_payload import validate_alibaba_save
-        save = {"subject": "A", "keywords": "a, b", "mainImage": "",
+        save = {"subject": "A", "keywords": "", "mainImage": "",
                 "bulkDiscountPrices": '[{"start_quantity": 5, "price": 1},{"start_quantity": 1, "price": 2}]',
                 "wholesaleTrade": '{"min_order_quantity": 0, "package_size": ""}',
                 "attributes": "[]", "detailImage": "[]", "textDesc": ""}
