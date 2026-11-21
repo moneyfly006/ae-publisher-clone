@@ -1513,6 +1513,7 @@ class App:
         threading.Thread(target=_refresh_ready, daemon=True).start()
 
         # 状态数字：5 个等宽块（采集箱 / 待发布 / 发布失败 / 在线 / 审核中）
+        is_alibaba = str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba"
         _sc = getattr(self, "store_counts", {}) or {}
         self.ov_tiles = {}
         def _tile(key, label, hint, color, target=None):
@@ -1527,30 +1528,54 @@ class App:
                 c.ink = True
                 c.tooltip = "点一下去处理"
             return c
-        tiles_row = ft.Row([
-            _tile("draft", "采集箱", "待处理", TEXT),
-            _tile("editingRequired", "待发布", "可直接发布", INFO_C, target=8),
-            _tile("publishFail", "发布失败", "可重试", DANGER_C, target=8),
-            _tile("onSelling", "在线", "已上架", ACCENT_2),
-            _tile("auditing", "审核中", "等待平台", WARN_C),
-        ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        if is_alibaba:
+            # Alibaba 商品只在 ICBU 接口里；SMT 的采集箱/待发布/审核数字对它没有意义。
+            tile_specs = [("draft", "草稿", "可编辑/刊登", TEXT, 12),
+                          ("onSelling", "在线", "已上架", ACCENT_2, None)]
+        else:
+            tile_specs = [("draft", "采集箱", "待处理", TEXT),
+                          ("editingRequired", "待发布", "可直接发布", INFO_C, 8),
+                          ("publishFail", "发布失败", "可重试", DANGER_C, 8),
+                          ("onSelling", "在线", "已上架", ACCENT_2),
+                          ("auditing", "审核中", "等待平台", WARN_C)]
+        tiles_row = ft.Row([_tile(*spec) for spec in tile_specs], spacing=12,
+                           vertical_alignment=ft.CrossAxisAlignment.CENTER)
         self.ov_tiles_ts = ft.Text("尚未刷新", size=12, color=MUTED)
         tiles_head = ft.Row([muted("状态数字 · 缓存 30 秒", 10.5),
                              ft.Container(expand=True),
                              self.ov_tiles_ts], spacing=8)
 
+        def _start_action(e=None):
+            if is_alibaba:
+                # 不能在 Alibaba 平台下走 SMT 批量管线（会写错平台端点）。
+                self.toast("Alibaba 商品请到「Alibaba 刊登」页选择并保存（不走速卖通批量管线）", True)
+                self._switch(12)
+            else:
+                self._toggle_run()
+
+        def _pick_or_search(e=None):
+            if is_alibaba:
+                self._switch(12)
+            else:
+                self._scope_dialog()
+
         filter_card = card(ft.Column([
             h1i(ft.Icons.PLAY_CIRCLE_OUTLINE, "开始一次任务"),
-            muted("选范围 → 填关键词（可选）→ 启动；默认只处理采集箱商品"),
+            muted("Alibaba 商品请在「Alibaba 刊登」页处理；下方批量管线仅用于速卖通采集箱"
+                  if is_alibaba else
+                  "选范围 → 填关键词（可选）→ 启动；默认只处理采集箱商品"),
             ft.Row([
-                ft.ElevatedButton("启动", icon=ft.Icons.PLAY_ARROW, bgcolor=ACCENT, color=ON_ACCENT,
-                                  on_click=lambda e: self._toggle_run()),
+                ft.ElevatedButton("去 Alibaba 刊登" if is_alibaba else "启动",
+                                  icon=ft.Icons.PUBLISH if is_alibaba else ft.Icons.PLAY_ARROW,
+                                  bgcolor=ACCENT, color=ON_ACCENT,
+                                  on_click=_start_action),
                 self.search_kw,
                 ft.ElevatedButton("选择商品", icon=ft.Icons.CHECKLIST, bgcolor=CARD_2, color=TEXT,
-                                  on_click=lambda e: self._scope_dialog()),
+                                  on_click=_pick_or_search),
                 ft.TextButton("清空", icon=ft.Icons.CLEAR, on_click=lambda e: self._clear_search()),
                 ft.OutlinedButton("搜索全部商品", icon=ft.Icons.SEARCH,
-                                  on_click=lambda e: self._global_search_dialog()),
+                                  on_click=lambda e: self._switch(12) if is_alibaba
+                                  else self._global_search_dialog()),
                 ft.TextButton("刷新数量", icon=ft.Icons.REFRESH,
                               on_click=lambda e: self._refresh_store_counts()),
             ], spacing=10, wrap=True),
@@ -1559,6 +1584,8 @@ class App:
 
         _extra = [c for c in (self._cost_card(), self._resume_card(), self._diff_card())
                   if c is not None]
+        _publish_target = 12 if is_alibaba else 8
+        _publish_label = "03  Alibaba 刊登" if is_alibaba else "03  发布商品"
         workflow = ft.ResponsiveRow([
             ft.Container(col={"xs": 6, "lg": 3}, content=ft.OutlinedButton(
                 text, icon=icon, height=44,
@@ -1566,7 +1593,7 @@ class App:
             for text, icon, target in (
                 ("01  商品准备", ft.Icons.STORE_OUTLINED, 1),
                 ("02  内容处理", ft.Icons.AUTO_AWESOME, 3),
-                ("03  发布商品", ft.Icons.CLOUD_UPLOAD_OUTLINED, 8),
+                (_publish_label, ft.Icons.CLOUD_UPLOAD_OUTLINED, _publish_target),
                 ("04  运行记录", ft.Icons.RECEIPT_LONG_OUTLINED, 10))
         ], spacing=12, run_spacing=8)
 
@@ -7051,6 +7078,7 @@ class App:
     def _p_workbench(self):
         self._current = 9
         ok, ck_text = self._cookie_status_text()
+        is_alibaba = str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba"
 
         def _step(n, label):
             return ft.Container(
@@ -7171,7 +7199,9 @@ class App:
 
         prod_card = card(ft.Column([
             h1("2 · 产品", 15),
-            muted("先「加载」产品，再勾选产品 → 取图；也可以直接粘贴图片 URL"),
+            muted("Alibaba 平台的商品请在「Alibaba 刊登」页处理；这里可直接粘贴图片 URL "
+                  "或用「导入本地图片」做本地图片处理" if is_alibaba else
+                  "先「加载」产品，再勾选产品 → 取图；也可以直接粘贴图片 URL"),
             ft.Row([self.wb_status_sel, self.wb_kw,
                     ft.ElevatedButton("加载", icon=ft.Icons.SEARCH, bgcolor=ACCENT, color=ON_ACCENT,
                                       on_click=load_products),
@@ -7262,6 +7292,9 @@ class App:
         self._refresh_queue()
 
         def enqueue(e):
+            if is_alibaba:
+                self.toast("Alibaba 平台不在图片工作台入队；请到「Alibaba 刊登」页选择商品保存", False)
+                return
             pool = {}
             for p in (self.products or []):
                 pool[str(p.get("id"))] = p
@@ -7290,6 +7323,9 @@ class App:
             self._safe_update()
 
         def process(e):
+            if is_alibaba:
+                self.toast("Alibaba 平台不使用速卖通队列；请到「Alibaba 刊登」页保存", False)
+                return
             if not self.q.pending():
                 self.toast("队列为空", False); return
             threading.Thread(target=self._process_queue, daemon=True).start()
@@ -9168,6 +9204,10 @@ class App:
             value="draft",
             options=[ft.dropdown.Option("draft", "草稿"),
                      ft.dropdown.Option("online", "在线")])
+        prod_kw = ft.TextField(label="标题 / 商品 ID 搜索（可空）", width=260,
+                               bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        prod_page_info = ft.Text("", size=12, color=MUTED)
+        prod_page = {"no": 1, "pages": 1}
 
         def set_product(pid, subject="", category=""):
             self.cfg.set("alibaba_test_product_id", str(pid))
@@ -9178,9 +9218,11 @@ class App:
                 f" · 类目 {category}" if category else "")
             prod_now.color = ACCENT_2
 
-        def load_products(e=None):
+        def load_products(e=None, page=None):
             st = str(prod_state.value or "draft")
             label = "草稿" if st == "draft" else "在线"
+            kw = str(getattr(prod_kw, "value", "") or "").strip()
+            pg = int(page or prod_page.get("no") or 1)
             status.value = f"正在读取{label}商品…"
             status.color = MUTED
             try:self._safe_update()
@@ -9189,11 +9231,17 @@ class App:
             def work():
                 try:
                     c = client()
-                    d = c.list_products(1, 60, st)
+                    d = c.list_products(pg, 60, st, search=kw or None)
                     po = ((d.get("data") or {}).get("page") or {})
                     rows = po.get("list") or []
                     total = po.get("totalSize")
-                    boxes = [h1(f"商品列表（{label}）· 共 {total} 个，显示 {len(rows)} 个", 13)]
+                    pages = int(po.get("totalPage") or 1) or 1
+                    prod_page["no"], prod_page["pages"] = pg, pages
+                    prod_page_info.value = f"第 {pg}/{pages} 页 · 共 {total} 个"
+                    boxes = [h1(f"商品列表（{label}）· 共 {total} 个 · 第 {pg}/{pages} 页", 13)]
+                    if not rows:
+                        boxes.append(muted(
+                            "没有匹配商品：换个关键词/状态再读取，或先到店小秘/平台创建商品", 12))
                     for r in rows:
                         pid = str(r.get("id") or "")
                         if not pid:
@@ -9221,6 +9269,18 @@ class App:
                 try:self._safe_update()
                 except Exception: pass
             threading.Thread(target=work, daemon=True).start()
+
+        def prod_prev(e=None):
+            if prod_page.get("no", 1) > 1:
+                load_products(page=prod_page["no"] - 1)
+            else:
+                self.toast("已经是第一页", False)
+
+        def prod_next(e=None):
+            if prod_page.get("no", 1) < prod_page.get("pages", 1):
+                load_products(page=prod_page["no"] + 1)
+            else:
+                self.toast("已经是最后一页", False)
 
         op_dd = ft.Dropdown(
             label="保存动作", width=250, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
@@ -9279,19 +9339,38 @@ class App:
 
                         def save_work():
                             try:
-                                from ..services.alibaba_publish import save_to_alibaba
-                                res = save_to_alibaba(pid, self.cfg, allow_invalid=False, op=op)
-                                data = (res.get("result") or {}).get("data") or {}
-                                msg = str(data.get("msg") or data)
-                                status.value = f"已提交（op={op}）：{msg}"
-                                status.color = SUCCESS_C
-                                required_box.controls = [
-                                    h1("保存结果", 13),
-                                    ft.Text(f"商品 {pid} · {op_text}", size=12.5, color=TEXT),
-                                    ft.Text(msg, size=12.5, color=TEXT),
-                                    ft.Text(f"自动补齐：{', '.join(res.get('autofilled') or []) or '无'}",
-                                            size=12, color=MUTED)]
-                                self._log(f"Alibaba 保存：{pid} op={op} · {msg[:80]}", "INFO")
+                                # 与 AI 链路共用唯一的真实保存实现：dry_run=False + use_ai=False
+                                # 也会做 is_failure_msg 判定，避免「code=0 但 msg 是失败」被显示成成功。
+                                from ..services.alibaba_pipeline import run_alibaba_product
+                                res = run_alibaba_product(pid, self.cfg, dry_run=False,
+                                                          op=op, use_ai=False)
+                                if res.saved:
+                                    msg = str(((res.save_result or {}).get("data") or {}).get("msg")
+                                              or res.save_result or "")
+                                    status.value = f"已保存（op={op}）" + (f"：{msg}" if msg else "")
+                                    status.color = SUCCESS_C
+                                    required_box.controls = [
+                                        h1("保存结果", 13),
+                                        ft.Text(f"商品 {pid} · {op_text}", size=12.5, color=TEXT),
+                                        ft.Text(msg or "平台已接受保存", size=12.5, color=TEXT),
+                                        *[ft.Row([
+                                            ft.Icon(ft.Icons.CHECK_CIRCLE if s.ok
+                                                    else ft.Icons.ERROR_OUTLINE, size=14,
+                                                    color=ACCENT_2 if s.ok else DANGER_C),
+                                            ft.Text(s.name, size=12.5, color=TEXT, width=120),
+                                            ft.Text(s.detail, size=12, color=MUTED,
+                                                    expand=True, selectable=True)], spacing=6)
+                                          for s in res.steps]]
+                                    self._log(f"Alibaba 保存：{pid} op={op} · {msg[:80]}", "INFO")
+                                else:
+                                    status.value = f"保存失败（op={op}）：{res.error or res.completion_label}"
+                                    status.color = DANGER_C
+                                    required_box.controls = [h1("保存失败", 13)] + [
+                                        ft.Text(("✗ " if not s.ok else "· ") + s.name + "：" + s.detail,
+                                                size=12.5, color=DANGER_C if not s.ok else MUTED,
+                                                selectable=True) for s in res.steps]
+                                    self._log(f"Alibaba 保存失败：{pid} op={op} · "
+                                              f"{(res.error or res.completion_label)[:80]}", "ERROR")
                             except Exception as ex:  # noqa: BLE001
                                 status.value = f"保存失败：{str(ex)[:200]}"
                                 status.color = DANGER_C

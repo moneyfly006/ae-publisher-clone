@@ -13,6 +13,13 @@
         <td><span class="badge <?= $r['status'] === 'paid' ? 'ok' : 'warn' ?>"><?= $r['status'] === 'paid' ? '已支付' : '待支付' ?></span></td>
         <td><?= e(date('Y-m-d H:i', (int)$r['created_at'])) ?></td>
         <td class="ops">
+          <?php if ($r['status'] === 'paid'): ?>
+          <form method="post" action="/admin/shop-refunds" onsubmit="return confirm('为该订单创建退款单？')" style="display:inline">
+            <?= csrf_field() ?><input type="hidden" name="order_id" value="<?= (int)$r['id'] ?>">
+            <input type="hidden" name="reason" value="后台发起退款">
+            <button class="btn ghost sm danger" type="submit">退款</button>
+          </form>
+          <?php endif; ?>
           <?php if ($r['status'] !== 'paid'): ?>
           <form method="post" action="/admin/shop-orders/<?= (int)$r['id'] ?>/paid" onsubmit="return confirm('标记已支付并开通？')">
             <?= csrf_field() ?><button class="btn ghost sm" type="submit">标记已付并开通</button>

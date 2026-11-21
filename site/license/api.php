@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/lib.php';
+$__ops = getenv('SHOP_OPS') ?: '/www/server/ae-license/app/shop_ops.php';
+if (is_file($__ops)) require_once $__ops;
 
 function pf(): array {
     return [
@@ -132,9 +134,22 @@ case 'order_create': {
     $st = db()->prepare('SELECT * FROM packages WHERE id=? AND active=1'); $st->execute([$pid]);
     $p = $st->fetch(PDO::FETCH_ASSOC);
     if (!$p) fail('套餐不存在');
+    // 优惠券（可选）
+    $couponCode = trim((string)($in['coupon_code'] ?? ''));
+    $amount = (int)$p['price_cents'];
+    $coupon = null;
+    if ($couponCode !== '') {
+        $op = dirname(__DIR__) . '/../shop_ops.php';
+        if (is_file($op)) require_once $op;
+        if (function_exists('coupon_apply')) {
+            [$coupon, $err] = coupon_apply($couponCode, $amount);
+            if (!$coupon) fail($err ?: '优惠券不可用');
+            $amount = (int)$coupon['final'];
+        }
+    }
     $trade = 'AL'.date('YmdHis').random_int(1000,9999);
     $st = db()->prepare('INSERT INTO orders(user_id,package_id,amount_cents,status,trade_no,created_at) VALUES(?,?,?,?,?,?)');
-    $st->execute([$u['id'], $pid, $p['price_cents'], 'pending', $trade, now()]);
+    $st->execute([$u['id'], $pid, $amount, 'pending', $trade, now()]);
     $oid = (int)db()->lastInsertId();
     $epay = effective_epay();
     $payUrl = '';
@@ -143,14 +158,15 @@ case 'order_create': {
           'pid'=>$epay['pid'], 'type'=>$epay['type'],
           'out_trade_no'=>$trade, 'notify_url'=>$epay['site_url'].'/pay/notify.php',
           'return_url'=>$epay['site_url'].'/?paid=1',
-          'name'=>$p['name'], 'money'=>number_format($p['price_cents']/100, 2, '.', ''),
+          'name'=>$p['name'], 'money'=>number_format($amount/100, 2, '.', ''),
         ];
         ksort($params);
         $params['sign'] = md5(urldecode(http_build_query($params)).$epay['key']);
         $payUrl = $epay['gateway'].'/submit.php?'.http_build_query($params);
     }
-    out(['order_id'=>$oid, 'trade_no'=>$trade, 'amount'=>$p['price_cents']/100, 'pay_url'=>$payUrl,
-         'mock_pay'=>(!$payUrl)]);
+    if ($coupon && function_exists('coupon_use')) { coupon_use((int)$coupon['id'], (int)$u['id'], $oid); }
+    out(['order_id'=>$oid, 'trade_no'=>$trade, 'amount'=>$amount/100, 'pay_url'=>$payUrl,
+         'discount'=>$coupon ? $coupon['off']/100 : 0, 'mock_pay'=>(!$payUrl)]);
 }
 case 'order_mock_pay': { // 仅未配置易支付时用于本地/测试
     $u = require_user(); $in = body();
@@ -161,6 +177,33 @@ case 'order_mock_pay': { // 仅未配置易支付时用于本地/测试
     db()->prepare("UPDATE orders SET status='paid', paid_at=? WHERE id=?")->execute([now(), $oid]);
     $lic = issue_for_order($oid);
     out(['license'=>$lic]);
+}
+case 'invoice_request': {
+    $u = require_user(); $in = body();
+    [$ok, $err] = user_invoice_request((int)$u['id'], $in);
+    if (!$ok) fail($err);
+    out(['ok'=>true]);
+}
+case 'invoices': {
+    $u = require_user();
+    $st = ops_pdo()->prepare('SELECT id,order_id,title,amount_cents,status,created_at,issued_at FROM invoices WHERE user_id=? ORDER BY id DESC LIMIT 50');
+    $st->execute([$u['id']]); out($st->fetchAll(PDO::FETCH_ASSOC));
+}
+case 'ticket_create': {
+    $u = require_user(); $in = body();
+    [$ok, $err, $tid] = user_ticket_create((int)$u['id'], $in);
+    if (!$ok) fail($err);
+    out(['ok'=>true, 'ticket_id'=>$tid]);
+}
+case 'tickets': {
+    $u = require_user();
+    out(user_tickets((int)$u['id']));
+}
+case 'coupon_check': {
+    $in = body();
+    [$c, $err] = coupon_apply((string)($in['code'] ?? ''), (int)($in['amount_cents'] ?? 0));
+    if (!$c) fail($err);
+    out(['code'=>$c['code'], 'off'=>$c['off']/100, 'final'=>$c['final']/100]);
 }
 case 'orders': {
     $u = require_user();

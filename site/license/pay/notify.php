@@ -15,6 +15,12 @@ $trade = (string)($in['out_trade_no'] ?? '');
 $st = db()->prepare('SELECT * FROM orders WHERE trade_no=?');
 $st->execute([$trade]); $o = $st->fetch(PDO::FETCH_ASSOC);
 if (!$o) { echo 'order not found'; exit; }
+$money = (float)($in['money'] ?? 0);
+if (abs($money - ((int)$o['amount_cents']) / 100) > 0.009) {
+    echo 'amount mismatch';
+    exit;
+}
+if ($o['status'] === 'refunded') { echo 'refunded'; exit; }
 if ($o['status'] !== 'paid') {
     db()->prepare("UPDATE orders SET status='paid', paid_at=?, pay_type=? WHERE id=?")
         ->execute([now(), (string)($in['type'] ?? ''), $o['id']]);
