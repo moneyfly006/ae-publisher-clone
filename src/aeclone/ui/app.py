@@ -700,6 +700,10 @@ class App:
         self.active_platform = get_platform(getattr(self.cfg, "active_platform", "") or "alibaba")
         self._build_shell()
         self._switch(self._start_page_index())
+        try:
+            self._maybe_license_login()
+        except Exception:
+            pass
         self._log("运行实例：" + ("本地验收预演，不保存商品" if self._preview_mode else "日常运行")
                   + f" · 配置目录：{config_dir()} · 程序：{sys.executable}")
         # 无论从哪一页启动，都拉一次各状态数量（概览/发布队列都要用）
@@ -9343,6 +9347,99 @@ class App:
             self._check_license_inner()
         finally:
             self._license_checking = False
+
+    def _maybe_license_login(self):
+        """没有平台授权时弹出「登录授权账号」窗口；登录成功自动下发 token。"""
+        try:
+            if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
+                return
+            if self.entitlements.platforms_list():
+                return
+            server = str(getattr(self.cfg, "license_server", "") or "")
+            if not server:
+                return
+            from ..license import machine_code as _mc
+            mcode = _mc()
+            email = ft.TextField(label="授权账号邮箱", width=320, bgcolor=CARD_2,
+                                 border_color=CARD_2, color=TEXT,
+                                 value=str(getattr(self.cfg, "license_account_email", "") or ""))
+            password = ft.TextField(label="密码", password=True, can_reveal_password=True,
+                                    width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+            status = ft.Text("", size=12.5, color=MUTED)
+            dlg = ft.AlertDialog(modal=True, title=ft.Text("登录授权账号"),
+                                 content=ft.Column([
+                                     muted("登录后自动绑定本机并下发平台授权；也可以稍后在设置里粘贴 Token"),
+                                     muted(f"机器码：{mcode}", 11),
+                                     email, password, status], spacing=10, width=360),
+                                 actions=[])
+            def close():
+                try:
+                    self.page.close_dialog()
+                    self._safe_update()
+                except Exception:
+                    try:
+                        dlg.open = False
+                        self._safe_update()
+                    except Exception:
+                        pass
+            def do_login(e=None):
+                email_v = str(email.value or "").strip()
+                pass_v = str(password.value or "")
+                if not email_v or not pass_v:
+                    status.value = "请填写邮箱和密码"; status.color = DANGER_C
+                    self._safe_update(); return
+                status.value = "登录中…"; status.color = MUTED
+                self._safe_update()
+                def work():
+                    try:
+                        from ..license_server import software_login
+                        from ..core.updater import CURRENT as _ver
+                        tok, err, data = software_login(server, email_v, pass_v, mcode, version=_ver)
+                        if not tok:
+                            status.value = err; status.color = DANGER_C
+                            self._safe_update(); return
+                        from ..licensing import apply_license_token
+                        apply_license_token(self.cfg, tok, save_config)
+                        self.cfg.set("license_account_email", email_v)
+                        save_config(self.cfg)
+                        self.entitlements = load_entitlements(self.cfg)
+                        self._rebuild_nav()
+                        try:
+                            self.platform_rail.content = self._build_platform_rail().content
+                        except Exception:
+                            pass
+                        self.license_text.value = "平台：" + ", ".join(self.entitlements.platforms_list())
+                        self._log(f"软件登录成功：{email_v} · 平台 {', '.join(self.entitlements.platforms_list())}", "INFO")
+                        close()
+                        self._switch(self.active_platform.pages[0].index)
+                        self.toast("授权已激活", True)
+                    except Exception as ex:  # noqa: BLE001
+                        status.value = f"登录失败：{ex}"; status.color = DANGER_C
+                        try:self._safe_update()
+                        except Exception: pass
+                threading.Thread(target=work, daemon=True).start()
+            def go_buy(e=None):
+                try:
+                    self.page.launch_url(server.rstrip("/") + "/")
+                except Exception:
+                    pass
+            dlg.actions = [
+                ft.TextButton("登录并激活", on_click=do_login),
+                ft.TextButton("去购买 / 续费", on_click=go_buy),
+                ft.TextButton("稍后", on_click=lambda e: close()),
+            ]
+            self._license_login_dialog = dlg
+            try:
+                self.page.show_dialog(dlg)
+            except Exception:
+                self.page.overlay.append(dlg)
+                dlg.open = True
+            self._safe_update()
+        except Exception as ex:
+            try:
+                self._log(f"授权登录窗口异常：{ex}", "WARN")
+            except Exception:
+                pass
 
     def _refresh_platform_license(self):
         """向授权网站拉取平台+功能包 token；失败保留缓存，不阻塞界面。"""

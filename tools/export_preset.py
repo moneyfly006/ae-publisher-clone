@@ -22,7 +22,12 @@ SECRET_KEYS = {
     "template_product_id", "template_product_title", "template_snapshot",
     "template_values", "template_source",
     "start_page", "last_page", "license_identity", "license_cache_ok", "instance", "onboarded",
+    "alibaba_cookies", "license_account_email", "license_platforms", "license_token",
+    "license_token_ts", "license_server", "api_base",
 }
+
+# 授权/密钥类前缀一律不进安装包
+SECRET_PREFIXES = ("license_", "alibaba_attr", "alibaba_cookies")
 
 
 def main() -> int:
@@ -34,7 +39,7 @@ def main() -> int:
     out = {}
     skipped = []
     for k, v in raw.items():
-        if k in SECRET_KEYS:
+        if k in SECRET_KEYS or k.startswith(SECRET_PREFIXES):
             skipped.append(k)
             continue
         if k not in DEFAULTS:

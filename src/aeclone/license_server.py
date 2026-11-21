@@ -106,3 +106,30 @@ def refresh_entitlements(cfg, version: str = "", timeout: int = 8,
         save(cfg)
     log.info("平台授权已刷新：%s", ", ".join(ent.platforms_list()) or "无")
     return ent
+
+def software_login(server: str, email: str, password: str, machine_code: str,
+                   version: str = "", timeout: int = 10) -> tuple[str, str, dict]:
+    """软件登录：账号密码 + 机器码 → (token, error, data)。
+
+    服务器校验账号与授权，未绑定时自动绑定该机器，返回绑定机器码的 token。
+    """
+    base = str(server or "").rstrip("/")
+    if not base:
+        return "", "未配置授权服务器", {}
+    try:
+        r = requests.post(base + "/api.php?action=software_login",
+                          json={"email": email, "password": password,
+                                "machine_code": machine_code, "version": version},
+                          timeout=timeout)
+        d = r.json()
+    except Exception as ex:
+        return "", f"连接授权服务器失败：{str(ex)[:80]}", {}
+    if d.get("code") != 0:
+        return "", str(d.get("msg") or "登录失败"), {}
+    data = d.get("data") or {}
+    token = str(data.get("token") or "")
+    if not token:
+        return "", "服务器未返回授权", {}
+    if not verify_token(token):
+        return "", "授权 token 验签失败", {}
+    return token, "", data
