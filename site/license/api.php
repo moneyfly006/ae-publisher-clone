@@ -184,6 +184,7 @@ case 'order_mock_pay': { // 仅未配置易支付时用于本地/测试
     if (!$st->fetch()) fail('订单不存在');
     db()->prepare("UPDATE orders SET status='paid', paid_at=? WHERE id=?")->execute([now(), $oid]);
     $lic = issue_for_order($oid);
+    if (function_exists('invite_reward_for_order')) invite_reward_for_order($oid);
     out(['license'=>$lic]);
 }
 case 'invoice_request': {
@@ -305,6 +306,20 @@ case 'device_unbind': {
 case 'invite_info': {
     $u = require_user();
     out(user_invite_info((int)$u['id']));
+}
+case 'balance_info': {
+    $u = require_user();
+    $st = ops_pdo()->prepare('SELECT balance_cents, auto_renew FROM users WHERE id=?');
+    $st->execute([$u['id']]); $r = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+    $st = ops_pdo()->prepare('SELECT amount_cents,reason,created_at FROM balance_logs WHERE user_id=? ORDER BY id DESC LIMIT 20');
+    $st->execute([$u['id']]);
+    out(['balance'=>((int)($r['balance_cents'] ?? 0))/100, 'auto_renew'=>(int)($r['auto_renew'] ?? 0),
+         'logs'=>$st->fetchAll(PDO::FETCH_ASSOC)]);
+}
+case 'auto_renew_set': {
+    $u = require_user(); $in = body();
+    user_auto_renew((int)$u['id'], (int)($in['on'] ?? 0) === 1);
+    out(['ok'=>true]);
 }
 case 'heartbeat': {
     $in = body();

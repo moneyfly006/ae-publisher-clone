@@ -202,6 +202,7 @@ function page_shop_order_paid(int $id): void
     if ($id <= 0) { flash('bad', '订单不存在'); redirect('/admin/shop-orders'); }
     shop_pdo()->prepare("UPDATE orders SET status='paid', paid_at=? WHERE id=?")->execute([time(), $id]);
     shop_issue_for_order($id);
+    if (function_exists('invite_reward_for_order')) invite_reward_for_order($id);
     audit('手动开通套餐订单', 'order:' . $id);
     flash('ok', '订单已标记支付并开通授权');
     redirect('/admin/shop-orders');
@@ -310,6 +311,18 @@ function page_shop_user_grant(int $id): void
         ->execute([$id, 0, $machine, $token, $expires, json_encode($plats, JSON_UNESCAPED_UNICODE), time()]);
     audit('手动开通平台全权限', 'user:' . $id, $platform . ' / ' . $days . 'd');
     flash('ok', '已手动开通：' . $platform . '，' . $days . ' 天');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_balance(int $id): void
+{
+    require_admin(); csrf_check();
+    $amount = (int)round(((float)($_POST['amount'] ?? 0)) * 100);
+    $reason = trim((string)($_POST['reason'] ?? '后台调整'));
+    if ($amount !== 0) user_balance_add($id, $amount, $reason);
+    if (isset($_POST['auto_renew'])) user_auto_renew($id, (string)$_POST['auto_renew'] === '1');
+    audit('调整用户余额', 'user:' . $id, (string)$amount);
+    flash('ok', '余额/自动续费已更新');
     redirect('/admin/shop-users/' . $id);
 }
 

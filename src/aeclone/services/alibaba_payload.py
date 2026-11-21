@@ -410,9 +410,59 @@ def _num(v, default=None):
 GENERIC_VALUES = ("other", "others", "not applicable", "none", "no")
 
 
+def _attr_values(attr_def: dict | None) -> list[str]:
+    """取类目属性的候选值文本（店小秘 values 是 JSON 字符串）。"""
+    raw = (attr_def or {}).get("values") or []
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = []
+    out: list[str] = []
+    for v in raw if isinstance(raw, list) else []:
+        if isinstance(v, dict):
+            s = str(v.get("name_en") or v.get("name") or "").strip()
+        else:
+            s = str(v or "").strip()
+        if s:
+            out.append(s)
+    return out
+
+
+def match_attribute_value(attr_def: dict | None, value: str) -> str | None:
+    """把 AI/人工给的属性值匹配到类目候选值，返回候选的规范拼写。
+
+    匹配顺序：大小写完全一致 → 去符号归一化唯一匹配 → 唯一包含匹配；
+    任何歧义/匹配不到都返回 None（宁可不填，也不写错规格）。
+    """
+    vals = _attr_values(attr_def)
+    v = str(value or "").strip()
+    if not v or not vals:
+        return None
+    for canon in vals:
+        if canon.lower() == v.lower():
+            return canon
+
+    def norm(s: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", s.lower())
+
+    nv = norm(v)
+    if not nv:
+        return None
+    norm_hits = [c for c in vals if norm(c) == nv]
+    if len(norm_hits) == 1:
+        return norm_hits[0]
+    if len(norm_hits) > 1:
+        return None                      # 如 "60 V" 与 "> 60V" 归一化后冲突
+    fuzzy = [c for c in vals if nv in norm(c) or norm(c) in nv]
+    if len(fuzzy) == 1:
+        return fuzzy[0]
+    return None
+
+
 def autofill_required_attributes(product: dict, attr_defs: list | None, cfg=None,
                                  overrides: dict | None = None):
-    """按类目 required 标记补齐必填属性：预设 > Other/China > 第一个可选值。
+    """按类目 required 标记补齐必填属性：预设 > Other/China > 留空阻断。
 
     返回 (attrs, filled, unresolved)
     """
@@ -451,6 +501,12 @@ def autofill_required_attributes(product: dict, attr_defs: list | None, cfg=None
                 if nm.lower() in GENERIC_VALUES:
                     v_name, v_id = nm, cand.get("id"); break
         if v_name:
+            # 预设/通用值也必须落在类目候选里；不合理就阻断，不写无效属性。
+            canon = match_attribute_value(d, v_name)
+            if not canon:
+                unresolved.append(f"{name}（值「{v_name}」不在类目候选里）")
+                continue
+            v_name = canon
             attrs.append({"attribute_id": str(d.get("attrNameId") or d.get("attribute_id") or "-1"),
                           "attribute_name": name,
                           "value_id": str(v_id if v_id is not None else "-1"),

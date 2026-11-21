@@ -55,13 +55,25 @@ class AlibabaRequiredTests(unittest.TestCase):
              {"attrNameId": "3", "nameEn": "Material", "required": 1,
               "values": [{"id": "5", "name_en": "Other"}]},
              {"attrNameId": "4", "nameEn": "Feature", "required": 0, "values": []}],
-            {"alibaba_attr_presets": '{"Color": "Blue"}'})
+            {"alibaba_attr_presets": '{"Color": "White"}'})
         names = {a["attribute_name"]: a.get("value_name") for a in attrs}
-        self.assertEqual(names["Color"], "Blue")
+        self.assertEqual(names["Color"], "White")
         self.assertEqual(names["Material"], "Other")
-        self.assertIn("Color=Blue", filled)
+        self.assertIn("Color=White", filled)
         self.assertIn("Material=Other", filled)
         self.assertEqual(unresolved, [])
+
+    def test_invalid_preset_value_is_blocked_not_written(self):
+        """预设值不在类目候选里时必须阻断，不能把无效值写进保存包。"""
+        from aeclone.services.alibaba_payload import autofill_required_attributes
+        attrs, filled, unresolved = autofill_required_attributes(
+            {"attributes": []},
+            [{"attrNameId": "2", "nameEn": "Color", "required": 1,
+              "values": [{"id": "1", "name_en": "White"}, {"id": "2", "name_en": "Other"}]}],
+            {"alibaba_attr_presets": '{"Color": "Blue"}'})
+        self.assertEqual(attrs, [])
+        self.assertEqual(filled, [])
+        self.assertTrue(any("Color" in u for u in unresolved), unresolved)
 
     def test_autofill_does_not_fabricate_first_candidate_value(self):
         """无预设且无 Other/China 时，不能把候选列表第一个值当真实规格写入。"""

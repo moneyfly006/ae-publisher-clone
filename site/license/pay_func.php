@@ -31,5 +31,6 @@ function issue_for_order(int $orderId): ?array {
     $token = issue_token((string)$machine, $payloadPlats, $expires);
     $db->prepare('INSERT INTO licenses(user_id,order_id,machine_code,token,expires_at,platforms,created_at) VALUES(?,?,?,?,?,?,?)')
        ->execute([$o['user_id'], $orderId, $machine, $token, $expires, j($payloadPlats), now()]);
+    if (function_exists('invite_reward_for_order')) invite_reward_for_order($orderId);
     return ['token'=>$token, 'expires_at'=>$expires, 'platforms'=>$payloadPlats];
 }

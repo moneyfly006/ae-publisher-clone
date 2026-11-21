@@ -570,3 +570,148 @@ function user_expiry_hint(array $lic): string
     if ($days <= 30) return "授权将在 {$days} 天后到期（{$exp}），建议及时续费";
     return '';
 }
+
+/* ---------- 邀请奖励 / 余额 / 自动续费 / 对账 ---------- */
+function ops_migrate_billing(): void
+{
+    $db = ops_pdo();
+    try { $db->exec('ALTER TABLE users ADD COLUMN balance_cents INTEGER DEFAULT 0'); } catch (Exception $e) {}
+    try { $db->exec('ALTER TABLE users ADD COLUMN auto_renew INTEGER DEFAULT 0'); } catch (Exception $e) {}
+    $db->exec("CREATE TABLE IF NOT EXISTS invite_rewards(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, invite_id INTEGER NOT NULL, invitee_id INTEGER NOT NULL,
+      coupon_code TEXT NOT NULL, amount_cents INTEGER NOT NULL, created_at INTEGER NOT NULL,
+      UNIQUE(invitee_id))");
+    $db->exec("CREATE TABLE IF NOT EXISTS balance_logs(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, amount_cents INTEGER NOT NULL,
+      reason TEXT DEFAULT '', created_at INTEGER NOT NULL)");
+    $db->exec("CREATE TABLE IF NOT EXISTS reconcile_runs(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, checked INTEGER NOT NULL, fixed INTEGER NOT NULL,
+      note TEXT DEFAULT '', created_at INTEGER NOT NULL)");
+}
+
+function invite_reward_for_order(int $orderId): void
+{
+    ops_migrate_extra(); ops_migrate_billing();
+    $db = ops_pdo();
+    $st = $db->prepare('SELECT * FROM orders WHERE id=? AND status="paid"'); $st->execute([$orderId]);
+    $o = $st->fetch(); if (!$o) return;
+    $uid = (int)$o['user_id'];
+    // 是否被邀请，且这是首笔已支付订单
+    $st = $db->prepare('SELECT * FROM invite_uses WHERE invitee_id=? LIMIT 1'); $st->execute([$uid]);
+    $use = $st->fetch(); if (!$use) return;
+    $st = $db->prepare('SELECT COUNT(*) FROM orders WHERE user_id=? AND status="paid"'); $st->execute([$uid]);
+    if ((int)$st->fetchColumn() !== 1) return;
+    $st = $db->prepare('SELECT 1 FROM invite_rewards WHERE invitee_id=?'); $st->execute([$uid]);
+    if ($st->fetch()) return;
+    $st = $db->prepare('SELECT * FROM invites WHERE id=?'); $st->execute([$use['invite_id']]);
+    $inv = $st->fetch(); if (!$inv) return;
+    $code = 'RW' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+    $db->prepare('INSERT INTO coupons(code,type,value_cents,percent,min_amount_cents,expires_at,max_uses,used,active,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
+       ->execute([$code, 'fixed', 2000, 0, 0, date('Y-m-d', time() + 90 * 86400), 1, 0, 1, time()]);
+    $db->prepare('INSERT INTO invite_rewards(invite_id,invitee_id,coupon_code,amount_cents,created_at) VALUES(?,?,?,?,?)')
+       ->execute([$inv['id'], $uid, $code, 2000, time()]);
+    $db->prepare('UPDATE invites SET uses=uses WHERE id=?')->execute([$inv['id']]);
+    // 邮件通知邀请人
+    $shopLib = '/www/wwwroot/license.moneyfly.club/public/shop/lib.php';
+    if (is_file($shopLib)) {
+        require_once $shopLib;
+        $st = $db->prepare('SELECT email FROM users WHERE id=?'); $st->execute([$inv['user_id']]);
+        $email = (string)$st->fetchColumn();
+        if ($email) smtp_send($email, 'AuroraList 邀请奖励',
+            "你邀请的好友已完成首单，赠送你一张 ¥20 优惠券：{$code}（90 天内有效）。\n登录 https://license.moneyfly.club/ 使用。");
+    }
+}
+
+function user_balance(int $uid): int
+{
+    ops_migrate_billing();
+    $st = ops_pdo()->prepare('SELECT balance_cents FROM users WHERE id=?'); $st->execute([$uid]);
+    return (int)$st->fetchColumn();
+}
+
+function user_balance_add(int $uid, int $cents, string $reason): void
+{
+    ops_migrate_billing();
+    ops_pdo()->prepare('UPDATE users SET balance_cents=balance_cents+? WHERE id=?')->execute([$cents, $uid]);
+    ops_pdo()->prepare('INSERT INTO balance_logs(user_id,amount_cents,reason,created_at) VALUES(?,?,?,?)')
+        ->execute([$uid, $cents, $reason, time()]);
+}
+
+function user_auto_renew(int $uid, bool $on): void
+{
+    ops_migrate_billing();
+    ops_pdo()->prepare('UPDATE users SET auto_renew=? WHERE id=?')->execute([$on ? 1 : 0, $uid]);
+}
+
+function cron_auto_renew(): array
+{
+    ops_migrate_billing();
+    $db = ops_pdo();
+    $out = [];
+    $st = $db->query('SELECT l.*, u.email, u.balance_cents, u.auto_renew FROM licenses l
+        JOIN users u ON u.id=l.user_id
+        WHERE l.revoked=0 AND u.auto_renew=1 AND date(l.expires_at) <= date("now", "+3 day")');
+    foreach ($st as $l) {
+        // 找到该授权对应的套餐（取最近一次订单）
+        $q = $db->prepare('SELECT p.* FROM orders o JOIN packages p ON p.id=o.package_id
+            WHERE o.user_id=? ORDER BY o.id DESC LIMIT 1');
+        $q->execute([$l['user_id']]); $p = $q->fetch();
+        if (!$p) { $out[] = ['user'=>$l['user_id'], 'skip'=>'no_package']; continue; }
+        $price = (int)$p['price_cents'];
+        if ((int)$l['balance_cents'] < $price) {
+            $out[] = ['user'=>$l['user_id'], 'skip'=>'balance_low', 'need'=>$price/100, 'have'=>((int)$l['balance_cents'])/100];
+            continue;
+        }
+        $db->beginTransaction();
+        $db->prepare('UPDATE users SET balance_cents=balance_cents-? WHERE id=?')->execute([$price, $l['user_id']]);
+        $db->prepare('INSERT INTO balance_logs(user_id,amount_cents,reason,created_at) VALUES(?,?,?,?)')
+           ->execute([$l['user_id'], -$price, '自动续费：' . $p['name'], time()]);
+        $trade = 'AUTO' . date('YmdHis') . random_int(100, 999);
+        $db->prepare('INSERT INTO orders(user_id,package_id,amount_cents,status,trade_no,created_at,paid_at) VALUES(?,?,?,?,?,?,?)')
+           ->execute([$l['user_id'], $p['id'], $price, 'paid', $trade, time(), time()]);
+        $oid = (int)$db->lastInsertId();
+        $db->commit();
+        $lic = shop_issue_for_order($oid);
+        $out[] = ['user'=>$l['user_id'], 'renewed'=>true, 'order'=>$oid, 'expires'=>$lic['expires_at'] ?? null];
+    }
+    return $out;
+}
+
+/* 对账：查询易支付网关，把已支付但本地 pending 的订单补回 */
+function epay_query(string $tradeNo): ?array
+{
+    $shopLib = '/www/wwwroot/license.moneyfly.club/public/shop/lib.php';
+    if (!is_file($shopLib)) return null;
+    require_once $shopLib;
+    $e = effective_epay();
+    if (!$e['pid'] || !$e['key']) return null;
+    $url = $e['gateway'] . '/api.php?' . http_build_query([
+        'act' => 'order', 'pid' => $e['pid'], 'key' => $e['key'], 'out_trade_no' => $tradeNo,
+    ]);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10]);
+    $resp = curl_exec($ch); curl_close($ch);
+    $d = json_decode((string)$resp, true);
+    return is_array($d) ? $d : null;
+}
+
+function cron_reconcile(): array
+{
+    ops_migrate_extra(); ops_migrate_billing();
+    $db = ops_pdo();
+    $fixed = 0; $checked = 0; $note = '';
+    $st = $db->query("SELECT * FROM orders WHERE status='pending' AND created_at < " . (time() - 600) . " ORDER BY id DESC LIMIT 50");
+    foreach ($st as $o) {
+        $checked++;
+        $res = epay_query((string)$o['trade_no']);
+        if ($res && (string)($res['status'] ?? '') === '1' && (float)($res['money'] ?? -1) >= ((int)$o['amount_cents'])/100 - 0.009) {
+            $db->prepare("UPDATE orders SET status='paid', paid_at=? WHERE id=?")->execute([time(), $o['id']]);
+            shop_issue_for_order((int)$o['id']);
+            invite_reward_for_order((int)$o['id']);
+            $fixed++;
+        }
+    }
+    $db->prepare('INSERT INTO reconcile_runs(checked,fixed,note,created_at) VALUES(?,?,?,?)')
+       ->execute([$checked, $fixed, $note, time()]);
+    return ['checked' => $checked, 'fixed' => $fixed];
+}

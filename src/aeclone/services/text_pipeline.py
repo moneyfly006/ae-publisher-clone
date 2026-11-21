@@ -270,6 +270,13 @@ class TextPipeline:
             if not name:
                 continue
             vals = a.get("values") or []
+            if isinstance(vals, str):
+                # 店小秘 attributeList 的 values 是 JSON 字符串
+                try:
+                    import json as _json
+                    vals = _json.loads(vals)
+                except Exception:
+                    vals = []
             names = []
             for v in vals if isinstance(vals, list) else []:
                 if isinstance(v, dict):

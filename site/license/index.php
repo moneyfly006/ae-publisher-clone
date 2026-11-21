@@ -426,6 +426,9 @@ function renderLicense(){
       <div class="muted">已开通：${Object.entries(LIC.platforms||{}).map(([k,v])=>`<span class="tag p" style="margin-right:4px">${platName[k]||k}</span>`).join('')}</div></div>
     <div style="margin-top:10px" class="muted">机器码：<code>${esc(LIC.machine_code||'未绑定')}</code></div>`;
   $('#mcInput').value=LIC.machine_code||'';
+  api('balance_info').then(r=>{ const d=r.data||{}; $('#balanceText').textContent='¥'+(d.balance||0).toFixed(2);
+    $('#autoRenewChk').checked=!!d.auto_renew; });
+  $('#autoRenewChk').onchange=(e)=>api('auto_renew_set',{on:e.target.checked?'1':'0'});
   api('license').then(r=>{ $('#tokenBox').textContent=r.data?.token||''; });
 }
 function renderOrders(){

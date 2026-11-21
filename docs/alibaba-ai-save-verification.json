@@ -1,0 +1,146 @@
+{
+  "generated_at": "2026-11-22T01:43:57+0800",
+  "product_id": "220114598434958580",
+  "op": "1",
+  "use_ai": true,
+  "preset": "container_pool",
+  "authorized_by_user": "在采集箱多测试产品；580 保留给 Lead 做 AI 保存测试",
+  "pipeline": {
+    "ok": true,
+    "saved": true,
+    "preview": false,
+    "error": "",
+    "elapsed_sec": 24.7,
+    "subject": "Customized Fiberglass Container Pool - Ready-Made Prefabricated Outdoor Swimming Pool",
+    "keywords": [
+      "fiberglass container pool",
+      "prefabricated outdoor pool",
+      "villa pool",
+      "custom fiberglass pool",
+      "low-maintenance swimming pool"
+    ],
+    "text_chars": 2857,
+    "save_result": {
+      "code": 0,
+      "msg": "Successful",
+      "msgCode": null,
+      "data": {
+        "msg": "您的产品编辑成功！",
+        "code": 0,
+        "productId": "220114598434958580"
+      }
+    },
+    "steps": [
+      {
+        "name": "连接 Alibaba",
+        "ok": true,
+        "detail": "Cookie 可用，客户端已创建"
+      },
+      {
+        "name": "读取商品详情",
+        "ok": true,
+        "detail": "Customized Fiberglass Swimming Pool Container · 类目 202107201"
+      },
+      {
+        "name": "读取类目规则",
+        "ok": true,
+        "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+      },
+      {
+        "name": "AI 标题",
+        "ok": true,
+        "detail": "Customized Fiberglass Container Pool - Ready-Made Prefabricated Outdoo"
+      },
+      {
+        "name": "AI 详情",
+        "ok": true,
+        "detail": "HTML 6693 字符 · 纯文本 2857 字符"
+      },
+      {
+        "name": "AI 关键词",
+        "ok": true,
+        "detail": "fiberglass container pool, prefabricated outdoor pool, villa pool, custom fiberglass pool, low-maintenance swimming pool"
+      },
+      {
+        "name": "关键词",
+        "ok": true,
+        "detail": "fiberglass container pool, prefabricated outdoor pool, villa pool, custom fiberglass pool, low-maintenance swimming pool"
+      },
+      {
+        "name": "保存前校验",
+        "ok": true,
+        "detail": "必填项全部满足"
+      },
+      {
+        "name": "违禁词检查",
+        "ok": true,
+        "detail": "未命中"
+      },
+      {
+        "name": "授权校验",
+        "ok": true,
+        "detail": "通过"
+      },
+      {
+        "name": "保存到 Alibaba",
+        "ok": true,
+        "detail": "保存草稿成功：您的产品编辑成功！"
+      },
+      {
+        "name": "完成",
+        "ok": true,
+        "detail": "商品已保存/提交"
+      }
+    ]
+  },
+  "before": {
+    "subject": "Customized Fiberglass Swimming Pool Container",
+    "subject_len": 45,
+    "keywords": "fiberglass pool, container pool, above ground pool",
+    "categoryId": "202107201",
+    "fullCid": "18,100005657,100005663,202107201",
+    "priceType": "ladder_price",
+    "bulk": "[{\"start_quantity\": 1, \"price\": 4300.0}]",
+    "mainImage_count": 6,
+    "attrs_count": 1097,
+    "textDesc_sha12": "9d4459e3aae3",
+    "textDesc_chars": 2108,
+    "dxmState": "draft"
+  },
+  "after": {
+    "subject": "Customized Fiberglass Container Pool - Ready-Made Prefabricated Outdoor Swimming Pool",
+    "subject_len": 85,
+    "keywords": "fiberglass container pool, prefabricated outdoor pool, villa pool, custom fiberglass pool, low-maintenance swimming pool",
+    "categoryId": "202107201",
+    "fullCid": "18,100005657,100005663,202107201",
+    "priceType": "ladder_price",
+    "bulk": "[{\"start_quantity\": 1, \"price\": 4300.0}]",
+    "mainImage_count": 6,
+    "attrs_count": 1097,
+    "textDesc_sha12": "e5bfd2029aca",
+    "textDesc_chars": 6693,
+    "dxmState": "draft"
+  },
+  "changed_fields": {
+    "subject": {
+      "before": "Customized Fiberglass Swimming Pool Container",
+      "after": "Customized Fiberglass Container Pool - Ready-Made Prefabricated Outdoor Swimming Pool"
+    },
+    "subject_len": {
+      "before": 45,
+      "after": 85
+    },
+    "keywords": {
+      "before": "fiberglass pool, container pool, above ground pool",
+      "after": "fiberglass container pool, prefabricated outdoor pool, villa pool, custom fiberglass pool, low-maintenance swimming pool"
+    },
+    "textDesc_sha12": {
+      "before": "9d4459e3aae3",
+      "after": "e5bfd2029aca"
+    },
+    "textDesc_chars": {
+      "before": 2108,
+      "after": 6693
+    }
+  }
+}

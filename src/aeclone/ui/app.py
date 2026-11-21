@@ -9361,6 +9361,11 @@ class App:
                     for a in targets:
                         nm = str(a.get("nameEn") or a.get("nameZh") or "").strip()
                         vals = a.get("values") or []
+                        if isinstance(vals, str):
+                            try:
+                                vals = _json.loads(vals)
+                            except Exception:
+                                vals = []
                         m2: dict[str, str] = {}
                         for v in (vals if isinstance(vals, list) else []):
                             if not isinstance(v, dict):
