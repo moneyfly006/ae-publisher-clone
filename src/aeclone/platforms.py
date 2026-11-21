@@ -7,6 +7,25 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+# 搜索别名：平台页面的 label/group 是 Alibaba 文案（如「MOQ · 包装 · 重量」），
+# 用户习惯搜的是任务词（库存、水印、阶梯价…）。不保留这些词，导航搜索会搜不到，
+# 这在改造成平台化导航时丢失过（回归项）。
+_KEYWORDS = {
+    0: "首页 工作台 概览 状态 搜索",
+    1: "cookie 登录 浏览器 店铺 模板",
+    2: "类目 属性 重量 尺寸 责任人 包装 合规 欧盟",
+    3: "ai 文案 标题 详情 提示词 自定义",
+    4: "审查 违禁词 合规 拦截 审核",
+    5: "ai 图片 白底 水印 翻译 精细 提示词 视频 图床",
+    6: "价格 定价 成本 利润 运费 佣金 阶梯 fob 报价 区域",
+    7: "库存 变种 sku 前缀 套装 重量 包装 moq 起订",
+    8: "草稿 待发布 发布 队列 批量 重发 数量 去向",
+    9: "图片 工作台 相册 本地 调试 拼图 视频",
+    10: "发布 审核 状态 日志 诊断 导出 报错 定时",
+    11: "设置 连接 图床 余额 更新 诊断 授权 多开 界面",
+}
+
+
 @dataclass(frozen=True)
 class PageItem:
     index: int          # 复用现有页面实现（navigation.Destination.index）
@@ -14,6 +33,11 @@ class PageItem:
     group: str
     icon: str
     feature: str        # 需要的功能包
+    keywords: str = ""  # 导航搜索别名（见 _KEYWORDS）
+
+    def matches(self, query: str) -> bool:
+        text = f"{self.group} {self.label} {self.keywords} {_KEYWORDS.get(self.index, '')}".casefold()
+        return all(word in text for word in str(query or "").casefold().split())
 
 
 @dataclass(frozen=True)

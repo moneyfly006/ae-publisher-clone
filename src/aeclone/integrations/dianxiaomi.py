@@ -509,8 +509,12 @@ class DianxiaomiClient:
                      status: str | None = None, keyword: str | None = None) -> tuple[list[dict], dict]:
         params: dict = {"pageNo": page, "pageSize": size, "total": 0,
                         "searchType": 0, "searchValue": ""}
+        # 店小秘的 product_list 在带 dxmState 时必须给 shopId；不传时草稿/待发布
+        # 返回 0 条（会表现为「列表里没有商品」）。-1 表示全店。
         if shop_id:
             params["shopId"] = shop_id
+        else:
+            params["shopId"] = -1
         if status:
             params.update(self._STATE_PARAMS.get(status, {"dxmState": status}))
         if keyword:

@@ -27,14 +27,17 @@ class RedesignTests(unittest.TestCase):
             ui.apply_theme(theme)
             for d in DESTINATIONS:
                 with self.subTest(theme=theme, page=d.label):
+                    item = self.app.active_platform.page(d.index)
+                    self.assertIsNotNone(item)
                     self.app._switch(d.index)
                     self.assertEqual(self.app._current, d.index)
-                    self.assertIn(d.label, self.app.breadcrumb.value)
+                    # 面包屑用平台化后的页面名（如「店铺与登录」），页面 ID 仍兼容旧 0-11。
+                    self.assertIn(item.label, self.app.breadcrumb.value)
                     self.assertTrue(list(walk(self.app.content.controls)))
                     self.assertTrue(all(isinstance(b, ft.TextButton) for _, b in self.app.nav_buttons))
         self.app._switch(25)
         self.assertEqual(self.app._page_idx, 1)
-        self.assertIn("店铺与模板", self.app.breadcrumb.value)
+        self.assertIn(self.app.active_platform.page(1).label, self.app.breadcrumb.value)
 
     def test_navigation_search_alias_empty_state_and_enter(self):
         self.app._filter_navigation("水印")
@@ -52,7 +55,8 @@ class RedesignTests(unittest.TestCase):
         for index, button in self.app.nav_buttons:
             button.on_click(Event(control=button))
             self.assertEqual(self.app._page_idx, index)
-            self.assertIn(destination(index).label, self.app.breadcrumb.value)
+            item = self.app.active_platform.page(index)
+            self.assertIn(item.label, self.app.breadcrumb.value)
 
     def test_navigation_resets_content_scroll_to_show_page_header(self):
         with patch.object(self.app.content, "scroll_to") as scroll:
@@ -109,7 +113,7 @@ class RedesignTests(unittest.TestCase):
             8: ["运行与发布设置", "商品队列"],
             9: ["商品与取图", "图片处理与输出", "任务队列"],
             10: ["运行日志", "定时发布"],
-            11: ["账号与连接", "图片与模型", "界面与实例", "维护与诊断"],
+            11: ["账号与连接", "图片与模型", "界面与实例", "维护与诊断", "Alibaba 刊登"],
         }
         for index, titles in expected.items():
             self.app._switch(index)

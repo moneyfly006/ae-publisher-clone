@@ -2545,10 +2545,10 @@ class Publisher:
                 for _w in getattr(plan, "warnings", [])[:3]:
                     res.steps.append(Step("图片计划提醒", True, _w))
             except Exception as ex:  # noqa: BLE001
-                # 预演只是给人看的计划，依赖缺失不该把整次预演判失败
-                res.steps.append(Step("图片计划", True,
-                                      f"跳过（{str(ex)[:60]}）" if dry_run
-                                      else f"生成失败：{str(ex)[:80]}"))
+                # 预演也要如实反映「计划算不出来」：如果这里静默跳过，用户会以为
+                # 图片处理已规划好，真实运行时却直接失败。失败步骤会汇总到
+                # res.ok=False + res.error（见下方 failures 聚合）。
+                res.steps.append(Step("图片计划", False, f"生成失败：{str(ex)[:80]}"))
 
             # 图片方案摘要（新引擎自带 dry_run 分支，不调 AI）
             try:

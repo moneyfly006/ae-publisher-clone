@@ -105,7 +105,13 @@ def sandbox(*, threads=False, external_calls=None):
                                                      "AURORA_CONFIG_DIR": "",
                                                      "AURORA_PAGE_FILE": "", "AURORA_THEME": "dark"}))
         data = deepcopy(config.DEFAULTS)
+        # 页面构建测试需要能进入真实页面（而不是授权锁定页）。授权校验属于
+        # licensing/测试，不应让 UI 回归全部退化成 _render_locked；这里用
+        # license_platforms 覆盖，仅影响隔离环境，不代表服务端授权状态。
+        from aeclone.licensing import PLATFORM_FEATURES
         data.update(api_key="", manual_cookies={}, license_signature="", license_voucher="",
+                    license_platforms=",".join(
+                        f"{pid}:{'+'.join(feats)}" for pid, feats in PLATFORM_FEATURES.items()),
                     license_cache_ok=False, license_cache_ts=0, store_id="", store_name="",
                     template_product_id="", template_library="{}", price_template_library="{}",
                     template_product_title="", template_image_url="", template_snapshot="",

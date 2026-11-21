@@ -5,7 +5,7 @@
     "detail": {
       "model_count": 14
     },
-    "elapsed": 0.51
+    "elapsed": 1.43
   },
   {
     "name": "API 余额",
@@ -13,7 +13,7 @@
     "detail": {
       "available": true
     },
-    "elapsed": 0.96
+    "elapsed": 2.88
   },
   {
     "name": "API 价格表",
@@ -21,64 +21,62 @@
     "detail": {
       "model_count": 14
     },
-    "elapsed": 0.86
+    "elapsed": 1.47
   },
   {
     "name": "店铺列表",
     "status": "PASS",
     "detail": {
-      "shop_count": 2
+      "shop_count": 4
     },
-    "elapsed": 0.17
+    "elapsed": 0.24
   },
   {
     "name": "商品状态统计",
     "status": "PASS",
     "detail": {
       "counts": {
-        "draft": 55,
+        "draft": 0,
         "editingRequired": 0,
-        "publishFail": 5,
+        "publishFail": 0,
         "publishing": 0,
         "publishingTiming": 0,
-        "onSelling": 1097,
-        "auditing": 40
+        "onSelling": 0,
+        "auditing": 0
       }
     },
-    "elapsed": 1.11
+    "elapsed": 0.32
   },
   {
     "name": "草稿读取",
     "status": "PASS",
     "detail": {
-      "product_count": 2
+      "product_count": 0
     },
-    "elapsed": 0.8
+    "elapsed": 0.16
   },
   {
     "name": "在线商品读取",
     "status": "PASS",
     "detail": {
-      "product_count": 2
+      "product_count": 0
     },
-    "elapsed": 0.63
+    "elapsed": 0.18
   },
   {
     "name": "模板详情读取",
-    "status": "PASS",
-    "detail": {
-      "field_count": 192
-    },
-    "elapsed": 0.23
+    "status": "FAIL",
+    "detail": "ValueError: 未返回模板商品",
+    "elapsed": 0.17
   },
   {
     "name": "相册空间读取",
     "status": "PASS",
     "detail": {
-      "images": 4517,
-      "pdfs": 0
+      "images": 1200,
+      "pdfs": 62
     },
-    "elapsed": 0.18
+    "elapsed": 0.22
   },
   {
     "name": "区域调价模板读取",
@@ -86,6 +84,6 @@
     "detail": {
       "template_count": 0
     },
-    "elapsed": 0.16
+    "elapsed": 0.19
   }
 ]

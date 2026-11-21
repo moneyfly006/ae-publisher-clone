@@ -91,10 +91,15 @@ _t2, _a2 = updater.windows_install_plan(good, exe_dir=portable)
 chk("决策：便携场景不带 /DIR", not any(a.startswith("/DIR=") for a in _a2), str(_a2))
 
 # 7) 旧客户端（1.0.1）的问题：下载名固定 .zip，导致 Windows 打不开
+# 历史 tag 只在完整仓库存在（CI 浅克隆/本地裁剪会没有），没有时跳过历史
+# 核对而不是误报失败；「当前代码不再固定 .zip」始终校验。
 import subprocess  # noqa: E402
 old_src = subprocess.run(["git", "show", "v1.0.1:src/aeclone/ui/app.py"],
                          capture_output=True, text=True).stdout
-chk("确认 1.0.1 曾固定存成 .zip", "aurora-update-{latest}.zip" in old_src)
+if old_src.strip():
+    chk("确认 1.0.1 曾固定存成 .zip", "aurora-update-{latest}.zip" in old_src)
+else:
+    print("  - 跳过：本仓库没有 v1.0.1 tag（历史核对不影响当前行为）")
 chk("当前代码不再固定 .zip", "aurora-update-{latest}.zip" not in Path(
     "src/aeclone/ui/app.py").read_text(encoding="utf-8"))
 

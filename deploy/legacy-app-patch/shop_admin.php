@@ -233,3 +233,95 @@ function page_shop_license_revoke(int $id): void
     flash('ok', '授权已吊销');
     redirect('/admin/shop-licenses');
 }
+
+/* ---------- 套餐用户详情 / 管理 ---------- */
+function page_shop_user_detail(int $id): void
+{
+    require_admin();
+    $st = shop_pdo()->prepare('SELECT * FROM users WHERE id=?'); $st->execute([$id]);
+    $u = $st->fetch();
+    if (!$u) { flash('bad', '用户不存在'); redirect('/admin/shop-users'); }
+    $st = shop_pdo()->prepare('SELECT * FROM licenses WHERE user_id=? ORDER BY id DESC'); $st->execute([$id]);
+    $licenses = $st->fetchAll();
+    $st = shop_pdo()->prepare('SELECT o.*, p.name AS package_name FROM orders o LEFT JOIN packages p ON p.id=o.package_id WHERE o.user_id=? ORDER BY o.id DESC LIMIT 50');
+    $st->execute([$id]);
+    $orders = $st->fetchAll();
+    render('shop_user_detail', ['title' => '套餐用户：' . $u['email'], 'u' => $u, 'licenses' => $licenses,
+                                'orders' => $orders, 'platforms' => shop_platform_map()]);
+}
+
+function page_shop_user_update(int $id): void
+{
+    require_admin(); csrf_check();
+    $email = trim(strtolower((string)($_POST['email'] ?? '')));
+    $name = trim((string)($_POST['name'] ?? ''));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { flash('bad', '邮箱格式不正确'); redirect('/admin/shop-users/' . $id); }
+    $st = shop_pdo()->prepare('SELECT id FROM users WHERE email=? AND id<>?'); $st->execute([$email, $id]);
+    if ($st->fetch()) { flash('bad', '邮箱已被其他用户使用'); redirect('/admin/shop-users/' . $id); }
+    shop_pdo()->prepare('UPDATE users SET email=?, name=? WHERE id=?')->execute([$email, $name, $id]);
+    audit('修改套餐用户信息', 'user:' . $id, '', $email);
+    flash('ok', '用户信息已保存');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_password(int $id): void
+{
+    require_admin(); csrf_check();
+    $pass = (string)($_POST['password'] ?? '');
+    if (strlen($pass) < 6) { flash('bad', '密码至少 6 位'); redirect('/admin/shop-users/' . $id); }
+    shop_pdo()->prepare('UPDATE users SET pass=? WHERE id=?')
+        ->execute([password_hash($pass, PASSWORD_DEFAULT), $id]);
+    audit('重置套餐用户密码', 'user:' . $id);
+    flash('ok', '密码已重置');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_grant(int $id): void
+{
+    require_admin(); csrf_check();
+    $st = shop_pdo()->prepare('SELECT * FROM users WHERE id=?'); $st->execute([$id]);
+    if (!$st->fetch()) { flash('bad', '用户不存在'); redirect('/admin/shop-users'); }
+    $platform = (string)($_POST['platform'] ?? 'alibaba');
+    $days = max(1, (int)($_POST['days'] ?? 30));
+    $map = shop_platform_map();
+    if ($platform === 'all') {
+        $plats = $map;
+    } elseif (isset($map[$platform])) {
+        $plats = [$platform => $map[$platform]];
+    } else {
+        flash('bad', '平台不存在'); redirect('/admin/shop-users/' . $id);
+        return;
+    }
+    // 复用该用户已有授权的机器码（如有）
+    $st = shop_pdo()->prepare('SELECT machine_code FROM licenses WHERE user_id=? AND revoked=0 ORDER BY id DESC LIMIT 1');
+    $st->execute([$id]); $prev = $st->fetch();
+    $machine = $prev ? (string)$prev['machine_code'] : '';
+    $expires = date('Y-m-d', max(time(), strtotime(date('Y-m-d')) + $days * 86400));
+    $token = shop_issue_token($machine, $plats, $expires);
+    shop_pdo()->prepare('INSERT INTO licenses(user_id,order_id,machine_code,token,expires_at,platforms,created_at) VALUES(?,?,?,?,?,?,?)')
+        ->execute([$id, 0, $machine, $token, $expires, json_encode($plats, JSON_UNESCAPED_UNICODE), time()]);
+    audit('手动开通平台全权限', 'user:' . $id, $platform . ' / ' . $days . 'd');
+    flash('ok', '已手动开通：' . $platform . '，' . $days . ' 天');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_revoke(int $id): void
+{
+    require_admin(); csrf_check();
+    shop_pdo()->prepare('UPDATE licenses SET revoked=1 WHERE user_id=? AND revoked=0')->execute([$id]);
+    audit('取消套餐用户全部授权', 'user:' . $id);
+    flash('ok', '该用户的授权已全部取消');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_delete(int $id): void
+{
+    require_admin(); csrf_check();
+    foreach (['licenses', 'orders', 'heartbeats'] as $t) {
+        shop_pdo()->prepare("DELETE FROM $t WHERE user_id=?")->execute([$id]);
+    }
+    shop_pdo()->prepare('DELETE FROM users WHERE id=?')->execute([$id]);
+    audit('删除套餐用户', 'user:' . $id);
+    flash('ok', '用户及其授权/订单已删除');
+    redirect('/admin/shop-users');
+}

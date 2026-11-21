@@ -1041,8 +1041,9 @@ class App:
 
     def _filter_navigation(self, query):
         q = str(query or "")
-        matches = {it.index for it in self.active_platform.pages
-                   if all(w in f"{it.group} {it.label}".casefold() for w in q.casefold().split())}
+        # 统一走 PageItem.matches：除 label/group 外还匹配搜索别名
+        # （库存、水印、阶梯价…），否则平台化改名后用户搜不到原功能。
+        matches = {it.index for it in self.active_platform.pages if it.matches(q)}
         for index, button in self.nav_buttons:
             button.visible = index in matches
         for heading, indices in self._nav_groups:
@@ -1052,17 +1053,21 @@ class App:
 
     def _open_navigation_match(self):
         q = str(self.nav_search.value or "")
-        matches = [it for it in self.active_platform.pages
-                   if all(w in f"{it.group} {it.label}".casefold() for w in q.casefold().split())]
+        matches = [it for it in self.active_platform.pages if it.matches(q)]
         if matches:
             self._switch(matches[0].index)
             self.nav_search.value = ""
             self._filter_navigation("")
 
     def _switch(self, idx):
+        pages = self.active_platform.pages
         item = self.active_platform.page(int(idx))
+        if item is None and pages:
+            # 兼容旧配置/命令行里的越界页面号（旧实现是 12 取模），
+            # 平台化后按当前平台页面顺序取模，避免直接跳回首页。
+            item = pages[int(idx) % len(pages)]
         if item is None:
-            item = self.active_platform.pages[0]
+            item = pages[0]
         idx = item.index
         for page_idx, b in self.nav_buttons:
             on = page_idx == idx
@@ -3522,9 +3527,14 @@ class App:
             self.store_status,
         ], spacing=10))
 
+        self.btn_best_shop = ft.OutlinedButton(
+            "切换到有商品的店铺", icon=ft.Icons.SWAP_HORIZ, visible=False,
+            tooltip="当前店铺没有待处理商品时，一键切换到有草稿/待发布/失败的店铺",
+            on_click=lambda e: self._switch_to_best_shop())
         shop_card = card(ft.Column([
             h1("2 · 选择店铺", 15),
             self.shop_dd,
+            self.btn_best_shop,
             ft.Row([chip_col("在线", self.chip_online),
                     chip_col("待发布", self.chip_wait),
                     chip_col("审核中", self.chip_audit)], spacing=28),
@@ -3976,7 +3986,39 @@ class App:
             ck = self._cookies()
             c = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
             shops = c.shops()
-            self.shop_dd.options = [ft.dropdown.Option(key=str(s["id"]), text=s["name"]) for s in shops]
+
+            # 后台并发读每家店铺的待处理数量：配置里的 store_id 可能已失效
+            # （换店/店铺被删/账号重登），只显示店名会让用户误以为「没有商品」。
+            def _shop_counts(shop_id):
+                try:
+                    return c.counts(str(shop_id), ttl=30)
+                except Exception:
+                    return {}
+
+            counts_by_shop: dict[str, dict] = {}
+            if shops:
+                try:
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=min(4, len(shops))) as pool:
+                        got = list(pool.map(lambda s: _shop_counts(s["id"]), shops))
+                    counts_by_shop = {str(s["id"]): r for s, r in zip(shops, got)}
+                except Exception:
+                    counts_by_shop = {}
+
+            def _pending(cnt: dict) -> int:
+                return sum(int(cnt.get(k) or 0)
+                           for k in ("draft", "editingRequired", "publishFail"))
+
+            options = []
+            for s in shops:
+                cnt = counts_by_shop.get(str(s["id"])) or {}
+                draft = int(cnt.get("draft") or 0)
+                pending = _pending(cnt)
+                options.append(ft.dropdown.Option(
+                    key=str(s["id"]),
+                    text=f"{s['name']} · 草稿 {draft}" if pending
+                    else f"{s['name']} · 无商品"))
+            self.shop_dd.options = options
             if shops and not self.cfg.store_id:
                 self.cfg.store_id = shops[0]["id"]; self.cfg.store_name = shops[0]["name"]
                 save_config(self.cfg)
@@ -3989,7 +4031,7 @@ class App:
                     self.cfg.store_name = str(_sh["name"])
                     break
             save_config(self.cfg)
-            cnt = c.counts(sid, ttl=30) if sid else {}
+            cnt = counts_by_shop.get(str(sid)) or (_shop_counts(sid) if sid else {})
             self.store_counts = cnt
             try:
                 self.chip_online.value = str(cnt.get("onSelling", 0))
@@ -3997,13 +4039,65 @@ class App:
                 self.chip_audit.value = str(cnt.get("auditing", 0))
             except Exception:
                 pass
-            self.store_status.value = (f"店铺 {self.cfg.store_name}：在线 {cnt.get('onSelling',0)} · "
-                                       f"待发布 {cnt.get('editingRequired',0)} · 审核中 {cnt.get('auditing',0)}")
-            self.store_status.color = ACCENT_2
+
+            # 当前店铺没有待处理商品、其它店铺有时：显式提示并给一键切换。
+            best = None
+            for s in shops:
+                c2 = counts_by_shop.get(str(s["id"])) or {}
+                p = _pending(c2)
+                if p and (best is None or p > best[1]):
+                    best = (s, p, c2)
+            target = None
+            if best and _pending(cnt) == 0 and str(best[0]["id"]) != str(sid):
+                target = {"id": str(best[0]["id"]), "name": str(best[0]["name"]),
+                          "pending": best[1], "draft": int(best[2].get("draft") or 0)}
+            self._best_shop = target
+            btn = getattr(self, "btn_best_shop", None)
+            if btn is not None:
+                btn.visible = bool(target)
+                if target:
+                    btn.text = f"切换到「{target['name']}」（草稿 {target['draft']}）"
+
+            if target:
+                self.store_status.value = (
+                    f"当前店铺 {self.cfg.store_name} 没有待处理商品；"
+                    f"「{target['name']}」有 {target['pending']} 个（草稿 {target['draft']}）")
+                self.store_status.color = WARN_C
+            else:
+                self.store_status.value = (
+                    f"店铺 {self.cfg.store_name}：在线 {cnt.get('onSelling',0)} · "
+                    f"待发布 {cnt.get('editingRequired',0)} · 审核中 {cnt.get('auditing',0)}")
+                self.store_status.color = ACCENT_2
         except Exception as ex:
             self.store_status.value = f"同步失败：{ex}"
             self.store_status.color = DANGER_C
         self._safe_update()
+
+    def _switch_to_best_shop(self):
+        """「当前店铺为空、其它店铺有商品」时的一键切换（换店后清模板）。"""
+        target = getattr(self, "_best_shop", None)
+        if not target:
+            return
+        try:
+            self.shop_dd.value = target["id"]
+        except Exception:
+            pass
+        self.cfg.template_product_id = ""
+        self.cfg.template_product_title = ""
+        self.cfg.template_snapshot = ""
+        self.cfg.store_id = target["id"]
+        self.cfg.store_name = target["name"]
+        save_config(self.cfg)
+        try:
+            self.tpl_preview_box.content = self._template_preview_row()
+            self.tpl_snapshot_text.value = "模板参数：未读取（已切换店铺，请重新选择模板）"
+        except Exception:
+            pass
+        self.store_shortcut.text = self.cfg.store_name or "选择店铺"
+        self._log(f"切换店铺：{target['name']}（草稿 {target['draft']}）", "INFO")
+        self.toast(f"已切换到「{target['name']}」，正在同步商品数量…", True)
+        threading.Thread(target=self._sync_shops, daemon=True).start()
+
 
     def _cookies(self, refresh: bool = False):
         """取 Cookie：手动配置 → 已开浏览器（CDP）→ 本机浏览器库（ISSUES #1）。"""
