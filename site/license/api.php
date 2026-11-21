@@ -68,6 +68,7 @@ case 'me': {
     if ($u) { $l = license_for_user((int)$u['id']); if ($l) $lic = ['expires_at'=>$l['expires_at'],'platforms'=>json_decode($l['platforms'],true),'machine_code'=>$l['machine_code']]; }
     out(['user'=>$u, 'license'=>$lic]);
 }
+case 'site': { out(['name'=>get_setting('site_name'), 'announcement'=>get_setting('announcement'), 'epay'=> (get_setting('epay_pid')!=='' )]); }
 case 'packages': { out(packages()); }
 
 // ---------------- 订单 / 支付 ----------------
@@ -81,11 +82,11 @@ case 'order_create': {
     $st = db()->prepare('INSERT INTO orders(user_id,package_id,amount_cents,status,trade_no,created_at) VALUES(?,?,?,?,?,?)');
     $st->execute([$u['id'], $pid, $p['price_cents'], 'pending', $trade, now()]);
     $oid = (int)db()->lastInsertId();
-    $epay = cfg();
+    $epay = effective_epay();
     $payUrl = '';
-    if ($epay['epay_pid'] && $epay['epay_key']) {
+    if ($epay['pid'] && $epay['key']) {
         $params = [
-          'pid'=>$epay['epay_pid'], 'type'=>$epay['epay_type'],
+          'pid'=>$epay['pid'], 'type'=>$epay['type'],
           'out_trade_no'=>$trade, 'notify_url'=>$epay['site_url'].'/pay/notify.php',
           'return_url'=>$epay['site_url'].'/index.php?paid=1',
           'name'=>$p['name'], 'money'=>number_format($p['price_cents']/100, 2, '.', ''),
@@ -99,7 +100,7 @@ case 'order_create': {
 }
 case 'order_mock_pay': { // 仅未配置易支付时用于本地/测试
     $u = require_user(); $in = body();
-    if (cfg()['epay_pid'] || !cfg()['allow_mock_pay']) fail('未启用模拟支付');
+    if (get_setting('epay_pid') || get_setting('allow_mock_pay') !== '1') fail('未启用模拟支付');
     $oid = (int)($in['order_id'] ?? 0);
     $st = db()->prepare('SELECT * FROM orders WHERE id=? AND user_id=?'); $st->execute([$oid, $u['id']]);
     if (!$st->fetch()) fail('订单不存在');
@@ -189,6 +190,28 @@ case 'admin_login': {
     session_start(); $_SESSION['admin'] = 1; out(['ok'=>true]);
 }
 case 'admin_logout': { session_start(); unset($_SESSION['admin']); out(['ok'=>true]); }
+
+case 'admin_settings_get': {
+    require_admin();
+    out(['settings'=>[
+      'site_name'=>get_setting('site_name'),
+      'epay_gateway'=>get_setting('epay_gateway'),
+      'epay_pid'=>get_setting('epay_pid'),
+      'epay_key'=>get_setting('epay_key'),
+      'epay_type'=>get_setting('epay_type'),
+      'allow_mock_pay'=>get_setting('allow_mock_pay'),
+      'announcement'=>get_setting('announcement'),
+    ]]);
+}
+case 'admin_settings_save': {
+    require_admin();
+    $in = body();
+    foreach (['site_name','epay_gateway','epay_pid','epay_key','epay_type','allow_mock_pay','announcement'] as $k) {
+        if (array_key_exists($k, $in)) set_setting($k, (string)$in[$k]);
+    }
+    out(['ok'=>true]);
+}
+
 case 'admin_stats': {
     require_admin();
     $db = db();

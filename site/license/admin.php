@@ -50,6 +50,7 @@ tr:last-child td{border-bottom:none}
     <div class="tab" data-tab="ord">订单</div>
     <div class="tab" data-tab="usr">用户</div>
     <div class="tab" data-tab="lic">授权</div>
+    <div class="tab" data-tab="pay">支付设置</div>
   </div>
   <div id="dash">
     <div class="kpis" id="stats"></div>
@@ -70,6 +71,33 @@ tr:last-child td{border-bottom:none}
   </div>
   <div id="ord" class="hide"><table id="ordTable"><tr><th>ID</th><th>订单号</th><th>用户</th><th>套餐</th><th>金额</th><th>状态</th><th>时间</th><th>操作</th></tr></table></div>
   <div id="usr" class="hide"><table id="usrTable"><tr><th>ID</th><th>邮箱</th><th>授权数</th><th>到期</th><th>已付订单</th><th>注册时间</th></tr></table></div>
+  <div id="pay" class="hide">
+    <div class="card"><h3>易支付（new-api 同一套参数）</h3>
+      <div class="hint">填写后用户端下单会跳转到易支付收银台；回调域名：<code id="notifyUrl"></code></div>
+      <div class="row" style="margin-top:12px">
+        <label style="width:110px" class="muted">支付网关</label><input id="eGateway" placeholder="https://pay.example.com" style="width:420px">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label style="width:110px" class="muted">商户 PID</label><input id="ePid" placeholder="1000" style="width:200px">
+        <label class="muted">商户密钥</label><input id="eKey" placeholder="KEY" style="width:320px">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label style="width:110px" class="muted">支付方式</label>
+        <select id="eType"><option value="alipay">支付宝</option><option value="wxpay">微信</option></select>
+        <label class="muted"><input type="checkbox" id="eMock" style="vertical-align:-2px"> 允许模拟支付（仅测试环境）</label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label style="width:110px" class="muted">公告</label><input id="eAnn" placeholder="用户端顶部公告（可空）" style="width:520px">
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn primary" id="eSave">保存支付设置</button>
+        <span class="muted" id="eHint"></span></div>
+    </div>
+    <div class="card"><h3>说明</h3>
+      <p class="muted">1. 易支付网关地址一般以 <code>/</code> 结尾，例如 https://pay.xxx.com/<br>
+      2. 回调地址为 <code id="notifyUrl2"></code>，需在易支付后台允许该域名<br>
+      3. new-api 后台若已配置易支付，可直接把相同 PID/KEY 填到这里</p>
+    </div>
+  </div>
   <div id="lic" class="hide"><table id="licTable"><tr><th>ID</th><th>用户</th><th>机器码</th><th>平台</th><th>到期</th><th>状态</th><th>操作</th></tr></table></div>
 </div></div>
 
@@ -83,9 +111,9 @@ $('#admLogin').onclick=login; $('#admPass').addEventListener('keydown',e=>{if(e.
 $('#admLogout').onclick=async()=>{await api('admin_logout');location.reload()};
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
-  ['dash','pkg','ord','usr','lic'].forEach(k=>$('#'+k).classList.toggle('hide',k!==t.dataset.tab));
+  ['dash','pkg','ord','usr','lic','pay'].forEach(k=>$('#'+k).classList.toggle('hide',k!==t.dataset.tab));
   if(t.dataset.tab==='pkg')loadPkgs(); if(t.dataset.tab==='ord')loadOrds();
-  if(t.dataset.tab==='usr')loadUsr(); if(t.dataset.tab==='lic')loadLic();
+  if(t.dataset.tab==='usr')loadUsr(); if(t.dataset.tab==='lic')loadLic(); if(t.dataset.tab==='pay')loadPay();
 });
 async function loadAll(){loadStats();loadPkgs();loadOrds();loadUsr();loadLic();}
 async function loadStats(){const r=await api('admin_stats');if(r.code!==0)return;const d=r.data;
@@ -120,6 +148,21 @@ async function loadUsr(){const r=await api('admin_users');const t=$('#usrTable')
   t.innerHTML='<tr><th>ID</th><th>邮箱</th><th>授权数</th><th>到期</th><th>已付订单</th><th>注册时间</th></tr>'+
    (r.data||[]).map(u=>`<tr><td>${u.id}</td><td>${esc(u.email)}</td><td>${u.licenses||0}</td><td>${esc(u.expires_at||'-')}</td>
      <td>${u.paid_orders||0}</td><td>${new Date(u.created_at*1000).toLocaleDateString()}</td></tr>`).join('');}
+async function loadPay(){
+  const r=await api('admin_settings_get'); const d=r.data?.settings||{};
+  $('#eGateway').value=d.epay_gateway||''; $('#ePid').value=d.epay_pid||''; $('#eKey').value=d.epay_key||'';
+  $('#eType').value=d.epay_type||'alipay'; $('#eMock').checked = d.allow_mock_pay==='1';
+  $('#eAnn').value=d.announcement||'';
+  const u=location.origin+location.pathname.replace('admin.php','pay/notify.php');
+  $('#notifyUrl').textContent=u; $('#notifyUrl2').textContent=u;
+}
+$('#eSave') && ($('#eSave').onclick=async()=>{
+  const r=await api('admin_settings_save',{epay_gateway:$('#eGateway').value.trim(),epay_pid:$('#ePid').value.trim(),
+    epay_key:$('#eKey').value.trim(),epay_type:$('#eType').value,allow_mock_pay:$('#eMock').checked?'1':'0',
+    announcement:$('#eAnn').value.trim()});
+  $('#eHint').textContent=r.code===0?'已保存':'保存失败：'+r.msg;
+  $('#eHint').style.color=r.code===0?'var(--accent)':'var(--danger)';
+});
 async function loadLic(){const r=await api('admin_licenses');const t=$('#licTable');
   t.innerHTML='<tr><th>ID</th><th>用户</th><th>机器码</th><th>平台</th><th>到期</th><th>状态</th><th>操作</th></tr>'+
    (r.data||[]).map(l=>`<tr><td>${l.id}</td><td>${esc(l.email||'')}</td><td>${esc(l.machine_code||'未绑定')}</td>

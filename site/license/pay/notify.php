@@ -7,7 +7,8 @@ $in = array_merge($_GET, $_POST);
 $sign = (string)($in['sign'] ?? '');
 unset($in['sign']);
 ksort($in);
-$calc = md5(urldecode(http_build_query($in)).cfg()['epay_key']);
+$epay = effective_epay();
+$calc = md5(urldecode(http_build_query($in)).$epay['key']);
 if (!$sign || strtolower($calc) !== strtolower($sign)) { echo 'sign error'; exit; }
 if (($in['trade_status'] ?? '') !== 'TRADE_SUCCESS') { echo 'fail'; exit; }
 $trade = (string)($in['out_trade_no'] ?? '');

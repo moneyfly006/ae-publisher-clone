@@ -150,3 +150,41 @@ function license_for_user(int $uid): ?array {
     $l = $st->fetch(PDO::FETCH_ASSOC);
     return $l ?: null;
 }
+
+// ---------- 可在线修改的设置（管理后台「支付设置」等） ----------
+function setting_defaults(): array {
+    $c = cfg();
+    return [
+      'site_name' => $c['site_name'],
+      'epay_gateway' => $c['epay_gateway'],
+      'epay_pid' => $c['epay_pid'],
+      'epay_key' => $c['epay_key'],
+      'epay_type' => $c['epay_type'],
+      'allow_mock_pay' => $c['allow_mock_pay'] ? '1' : '0',
+      'announcement' => '',
+    ];
+}
+
+function get_setting(string $k, ?string $default = null): string {
+    $st = db()->prepare('SELECT v FROM settings WHERE k=?');
+    $st->execute([$k]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    if ($r !== false) return (string)$r['v'];
+    $d = setting_defaults();
+    return $default ?? ($d[$k] ?? '');
+}
+
+function set_setting(string $k, string $v): void {
+    $st = db()->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v');
+    $st->execute([$k, $v]);
+}
+
+function effective_epay(): array {
+    return [
+      'gateway' => rtrim(get_setting('epay_gateway'), '/'),
+      'pid' => get_setting('epay_pid'),
+      'key' => get_setting('epay_key'),
+      'type' => get_setting('epay_type', 'alipay'),
+    ];
+}
+
