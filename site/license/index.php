@@ -75,6 +75,29 @@ tr:last-child td{border-bottom:none}
 code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;word-break:break-all}
 .empty{padding:26px;text-align:center;color:var(--muted);font-size:13px}
 @media(max-width:900px){.landing{grid-template-columns:1fr}.layout{grid-template-columns:1fr}.side{position:static}.feat{grid-template-columns:1fr}.nav .ann{display:none}}
+
+/* 移动端 / 微信 H5 优化 */
+*{-webkit-tap-highlight-color:transparent}
+body{-webkit-text-size-adjust:100%}
+@media(max-width:760px){
+  .top{height:auto;flex-wrap:wrap;padding:10px 14px;gap:8px}
+  .top .pill{font-size:11px}
+  .layout{grid-template-columns:1fr}
+  .side{position:static;margin-bottom:12px;padding:10px}
+  .side .u{display:none}
+  .snav{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px}
+  .snav a{white-space:nowrap;padding:8px 12px;background:rgba(255,255,255,.03);border-radius:8px}
+  .main{padding:16px 14px}
+  h1{font-size:22px}h2{font-size:19px}
+  .kpis{grid-template-columns:repeat(2,1fr);gap:10px}
+  .card{padding:14px;border-radius:12px}
+  .btn{padding:11px 16px}
+  input,select{font-size:16px}  /* 避免 iOS 聚焦缩放 */
+  table{display:block;overflow-x:auto;white-space:nowrap}
+  .landing{padding-top:26px}
+  .auth-card{padding:18px}
+  footer{padding-bottom:calc(22px + env(safe-area-inset-bottom))}
+}
 </style></head><body>
 <div class="nav"><div class="wrap" style="display:flex;align-items:center;gap:14px;width:100%">
   <a class="brand" href="https://ali.moneyfly.club/"><img src="/shop/assets/logo.png" alt="">极光上架 · 授权中心</a>
