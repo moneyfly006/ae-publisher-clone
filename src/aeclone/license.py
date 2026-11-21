@@ -130,6 +130,32 @@ def _identity_candidates() -> list[str]:
     return [x for x in out if x and not (x in seen or seen.add(x))]
 
 
+def canonical_server(server: str) -> str:
+    """归一化授权服务器地址（兼容旧版 ali.moneyfly.club/license 别名）。
+
+    旧地址在服务端是 308 跳转，而且 Location 不带原 query（api.php?action=... 会丢），
+    是「授权 404 / 未知操作」的根因。正式授权中心是 license.moneyfly.club。
+    """
+    raw = str(server or "").strip()
+    if not raw:
+        return raw
+    try:
+        from urllib.parse import urlparse
+        p = urlparse(raw if "://" in raw else "https://" + raw)
+        host = (p.hostname or "").lower()
+        path = (p.path or "/").rstrip("/")
+        if host == "ali.moneyfly.club" and path in ("/license", ""):
+            return "https://license.moneyfly.club"
+    except Exception:
+        pass
+    return raw.rstrip("/")
+
+
+def shop_url(server: str = "") -> str:
+    """授权中心（用户端商城）地址，供界面「去授权网站开通」使用。"""
+    return canonical_server(server or "https://license.moneyfly.club").rstrip("/") + "/shop/"
+
+
 def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
            version: str = "", identity_override: str = "",
            public_key_pem: str = "", store_name: str = "") -> dict:
@@ -139,6 +165,7 @@ def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
     - public_key_pem：服务端凭证公钥（可覆盖内置公钥）。
     """
     import platform
+    server = canonical_server(server)
     last = {}
     tried = []
     candidates = [identity_override.strip()] if identity_override else []
@@ -196,6 +223,9 @@ def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
                     "voucher": voucher, "signature": signature,
                     "tried": tried,
                 }
+            if r.status_code == 404 and not msg:
+                msg = ("授权服务器地址无效（404）：请在「设置 → 账号与连接」把授权服务器"
+                       "改为 https://license.moneyfly.club")
             last = {
                 "ok": False, "authorized": False,
                 "message": msg or (f"授权服务器返回 HTTP {r.status_code}" if r.status_code >= 400 else "未授权"),

@@ -19,11 +19,41 @@ import requests
 
 from .licensing import (Entitlements, apply_license_token, load_entitlements,
                         verify_token)
+from .license import canonical_server, shop_url
 
 log = logging.getLogger(__name__)
 
 PATHS = ("/api/license/entitlements", "/api/entitlement",
          "/api/license/platforms", "/api/version/entitlements")
+
+# 旧授权服务器（ali.moneyfly.club/license）在服务端 308 到 /shop，且会丢 query；
+# 这里统一走 canonical_server()，并对 308 手动跟随、保留原查询串。
+_MAX_REDIRECTS = 4
+
+
+def _request_keep_query(session, method: str, url: str, *, timeout: int = 10, **kw):
+    """发送请求并手动跟随 3xx；Location 缺 query 时补回原 query。
+
+    requests 跟随 308 时若 Location 没有 query，会把 api.php?action=... 丢掉，
+    服务端于是返回「未知操作」。这里显式保留查询串。
+    """
+    from urllib.parse import urljoin, urlsplit
+
+    current = url
+    resp = session.request(method, current, timeout=timeout, allow_redirects=False, **kw)
+    for _ in range(_MAX_REDIRECTS):
+        if resp.status_code not in (301, 302, 303, 307, 308):
+            break
+        loc = resp.headers.get("location") or resp.headers.get("Location") or ""
+        if not loc:
+            break
+        nxt = urljoin(current, loc)
+        old_q = urlsplit(current).query
+        if old_q and "?" not in nxt:
+            nxt = nxt + "?" + old_q
+        current = nxt
+        resp = session.request(method, current, timeout=timeout, allow_redirects=False, **kw)
+    return resp
 
 
 def _extract_token(data) -> str:
@@ -42,37 +72,49 @@ def fetch_entitlement_token(server: str, machine_code: str, version: str = "",
                             product: str = "AuroraList", timeout: int = 8,
                             session=None) -> tuple[str, str]:
     """返回 (token, error)。token 为空表示失败。"""
-    base = str(server or "").rstrip("/")
+    base = canonical_server(str(server or "")).rstrip("/")
     if not base:
         return "", "未配置授权服务器"
     s = session or requests.Session()
     payload = {"machine_code": str(machine_code or ""), "version": version,
                "product": product}
     last_err = ""
+    empty_ok = ""          # 服务端 200 但没给 token（机器未绑定授权账号/套餐）
+    tried = []
     for path in PATHS:
         url = base + path
         try:
-            r = s.post(url, json=payload, timeout=timeout)
+            r = _request_keep_query(s, "POST", url, json=payload, timeout=timeout)
+            tried.append(f"POST {url} -> {r.status_code}")
             if r.status_code < 400:
                 tok = _extract_token(r.json())
                 if tok:
                     return tok, ""
-                last_err = f"{url}: 响应里没有 token"
+                try:
+                    msg = str((r.json() or {}).get("msg") or "")
+                except Exception:
+                    msg = ""
+                empty_ok = msg or "ok"
             else:
                 last_err = f"{url}: HTTP {r.status_code}"
         except Exception as ex:
             last_err = f"{url}: {str(ex)[:80]}"
         try:
-            r = s.get(url, params={"machine_code": payload["machine_code"],
-                                   "version": version, "product": product},
-                      timeout=timeout)
+            r = _request_keep_query(s, "GET", url, timeout=timeout,
+                                    params={"machine_code": payload["machine_code"],
+                                            "version": version, "product": product})
+            tried.append(f"GET {url} -> {r.status_code}")
             if r.status_code < 400:
                 tok = _extract_token(r.json())
                 if tok:
                     return tok, ""
         except Exception:
             pass
-    return "", last_err or "授权服务器不可达"
+    if empty_ok:
+        return "", (f"授权服务器未返回 token（服务端：{empty_ok}）：机器码 "
+                    f"{machine_code} 未绑定授权账号/套餐。请在 {shop_url(base)} "
+                    "登录授权中心开通，或到「设置 → 平台授权 Token」粘贴 token")
+    return "", (last_err or "授权服务器不可达")
 
 
 def refresh_entitlements(cfg, version: str = "", timeout: int = 8,
@@ -108,19 +150,20 @@ def refresh_entitlements(cfg, version: str = "", timeout: int = 8,
     return ent
 
 def software_login(server: str, email: str, password: str, machine_code: str,
-                   version: str = "", timeout: int = 10) -> tuple[str, str, dict]:
+                   version: str = "", timeout: int = 10, session=None) -> tuple[str, str, dict]:
     """软件登录：账号密码 + 机器码 → (token, error, data)。
 
     服务器校验账号与授权，未绑定时自动绑定该机器，返回绑定机器码的 token。
     """
-    base = str(server or "").rstrip("/")
+    base = canonical_server(str(server or "")).rstrip("/")
     if not base:
         return "", "未配置授权服务器", {}
     try:
-        r = requests.post(base + "/api.php?action=software_login",
-                          json={"email": email, "password": password,
-                                "machine_code": machine_code, "version": version},
-                          timeout=timeout)
+        sess = session or requests.Session()
+        url = base + "/api.php?action=software_login"
+        r = _request_keep_query(sess, "POST", url, timeout=timeout,
+                                json={"email": email, "password": password,
+                                      "machine_code": machine_code, "version": version})
         d = r.json()
     except Exception as ex:
         return "", f"连接授权服务器失败：{str(ex)[:80]}", {}

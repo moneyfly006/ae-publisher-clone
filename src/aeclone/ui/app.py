@@ -1119,7 +1119,8 @@ class App:
     def _render_locked(self, item):
         pf = self.active_platform
         feats = sorted(self.entitlements.platforms.get(pf.id, set()))
-        site = str(getattr(self.cfg, "license_server", "") or "https://license.moneyfly.club")
+        from ..license import shop_url as _shop_url
+        site = _shop_url(str(getattr(self.cfg, "license_server", "") or ""))
         need = f"{item.group} / {item.label}"
         desc = ("当前授权未包含该平台。" if not self.entitlements.has_platform(pf.id)
                 else f"当前授权未包含「{item.feature}」功能包。")
@@ -4156,7 +4157,7 @@ class App:
         note_card = card(ft.Column([
             h1("说明", 15),
             muted("· 模板商品、SMT 店铺切换、类目模板只对速卖通链路有效，Alibaba 平台已隐藏。"),
-            muted("· Alibaba 刊登：选商品 → 选末级类目 → 补齐必填属性 → 预演 → 确认保存（op=1/2/3）。"),
+            muted("· Alibaba 刊登：选商品 → 选末级类目 → 补齐必填属性 → 校验 → 确认保存（op=1/2/3）。"),
             muted("· 发布/审核状态在「发布队列」只读查看，提交审核动作请在「Alibaba 刊登」页确认后执行。"),
         ], spacing=8))
 
@@ -9818,7 +9819,7 @@ class App:
                 workspace_tabs(_set_tabs)]
 
     def _alibaba_cards(self):
-        """Alibaba 刊登：连接、商品、类目、预设资料、价格贸易、预演/保存。"""
+        """Alibaba 刊登：连接、商品、类目、预设资料、价格贸易、校验/保存。"""
         from ..integrations.alibaba import AlibabaClient
         import json as _json
 
@@ -10114,10 +10115,13 @@ class App:
                     vals = {str(a.get("nameEn") or a.get("nameZh") or "").strip(): ""
                             for a in missing}
                     _merge_presets(vals)
+                    try:
+                        _refresh_preset_summary()
+                    except Exception:
+                        pass
                     required_box.controls = [
                         h1("属性预设模板已写入（请填值）", 13),
-                        muted("已写到「预设资料 → 属性预设 JSON」，把每个属性的空字符串改成真实值，"
-                              "再点「预演（不保存）」校验。", 12),
+                        muted("已写入「预设资料 → 编辑属性预设」，把每个属性填成真实值后保存。", 12),
                         ft.Text(self.cfg.get("alibaba_attr_presets") or "", size=11.5,
                                 color=TEXT, selectable=True)]
                     status.value = f"已生成 {len(vals)} 项属性预设模板"
@@ -10195,51 +10199,13 @@ class App:
                         *[ft.Text(f"· {k} = {v}", size=12, color=TEXT) for k, v in picked.items()],
                         *([ft.Text("未采用：" + "；".join(skipped[:6]), size=11.5, color=MUTED)]
                           if skipped else []),
-                        muted("可到「预设资料 → 属性预设 JSON」手工修正。", 11)]
+                        muted("可到「预设资料 → 编辑属性预设」修正。", 11)]
                     status.value = (f"AI 建议 {len(picked)} 项已写入预设"
                                     f"{('；未采用 ' + str(len(skipped)) + ' 项') if skipped else ''}")
                     status.color = SUCCESS_C
                     self._log(f"Alibaba 属性 AI 建议：{picked}", "INFO")
                 except Exception as ex:  # noqa: BLE001
                     status.value = f"AI 建议失败：{str(ex)[:140]}"
-                    status.color = DANGER_C
-                try:self._safe_update()
-                except Exception: pass
-            threading.Thread(target=work, daemon=True).start()
-
-        def build_and_check(e=None):
-            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
-            if not pid:
-                status.value = "填一个商品 ID 再校验"
-                status.color = WARN_C
-                try:self._safe_update()
-                except Exception: pass
-                return
-
-            def work():
-                try:
-                    from ..services.alibaba_payload import build_alibaba_save, validate_alibaba_save
-                    c = client()
-                    p = c.product_detail(pid)
-                    cid = str(getattr(self.cfg, "alibaba_category_id", "") or p.get("categoryId") or "")
-                    req = c.required_attributes(cid) if cid else []
-                    sch = c.category_schema(cid)["fields"] if cid else []
-                    save = build_alibaba_save(p, self.cfg, attr_defs=req)
-                    issues = validate_alibaba_save(p, save, self.cfg, req, sch)
-                    required_box.controls = [h1("构建与校验结果", 13),
-                                             ft.Text(f"商品：{p.get('subject')}", size=12.5, color=TEXT),
-                                             ft.Text(f"自动补齐：{', '.join(save.get('_autofilled') or []) or '无'}", size=12, color=MUTED)]
-                    if issues:
-                        for i in issues:
-                            required_box.controls.append(ft.Text("✗ " + i, size=12.5, color=DANGER_C))
-                        status.value = f"校验未通过：{len(issues)} 项"
-                        status.color = DANGER_C
-                    else:
-                        required_box.controls.append(ft.Text("✓ 必填项全部满足，可以保存", size=13, color=SUCCESS_C))
-                        status.value = "校验通过"
-                        status.color = SUCCESS_C
-                except Exception as ex:  # noqa: BLE001
-                    status.value = f"校验失败：{ex}"
                     status.color = DANGER_C
                 try:self._safe_update()
                 except Exception: pass
@@ -10270,7 +10236,7 @@ class App:
             _cat = str(category or "").strip()
             if _cat and _cat.lower() not in ("none", "null"):
                 # 先清掉上一个商品的类目路径，再异步读取当前商品类目的真实路径，
-                # 否则预演/保存可能沿用旧 fullCid（数据风险）。
+                # 否则保存时可能沿用旧 fullCid（数据风险）。
                 self.cfg.set("alibaba_category_id", _cat)
                 self.cfg.set("alibaba_full_cid", "")
                 self.cfg.set("alibaba_category_name", "")
@@ -10312,7 +10278,7 @@ class App:
                 self.cfg.set("alibaba_full_cid", "")
                 self.cfg.set("alibaba_category_name", "")
                 try:
-                    cat_now.value = "当前类目：未选择（先在「类目」页选类目再预演/保存）"
+                    cat_now.value = "当前类目：未选择（先在「类目」页选类目再保存）"
                     cat_now.color = DANGER_C
                 except Exception:
                     pass
@@ -10392,7 +10358,7 @@ class App:
 
                         def pick(ev, _pid=pid, _s=subj, _c=cat):
                             set_product(_pid, _s, _c)
-                            status.value = f"已选择商品 {_pid}；接下来可「预演（不保存）」或保存"
+                            status.value = f"已选择商品 {_pid}；接下来可直接「保存到 Alibaba」"
                             status.color = SUCCESS_C
                             try:self._safe_update()
                             except Exception: pass
@@ -10476,8 +10442,34 @@ class App:
                     _product, save, _req, issues = prepare_save(pid, self.cfg)
                     precheck = None
                     if op == "2":
-                        from ..services.alibaba_pipeline import run_alibaba_product as _run
-                        precheck = _run(pid, self.cfg, dry_run=True, op="2", use_ai=False)
+                        from types import SimpleNamespace as _NS
+                        try:
+                            from ..services.alibaba_payload import (
+                                build_alibaba_save as _build, validate_alibaba_save as _val)
+                            from ..services.alibaba_score import score_product as _score
+                            from ..services.alibaba_scope import check_category_scope as _scope
+                            _c = client()
+                            _p = _c.product_detail(pid)
+                            _cid = str(getattr(self.cfg, "alibaba_category_id", "") or
+                                       _p.get("categoryId") or "")
+                            _req = _c.required_attributes(_cid) if _cid else []
+                            _sch = _c.category_schema(_cid)["fields"] if _cid else []
+                            _save = _build(_p, self.cfg, {"category_id": _cid}, attr_defs=_req)
+                            _issues = _val(_p, _save, self.cfg, _req, _sch)
+                            _r = _score(_p, self.cfg, save=_save, required_attrs=_req)
+                            _sc = _scope(_c, _cid, max_pages=6)
+                            precheck = _NS(
+                                ok=(_r.passed and not _issues),
+                                score=_r.total,
+                                score_fixes=list(_r.fixes or []),
+                                scope={"in_scope_guess": _sc.in_scope_guess,
+                                       "detail": _sc.detail, "advice": _sc.advice},
+                                issues=list(_issues or []),
+                                steps=[])
+                        except Exception as _ex:  # noqa: BLE001
+                            precheck = _NS(ok=False, score=0.0,
+                                           score_fixes=[f"发布前校验失败：{str(_ex)[:120]}"],
+                                           scope={}, issues=[], steps=[])
                         if not precheck.ok:
                             status.value = "发布预检未通过（评分必须 ≥4.5 才能发布）"
                             status.color = DANGER_C
@@ -10564,13 +10556,13 @@ class App:
                             ft.Text(f"商品：{pid}", size=13, color=TEXT),
                             ft.Text(f"动作：{op_text}", size=13,
                                     color=WARN_C if op in ("2", "3") else TEXT),
-                            ft.Text("预演校验：必填项全部满足", size=12.5, color=SUCCESS_C),
+                            ft.Text("校验：必填项全部满足", size=12.5, color=SUCCESS_C),
                             *([ft.Text(f"刊登评分：{precheck.score:.2f}/5（发布线 4.5）",
                                        size=12.5, color=ACCENT_2)] if precheck else []),
                             *([ft.Text("类目经营范围：" + str(precheck.scope.get("detail") or ""),
                                        size=12, color=MUTED, selectable=True)]
                               if precheck and precheck.scope else []),
-                            muted("保存会写入店小秘/平台，不是本地预演。"),
+                            muted("保存会写入店小秘/平台，请确认商品与动作。"),
                         ], spacing=6, width=380),
                         actions=[ft.TextButton("取消", on_click=lambda ev: _close_dlg(dlg)),
                                  ft.ElevatedButton("确认保存", bgcolor=SUCCESS_C,
@@ -10586,7 +10578,7 @@ class App:
                 except Exception: pass
             threading.Thread(target=work, daemon=True).start()
 
-        # ---------- AI 文案 → Alibaba 保存（带付费开关 + 预演/确认） ----------
+        # ---------- AI 文案 → Alibaba 保存（带付费开关 + 确认） ----------
         ai_use = ft.Switch(
             label="使用 AI 生成标题 / 详情（会调用付费 API，默认关闭）",
             value=False, active_color=ACCENT)
@@ -10631,33 +10623,6 @@ class App:
                 except Exception: pass
             return pid
 
-        def ai_preview(e=None):
-            pid = _pipeline_pid()
-            if not pid:
-                return
-            use_ai = bool(ai_use.value)
-            status.value = "AI 预演中（不保存）…"
-            status.color = MUTED
-            ai_box.controls = [ft.Text("运行中…", size=12.5, color=MUTED)]
-            try:self._safe_update()
-            except Exception: pass
-
-            def work():
-                try:
-                    from ..services.alibaba_pipeline import run_alibaba_product
-                    res = run_alibaba_product(pid, self.cfg, dry_run=True,
-                                              op=str(op_dd.value or "1"), use_ai=use_ai)
-                    _render_pipeline(res)
-                    status.value = res.completion_label + (
-                        f"：{res.error}" if res.error else "")
-                    status.color = SUCCESS_C if res.ok else DANGER_C
-                except Exception as ex:  # noqa: BLE001
-                    status.value = f"AI 预演失败：{str(ex)[:180]}"
-                    status.color = DANGER_C
-                try:self._safe_update()
-                except Exception: pass
-            threading.Thread(target=work, daemon=True).start()
-
         def _confirm_ai_save(dlg, pid, op, use_ai):
             _close_dlg(dlg)
             status.value = "AI 生成并保存中…"
@@ -10699,7 +10664,7 @@ class App:
                     ft.Text(f"商品：{pid}", size=13, color=TEXT),
                     ft.Text(f"动作：{op_text}（op={op}）", size=13,
                             color=WARN_C if op in ("2", "3") else TEXT),
-                    muted("会写入店小秘/平台，不是本地预演。" + (
+                    muted("会写入店小秘/平台。请确认。" + (
                         " 本次使用 AI 会调用付费 API。" if use_ai else "")),
                 ], spacing=6, width=400),
                 actions=[ft.TextButton("取消", on_click=lambda ev: _close_dlg(dlg)),
@@ -10716,13 +10681,10 @@ class App:
         ai_card = card(ft.Column([
             h1("AI 文案 → 保存（新链路）", FS_MD),
             muted("AI 生成英文标题（≤128）与关键词/纯文本详情（平台 textDesc 上限 2000 字符），"
-                  "再按类目必填校验与评分门禁后保存；"
-                  "默认只预演，保存需二次确认。"),
+                  "再按类目必填校验与评分门禁后保存；保存前有二次确认。"),
             ai_use,
             *([_ai_preset_ctl] if _ai_preset_ctl else []),
-            ft.Row([ft.ElevatedButton("AI 预演（不保存）", icon=ft.Icons.AUTO_AWESOME,
-                                      bgcolor=ACCENT, color=ON_ACCENT, on_click=ai_preview),
-                    ft.ElevatedButton("AI 生成并保存", icon=ft.Icons.CLOUD_UPLOAD,
+            ft.Row([ft.ElevatedButton("AI 生成并保存", icon=ft.Icons.CLOUD_UPLOAD,
                                       bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=ai_save)],
                    spacing=10, wrap=True),
             ai_box,
@@ -10742,7 +10704,7 @@ class App:
         prod_card = card(ft.Column([
             h1("选择商品（草稿 / 在线）", FS_MD),
             muted("直接从店小秘 Alibaba 商品列表选择；可按标题/ID 搜索并翻页，"
-                  "选中的商品 ID 会用于下面的预演/保存"),
+                  "选中的商品 ID 会用于下面的保存"),
             prod_now,
             ft.Row([prod_state, prod_kw,
                     ft.ElevatedButton("读取商品", icon=ft.Icons.REFRESH, bgcolor=ACCENT,
@@ -10788,7 +10750,7 @@ class App:
                                                  color=ON_ACCENT, on_click=do_search),
                     ft.OutlinedButton("读取必填属性", icon=ft.Icons.CHECKLIST, on_click=load_required),
                     ft.OutlinedButton("生成属性预设模板", icon=ft.Icons.EDIT_NOTE,
-                                      tooltip="把缺失的必填属性写成空值 JSON，填好后预演",
+                                      tooltip="把缺失的必填属性写成空值预设，填好后保存",
                                       on_click=gen_attr_template),
                     ft.OutlinedButton("AI 建议缺失属性", icon=ft.Icons.AUTO_FIX_HIGH,
                                       tooltip="AI 按标题/详情从类目候选值里建议（会产生文本 API 费用，需复核）",
@@ -10803,6 +10765,104 @@ class App:
             cat_box,
         ], spacing=8))
 
+        # ---- 属性预设：可视化编辑（不再手写 JSON）----
+        preset_summary = ft.Text("", size=12, color=MUTED, selectable=True)
+
+        def _preset_dict() -> dict:
+            try:
+                d = _json.loads(str(getattr(self.cfg, "alibaba_attr_presets", "") or "{}"))
+                return d if isinstance(d, dict) else {}
+            except Exception:
+                return {}
+
+        def _refresh_preset_summary():
+            d = _preset_dict()
+            if not d:
+                preset_summary.value = "当前未设置属性预设"
+                preset_summary.color = MUTED
+                return
+            sample = "、".join(f"{k}={v}" for k, v in list(d.items())[:4])
+            preset_summary.value = f"已设置 {len(d)} 项：{sample}" + (" …" if len(d) > 4 else "")
+            preset_summary.color = ACCENT_2
+
+        def _open_preset_editor(e=None):
+            cid = str(getattr(self.cfg, "alibaba_category_id", "") or "").strip()
+            if not cid:
+                self.toast("先在「类目」页选择类目，再编辑属性预设", False)
+                return
+            ctl_rows: list[tuple[str, object]] = []
+            body = ft.Column(spacing=6, height=460, scroll=ft.ScrollMode.AUTO)
+            current = _preset_dict()
+            cur_low = {str(k).lower(): v for k, v in current.items()}
+
+            def work():
+                try:
+                    c = client()
+                    req = c.required_attributes(cid)
+                    body.controls = [h1("必填属性预设（按真实规格填写）", 13)]
+                    if not req:
+                        body.controls.append(muted("该类目没有读取到必填属性（可直接保存）"))
+                    for a in req:
+                        name = str(a.get("nameEn") or a.get("nameZh") or "").strip()
+                        if not name:
+                            continue
+                        vals = a.get("values") or []
+                        try:
+                            vals = _json.loads(vals) if isinstance(vals, str) else vals
+                        except Exception:
+                            vals = []
+                        cands = [str(v.get("name_en") or v.get("name") or "").strip()
+                                 for v in vals if isinstance(v, dict)]
+                        cands = [x for x in cands if x]
+                        cur = str(cur_low.get(name.lower(), "") or "")
+                        if cands:
+                            ctl = ft.Dropdown(
+                                label=name, width=460, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=cur if cur in cands else "",
+                                options=[ft.dropdown.Option("", "（未设置）")]
+                                + [ft.dropdown.Option(x, x) for x in cands])
+                        else:
+                            ctl = ft.TextField(label=name, width=460, bgcolor=CARD_2,
+                                               border_color=CARD_2, color=TEXT,
+                                               value=cur, hint_text="填真实值")
+                        ctl_rows.append((name, ctl))
+                        body.controls.append(ctl)
+                except Exception as ex:  # noqa: BLE001
+                    body.controls = [ft.Text(f"读取类目属性失败：{str(ex)[:150]}",
+                                             color=DANGER_C, selectable=True)]
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+            threading.Thread(target=work, daemon=True).start()
+
+            def save_preset(ev):
+                out = dict(current)
+                for name, ctl in ctl_rows:
+                    val = str(getattr(ctl, "value", "") or "").strip()
+                    if val:
+                        out[name] = val
+                    else:
+                        out.pop(name, None)
+                self.cfg.set("alibaba_attr_presets", _json.dumps(out, ensure_ascii=False))
+                save_config(self.cfg)
+                _refresh_preset_summary()
+                _close_dlg(dlg)
+                self.toast(f"属性预设已保存（{len(out)} 项）", True)
+
+            dlg = ft.AlertDialog(
+                modal=True, title=ft.Text("编辑属性预设（可视化）"),
+                content=ft.Column([
+                    muted("按类目必填属性逐项选择/填写；保存后自动写入属性预设，无需手写 JSON。"),
+                    body], spacing=6, width=540),
+                actions=[ft.TextButton("取消", on_click=lambda ev: _close_dlg(dlg)),
+                         ft.ElevatedButton("保存预设", bgcolor=ACCENT, color=ON_ACCENT,
+                                           on_click=save_preset)])
+            _show_dlg(dlg)
+
+        _refresh_preset_summary()
+
         preset_card = card(ft.Column([
             h1("预设资料（必填自动填写）", FS_MD),
             muted("分组 / 关键词 / 属性预设会写入保存包；公司名称、网站、FAQ 目前仅本地保存"
@@ -10813,7 +10873,13 @@ class App:
                     tf("alibaba_company_website", "公司网站（本地）", 260)], spacing=10, wrap=True),
             tf("alibaba_company_desc", "公司介绍（英文）", 720, True),
             tf("alibaba_company_faq", "公司 FAQ（英文，可空，本地）", 720, True),
-            tf("alibaba_attr_presets", "属性预设 JSON（如 {\"Place of Origin\":\"China\",\"Certification\":\"CE\"}）", 720, True),
+            preset_summary,
+            ft.Row([ft.ElevatedButton("编辑属性预设（可视化）", icon=ft.Icons.RULE,
+                                      bgcolor=ACCENT, color=ON_ACCENT,
+                                      on_click=_open_preset_editor),
+                    ft.TextButton("刷新预览", icon=ft.Icons.REFRESH,
+                                  on_click=lambda e: (_refresh_preset_summary(), self._safe_update()))],
+                   spacing=10, wrap=True),
         ], spacing=8))
 
         price_type_dd = dd("alibaba_price_type", "定价方式",
@@ -10830,6 +10896,79 @@ class App:
             self.cfg.set("alibaba_price_type_explicit", "1" if val else "")
             save_config(self.cfg)
         price_type_dd.on_change = _on_price_type
+
+        # ---- 阶梯价：表格化编辑（不再手写 JSON）----
+        tier_box = ft.Column(spacing=4)
+        tier_status = ft.Text("", size=11.5, color=MUTED)
+
+        def _tier_values():
+            out = []
+            for row in tier_box.controls:
+                if not isinstance(row, ft.Row) or len(row.controls) < 2:
+                    continue
+                q = str(getattr(row.controls[0], "value", "") or "").strip()
+                pr = str(getattr(row.controls[1], "value", "") or "").strip()
+                try:
+                    if q and pr:
+                        out.append({"start_quantity": int(float(q)), "price": float(pr)})
+                except Exception:
+                    continue
+            return out
+
+        def _save_tiers(e=None):
+            rows = _tier_values()
+            self.cfg.set("alibaba_price_tiers",
+                         _json.dumps(rows, ensure_ascii=False) if rows else "")
+            save_config(self.cfg)
+            tier_status.value = (f"已保存 {len(rows)} 档阶梯价" if rows
+                                 else "阶梯价为空（按数量定价时需至少 1 档）")
+            tier_status.color = ACCENT_2 if rows else WARN_C
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def _add_tier(q="", price="", save=True):
+            qtf = ft.TextField(value=str(q), width=130, dense=True, bgcolor=CARD_2,
+                               border_color=CARD_2, color=TEXT, label="起订量")
+            ptf = ft.TextField(value=str(price), width=150, dense=True, bgcolor=CARD_2,
+                               border_color=CARD_2, color=TEXT, label="单价")
+            for ctl in (qtf, ptf):
+                ctl.on_change = _save_tiers
+            _holder = {}
+            row = ft.Row([
+                qtf, ptf,
+                ft.TextButton("删除", icon=ft.Icons.DELETE_OUTLINE,
+                              on_click=lambda e, _h=_holder: _remove_tier(_h.get("row"))),
+            ], spacing=8)
+            _holder["row"] = row
+            tier_box.controls.append(row)
+            if save:
+                _save_tiers()
+
+        def _remove_tier(row):
+            try:
+                tier_box.controls.remove(row)
+            except ValueError:
+                pass
+            _save_tiers()
+
+        def _clear_tiers():
+            tier_box.controls = []
+            _save_tiers()
+
+        _existing_tiers = []
+        try:
+            _raw_tiers = _json.loads(str(getattr(self.cfg, "alibaba_price_tiers", "") or "[]"))
+            if isinstance(_raw_tiers, list):
+                _existing_tiers = [t for t in _raw_tiers if isinstance(t, dict)]
+        except Exception:
+            _existing_tiers = []
+        if _existing_tiers:
+            for _t in _existing_tiers[:10]:
+                _add_tier(_t.get("start_quantity", ""), _t.get("price", ""), save=False)
+        else:
+            _add_tier("1", "", save=False)
 
         trade_card = card(ft.Column([
             h1("价格与贸易条款", FS_MD),
@@ -10850,7 +10989,16 @@ class App:
             ft.Row([tf("alibaba_package_size", "包装尺寸 LxWxH(cm)", 220),
                     tf("alibaba_weight", "重量 kg", 140), tf("alibaba_stock", "库存", 120),
                     tf("alibaba_hs_code", "HS 编码", 160)], spacing=10, wrap=True),
-            tf("alibaba_price_tiers", "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）", 720, True),
+            ft.Column([
+                h1("阶梯价（表格填写，自动保存）", 13),
+                muted("按数量定价时填写：起订量 + 单价；可添加多档。", 11),
+            ], spacing=2),
+            tier_box,
+            ft.Row([ft.OutlinedButton("＋ 添加档位", icon=ft.Icons.ADD,
+                                      on_click=lambda e: (_add_tier(), self._safe_update())),
+                    ft.TextButton("清空阶梯价", icon=ft.Icons.CLEAR,
+                                  on_click=lambda e: _clear_tiers())],
+                   spacing=10, wrap=True),
             ft.Row([tf("alibaba_schedule_time", "定时发布时间（如 2030-01-01 09:00）", 280,
                         hint="op=5 定时发布用；空=平台默认排期"),
                     tf("alibaba_process_period", "发货期(天)", 130,
@@ -10941,11 +11089,10 @@ class App:
         ], spacing=6))
 
         check_card = card(ft.Column([
-            h1("预演校验 / 保存", FS_MD),
-            muted("先「预演（不保存）」确认必填项与类目；保存会用确认弹窗，默认只保存草稿。"),
-            ft.Row([ft.ElevatedButton("预演（不保存）", icon=ft.Icons.FACT_CHECK, bgcolor=ACCENT,
-                                      color=ON_ACCENT, on_click=build_and_check),
-                    op_dd,
+            h1("校验并保存", FS_MD),
+            muted("选择保存动作后点「保存到 Alibaba」：会先做必填/评分/类目校验，"
+                  "通过后用确认弹窗写入店小秘/平台。"),
+            ft.Row([op_dd,
                     ft.ElevatedButton("保存到 Alibaba", icon=ft.Icons.CLOUD_UPLOAD,
                                       bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=do_save)],
                    spacing=10, wrap=True),
@@ -10957,11 +11104,11 @@ class App:
                     ("类目", [cat_card]),
                     ("预设资料", [preset_card]),
                     ("价格与贸易", [trade_card]),
-                    ("预演 / 保存", [score_card, check_card, ai_card]),
+                    ("保存与发布", [score_card, check_card, ai_card]),
                 ])]
 
     def _p_alibaba_listing(self):
-        """Alibaba 刊登工作台：选商品 → 类目/资料 → 预演 → 确认保存。
+        """Alibaba 刊登工作台：选商品 → 类目/资料 → 校验 → 确认保存。
 
         入口从「设置 → Alibaba 刊登」提到导航「刊登」组，避免真正的刊登操作
         藏在设置里；设置页只保留与其它平台共用的配置。
@@ -10969,17 +11116,17 @@ class App:
         self._current = 12
 
         # 工作流提示用单行紧凑样式：Chip 换行在窄窗口会变成一列，反而占空间。
+
         steps = ft.Container(
             padding=ft.padding.symmetric(horizontal=14, vertical=8),
             bgcolor=CARD_2, border_radius=8,
             content=ft.Text(
                 "① 连接（沿用店小秘 Cookie）  →  ② 选商品（草稿/在线，可搜索）  →  "
-                "③ 选类目/资料（必填自动补齐）  →  ④ 预演（不保存、不花钱）  →  "
-                "⑤ 确认保存（默认只存草稿）",
+                "③ 选类目/资料（必填自动补齐）  →  ④ 校验并确认保存（默认只存草稿）",
                 size=12, color=MUTED, selectable=False))
         return [
             page_header("Alibaba 刊登",
-                        "选择商品 → 确认类目/资料 → 预演校验 → 确认保存（草稿/待发布/审核）"),
+                        "选择商品 → 确认类目/资料 → 校验 → 确认保存（草稿/待发布/审核）"),
             steps,
             *self._alibaba_cards(),
         ]
