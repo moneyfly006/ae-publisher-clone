@@ -142,7 +142,7 @@ case 'order_create': {
         $params = [
           'pid'=>$epay['pid'], 'type'=>$epay['type'],
           'out_trade_no'=>$trade, 'notify_url'=>$epay['site_url'].'/pay/notify.php',
-          'return_url'=>$epay['site_url'].'/index.php?paid=1',
+          'return_url'=>$epay['site_url'].'/?paid=1',
           'name'=>$p['name'], 'money'=>number_format($p['price_cents']/100, 2, '.', ''),
         ];
         ksort($params);

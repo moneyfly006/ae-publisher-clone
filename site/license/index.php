@@ -2,7 +2,7 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AuroraList 授权中心</title>
-<link rel="icon" href="assets/logo.png">
+<link rel="icon" href="/shop/assets/logo.png">
 <style>
 :root{--bg:#0A1116;--panel:#111C23;--card:#16232B;--card2:#1C2C36;--line:#243842;--text:#E9F2F3;--muted:#8FA6AF;--accent:#58C9B7;--accent2:#2FA38F;--warn:#EAC078;--danger:#FF9298;--radius:16px}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -77,7 +77,7 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
 @media(max-width:900px){.landing{grid-template-columns:1fr}.layout{grid-template-columns:1fr}.side{position:static}.feat{grid-template-columns:1fr}.nav .ann{display:none}}
 </style></head><body>
 <div class="nav"><div class="wrap" style="display:flex;align-items:center;gap:14px;width:100%">
-  <a class="brand" href="https://ali.moneyfly.club/"><img src="assets/logo.png" alt="">极光上架 · 授权中心</a>
+  <a class="brand" href="https://ali.moneyfly.club/"><img src="/shop/assets/logo.png" alt="">极光上架 · 授权中心</a>
   <span class="ann" id="ann" style="display:none"></span>
   <div class="sp"></div>
   <span class="muted" id="navUser"></span>
@@ -198,7 +198,7 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
-const api=(a,d)=>fetch('api.php?action='+a,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(d||{})}).then(r=>r.json());
+const api=(a,d)=>fetch('/shop/api.php?action='+a,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(d||{})}).then(r=>r.json());
 const platName={alibaba:'Alibaba 国际站',aliexpress:'速卖通',amazon:'Amazon',tiktok:'TikTok',shopee:'Shopee'};
 const featName={listing:'刊登',category:'类目',trade:'价格贸易',pricing:'价格',variants:'变种',ai_text:'AI 文案',ai_image:'AI 图片',audit:'审核',fba:'FBA'};
 let ME=null, LIC=null, ORDERS=[], AUTH_MODE='login';

@@ -316,3 +316,13 @@ CAPABILITIES = {
 - `deploy/legacy-app-patch/apply.py` → 给 `public/index.php` 加路由、给 layout 加菜单（自动备份）
 
 已验证：套餐价格 99→119→99 保存成功；嵌入页面渲染与原后台风格一致。
+
+## 9. 最终地址结构（2026-11-22）
+
+- **用户端**：https://license.moneyfly.club/ （根路径，注册/登录/购买/我的授权/运行状态/产品）
+- **管理后台**：https://license.moneyfly.club/admin （融合模式：原后台 layout + 新功能菜单）
+  - 新增菜单：套餐管理 / 支付设置 / 套餐订单 / 套餐用户 / 套餐授权
+- 原老软件接口：https://license.moneyfly.club/api/v1/license/verify （未动）
+- 新软件接口：https://license.moneyfly.club/api/license/entitlements （nginx 映射到内嵌应用）
+- /shop 根路径 301 到 /（内部文件仍由 nginx 映射使用，不再对外暴露）
+- 桌面客户端默认授权服务器：https://license.moneyfly.club
