@@ -1,7 +1,7 @@
 {
   "counts": {
-    "OK": 382,
-    "DEFERRED": 192,
+    "OK": 401,
+    "DEFERRED": 203,
     "NATIVE": 8,
     "EXTERNAL": 15,
     "ERROR": 0
@@ -1468,6 +1468,15 @@
     {
       "page": 12,
       "platform": "alibaba",
+      "label": "批量处理的目标类目",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
       "label": "刷新采集箱",
       "event": "on_click",
       "status": "DEFERRED",
@@ -1603,7 +1612,7 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "默认关键词（逗号分隔）",
+      "label": "默认关键词（Alibaba 必填 3 个，逗号分隔，最多 5 个）",
       "event": "on_change",
       "status": "OK",
       "scenario": "default",
@@ -1902,9 +1911,9 @@
       "platform": "alibaba",
       "label": "评分并诊断",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
@@ -1938,36 +1947,36 @@
       "platform": "alibaba",
       "label": "保存草稿",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
       "platform": "alibaba",
       "label": "提交审核 / 发布",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
       "platform": "alibaba",
       "label": "移入待发布",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
       "platform": "alibaba",
       "label": "定时发布",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 2,
@@ -3061,6 +3070,141 @@
     {
       "page": 13,
       "platform": "amazon",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "恢复内置",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "标题提示词（可编辑，留空=内置默认）",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "恢复内置",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "五点描述提示词（可编辑，留空=内置默认）",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "恢复内置",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "产品描述提示词（可编辑，留空=内置默认）",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "恢复内置",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "Search Terms提示词（可编辑，留空=内置默认）",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "套用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "恢复内置",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "SKU提示词（可编辑，留空=内置默认）",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
       "label": "标准价",
       "event": "on_change",
       "status": "OK",
@@ -3151,6 +3295,15 @@
     {
       "page": 13,
       "platform": "amazon",
+      "label": "AI 生成 SKU",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
       "label": "型号（model_number）",
       "event": "on_change",
       "status": "OK",
@@ -3205,8 +3358,8 @@
     {
       "page": 13,
       "platform": "amazon",
-      "label": "保存动作",
-      "event": "on_change",
+      "label": "套用",
+      "event": "on_click",
       "status": "OK",
       "scenario": "default",
       "detail": ""
@@ -3214,8 +3367,35 @@
     {
       "page": 13,
       "platform": "amazon",
-      "label": "发布前检查（不保存）",
+      "label": "恢复内置",
       "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "复制提示词",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "图片提示词（可编辑，留空=内置默认）",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "保存动作",
+      "event": "on_change",
       "status": "OK",
       "scenario": "default",
       "detail": ""
@@ -3243,6 +3423,78 @@
       "platform": "amazon",
       "label": "自动补齐并重试发布",
       "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动发布（自动修复）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动发布动作",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "最多自动修复轮数",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "发布后等待（秒）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动补齐必填属性",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动修正标题重复/超长/违规词",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动清理描述促销/联系方式/HTML",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动 AI 重写违规文案（付费）",
+      "event": "on_change",
       "status": "OK",
       "scenario": "default",
       "detail": ""
@@ -3880,6 +4132,24 @@
     {
       "page": 14,
       "platform": "tiktok",
+      "label": "补全属性（规则）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "AI 补全属性（付费）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
       "label": "编辑属性 JSON",
       "event": "on_click",
       "status": "OK",
@@ -4177,7 +4447,7 @@
     {
       "page": 14,
       "platform": "tiktok",
-      "label": "保存到 TikTok",
+      "label": "保存（预演模式）",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",

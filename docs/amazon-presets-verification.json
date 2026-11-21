@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T03:51:58+08:00",
+  "generated_at": "2026-11-22T04:17:04+08:00",
   "mode": "read-only/offline audit (no network, no real write)",
   "preset_version": "2026-11-22.1",
   "counts": {
@@ -209,11 +209,11 @@
       {
         "name": "预设卡截图",
         "ok": true,
-        "detail": "amazon-presets.png (449304 bytes)",
+        "detail": "amazon-presets.png (450134 bytes)",
         "observed": {
           "path": "docs/design/amazon-presets.png",
-          "bytes": 449304,
-          "sha256": "ee03ebaac519f617"
+          "bytes": 450134,
+          "sha256": "3921d3ded38edd6c"
         }
       }
     ]
@@ -389,10 +389,10 @@
       "套用",
       "恢复内置",
       "复制提示词",
-      "发布前检查（不保存）",
-      "保存（检查模式）",
+      "保存到 Amazon",
       "查询发布结果",
-      "自动补齐并重试发布"
+      "自动补齐并重试发布",
+      "自动发布（自动修复）"
     ],
     "textfields": [
       "店小秘 Cookie（可粘贴 a=1; b=2；留空自动用本机登录态）",
@@ -437,7 +437,7 @@
   "screenshot": {
     "ok": true,
     "path": "docs/design/amazon-presets.png",
-    "bytes": 449304
+    "bytes": 450134
   },
   "notes": [
     "独立实现：用公开 API 与沙箱渲染做断言，不复制实现内部分支。",

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T03:34:50+08:00",
+  "generated_at": "2026-11-22T04:16:49+08:00",
   "mode": "read-only",
   "status": "PASS",
   "base": "https://www.dianxiaomi.com",
@@ -82,12 +82,12 @@
     {
       "name": "pageList 采集箱(draft) 计数",
       "ok": true,
-      "detail": "code=0 totalSize=12（基线 16，实时漂移） pageNo=1 rows=14",
+      "detail": "code=0 totalSize=10（基线 16，实时漂移） pageNo=1 rows=12",
       "observed": {
         "state": "draft",
-        "total_size": 12,
+        "total_size": 10,
         "expected": 16,
-        "rows_on_page": 14,
+        "rows_on_page": 12,
         "page_no": 1,
         "total_page": 1
       }
@@ -121,12 +121,12 @@
     {
       "name": "pageList leftStat 待发布/发布失败",
       "ok": true,
-      "detail": "leftStat.waitPublish=5（基线 5）· publishFail=24（基线 21，实时值）",
+      "detail": "leftStat.waitPublish=5（基线 5）· publishFail=27（基线 21，实时值）",
       "observed": {
         "leftStat": {
           "waitPublish": "5",
-          "publishFail": "24",
-          "publishing": "1"
+          "publishFail": "27",
+          "publishing": 0
         },
         "baseline_publish_fail": 21
       }
@@ -378,7 +378,7 @@
       "POST /api/bannedWord/amazonCheckBannedWord.json",
       "POST /api/amazonProductSp/productTypePredictCatesByItemName.json"
     ],
-    "request_count": 22,
+    "request_count": 21,
     "blocked_attempts": [],
     "cache_hits": 1
   },

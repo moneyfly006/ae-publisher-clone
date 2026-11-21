@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T04:04:48+08:00",
+  "generated_at": "2026-11-22T04:17:16+08:00",
   "mode": "offline/read-only audit (FakeClient, no network, no real write)",
   "sections": {
     "auto": [
@@ -196,11 +196,11 @@
       {
         "name": "自动发布截图",
         "ok": true,
-        "detail": "amazon-auto-publish.png (244962 bytes)",
+        "detail": "amazon-auto-publish.png (570714 bytes)",
         "observed": {
           "path": "docs/design/amazon-auto-publish.png",
-          "bytes": 244962,
-          "sha256": "209d86c1ebd16e99"
+          "bytes": 570714,
+          "sha256": "84afd4a795b5635b"
         }
       }
     ]
@@ -642,7 +642,7 @@
         "Cookie 来源：未检测（点「读取本机 Cookie」或粘贴）",
         "留空时优先用「店铺与登录」的手动 Cookie，再回退本机浏览器登录态（与后端一致）",
         "未检测：点「检测连接」登录并读取店铺/站点/计数",
-        "采集箱商品",
+        "② 采集箱商品",
         "采集箱(draft) / 待发布(offline) / 在线(online)；点行或「编辑」载入商品详情到下方表单（只读拉取，不写平台）。"
       ]
     },
@@ -707,7 +707,7 @@
   "screenshot": {
     "ok": true,
     "path": "docs/design/amazon-auto-publish.png",
-    "bytes": 244962
+    "bytes": 570714
   },
   "notes": [
     "独立实现：真实写收口被 patch 为记录器，验证编排；不触达网络/不写平台。",

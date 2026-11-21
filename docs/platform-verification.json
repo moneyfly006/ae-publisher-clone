@@ -1,0 +1,295 @@
+{
+  "generated_at": "2026-11-22T04:11:32+0800",
+  "platforms": [
+    {
+      "platform": "alibaba",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 181,
+          "tabs": []
+        },
+        {
+          "index": 1,
+          "label": "Alibaba 连接",
+          "controls": 27,
+          "tabs": []
+        },
+        {
+          "index": 12,
+          "label": "Alibaba 刊登",
+          "controls": 176,
+          "tabs": [
+            "商品",
+            "类目",
+            "预设资料",
+            "价格与贸易",
+            "保存与发布"
+          ]
+        },
+        {
+          "index": 8,
+          "label": "发布队列",
+          "controls": 40,
+          "tabs": [
+            "商品队列"
+          ]
+        },
+        {
+          "index": 3,
+          "label": "AI 文案",
+          "controls": 86,
+          "tabs": [
+            "AI 能力与提示词"
+          ]
+        },
+        {
+          "index": 5,
+          "label": "AI 图片",
+          "controls": 193,
+          "tabs": [
+            "简单编辑",
+            "精细化编辑",
+            "图片输出与水印",
+            "商品视频"
+          ]
+        },
+        {
+          "index": 4,
+          "label": "内容审查",
+          "controls": 54,
+          "tabs": []
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 78,
+          "tabs": [
+            "运行日志"
+          ]
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 73,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 165,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        }
+      ],
+      "problems": [],
+      "ok": true
+    },
+    {
+      "platform": "aliexpress",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 199,
+          "tabs": []
+        },
+        {
+          "index": 1,
+          "label": "店铺与模板",
+          "controls": 80,
+          "tabs": []
+        },
+        {
+          "index": 2,
+          "label": "类目与属性",
+          "controls": 87,
+          "tabs": [
+            "类目与规格",
+            "属性模板与清理",
+            "欧盟资质"
+          ]
+        },
+        {
+          "index": 6,
+          "label": "价格",
+          "controls": 162,
+          "tabs": [
+            "定价与试算",
+            "阶梯与批发",
+            "区域调价",
+            "价格模板库"
+          ]
+        },
+        {
+          "index": 7,
+          "label": "变种与库存",
+          "controls": 76,
+          "tabs": [
+            "编码与库存",
+            "变种属性与图片",
+            "套装 SKU"
+          ]
+        },
+        {
+          "index": 3,
+          "label": "AI 文案",
+          "controls": 227,
+          "tabs": [
+            "AI 能力与提示词",
+            "详情内容增强"
+          ]
+        },
+        {
+          "index": 5,
+          "label": "AI 图片",
+          "controls": 214,
+          "tabs": [
+            "简单编辑",
+            "精细化编辑",
+            "营销图",
+            "图片输出与水印",
+            "商品视频"
+          ]
+        },
+        {
+          "index": 4,
+          "label": "内容审查",
+          "controls": 54,
+          "tabs": []
+        },
+        {
+          "index": 8,
+          "label": "发布队列",
+          "controls": 70,
+          "tabs": [
+            "运行与发布设置",
+            "商品队列"
+          ]
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 93,
+          "tabs": [
+            "运行日志",
+            "定时发布"
+          ]
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 132,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出",
+            "任务队列"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 167,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        }
+      ],
+      "problems": [],
+      "ok": true
+    },
+    {
+      "platform": "amazon",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 154,
+          "tabs": []
+        },
+        {
+          "index": 13,
+          "label": "Amazon 刊登",
+          "controls": 325,
+          "tabs": []
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 75,
+          "tabs": [
+            "运行日志"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 112,
+          "tabs": [
+            "账号与连接",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        }
+      ],
+      "problems": [],
+      "ok": true
+    },
+    {
+      "platform": "tiktok",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 181,
+          "tabs": []
+        },
+        {
+          "index": 14,
+          "label": "TikTok 刊登",
+          "controls": 222,
+          "tabs": [
+            "连接与商品",
+            "类目与属性",
+            "文案与图片",
+            "价格与物流",
+            "保存与诊断"
+          ]
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 75,
+          "tabs": [
+            "运行日志"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 159,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        }
+      ],
+      "problems": [],
+      "ok": true
+    }
+  ],
+  "ok": true
+}

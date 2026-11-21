@@ -1,0 +1,9 @@
+{
+ "generated_at": "2026-11-22T04:18:00",
+ "build": "dist/verified-all-platforms-final-20261122-041130/AuroraList.app",
+ "sha256": "d427f727b46e3ab3bf33c041153fb44882a55cc5c4f25630ffc0c297a26b30b5",
+ "codesign": "PASS",
+ "packaged_local_check": "PASS",
+ "verified_at": "2026-11-22T04:11:52+08:00",
+ "note": "全平台最终构建（本地 PyInstaller + codesign + 打包程序 --verify-local）"
+}

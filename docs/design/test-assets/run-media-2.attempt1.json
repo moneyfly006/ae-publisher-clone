@@ -1,0 +1,292 @@
+{
+  "generated_at": "2026-11-22T03:33:11+0800",
+  "mode": "REAL（真实联网下载 + 本地 Pillow 处理 + 真实付费 AI 图像编辑）",
+  "sources": [
+    {
+      "key": "source-1",
+      "path": "docs/design/test-assets/src-1.png",
+      "ok": true,
+      "bytes": 275297,
+      "elapsed_s": 0.138,
+      "error": "",
+      "width": 729,
+      "height": 642,
+      "mode": "RGB",
+      "format": "PNG",
+      "sha256": "269190f1bfe9aa985b0ef884cfecbd0e5d78619b506a2e904111a7cbbac79c36",
+      "sha256_16": "269190f1bfe9aa98",
+      "source_url": "https://sc04.alicdn.com/kf/H054956b8d48a466a8c136c7043fac5b8K.png"
+    },
+    {
+      "key": "source-2",
+      "path": "docs/design/test-assets/src-2.jpg",
+      "ok": true,
+      "bytes": 268048,
+      "elapsed_s": 0.122,
+      "error": "",
+      "width": 1000,
+      "height": 1000,
+      "mode": "RGB",
+      "format": "JPEG",
+      "sha256": "c163769bd5e31dd00d046ff6cc8f401918a099b2ddcd8f715407c6c4f7f3d863",
+      "sha256_16": "c163769bd5e31dd0",
+      "source_url": "https://sc04.alicdn.com/kf/H38c58f3593c14ddea6ad0bcf645fdb6ab.jpg"
+    },
+    {
+      "key": "source-3",
+      "path": "docs/design/test-assets/src-3.jpg",
+      "ok": true,
+      "bytes": 56834,
+      "elapsed_s": 0.089,
+      "error": "",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGBA",
+      "format": "WEBP",
+      "sha256": "1fd21cc83e827b599ffe6d0237f61aa09d68f4285ba2a78f41546192899f4dad",
+      "sha256_16": "1fd21cc83e827b59",
+      "source_url": "https://ae-pic-a1.aliexpress-media.com/kf/Sa1ede3d45c5443819bd619c4244d96f7L.jpg"
+    },
+    {
+      "key": "source-4",
+      "path": "docs/design/test-assets/src-4.jpg",
+      "ok": true,
+      "bytes": 188662,
+      "elapsed_s": 0.289,
+      "error": "",
+      "width": 1500,
+      "height": 1348,
+      "mode": "RGB",
+      "format": "WEBP",
+      "sha256": "2131bd478872340a0018af9a9ade9d10a596e0699275fef2eb5f768688f96841",
+      "sha256_16": "2131bd478872340a",
+      "source_url": "https://ae-pic-a1.aliexpress-media.com/kf/S02b17b70454b4bba8cb7475581ac98ceI.jpg"
+    }
+  ],
+  "local_ops": {
+    "local-square": {
+      "key": "local-square",
+      "path": "docs/design/test-assets/local-square.png",
+      "ok": true,
+      "bytes": 283505,
+      "elapsed_s": 0.018,
+      "error": "",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGB",
+      "format": "PNG",
+      "sha256": "c23676eebee20d31caeb730bff2b8e952ff30eb87dfa527cee1b8746f069a973",
+      "sha256_16": "c23676eebee20d31"
+    },
+    "local-watermark-text": {
+      "key": "local-watermark-text",
+      "path": "docs/design/test-assets/local-watermark-text.png",
+      "ok": true,
+      "bytes": 283505,
+      "elapsed_s": 0.022,
+      "error": "",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGB",
+      "format": "PNG",
+      "sha256": "c23676eebee20d31caeb730bff2b8e952ff30eb87dfa527cee1b8746f069a973",
+      "sha256_16": "c23676eebee20d31"
+    },
+    "local-watermark-image": {
+      "key": "local-watermark-image",
+      "path": "docs/design/test-assets/local-watermark-image.png",
+      "ok": true,
+      "bytes": 293090,
+      "elapsed_s": 0.021,
+      "error": "",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGB",
+      "format": "PNG",
+      "sha256": "02618a4d97daf62b0c2c9b9a9a87bbc5a2dc6ed74eee97692e3281d7209cc977",
+      "sha256_16": "02618a4d97daf62b"
+    },
+    "local-four": {
+      "key": "local-four",
+      "path": "docs/design/test-assets/local-four.png",
+      "ok": true,
+      "bytes": 940596,
+      "elapsed_s": 0.085,
+      "error": "",
+      "width": 1200,
+      "height": 1200,
+      "mode": "RGB",
+      "format": "PNG",
+      "sha256": "6ecae4ca192d82b4aef54b4325c105a5652c1d025d75095660c2270e34fc5557",
+      "sha256_16": "6ecae4ca192d82b4"
+    },
+    "local-marketing-1x1": {
+      "key": "local-marketing-1x1",
+      "path": "docs/design/test-assets/local-marketing-1x1.png",
+      "ok": true,
+      "bytes": 336678,
+      "elapsed_s": 0.02,
+      "error": "",
+      "width": 800,
+      "height": 800,
+      "mode": "RGB",
+      "format": "PNG",
+      "sha256": "6d397f1740f0ad5995b7ebd8cb2c6ac36a3a1e0fe1e6298d5d7031361d48779c",
+      "sha256_16": "6d397f1740f0ad59"
+    },
+    "local-marketing-3x4": {
+      "key": "local-marketing-3x4",
+      "path": "docs/design/test-assets/local-marketing-3x4.png",
+      "ok": true,
+      "bytes": 428935,
+      "elapsed_s": 0.027,
+      "error": "",
+      "width": 750,
+      "height": 1000,
+      "mode": "RGB",
+      "format": "PNG",
+      "sha256": "694ecf47c425b59d2dc90d108c9f26e33297a42c843615a19a824d939b5cf442",
+      "sha256_16": "694ecf47c425b59d"
+    },
+    "local-compress": {
+      "key": "local-compress",
+      "path": "docs/design/test-assets/local-compress.jpg",
+      "ok": true,
+      "bytes": 365314,
+      "elapsed_s": 0.023,
+      "error": "",
+      "width": 1500,
+      "height": 1348,
+      "mode": "RGB",
+      "format": "JPEG",
+      "sha256": "44d621dac8024c421e79a9a9b909e6eba552cdcb99c7d3509cec98d9d078c7c3",
+      "sha256_16": "44d621dac8024c42",
+      "source_size": 188662
+    }
+  },
+  "validation": {
+    "artifacts": [
+      {
+        "file": "docs/design/test-assets/local-square.png",
+        "ok": true,
+        "detail": "1024x1024",
+        "elapsed_s": 0.0002,
+        "meets_800": true
+      },
+      {
+        "file": "docs/design/test-assets/local-watermark-text.png",
+        "ok": true,
+        "detail": "1024x1024",
+        "elapsed_s": 0.0001,
+        "meets_800": true
+      },
+      {
+        "file": "docs/design/test-assets/local-watermark-image.png",
+        "ok": true,
+        "detail": "1024x1024",
+        "elapsed_s": 0.0001,
+        "meets_800": true
+      },
+      {
+        "file": "docs/design/test-assets/local-four.png",
+        "ok": true,
+        "detail": "1200x1200",
+        "elapsed_s": 0.0001,
+        "meets_800": true
+      },
+      {
+        "file": "docs/design/test-assets/local-marketing-1x1.png",
+        "ok": true,
+        "detail": "800x800",
+        "elapsed_s": 0.0001,
+        "meets_800": true
+      },
+      {
+        "file": "docs/design/test-assets/local-marketing-3x4.png",
+        "ok": false,
+        "detail": "750x1000 低于 800x800",
+        "elapsed_s": 0.0001,
+        "meets_800": false
+      },
+      {
+        "file": "docs/design/test-assets/local-compress.jpg",
+        "ok": true,
+        "detail": "1500x1348",
+        "elapsed_s": 0.0001,
+        "meets_800": true
+      }
+    ],
+    "passed": 6,
+    "failed": 1,
+    "negative_case": {
+      "file": "docs/design/test-assets/invalid-600x450.png",
+      "check_ok": false,
+      "detail": "600x450 低于 800x800",
+      "expected_fail": true,
+      "negative_pass": true,
+      "elapsed_s": 0.0012,
+      "bytes": 1774
+    },
+    "remote_url": {
+      "url": "https://ae-pic-a1.aliexpress-media.com/kf/S02b17b70454b4bba8cb7475581ac98ceI.jpg",
+      "ok": true,
+      "detail": "1500x1348",
+      "elapsed_s": 0.109,
+      "network": true
+    }
+  },
+  "ai": {
+    "white_bg": {
+      "key": "ai-white-bg",
+      "path": "docs/design/test-assets/ai-white-bg-r2.png",
+      "ok": true,
+      "bytes": 880739,
+      "elapsed_s": 23.114,
+      "error": "",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGBA",
+      "format": "PNG",
+      "sha256": "9734485bd1b3dc7e5afb0f0b7c35dd0d532c7e689da5fa580cb465034c54106e",
+      "sha256_16": "9734485bd1b3dc7e",
+      "url": "http://132.226.1.44:8099/imgres/63c33401e2084267ab74d02d498638d4.png",
+      "model": "qwen-image-2.1-turbo",
+      "paid": true,
+      "input": "docs/design/test-assets/src-2.jpg",
+      "prompt": "Remove background → pure white (#FFFFFF)，保持商品原样",
+      "est_cost_cny": 0.0,
+      "size_check": {
+        "ok": true,
+        "detail": "1024x1024"
+      }
+    },
+    "fine_edit": {
+      "key": "ai-fine-edit",
+      "path": "docs/design/test-assets/ai-fine-edit-r2.png",
+      "ok": true,
+      "bytes": 880739,
+      "elapsed_s": 2.527,
+      "error": "",
+      "width": 1024,
+      "height": 1024,
+      "mode": "RGBA",
+      "format": "PNG",
+      "sha256": "9734485bd1b3dc7e5afb0f0b7c35dd0d532c7e689da5fa580cb465034c54106e",
+      "sha256_16": "9734485bd1b3dc7e",
+      "url": "http://132.226.1.44:8099/imgres/63c33401e2084267ab74d02d498638d4.png",
+      "model": "qwen-image-2.1-turbo",
+      "paid": true,
+      "input": "docs/design/test-assets/src-2.jpg",
+      "prompt": "Place this industrial machine on a clean modern construction site background, natural daylight, professional e-commerce product photo. Keep the machine's shape, color and details exactly unchanged. No text, no watermark.",
+      "est_cost_cny": 0.0,
+      "size_check": {
+        "ok": true,
+        "detail": "1024x1024"
+      }
+    },
+    "ok": true,
+    "calls": 2
+  },
+  "failures": [],
+  "ok": false
+}
