@@ -48,20 +48,8 @@
       <label>有效天数</label><input name="days" type="number" value="30" min="1" style="width:90px">
       <button class="btn" type="submit">立即开通</button>
     </div>
-    <div id="grantFeatBox" style="margin-top:8px;display:flex;gap:14px;flex-wrap:wrap"></div>
+    <p class="hint">开通即开通所选平台的全部功能（含 AI 文案/图片、报价贸易、审核等），沿用客户机器码，软件刷新后生效。</p>
     <p class="hint">默认开通所选平台的全部功能；也可只勾选部分功能。授权沿用该用户已有机器码，软件刷新/登录后生效。</p>
-    <script>
-    var FEATS = <?= json_encode($platforms, JSON_UNESCAPED_UNICODE) ?>;
-    function grantFeatures(){
-      var p=document.getElementById('grantPlatform').value;
-      var box=document.getElementById('grantFeatBox');
-      if(p==='all'){ box.innerHTML='<span class="hint">全部平台全部功能</span>'; return; }
-      var list=FEATS[p]||[];
-      box.innerHTML=list.map(function(f){return '<label class="hint"><input type="checkbox" name="features[]" value="'+f+'" checked> '+f+'</label>';}).join('')+
-        '<span class="hint">（默认全选，可取消不需要的功能）</span>';
-    }
-    grantFeatures();
-    </script>
   </form>
 </div>
 

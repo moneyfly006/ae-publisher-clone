@@ -165,6 +165,12 @@ class RedesignTests(unittest.TestCase):
         self.assertTrue({"授权", "图床", "AI 模型", "模型价格", "版本更新", "推荐配置", "多开 / 多任务"} <= all_text)
 
     def test_run_button_keeps_start_stop_and_stopping_states(self):
+        # Alibaba 平台空闲时按钮语义是「去 Alibaba 刊登」（点击跳 12 号页），
+        # SMT 平台才是「启动任务」；先切到速卖通验证原按钮状态。
+        self.app._running = self.app._stop_requested = False
+        self.app._sync_run_button()
+        self.assertEqual(self.app.btn_run_text.value, "去 Alibaba 刊登")
+        self.app._switch_platform("aliexpress")
         for running, stopping, title in ((False, False, "启动任务"), (True, False, "停止"),
                                          (True, True, "停止中…")):
             self.app._running, self.app._stop_requested = running, stopping

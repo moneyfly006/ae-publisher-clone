@@ -2169,9 +2169,12 @@ class App:
                 self.btn_run_text.color = "white"
                 self.btn_run.bgcolor = DANGER_BG
             else:
-                self.btn_run_icon.name = ft.Icons.ROCKET_LAUNCH
+                _is_alibaba = str(getattr(getattr(self, "active_platform", None),
+                                           "id", "")) == "alibaba"
+                self.btn_run_icon.name = (ft.Icons.PUBLISH if _is_alibaba
+                                          else ft.Icons.ROCKET_LAUNCH)
                 self.btn_run_icon.color = ON_ACCENT
-                self.btn_run_text.value = "启动任务"
+                self.btn_run_text.value = "去 Alibaba 刊登" if _is_alibaba else "启动任务"
                 self.btn_run_text.color = ON_ACCENT
                 self.btn_run.bgcolor = ACCENT
             if getattr(self, "shell_status", None) is not None:
@@ -3018,8 +3021,13 @@ class App:
                         pid + " · " + _img_cnt(it) + _upd_time(it),
                         size=12, color=MUTED),
                     trailing=ft.TextButton("发布", icon=ft.Icons.SEND,
-                                           on_click=lambda e, _p=pid:
-                                           self._publish_one(_p, on_done=lambda: _after(_p))),
+                                           on_click=lambda e, _p=pid, _t=title:
+                                           self._confirm(
+                                               "发布这个商品？",
+                                               f"商品：{_p}\n{_t}\n\n"
+                                               "提交后进入「发布中 → 审核中」，短时间内不可撤销。",
+                                               lambda: self._publish_one(
+                                                   _p, on_done=lambda: _after(_p)))),
                     dense=False))
             col.controls = rows or [empty_state("这一栏没有商品")]
             try:
@@ -5958,8 +5966,19 @@ class App:
                 self._log(f"套用 Alibaba 提示词预设：{preset.get('name')}"
                           f"（{len(written)} 项，v{AP.PRESET_VERSION}）", "INFO")
                 self.toast(f"已套用 Alibaba 预设：{preset.get('name')}，可继续手工微调")
+                _tab_idx = 0
+                try:
+                    _t = next(c for c in walk(self.content.controls)
+                              if isinstance(c, ft.Tabs))
+                    _tab_idx = int(_t.selected_index or 0)
+                except Exception:
+                    pass
                 try:
                     self._switch(self._page_idx)
+                    _t2 = next(c for c in walk(self.content.controls)
+                               if isinstance(c, ft.Tabs))
+                    _t2.selected_index = _tab_idx
+                    self._safe_update()
                 except Exception:
                     pass
             except Exception as ex:  # noqa: BLE001
@@ -6849,11 +6868,19 @@ class App:
 
         def lib_del(e):
             name = self.lib_dd.value
+            if not name:
+                self.toast("先在右侧下拉选择要删除的模板", False)
+                return
+            before = len([t for t in (self.cfg.price_template_library or [])
+                          if isinstance(t, dict)])
             self.cfg.price_template_library = [t for t in (self.cfg.price_template_library or [])
                                               if not (isinstance(t, dict) and t.get("name") == name)]
+            after = len([t for t in (self.cfg.price_template_library or [])
+                         if isinstance(t, dict)])
             save_config(self.cfg)
             _lib_refresh()
-            self.toast("已删除")
+            self.toast("已删除模板：" + name if after < before else "未找到该模板，未删除",
+                       after < before)
 
         _lib_refresh()
         lib_card = card(ft.Column([h1("区域倍率模板", 15),
@@ -8970,7 +8997,8 @@ class App:
 
         _PAGES = [("0", "概览"), ("1", "店铺与模板"), ("2", "类目与属性"), ("3", "AI 文案"),
                   ("4", "内容审查"), ("5", "AI 图片"), ("6", "价格"), ("7", "变种与库存"),
-                  ("8", "发布队列"), ("9", "图片工作台"), ("10", "任务与日志"), ("11", "设置")]
+                  ("8", "发布队列"), ("12", "Alibaba 刊登"), ("9", "图片工作台"),
+                  ("10", "任务与日志"), ("11", "设置")]
         start_dd = ft.Dropdown(label="启动时打开", width=200, bgcolor=CARD_2, border_color=CARD_2,
                                color=TEXT, options=[ft.dropdown.Option(k, v) for k, v in _PAGES],
                                value=str(getattr(self.cfg, "start_page", 0) or 0))
@@ -9132,6 +9160,10 @@ class App:
         def do_search(e=None):
             kw = str(search_kw.value or "").strip()
             if not kw:
+                status.value = "请输入类目关键词（中文/英文），例如 pool / 泳池 / packaging"
+                status.color = WARN_C
+                try:self._safe_update()
+                except Exception: pass
                 return
             status.value = "搜索类目中…"
             status.color = MUTED
@@ -9190,6 +9222,12 @@ class App:
             NameError；这里在刊登页作用域内真实实现一遍。
             """
             cid = str(node.get("categoryId") or "")
+            if not cid or cid.lower() in ("none", "null"):
+                status.value = "先搜索并选择一个类目，再展开子类目"
+                status.color = WARN_C
+                try:self._safe_update()
+                except Exception: pass
+                return
             status.value = f"「{node.get('nameZh') or ''}」不是末级类目，正在加载子类目…"
             status.color = MUTED
             try:self._safe_update()
@@ -9478,8 +9516,55 @@ class App:
 
         def set_product(pid, subject="", category=""):
             self.cfg.set("alibaba_test_product_id", str(pid))
-            if category:
-                self.cfg.set("alibaba_category_id", str(category))
+            _cat = str(category or "").strip()
+            if _cat and _cat.lower() not in ("none", "null"):
+                # 先清掉上一个商品的类目路径，再异步读取当前商品类目的真实路径，
+                # 否则预演/保存可能沿用旧 fullCid（数据风险）。
+                self.cfg.set("alibaba_category_id", _cat)
+                self.cfg.set("alibaba_full_cid", "")
+                self.cfg.set("alibaba_category_name", "")
+                try:
+                    cat_now.value = f"当前类目：{_cat}（正在读取路径…）"
+                    cat_now.color = MUTED
+                except Exception:
+                    pass
+
+                def _sync_cat():
+                    try:
+                        d = client().category_detail(_cat)
+                        full = str(d.get("nodePathId") or _cat).replace("/", ",")
+                        name = f"{d.get('nameZh') or ''} / {d.get('nameEn') or ''}".strip(" /")
+                        self.cfg.set("alibaba_full_cid", full)
+                        if name:
+                            self.cfg.set("alibaba_category_name", name)
+                        save_config(self.cfg)
+                        try:
+                            cat_now.value = (f"当前类目：{name or _cat}（{_cat}）"
+                                             f" · 路径 {full}")
+                            cat_now.color = ACCENT_2
+                            status.value = f"已选择商品 {pid}，类目路径已同步"
+                            status.color = SUCCESS_C
+                        except Exception:
+                            pass
+                    except Exception as ex:  # noqa: BLE001
+                        try:
+                            cat_now.value = f"当前类目：{_cat}（路径读取失败，保存前请确认）"
+                            cat_now.color = WARN_C
+                            status.value = f"类目路径读取失败：{str(ex)[:80]}"
+                            status.color = WARN_C
+                        except Exception:
+                            pass
+                    try:self._safe_update()
+                    except Exception: pass
+                threading.Thread(target=_sync_cat, daemon=True).start()
+            else:
+                self.cfg.set("alibaba_full_cid", "")
+                self.cfg.set("alibaba_category_name", "")
+                try:
+                    cat_now.value = "当前类目：未选择（先在「类目」页选类目再预演/保存）"
+                    cat_now.color = DANGER_C
+                except Exception:
+                    pass
             save_config(self.cfg)
             prod_now.value = f"当前商品：{pid} · {str(subject)[:44]}" + (
                 f" · 类目 {category}" if category else "")

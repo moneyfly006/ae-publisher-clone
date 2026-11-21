@@ -112,3 +112,21 @@
 .venv/bin/python tools/test_offline.py
 .venv/bin/python tests/test_alibaba_prompts.py
 ```
+
+---
+
+## 六、UI 全按钮验证（独立 verifier，快照 app.py 11014 行）
+
+- 13 页 × dark/light 全部可构建：页面控件 1662（按钮 147 / 开关 53 / 下拉 35 / 输入 106 / 分栏 10），页面回调 316；壳层 304 控件 / 44 回调。
+- 回调执行 486 次：OK 313 / DEFERRED 153 / NATIVE 11 / EXTERNAL 9 / **ERROR 0 / TIMEOUT 0**；无「有按钮无回调」控件。
+- 官方 `button_audit.py`：411 回调 0 error；`verify_ui_options.py`：224 态 0 error。
+- 12 号页专项 63 项 62 PASS；平台切换/锁定 90 项 0 fail；壳层 31 项 0 fail。
+- 截图 21 张 + manifest：`docs/design/ui-verify/`；报告：`docs/UI_BUTTON_VERIFICATION.md`。
+- 报告 P1 已在本轮修复：
+  1) 类目搜索空关键词无反馈 → 提示「请输入类目关键词」；
+  2) 展开子类目未选类目误报 Cookie → 提示先选类目；
+  3) 选商品后 fullCid/类目名不同步 → 选商品即清旧路径并异步读取真实类目路径；
+  4) 区域倍率模板空选择删除假成功 → 未选择时明确报错，不再假成功；
+  5) 发布队列单条「发布」无二次确认 → 改为确认弹窗。
+- P2 修复：套用预设不再跳回第一个 Tab；设置「启动时打开」补 Alibaba 刊登页；侧栏按钮在 Alibaba 平台显示「去 Alibaba 刊登」。
+- 新增 `tests/test_ui_alibaba_actions.py`（5 项）：预演按钮、保存二次确认（取消不写入）、AI 生成并保存（use_ai=True、dry_run=False）、按 ID 打开、平台启动守卫。

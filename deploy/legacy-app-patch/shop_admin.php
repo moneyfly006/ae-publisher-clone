@@ -289,14 +289,11 @@ function page_shop_user_grant(int $id): void
     $platform = (string)($_POST['platform'] ?? 'alibaba');
     $days = max(1, (int)($_POST['days'] ?? 30));
     $map = shop_platform_map();
-    $pick = array_values(array_filter(array_map('trim', (array)($_POST['features'] ?? []))));
+    // 开通平台 = 该平台全部功能（不做功能子集）
     if ($platform === 'all') {
         $plats = $map;
     } elseif (isset($map[$platform])) {
-        $allowed = $map[$platform];
-        $feats = $pick ? array_values(array_intersect($pick, $allowed)) : $allowed;
-        if (!$feats) $feats = $allowed;
-        $plats = [$platform => $feats];
+        $plats = [$platform => $map[$platform]];
     } else {
         flash('bad', '平台不存在'); redirect('/admin/shop-users/' . $id);
         return;
