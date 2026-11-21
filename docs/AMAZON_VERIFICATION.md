@@ -12,14 +12,15 @@
 | 项目 | 结论 | 证据 |
 |---|---|---|
 | 真实账号只读核验 | **PASS 18/18** | `docs/amazon-readonly-verification.json`（generated_at `2026-11-22T02:13:07+08:00`） |
-| Amazon 测试（7 文件 171 用例） | **171/171 OK**（`AURORA_TEST=1`） | `tests/test_amazon_{adapter,client,contract,payload,pipeline,prompts,ui_page}.py` |
+| Amazon 测试（8 文件 194 用例） | **194/194 OK**（`AURORA_TEST=1`） | `tests/test_amazon_*.py` |
 | 离线契约测试 | **27/27 OK** | `tests/test_amazon_contract.py` |
-| 全量回归（verify_regressions） | task-4 时 **55/55 PASS**；最终复跑 Amazon **7/7 PASS**，另有 3 个 Alibaba 侧模块因外部并发改动失败（§6 单列） | `docs/regression-verification.json` |
-| 离线回归（test_offline） | **234 tests OK** | `tools/test_offline.py`（已接入 7 个 Amazon 模块） |
+| 平台隔离审计（task-6 独立实现） | **79/79 PASS**（含 ⌘F 修复后复验；隐藏过头=0 / 隐藏不足=0） | `docs/amazon-platform-isolation.json` |
+| 全量回归（verify_regressions） | **58/58 模块 PASS** | `docs/regression-verification.json` |
+| 离线回归（test_offline） | **257 tests OK** | `tools/test_offline.py`（已接入 8 个 Amazon 模块） |
 | 编译 | `compileall -q src` **exit 0** | — |
-| 全平台按钮审计 | **17 页 / 460 回调，ERROR 0**；Amazon 4 页 114 回调 0 错 | `docs/ui-button-audit.json` |
+| 全平台按钮审计 | **17 页 / 457 回调，ERROR 0**；Amazon 4 页 105 回调 0 错（task-7 隐藏后减少 3 个） | `docs/ui-button-audit.json` |
 | UI/后端交叉审计 | **9/9 PASS** | `tools/verify_amazon_ui.py`（9 项断言） |
-| 13 页按钮遍历 + 截图 | **27/27 按钮无异常**；截图已更新 | `docs/design/amazon-listing-page.png`（275,673 B） |
+| 13 页按钮遍历 + 截图 | **27/27 按钮无异常**；截图已更新（顶部 + 价格/预演） | `docs/design/amazon-listing-page.png` 等 3 张（§4.1） |
 | 真实写入（Lead 执行） | 证据记录 **writes=3**（#1 往返 / #2 AI 编辑 / #3 恢复），均 `code=0`；另有 1 次未授权 teammate 误写（见 §3.3） | `docs/amazon-write-verification.json`（runs=6） |
 | 写后店铺计数 | 采集箱 **16** / 待发布 **5** / 在线 **142** 不变 | Lead 复核 + 只读核验一致 |
 
@@ -129,10 +130,10 @@
 - `src/aeclone/platforms.py`：`PageItem(13, "Amazon 刊登", "刊登", ...)`；`_switch` 落点 `_page_idx=13`。
 - `tools/amazon_ui_shots.py`（`AURORA_TEST=1` + `ui_sandbox`）：网络 mock、线程/文件选择器禁用；
   **27/27 按钮 on_click 无异常**；NOT_READY 分支保留（页面未实现/分发表未接时打印 NOT_READY 退出 0）。
-- 截图（2026-11-22 02:30 最新代码重拍）：
-  `docs/design/amazon-listing-page.png`（页面顶部：连接/采集箱/类目/标题与五点/AI）、
-  `docs/design/amazon-listing-page-2-price-preview.png`（价格/库存/物流/品牌/SKU + 预演/保存）、
-  `docs/design/amazon-listing-page-3-save.png`（页面底部）。
+- 截图（task-6 02:45 最新代码重拍，使用 Chrome `--headless=new` 修复中文方框问题）：
+  `docs/design/amazon-listing-page.png`（274,162 B，sha256 `6d5a75e2…`：页面顶部：连接/采集箱/类目/标题与五点/AI）、
+  `docs/design/amazon-listing-page-2-price-preview.png`（263,971 B，sha256 `8efa9363…`：价格/库存/物流/品牌/SKU + 预演/保存）、
+  `docs/design/amazon-listing-page-3-save.png`（265,636 B，页面底部）。
   最新 UI 已包含「＋添加卖点」「当前 5/10 行」「卖点 n/700」计数、侧栏「去 Amazon 刊登」。
 - 本轮 UI 修复：`_switch_platform` 后同步侧栏启动按钮文案（Amazon/Alibaba → 「去…刊登」）；
   价格/物流卡片 `wrap=True` Row 内的 `expand` 子控件在 CanvasKit 下会被撑成超大空白块，
@@ -191,6 +192,30 @@ Amazon 13 页 52 回调 = 45 OK / 7 DEFERRED / 0 ERROR
 | 后端缺失不崩溃 | `test_page_and_callbacks_survive_missing_backend` |
 | 明暗主题 | `test_page_13_renders_in_dark_and_light_themes` |
 
+### 4.5 平台隔离审计（task-6 独立实现）
+
+工具：`tools/verify_amazon_platform_isolation.py`（**独立**用 `ui_sandbox.build_app/sandbox`
+渲染 + 控件树 walk（继承祖先 visible），不 import 新测试断言；`AURORA_TEST=1`、网络禁用、
+临时配置目录）。证据：`docs/amazon-platform-isolation.json`（generated_at `2026-11-22T02:46:33+08:00`，
+summary **79/79 PASS**，隐藏过头=[] / 隐藏不足=[]）。
+
+| 区块 | 结果 | 关键证据 |
+|---|---|---|
+| Amazon 消失项（15 项） | **15/15 PASS** | 顶部栏「选择店铺」hidden；概览无「选择商品/今日任务/改前后对比/配置冲突行+检查按钮/图片服务 tile」；page10 无「停止任务/已编辑记录/定时发布 tab」；page11 无「图片与模型 tab/ffmpeg/副标题图片服务/实例说明任务队列×定时发布/恢复图床」；首次引导不弹 |
+| Amazon 保留项（26 项） | **26/26 PASS** | 13 页六张卡 + 店铺/站点下拉 + 5 卖点 + ＋添加卖点 + 预演/保存 + AI×5 + n/700；概览「成本/用量、准备状态、API 服务、授权状态」；侧栏 tooltip 去 SMT；page10 运行日志；page11 3 个设置 tab（未隐藏过头） |
+| AliExpress 保留项（16 项） | **16/16 PASS** | 选择店铺/选择商品/今日任务/改前后对比/配置冲突/图片服务 tile；page10 定时发布 tab + 停止任务 + 已编辑记录；page11 4 tab + ffmpeg + 图片服务副标题 + 任务队列说明 + 恢复图床；首次引导仍弹；**12 页全部渲染** |
+| Alibaba（6 项） | **6/6 PASS** | 无 SMT 价格页(6)/变种页(7)、12 号刊登页在、概览/12 页渲染、选择店铺保留、page10 无定时发布 tab（scheduled_publish=False） |
+| Shopee（3 项） | **3/3 PASS** | 页面集合 {0,1,2,3,5,8,10,11} 未被 Amazon 改动；所有页面渲染不崩溃 |
+| TikTok（2 项） | **2/2 PASS** | 声明页面渲染不崩溃（TikTok 由外部进程并发开发 14 号页，不计入 Amazon 结论）；Amazon 页面集合仍为 0/13/10/11 |
+| 隐藏不足扫描（9 项） | **9/9 PASS** | nav 仅 4 入口；直切 1–9 号页全部重定向到 0；旧 start_page=8 重定向；8 个 SMT 搜索词不落 SMT 页；⌘R→13、⌘L→10、**⌘F→13（不再打开 SMT 搜索弹窗，Lead 修复后复验）**；`_start/_run_pipeline/_toggle_run/_publish_one/_retry_publish_failed/_run_scheduled` 全部拦截；**105 个 Amazon 可见控件逐一点击无 SMT 跳转/弹窗** |
+| 截图（2 项） | **2/2 PASS** | `amazon-listing-page.png` / `amazon-listing-page-2-price-preview.png` 已更新 |
+
+> task-7 的 5 项残留收尾（概览配置冲突行+按钮、图片服务 tile、设置副标题、实例说明、
+> 恢复图床）在 Amazon 均 **PASS**；AliExpress 对应项仍全部保留（16/16），未误伤。
+> 「隐藏过头」清单为空（Amazon 13 页与概览关键功能全部保留）；
+> 「隐藏不足」清单为空：审计发现的唯一残留（⌘F SMT 搜索弹窗）已由 Lead 修复，
+> 并新增回归 `test_amazon_ctrl_f_does_not_open_smt_search`（本工具复验 PASS）。
+
 ---
 
 ## 5. 限制（如实列出）
@@ -204,8 +229,14 @@ Amazon 13 页 52 回调 = 45 OK / 7 DEFERRED / 0 ERROR
    20000 字节）、库存/价格为 0——均为 warnings，不阻断草稿保存；发布前需按业务补价/补库存。
 6. UI 沙箱使用 fake client / mock 网络，证明「可渲染、可点击、不崩溃、不真实写」；
    真实数据渲染由只读核验 + 真实写回读间接覆盖；截图为静态快照。
-7. `tests/test_amazon_ui_page.py` 按文件顶部说明需在 `AURORA_TEST=1` 下运行；
-   `tools/verify_regressions.py` / `tools/test_offline.py` 已对 Amazon 模块自动注入该环境变量。
+7. `tests/test_amazon_ui_page.py` / `test_amazon_platform_ui_filter.py` 按文件顶部说明需在
+   `AURORA_TEST=1` 下运行；`tools/verify_regressions.py` / `tools/test_offline.py` 已对
+   Amazon 模块自动注入该环境变量。
+8. 平台隔离审计为沙箱静态/运行时 UI 断言：证明「该平台看不到/点不到 SMT 入口」，
+   不覆盖真实运行时的系统托盘等所有外部输入。键盘 ⌘R/⌘L/⌘F 已覆盖并验证；
+   ⌘F 残留由本审计发现后已由 Lead 修复 + 回归用例固化。
+9. 截图使用 Chrome `--headless=new`；旧 headless 在当前 Chrome 版本会把中文渲染成方框，
+   已修复截图链路（`tools/amazon_ui_shots.py` / 隔离审计工具）。
 
 ---
 
@@ -217,20 +248,28 @@ Amazon 13 页 52 回调 = 45 OK / 7 DEFERRED / 0 ERROR
 |---|---|---|
 | `tests/test_platforms.py::test_alibaba_has_trade_and_no_aliexpress_pages` 失败（Alibaba 导航中无 "FOB"） | 外部进程把 Alibaba 价格页从导航移除 | 非 Amazon（未改 Alibaba） |
 | `tests/test_ui_pages.py` AI 文案页 `PermissionError: .../AuroraList/config.tmp` | 沙箱禁止写真实用户配置目录（环境限制） | 环境/沙箱 |
-| `tests/test_image_plan_conflicts.py` / `tests/test_schedule_destination.py` / `tests/test_publish_repair.py` 在最终复跑时失败 | 外部进程并发改 `services/publisher.py`/`alibaba_pipeline.py`/提示词（与 Amazon 无关；task-4 时这些模块还是 PASS） | 外部并发 |
+| `tests/test_image_plan_conflicts.py` / `tests/test_schedule_destination.py` / `tests/test_publish_repair.py` 在 task-4 最终复跑时失败 | 外部进程并发改 `services/publisher.py`/`alibaba_pipeline.py`/提示词（与 Amazon 无关；task-6 复跑时已恢复 PASS） | 外部并发 |
+| `tests/test_amazon_platform_ui_filter.py::test_caps_are_amazon_only` 失败：`tiktok 不应被改动：smt_store_selector` | 外部进程并发开发 TikTok（新增 14 号页并给 `PLATFORM_CAPS["tiktok"]` 加 SMT caps）；Amazon 代码未改 TikTok | 外部并发（task-6 复跑） |
+| TikTok 平台声明 14 号页但 `_p_tiktok_listing` 尚在开发 | 外部进程并发写 `ui/app.py`；Amazon 页面与 caps 未被影响 | 外部并发（不计入 Amazon） |
 
-其余全量回归（55 模块）与离线回归（234 tests）均 PASS；`tests/test_ui_redesign.py` 20/20 OK。
+task-6 最终复跑（外部 TikTok 测试断言按 Lead 要求调整后）：全量回归 **58/58 模块 PASS**、
+离线回归 **257/257 tests OK**、Amazon 8 个测试文件 **194/194 OK**、只读 18/18、交叉 9/9、
+按钮审计 0 ERROR、compileall 通过。上述外部并发项不再造成失败，仅作为背景记录保留。
 
 ---
 
 ## 7. P0 / P1 / P2
 
-- **P0：无。** 只读链路、真实写 #1/#2、UI 13 页、唯一写入口与护栏均通过。
-- **P1：无。** 交叉审计 9/9、按钮审计 ERROR 0、全量回归 55/55、离线 234 tests 全绿。
+- **P0：无。** 只读链路、真实写 #1/#2/#3、UI 13 页、唯一写入口与护栏、平台隔离全部通过。
+- **P1：无。** 交叉审计 9/9、按钮审计 ERROR 0、Amazon 测试 194/194、全量回归 58/58、
+  离线回归 257/257、平台隔离 79/79，全部绿。
 - **P2（备注，不阻塞）**：
-  1. `test_amazon_ui_page.py` 单独运行需 `AURORA_TEST=1`（已写入验收脚本环境）。
+  1. `test_amazon_ui_page.py` / `test_amazon_platform_ui_filter.py` 单独运行需 `AURORA_TEST=1`
+     （已写入验收脚本环境）。
   2. AI 文案草稿存在 5 条 warnings（标题/描述长度、价格 0、库存 0、Generic 品牌），发布前处理。
   3. 按钮审计中 DEFERRED/EXTERNAL 为沙箱语义（线程不执行/打开系统外链），非错误。
+  4. 截图链路需 Chrome `--headless=new`（旧 headless 中文方框），已在工具内固定。
+  5. 平台隔离审计使用沙箱 mock，不覆盖系统托盘等 OS 级入口；建议后续人工抽查。
 
 ---
 
@@ -240,7 +279,7 @@ Amazon 13 页 52 回调 = 45 OK / 7 DEFERRED / 0 ERROR
 # 1) 真实账号只读核验（需 .tmp-probe/cookies.txt 或 DXM_COOKIE_PATH）
 .venv/bin/python tools/verify_amazon.py                    # 期望 18/18 PASS
 
-# 2) Amazon 测试（7 文件，AURORA_TEST=1；写路径必须 confirm_write=True）
+# 2) Amazon 测试（8 文件，AURORA_TEST=1；写路径必须 confirm_write=True）
 AURORA_TEST=1 .venv/bin/python tests/test_amazon_contract.py
 for f in tests/test_amazon_*.py; do AURORA_TEST=1 .venv/bin/python "$f"; done
 
@@ -250,12 +289,16 @@ AURORA_TEST=1 .venv/bin/python tools/amazon_ui_shots.py     # 27 按钮 / 截图
 # 4) UI/后端交叉审计（签名/overrides/唯一写入口/预演拒绝/关键控件）
 AURORA_TEST=1 .venv/bin/python tools/verify_amazon_ui.py    # 期望 9/9 PASS
 
-# 5) 全平台按钮审计（含 Amazon 13 页）
+# 5) 平台隔离审计（独立，Amazon 消失项/保留项/其他平台/隐藏不足扫描 + 截图）
+AURORA_TEST=1 .venv/bin/python tools/verify_amazon_platform_isolation.py
+#    → docs/amazon-platform-isolation.json（79/79 PASS；隐藏过头/隐藏不足均为空）
+
+# 6) 全平台按钮审计（含 Amazon 13 页）
 AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit.json
 
-# 6) 回归 + 编译
-.venv/bin/python tools/verify_regressions.py                # 55/55 PASS
-.venv/bin/python tools/test_offline.py                      # 234 tests OK
+# 7) 回归 + 编译
+.venv/bin/python tools/verify_regressions.py                # 58/58 PASS
+.venv/bin/python tools/test_offline.py                      # 257 tests OK
 .venv/bin/python -m compileall -q src
 ```
 
@@ -266,12 +309,16 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 | 文件 | 说明 |
 |---|---|
 | `docs/amazon-readonly-verification.json` | 18 项只读核验证据（PASS 18/18） |
-| `docs/amazon-write-verification.json` | Lead 真实写证据（runs=5, writes=2, 两次 code=0） |
-| `docs/regression-verification.json` | 全量回归 55 模块结果（原有 list 结构） |
-| `docs/ui-button-audit.json` | 17 页 / 460 回调审计（ERROR 0） |
-| `docs/design/amazon-listing-page.png` | 13 页沙箱截图（275,673 B） |
+| `docs/amazon-write-verification.json` | Lead 真实写证据（runs=6, writes=3, actual_platform_writes=4；含未授权误写与恢复，§3.3） |
+| `docs/regression-verification.json` | 全量回归 58 模块结果（原有 list 结构；58/58 PASS） |
+| `docs/ui-button-audit.json` | 17 页 / 457 回调审计（ERROR 0） |
+| `docs/amazon-platform-isolation.json` | 平台隔离独立审计（79/79 PASS；隐藏过头/隐藏不足均为空） |
+| `docs/design/amazon-listing-page.png` | 13 页顶部截图（274,162 B） |
+| `docs/design/amazon-listing-page-2-price-preview.png` | 13 页价格/预演截图（263,971 B） |
+| `docs/design/amazon-listing-page-3-save.png` | 13 页底部截图（265,636 B） |
 | `tools/verify_amazon.py` | 独立只读核验（白名单 + 写入口硬断言） |
 | `tools/verify_amazon_ui.py` | UI/后端交叉审计（9 项断言，机器证据在 build/verification/） |
+| `tools/verify_amazon_platform_isolation.py` | 平台隔离独立审计（消失项/保留项/其他平台/隐藏不足扫描） |
 | `tools/amazon_ui_shots.py` | 13 页按钮遍历 + 截图（NOT_READY/控件清单降级） |
 | `tests/test_amazon_contract.py` | 离线契约 + 防回退 + 证据结构测试 |
 | `tools/button_audit.py`、`tools/verify_regressions.py`、`tools/test_offline.py` | 已接入 Amazon 用例/模块 |

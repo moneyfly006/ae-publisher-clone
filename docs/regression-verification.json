@@ -283,5 +283,10 @@
     "name": "test_amazon_adapter",
     "status": "PASS",
     "exit_code": 0
+  },
+  {
+    "name": "test_amazon_platform_ui_filter",
+    "status": "PASS",
+    "exit_code": 0
   }
 ]

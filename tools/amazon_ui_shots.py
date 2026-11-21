@@ -247,10 +247,17 @@ def capture_screenshot(platform_id: str, page_index: int,
             return False, f"Flet 预览服务端口 {port} 未就绪（见 {server.log_path}）"
         with sync_playwright() as playwright:
             try:
-                browser = playwright.chromium.launch(channel="chrome", headless=True,
-                                                     args=["--force-device-scale-factor=1"])
+                # 新版 headless 才能正确加载 mac 系统中文字体（旧 headless 会渲染成方框）。
+                browser = playwright.chromium.launch(
+                    channel="chrome", headless=True,
+                    args=["--headless=new", "--force-device-scale-factor=1"])
             except Exception:  # noqa: BLE001 - 没有 Chrome channel 时用内置 Chromium
-                browser = playwright.chromium.launch(headless=True)
+                with contextlib.suppress(Exception):
+                    browser = playwright.chromium.launch(
+                        channel="chrome", headless=True,
+                        args=["--force-device-scale-factor=1"])
+                if "browser" not in locals():
+                    browser = playwright.chromium.launch(headless=True)
             try:
                 context = browser.new_context(viewport=VIEWPORT, device_scale_factor=1)
                 page = context.new_page()

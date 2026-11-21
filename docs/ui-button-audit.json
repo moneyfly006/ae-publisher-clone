@@ -1,7 +1,7 @@
 {
   "counts": {
-    "OK": 303,
-    "DEFERRED": 141,
+    "OK": 300,
+    "DEFERRED": 137,
     "NATIVE": 8,
     "EXTERNAL": 12,
     "ERROR": 0
@@ -199,7 +199,7 @@
     {
       "page": 1,
       "platform": "alibaba",
-      "label": "测试 ICBU 连接",
+      "label": "检测 ICBU 连接",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -217,7 +217,7 @@
     {
       "page": 1,
       "platform": "alibaba",
-      "label": "测试商品 ID（可选）",
+      "label": "校验商品 ID（可选）",
       "event": "on_change",
       "status": "OK",
       "scenario": "default",
@@ -901,7 +901,7 @@
     {
       "page": 5,
       "platform": "alibaba",
-      "label": "测试叠加",
+      "label": "预览叠加",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -1019,6 +1019,15 @@
       "page": 8,
       "platform": "alibaba",
       "label": "查看在线",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 8,
+      "platform": "alibaba",
+      "label": "查看发布失败",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -1333,7 +1342,7 @@
     {
       "page": 11,
       "platform": "alibaba",
-      "label": "测试连接",
+      "label": "检测连接",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -1414,7 +1423,7 @@
     {
       "page": 11,
       "platform": "alibaba",
-      "label": "测试上传",
+      "label": "检测上传",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -1558,7 +1567,7 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "测试连接",
+      "label": "检测连接",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -1847,6 +1856,15 @@
       "page": 12,
       "platform": "alibaba",
       "label": "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "定时发布时间（如 2030-01-01 09:00）",
       "event": "on_change",
       "status": "OK",
       "scenario": "default",
@@ -2494,15 +2512,6 @@
     {
       "page": 0,
       "platform": "amazon",
-      "label": "检查配置冲突",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 0,
-      "platform": "amazon",
       "label": "去设置",
       "event": "on_click",
       "status": "DEFERRED",
@@ -2980,7 +2989,7 @@
     {
       "page": 13,
       "platform": "amazon",
-      "label": "保存到 Amazon",
+      "label": "保存（预演模式）",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -3030,15 +3039,6 @@
       "status": "DEFERRED",
       "scenario": "default",
       "detail": "background"
-    },
-    {
-      "page": 10,
-      "platform": "amazon",
-      "label": "清空已编辑记录",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
     },
     {
       "page": 10,
@@ -3113,15 +3113,6 @@
       "detail": ""
     },
     {
-      "page": 10,
-      "platform": "amazon",
-      "label": "刷新",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "background"
-    },
-    {
       "page": 11,
       "platform": "amazon",
       "label": "API Key",
@@ -3160,7 +3151,7 @@
     {
       "page": 11,
       "platform": "amazon",
-      "label": "测试连接",
+      "label": "检测连接",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -3219,51 +3210,6 @@
       "status": "OK",
       "scenario": "default",
       "detail": ""
-    },
-    {
-      "page": 11,
-      "platform": "amazon",
-      "label": "清理旧图",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "go"
-    },
-    {
-      "page": 11,
-      "platform": "amazon",
-      "label": "保存",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 11,
-      "platform": "amazon",
-      "label": "测试上传",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "go"
-    },
-    {
-      "page": 11,
-      "platform": "amazon",
-      "label": "恢复推荐图床",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 11,
-      "platform": "amazon",
-      "label": "刷新价格",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "<lambda>"
     },
     {
       "page": 11,
@@ -3327,15 +3273,6 @@
       "status": "DEFERRED",
       "scenario": "default",
       "detail": "_download_ffmpeg"
-    },
-    {
-      "page": 11,
-      "platform": "amazon",
-      "label": "恢复图床",
-      "event": "on_click",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "<lambda>"
     },
     {
       "page": 11,
@@ -3961,7 +3898,7 @@
     {
       "page": 5,
       "platform": "alibaba",
-      "label": "测试叠加",
+      "label": "预览叠加",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "populated",

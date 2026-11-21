@@ -86,6 +86,52 @@ REGIONS = [("US", "美国"), ("RU", "俄罗斯"), ("BR", "巴西"), ("ES", "西�
            ("IL", "以色列"), ("KR", "韩国"), ("JP", "日本"), ("MX", "墨西哥"),
            ("CA", "加拿大"), ("AU", "澳大利亚"), ("NL", "荷兰"), ("PT", "葡萄牙")]
 
+# ---------- TikTok Shop 站点（契约 §2）----------
+# 23 个 L7 跨境站点（顺序与 getL7ShopIdAndSite 返回一致）。后端 services.tiktok_prompts
+# 就绪时优先用它的 SITE_META；这里保留离线兜底，保证「后端未就绪 / 未连店铺」时
+# 站点下拉、币种/语言提示、AI 语言说明仍然可用。
+TIKTOK_L7_SITE_ROWS = (
+    ("TH", "泰国", "THB", "th", "泰语"),
+    ("VN", "越南", "VND", "vi", "越南语"),
+    ("MY", "马来西亚", "MYR", "ms", "马来语"),
+    ("PH", "菲律宾", "PHP", "en", "英语"),
+    ("SG", "新加坡", "SGD", "en", "英语"),
+    ("ID", "印尼", "IDR", "id", "印尼语"),
+    ("GB", "英国", "GBP", "en", "英语"),
+    ("DE", "德国", "EUR", "de", "德语"),
+    ("ES", "西班牙", "EUR", "es", "西班牙语"),
+    ("IT", "意大利", "EUR", "it", "意大利语"),
+    ("FR", "法国", "EUR", "fr", "法语"),
+    ("IE", "爱尔兰", "EUR", "en", "英语"),
+    ("PL", "波兰", "EUR", "pl", "波兰语"),
+    ("NL", "荷兰", "EUR", "nl", "荷兰语"),
+    ("BE", "比利时", "EUR", "nl", "荷兰语"),
+    ("CZ", "捷克", "CZK", "cs", "捷克语"),
+    ("AT", "奥地利", "EUR", "de", "德语"),
+    ("GR", "希腊", "EUR", "el", "希腊语"),
+    ("PT", "葡萄牙", "EUR", "pt", "葡萄牙语"),
+    ("HU", "匈牙利", "EUR", "hu", "匈牙利语"),
+    ("JP", "日本", "JPY", "ja", "日语"),
+    ("BR", "巴西", "BRL", "pt", "葡萄牙语"),
+    ("MX", "墨西哥", "MXN", "es", "西班牙语"),
+)
+TIKTOK_SITE_META = {
+    code: {"site": code, "code": code, "country": country, "currency": currency,
+           "language": lang, "language_name": lang_name, "cross_border": True}
+    for code, country, currency, lang, lang_name in TIKTOK_L7_SITE_ROWS
+}
+# getLimitBySite 实测默认值（契约 §1.6）；后端 site_limits 失败时的 UI 兜底。
+TIKTOK_DEFAULT_LIMITS = {
+    "priceMin": 0.01, "priceMax": 180000000.0, "stockMax": 99999,
+    "nameMax": 255, "nameMin": 25, "descMax": 10000, "descImgMax": 30,
+    "imgCountMax": 9, "imgCountMin": 1,
+    "variationSizeMax": 100, "variationNameMax": 20, "variationOptionMax": 50,
+}
+TIKTOK_TITLE_MIN, TIKTOK_TITLE_MAX = 25, 255
+TIKTOK_DESC_MAX = 10000
+TIKTOK_IMAGES_MIN, TIKTOK_IMAGES_MAX = 1, 9
+TIKTOK_STOCK_MAX = 99999
+
 # 文案提示词预设库（标题 / 详情 / SKU）
 TEXT_PROMPT_PRESETS = {
     "title": {
@@ -882,6 +928,7 @@ class App:
                 spacing=0, expand=True),
         ], expand=True, spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH))
         self._sync_run_button()
+        self._apply_platform_shell()
         threading.Thread(target=self._check_license, daemon=True).start()
         try:
             if getattr(self, "scheduler", None) is None:
@@ -926,6 +973,29 @@ class App:
     def _cap(self, name: str, default: bool = True) -> bool:
         """当前平台是否保留某项共享 UI（见 platforms.PLATFORM_CAPS）。"""
         return cap(getattr(self.active_platform, "id", ""), name, default)
+
+    def _apply_platform_shell(self):
+        """按平台 cap 调整顶部栏/侧栏共享控件（Amazon 隐藏「选择店铺」等 SMT 残留）。"""
+        try:
+            if getattr(self, "store_shortcut", None) is not None:
+                self.store_shortcut.visible = self._cap("smt_store_selector")
+        except Exception:
+            pass
+        # btn_run 的文案/图标由 _sync_run_button 处理；这里补 tooltip 语义。
+        try:
+            if getattr(self, "btn_run", None) is not None:
+                _pid_now = str(getattr(getattr(self, "active_platform", None),
+                                       "id", "") or "")
+                if _pid_now == "tiktok":
+                    self.btn_run.tooltip = "去 TikTok 刊登（TikTok 不走速卖通批量任务）"
+                elif _pid_now == "amazon":
+                    self.btn_run.tooltip = "去 Amazon 刊登（Amazon 不走速卖通批量任务）"
+                elif not self._cap("smt_pipeline_actions"):
+                    self.btn_run.tooltip = "去刊登页编辑并保存（当前平台不走速卖通批量任务）"
+                else:
+                    self.btn_run.tooltip = "启动 / 停止本次任务（⌘R / Ctrl+R）"
+        except Exception:
+            pass
 
     def _page_allowed(self, item) -> bool:
         return self.entitlements.has_feature(self.active_platform.id, item.feature)
@@ -973,17 +1043,23 @@ class App:
         for pid, pf in PLATFORMS.items():
             licensed = self.entitlements.has_platform(pid)
             active = pid == self.active_platform.id
+            ready = bool(getattr(pf, "implemented", True))
             badge = ft.Container(
                 width=44, height=44, border_radius=12,
                 bgcolor=CARD_2 if not active else ACCENT,
                 border=ft.border.all(1, BORDER if not active else ACCENT),
                 alignment=ft.alignment.center,
-                tooltip=f"{pf.name} · {'已开通' if licensed else '未开通'}",
-                content=ft.Text(pf.short, size=15, color=ON_ACCENT if active else TEXT,
+                tooltip=(f"{pf.name} · {'已开通' if licensed else '未开通'}"
+                         + ("" if ready else " · 暂不支持（即将上线）")),
+                content=ft.Text(pf.short, size=15,
+                                color=(ON_ACCENT if active else
+                                       (MUTED if not ready else TEXT)),
                                 weight=ft.FontWeight.BOLD),
                 on_click=lambda e, pid=pid: self._switch_platform(pid))
+            # 未实现平台（如 Shopee）与未授权平台都加锁标记；TikTok 已实现后不再显示锁。
             lock = ft.Icon(ft.Icons.LOCK_OUTLINE, size=12,
-                           color=MUTED if licensed else WARN_C, visible=not licensed)
+                           color=(WARN_C if not ready else MUTED),
+                           visible=(not licensed) or (not ready))
             col.controls.append(ft.Column([badge, lock], spacing=2,
                                           horizontal_alignment=ft.CrossAxisAlignment.CENTER))
         return ft.Container(
@@ -1013,8 +1089,32 @@ class App:
         # 侧栏「启动任务」按钮随平台变化（Alibaba/Amazon 改为「去…刊登」），
         # 切换平台时必须同步，否则会保留上一平台的文案图标。
         self._sync_run_button()
-        self._log(f"切换平台：{pf.name} · {'已开通' if self.entitlements.has_platform(pf.id) else '未开通'}",
-                  "INFO")
+        self._apply_platform_shell()
+        _ready = bool(getattr(pf, "implemented", True))
+        self._log(f"切换平台：{pf.name} · "
+                  f"{'已开通' if self.entitlements.has_platform(pf.id) else '未开通'}"
+                  + ("" if _ready else "（暂不支持，即将上线）"),
+                  "INFO" if _ready else "WARN")
+
+    def _render_unsupported(self, item):
+        """未实现平台（implemented=False，如 Shopee）的锁定页。
+
+        与「未授权」锁定页区分：这里不出现购买/开通 CTA（不能卖还没做的能力），
+        只提示暂不支持并列出已开放平台。TikTok 已 implemented=True，不受影响。
+        """
+        pf = self.active_platform
+        ready = [p.name for p in PLATFORMS.values() if getattr(p, "implemented", True)]
+        self.content.controls = [card(ft.Column([
+            ft.Row([ft.Icon(ft.Icons.CONSTRUCTION, size=26, color=WARN_C),
+                    ft.Text(f"{pf.name} · 暂不支持", size=FS_LG,
+                            weight=ft.FontWeight.BOLD, color=TEXT)], spacing=10),
+            muted("该平台还在开发中，当前版本暂未开放使用（不会产生任何平台操作）。"),
+            ft.Divider(color=BORDER, height=18),
+            muted("已开放平台：" + ("、".join(ready) or "无")),
+            muted(f"当前入口：{item.group} / {item.label}"),
+            muted("需要该平台时请留意版本更新；已授权平台的功能不受影响。", 12),
+        ], spacing=10))]
+        self._safe_update()
 
     def _render_locked(self, item):
         pf = self.active_platform
@@ -1086,6 +1186,12 @@ class App:
             b.content.controls[1].color = TEXT if on else MUTED
             b.content.controls[1].weight = ft.FontWeight.W_600 if on else ft.FontWeight.W_500
         self.breadcrumb.value = f"{self.active_platform.name} / {item.group} / {item.label}"
+        # 契约 §4.1：implemented=False 的平台显示「暂不支持」锁定页（无购买 CTA）。
+        # 必须在授权判断之前，避免把「还没做」误显示成「未开通」。
+        if not bool(getattr(self.active_platform, "implemented", True)):
+            self._page_idx = idx
+            self._render_unsupported(item)
+            return
         if not self._page_allowed(item):
             self._page_idx = idx
             self._render_locked(item)
@@ -1094,8 +1200,14 @@ class App:
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
                  self._p_image, self._p_price, self._p_variant, self._p_publish,
-                 self._p_workbench, self._p_logs, self._p_settings, self._p_alibaba_listing,
-                 self._p_amazon_listing]
+                 self._p_workbench, self._p_logs, self._p_settings,
+                 self._p_alibaba_listing]
+        # 平台专属页按「已实现」动态挂载：某个平台页面正在开发时不影响其它平台
+        # （Amazon=13；TikTok=14 待其页面实现后自动接入）。
+        for _name in ("_p_amazon_listing", "_p_tiktok_listing"):
+            _builder = getattr(self, _name, None)
+            if callable(_builder) and _builder not in pages:
+                pages.append(_builder)
         idx = idx % len(pages)
         self._page_idx = idx
         self._building_page = True
@@ -1278,6 +1390,9 @@ class App:
 
     # ---------- 页面 ----------
     def _maybe_wizard(self):
+        if not self._cap("smt_wizard"):
+            # Amazon 平台不弹 SMT 的「模板产品/模板来源」引导（13 页已有连接引导）。
+            return
         if getattr(self.cfg, "onboarded", False):
             return
         if getattr(self, "_dlg", None) is not None:
@@ -1380,6 +1495,7 @@ class App:
     def _p_overview(self):
         is_alibaba = str(getattr(self.active_platform, "id", "")) == "alibaba"
         is_amazon = str(getattr(self.active_platform, "id", "")) == "amazon"
+        is_tiktok = str(getattr(self.active_platform, "id", "")) == "tiktok"
         self.stat_api = ft.Text("检测中…", color=MUTED, size=13.5)
         self.stat_auth = ft.Text("检测中…", color=MUTED, size=13.5)
         self.stat_auth_detail = muted("", 10)
@@ -1434,15 +1550,21 @@ class App:
         self.ready_api = ft.Text("检测中…", size=13.5, color=MUTED)
         self.ready_auth = ft.Text("检测中…", size=13.5, color=MUTED)
         self.ready_conflict = ft.Text("", size=13.5, color=MUTED)
+        if is_tiktok:
+            # 契约 §4.4：TikTok 概览就绪项 = 店铺绑定 / 站点 / 测试商品（+ Cookie/AI/授权）
+            self.ready_shop = ft.Text("检测中…", size=13.5, color=MUTED)
+            self.ready_site = ft.Text("检测中…", size=13.5, color=MUTED)
+            self.ready_test = ft.Text("检测中…", size=13.5, color=MUTED)
 
         def _ready_row(icon, label, ctrl, target=None):
             if target is None:
-                target = 1 if label in ("Cookie", "模板商品", "Alibaba 商品/类目",
-                                        "Amazon 商品/类目") else 11
+                target = (1 if label in ("Cookie", "模板商品", "Alibaba 商品/类目")
+                          else (14 if label == "TikTok 商品/类目" else 11))
             ctrl.expand = True
-            _tip = ("前往 Alibaba 刊登" if target == 12 else
-                    ("前往 Amazon 刊登" if target == 13 else
-                     ("前往店铺与模板" if target == 1 else "前往账号与连接")))
+            _tip = ("前往 TikTok 刊登" if target == 14 else
+                    ("前往 Alibaba 刊登" if target == 12 else
+                     ("前往 Amazon 刊登" if target == 13 else
+                      ("前往店铺与模板" if target == 1 else "前往账号与连接"))))
             return ft.Container(expand=True, content=ft.TextButton(
                 content=ft.Row([ft.Icon(icon, size=17.5, color=MUTED),
                                ft.Text(label, size=13, color=TEXT), ctrl,
@@ -1452,27 +1574,47 @@ class App:
                 on_click=lambda e: self._switch(target)))
 
         _ready_item_label = ("Alibaba 商品/类目" if is_alibaba else
-                             ("Amazon 商品/类目" if is_amazon else "模板商品"))
-        _ready_item_target = 12 if is_alibaba else (13 if is_amazon else 1)
-        _ready_cookie_target = 13 if is_amazon else 1
+                             ("Amazon 商品/类目" if is_amazon else
+                              ("TikTok 商品/类目" if is_tiktok else "模板商品")))
+        _ready_item_target = (12 if is_alibaba else
+                              (13 if is_amazon else (14 if is_tiktok else 1)))
+        _ready_cookie_target = 14 if is_tiktok else (13 if is_amazon else 1)
         ready_card = card(ft.Column([
             h1i(ft.Icons.CHECKLIST, "准备状态"),
             muted("红色项点击可直接去对应页修复；Alibaba 平台不依赖模板商品" if is_alibaba
                   else ("红色项点击可直接去对应页修复；Amazon 平台在「Amazon 刊登」页选商品/类目"
                         if is_amazon else
-                        "都变绿就能一键启动；红色项点击可直接去对应页修复")),
-            ft.Row([_ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie,
-                               target=_ready_cookie_target),
-                    _ready_row(ft.Icons.COPY_OUTLINED, _ready_item_label, self.ready_tpl,
-                               target=_ready_item_target)], spacing=16),
-            ft.Row([_ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
-                    _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth)], spacing=16),
-            ft.Row([ft.Container(expand=True, content=ft.Row(
+                        ("红色项点击可直接去对应页修复；TikTok 平台在「TikTok 刊登」页绑定店铺、"
+                         "选站点/商品/类目" if is_tiktok else
+                         "都变绿就能一键启动；红色项点击可直接去对应页修复"))),
+            *([ft.Row([_ready_row(ft.Icons.STORE_OUTLINED, "店铺绑定", self.ready_shop,
+                                  target=14),
+                       _ready_row(ft.Icons.PUBLIC, "站点", self.ready_site, target=14)],
+                      spacing=16),
+               ft.Row([_ready_row(ft.Icons.COPY_OUTLINED, "测试商品", self.ready_test,
+                                  target=14),
+                       _ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie,
+                                  target=14)], spacing=16)]
+              if is_tiktok else
+              [ft.Row([_ready_row(ft.Icons.COOKIE_OUTLINED, "Cookie", self.ready_cookie,
+                                  target=_ready_cookie_target),
+                       _ready_row(ft.Icons.COPY_OUTLINED, _ready_item_label, self.ready_tpl,
+                                  target=_ready_item_target)], spacing=16),
+               ft.Row([_ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
+                       _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth)],
+                      spacing=16)]),
+            # TikTok 概览同样保留 AI API / 授权状态
+            *([ft.Row([_ready_row(ft.Icons.CLOUD_OUTLINED, "AI API", self.ready_api),
+                       _ready_row(ft.Icons.VERIFIED_OUTLINED, "授权", self.ready_auth)],
+                      spacing=16)] if is_tiktok else []),
+            # 「配置冲突」基于 SMT 设置规则（services/conflicts），Amazon 平台无意义。
+            *([ft.Row([ft.Container(expand=True, content=ft.Row(
                         [ft.Icon(ft.Icons.RULE, size=17.5, color=MUTED),
                          ft.Text("配置冲突", size=14.5, color=TEXT, no_wrap=True),
                          self.ready_conflict], spacing=8)),
                     ft.TextButton("检查配置冲突", icon=ft.Icons.RULE,
-                                  on_click=lambda e: self._check_conflicts())], spacing=16),
+                                  on_click=lambda e: self._check_conflicts())], spacing=16)]
+              if self._cap("smt_conflicts") else []),
         ], spacing=8))
 
         def _refresh_ready():
@@ -1498,6 +1640,36 @@ class App:
                     self.ready_tpl.value = ("✗ 未选商品/类目（去 Alibaba 刊登）"
                                             if not _apid else "✗ 未选类目")
                     self.ready_tpl.color = DANGER_C
+            elif is_tiktok:
+                _tt_pid = str(getattr(self.cfg, "tiktok_test_product_id", "") or "").strip()
+                _tt_cid = str(getattr(self.cfg, "tiktok_category_id", "") or "").strip()
+                _tt_site = str(getattr(self.cfg, "tiktok_site", "") or "").strip()
+                if _tt_pid and _tt_cid and _tt_cid.lower() not in ("none", "null"):
+                    self.ready_tpl.value = (f"✓ 商品 {_tt_pid[-8:]} · 类目 {_tt_cid}"
+                                            + (f" · {_tt_site}" if _tt_site else ""))
+                    self.ready_tpl.color = ACCENT_2
+                else:
+                    self.ready_tpl.value = ("✗ 未选商品/类目（去 TikTok 刊登）"
+                                            if not _tt_pid else "✗ 未选类目")
+                    self.ready_tpl.color = DANGER_C
+                # 契约 §4.4：店铺绑定 / 站点 / 测试商品三块就绪度
+                try:
+                    _tt_sid = str(getattr(self.cfg, "tiktok_shop_id", "") or "").strip()
+                    _tt_sname = str(getattr(self.cfg, "tiktok_shop_name", "") or "").strip()
+                    self.ready_shop.value = (f"✓ 已绑定：{_tt_sname or _tt_sid}"
+                                             if _tt_sid else
+                                             "✗ 未绑定（去 TikTok 刊登测试连接）")
+                    self.ready_shop.color = ACCENT_2 if _tt_sid else DANGER_C
+                    _meta = self._tiktok_site_meta_of(_tt_site)
+                    self.ready_site.value = (f"✓ {_tt_site} · {_meta.get('country') or '-'} · "
+                                             f"{_meta.get('currency') or '-'}"
+                                             if _tt_site else "✗ 未选站点（23 个 L7 站点）")
+                    self.ready_site.color = ACCENT_2 if _tt_site else DANGER_C
+                    self.ready_test.value = (f"✓ 商品 {_tt_pid[-8:]}" if _tt_pid
+                                             else "✗ 未选测试商品")
+                    self.ready_test.color = ACCENT_2 if _tt_pid else DANGER_C
+                except Exception:
+                    pass
             elif is_amazon:
                 _amz_pid = str(getattr(self.cfg, "amazon_test_product_id", "") or "").strip()
                 _amz_cid = str(getattr(self.cfg, "amazon_category_id", "") or "").strip()
@@ -1559,9 +1731,13 @@ class App:
         threading.Thread(target=_refresh_ready, daemon=True).start()
 
         # 状态数字：5 个等宽块（采集箱 / 待发布 / 发布失败 / 在线 / 审核中）
-        # Amazon 平台用 Amazon 的四个计数（采集箱/待发布/在线/发布失败）。
-        _sc = ((getattr(self, "amazon_counts", None) or {}) if is_amazon
-               else (getattr(self, "store_counts", {}) or {}))
+        # Amazon / TikTok 平台各自用自己的四个计数（采集箱/待发布/在线/发布失败）。
+        if is_tiktok:
+            _sc = getattr(self, "tiktok_counts", None) or {}
+        elif is_amazon:
+            _sc = getattr(self, "amazon_counts", None) or {}
+        else:
+            _sc = getattr(self, "store_counts", {}) or {}
         self.ov_tiles = {}
         def _tile(key, label, hint, color, target=None):
             num = ft.Text(str(_sc.get(key, "—")), size=23, weight=ft.FontWeight.BOLD, color=color)
@@ -1585,6 +1761,12 @@ class App:
                           ("offline", "待发布", "可直接发布", INFO_C, 13),
                           ("online", "在线", "已上架", ACCENT_2, None),
                           ("publishFail", "发布失败", "可重试", DANGER_C, 13)]
+        elif is_tiktok:
+            # TikTok 计数来自 tiktok_publish/TikTokClient（只读）；点数字去 14 号页处理。
+            tile_specs = [("draft", "采集箱", "待编辑", TEXT, 14),
+                          ("offline", "待发布", "可直接发布", INFO_C, 14),
+                          ("online", "在线", "已上架", ACCENT_2, None),
+                          ("publishFail", "发布失败", "可重试", DANGER_C, 14)]
         else:
             tile_specs = [("draft", "采集箱", "待处理", TEXT),
                           ("editingRequired", "待发布", "可直接发布", INFO_C, 8),
@@ -1605,12 +1787,23 @@ class App:
                                      daemon=True).start()
             except Exception:
                 pass
+        elif is_tiktok:
+            # 首次进入概览/缓存过期时后台刷新 TikTok 计数（只读；离线/沙箱里不会执行）。
+            try:
+                if time.time() - float(getattr(self, "_tt_counts_ts", 0) or 0) > 30:
+                    threading.Thread(target=self._refresh_tiktok_counts,
+                                     daemon=True).start()
+            except Exception:
+                pass
 
         def _start_action(e=None):
             if is_alibaba:
                 # 不能在 Alibaba 平台下走 SMT 批量管线（会写错平台端点）。
                 self.toast("Alibaba 商品请到「Alibaba 刊登」页选择并保存（不走速卖通批量管线）", True)
                 self._switch(12)
+            elif is_tiktok:
+                # TikTok 平台禁止走速卖通批量管线：跳 14 号页并写 WARN。
+                self._tiktok_guard("启动速卖通批量管线")
             elif is_amazon:
                 # Amazon 平台禁止走速卖通批量管线：跳 13 号页并写 WARN。
                 self._amazon_guard("启动速卖通批量管线")
@@ -1620,26 +1813,32 @@ class App:
         def _pick_or_search(e=None):
             if is_alibaba:
                 self._switch(12)
+            elif is_tiktok:
+                self._switch(14)
             elif is_amazon:
                 self._switch(13)
             else:
                 self._scope_dialog()
 
-        # Alibaba / Amazon 平台：批量启动/关键词搜索/选择商品都属于 SMT 管线，隐藏；
-        # 只保留「去刊登 / 刷新数量」两个入口。
-        _smt_only = bool(is_alibaba or is_amazon)
-        _jump_page = 12 if is_alibaba else 13
-        _jump_label = "去 Alibaba 刊登" if is_alibaba else "去 Amazon 刊登"
+        # Alibaba / Amazon / TikTok 平台：批量启动/关键词搜索/选择商品都属于 SMT 管线，
+        # 隐藏；只保留「去刊登 / 刷新数量」两个入口。
+        _smt_only = bool(is_alibaba or is_amazon or is_tiktok)
+        _jump_page = 12 if is_alibaba else (14 if is_tiktok else 13)
+        _jump_label = ("去 Alibaba 刊登" if is_alibaba else
+                       ("去 TikTok 刊登" if is_tiktok else "去 Amazon 刊登"))
         self.search_kw.visible = not _smt_only
         filter_card = card(ft.Column([
             h1i(ft.Icons.PLAY_CIRCLE_OUTLINE,
                 "开始一次刊登" if is_alibaba else
-                ("开始一次 Amazon 刊登" if is_amazon else "开始一次任务")),
+                ("开始一次 TikTok 刊登" if is_tiktok else
+                 ("开始一次 Amazon 刊登" if is_amazon else "开始一次任务"))),
             muted("Alibaba 商品请在「Alibaba 刊登」页选择并保存；"
                   "批量管线与关键词筛选仅用于速卖通" if is_alibaba else
-                  ("Amazon 商品请在「Amazon 刊登」页选择并保存；"
-                   "批量管线与关键词筛选仅用于速卖通" if is_amazon else
-                   "选范围 → 填关键词（可选）→ 启动；默认只处理采集箱商品")),
+                  ("TikTok 商品请在「TikTok 刊登」页选择并保存（含店铺/站点/类目/文案/预演）；"
+                   "批量管线与关键词筛选仅用于速卖通" if is_tiktok else
+                   ("Amazon 商品请在「Amazon 刊登」页选择并保存；"
+                    "批量管线与关键词筛选仅用于速卖通" if is_amazon else
+                    "选范围 → 填关键词（可选）→ 启动；默认只处理采集箱商品"))),
             ft.Row([
                 ft.ElevatedButton(_jump_label if _smt_only else "启动",
                                   icon=ft.Icons.PUBLISH if _smt_only else ft.Icons.PLAY_ARROW,
@@ -1647,6 +1846,7 @@ class App:
                                   on_click=_start_action),
                 self.search_kw,
                 ft.ElevatedButton("选择商品", icon=ft.Icons.CHECKLIST, bgcolor=CARD_2, color=TEXT,
+                                  visible=self._cap("smt_pipeline_actions"),
                                   on_click=_pick_or_search),
                 ft.TextButton("清空", icon=ft.Icons.CLEAR, visible=not _smt_only,
                               on_click=lambda e: self._clear_search()),
@@ -1655,14 +1855,21 @@ class App:
                                   on_click=lambda e: self._global_search_dialog()),
                 ft.TextButton("刷新数量", icon=ft.Icons.REFRESH,
                               on_click=lambda e: (
-                                  self._refresh_amazon_counts(notify=True) if is_amazon
-                                  else self._refresh_store_counts())),
+                                  self._refresh_tiktok_counts(notify=True) if is_tiktok
+                                  else (self._refresh_amazon_counts(notify=True)
+                                        if is_amazon else self._refresh_store_counts()))),
             ], spacing=10, wrap=True),
             self.search_hint,
         ], spacing=8))
         if is_alibaba:
             try:
                 self.search_hint.value = "Alibaba 商品搜索/选择请在「Alibaba 刊登」页进行"
+                self.search_hint.color = MUTED
+            except Exception:
+                pass
+        elif is_tiktok:
+            try:
+                self.search_hint.value = "TikTok 商品搜索/选择请在「TikTok 刊登」页进行"
                 self.search_hint.color = MUTED
             except Exception:
                 pass
@@ -1674,13 +1881,21 @@ class App:
                 pass
 
         _extra = [c for c in (self._cost_card(),
-                              None if (is_alibaba or is_amazon) else self._resume_card(),
-                              self._diff_card()) if c is not None]
+                              None if (is_alibaba or is_amazon or is_tiktok)
+                              else self._resume_card(),
+                              self._diff_card() if self._cap("smt_diff_preview") else None)
+                  if c is not None]
         if is_amazon:
             # Amazon 平台没有 1/3 号页：工作流入口都指向 13 号「Amazon 刊登」。
             _workflow_specs = (("01  连接与采集箱", ft.Icons.STORE_OUTLINED, 13),
                                ("02  类目与文案", ft.Icons.EDIT_NOTE, 13),
                                ("03  Amazon 刊登", ft.Icons.PUBLISH, 13),
+                               ("04  运行记录", ft.Icons.RECEIPT_LONG_OUTLINED, 10))
+        elif is_tiktok:
+            # TikTok 平台只有 0/14/10/11：工作流入口都指向 14 号「TikTok 刊登」。
+            _workflow_specs = (("01  连接与店铺/站点", ft.Icons.STORE_OUTLINED, 14),
+                               ("02  类目与文案", ft.Icons.EDIT_NOTE, 14),
+                               ("03  TikTok 刊登", ft.Icons.PUBLISH, 14),
                                ("04  运行记录", ft.Icons.RECEIPT_LONG_OUTLINED, 10))
         else:
             _publish_target = 12 if is_alibaba else 8
@@ -1697,36 +1912,52 @@ class App:
             for text, icon, target in _workflow_specs
         ], spacing=12, run_spacing=8)
 
+        # SMT 批量任务统计（今日任务/成功/失败/花费）只对速卖通管线有意义；
+        # Amazon 平台不显示（成本/用量卡仍保留，用于 AI 计费）。
+        _stats_card = None
+        if self._cap("smt_pipeline_stats"):
+            _stats_card = card(ft.Row([
+                ft.Column([muted("今日任务", 11),
+                           ft.Text(str(st["runs"]), size=19, color=TEXT,
+                                   weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
+                ft.Column([muted("成功", 11),
+                           ft.Text(str(st["ok"]), size=19, color=ACCENT_2,
+                                   weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
+                ft.Column([muted("失败", 11),
+                           ft.Text(str(st["failed"]), size=19, color=DANGER_C,
+                                   weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
+                ft.Column([muted("今日花费", 11),
+                           ft.Text(_today_cost, size=19, color=TEXT,
+                                   weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
+            ], spacing=24, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=20)
+
+        # 底部服务状态：API/授权总是保留；「图片服务」是 SMT 图片管线（图床），
+        # Amazon v1 不处理图片上传 → 复用 image_settings cap 隐藏该 tile。
+        _svc_tiles = [
+            svc("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT,
+                sub="自建站点 · 按量计费",
+                action=ft.TextButton("去设置", on_click=lambda e: self._switch(11))),
+            auth_card,
+        ]
+        if self._cap("image_settings"):
+            _svc_tiles.append(
+                svc("图片服务", ft.Text("约 15 秒/张", color=WARN_C, size=13.5,
+                                        weight=ft.FontWeight.BOLD),
+                    ft.Icons.BOLT_OUTLINED, WARN_C,
+                    sub=(str(getattr(self.cfg, "image_host_url", "")
+                             or "image.moneyfly.club")
+                         .replace("https://", "").replace("http://", ""))))
         _ov_subtitle = ("Amazon 采集箱 → 站点/类目 → 五点与 AI 文案 → 预演 → 保存。"
                         if is_amazon else
-                        "从商品准备到发布，在一个工作空间完成日常运营。")
+                        ("TikTok 采集箱 → 店铺/站点 → 类目/属性 → AI 文案 → 图片/价格/库存"
+                         " → 预演 → 保存。" if is_tiktok else
+                         "从商品准备到发布，在一个工作空间完成日常运营。"))
         return [page_header("概览", _ov_subtitle), workflow,
                 tiles_head, tiles_row, filter_card, ready_card,
-                card(ft.Row([
-                    ft.Column([muted("今日任务", 11),
-                               ft.Text(str(st["runs"]), size=19, color=TEXT,
-                                       weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
-                    ft.Column([muted("成功", 11),
-                               ft.Text(str(st["ok"]), size=19, color=ACCENT_2,
-                                       weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
-                    ft.Column([muted("失败", 11),
-                               ft.Text(str(st["failed"]), size=19, color=DANGER_C,
-                                       weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
-                    ft.Column([muted("今日花费", 11),
-                               ft.Text(_today_cost, size=19, color=TEXT,
-                                       weight=ft.FontWeight.BOLD)], spacing=2, expand=True),
-                ], spacing=24, vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=20),
+                *([_stats_card] if _stats_card is not None else []),
                 *_extra,
-                ft.Row([svc("API 服务", self.stat_api, ft.Icons.CLOUD_OUTLINED, ACCENT,
-                            sub="自建站点 · 按量计费",
-                            action=ft.TextButton("去设置", on_click=lambda e: self._switch(11))),
-                        auth_card,
-                        svc("图片服务", ft.Text("约 15 秒/张", color=WARN_C, size=13.5,
-                                                weight=ft.FontWeight.BOLD),
-                            ft.Icons.BOLT_OUTLINED, WARN_C,
-                            sub=(str(getattr(self.cfg, "image_host_url", "") or "image.moneyfly.club")
-                                 .replace("https://", "").replace("http://", "")))],
-                       spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Row(_svc_tiles, spacing=12,
+                       vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 ]
 
     # ---------- 概览的状态刷新（ISSUES #8 / #9）----------
@@ -2275,7 +2506,12 @@ class App:
                                        "id", "") or "")
                 _is_alibaba = _pid_now == "alibaba"
                 _is_amazon = _pid_now == "amazon"
-                if _is_amazon:
+                _is_tiktok = _pid_now == "tiktok"
+                if _is_tiktok:
+                    self.btn_run_icon.name = ft.Icons.PUBLISH
+                    self.btn_run_icon.color = ON_ACCENT
+                    self.btn_run_text.value = "去 TikTok 刊登"
+                elif _is_amazon:
                     self.btn_run_icon.name = ft.Icons.PUBLISH
                     self.btn_run_icon.color = ON_ACCENT
                     self.btn_run_text.value = "去 Amazon 刊登"
@@ -2297,6 +2533,15 @@ class App:
     def _toggle_run(self, e=None):
         """一个按钮两种状态：运行中→停止，空闲→启动。"""
         running = bool(getattr(self, "_running", False))
+        if not bool(getattr(getattr(self, "active_platform", None), "implemented", True)):
+            self._unsupported_guard("启动任务")
+            (getattr(self, '_sync_run_button', None) or (lambda: None))()
+            return
+        if self._is_tiktok() and not running and not bool(getattr(self, "_stop_requested", False)):
+            # TikTok 平台不能走速卖通批量管线：跳 14 号页 + WARN 日志（⌘R 也走这里）。
+            self._tiktok_guard("启动速卖通批量管线")
+            (getattr(self, '_sync_run_button', None) or (lambda: None))()
+            return
         if self._is_amazon() and not running and not bool(getattr(self, "_stop_requested", False)):
             # Amazon 平台不能走速卖通批量管线：跳 13 号页 + WARN 日志（⌘R 也走这里）。
             self._amazon_guard("启动速卖通批量管线")
@@ -2314,6 +2559,13 @@ class App:
 
         整个过程放到后台线程（扫描店铺可能要几十秒），点按钮立刻有反馈。
         """
+        if self._is_tiktok():
+            self._log("TikTok 平台禁止「重试发布失败」等速卖通写操作，已拦截", "WARN")
+            try:
+                self.toast("TikTok 平台不支持速卖通发布重试，请到「TikTok 刊登」页", False)
+            except Exception:
+                pass
+            return
         if self._is_amazon():
             # SMT 写操作：Amazon 平台一律阻止（防误写速卖通店铺）。
             self._log("Amazon 平台禁止「重试发布失败」等速卖通写操作，已拦截", "WARN")
@@ -2487,6 +2739,9 @@ class App:
         return True
 
     def _start(self, ignore_conflicts: bool = False, only_ids: list | None = None):
+        if not bool(getattr(getattr(self, "active_platform", None), "implemented", True)):
+            self._unsupported_guard("启动任务")
+            return
         # Alibaba 平台不能用 SMT/速卖通批量管线（端点与商品都不通），
         # 无论从侧栏「启动任务」、⌘R 还是定时器进来都统一重定向。
         if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
@@ -2496,6 +2751,10 @@ class App:
                 self._switch(12)
             except Exception:
                 pass
+            return
+        # TikTok 平台同样不能走速卖通管线（商品/端点都在 TikTok 自己的接口）。
+        if self._is_tiktok():
+            self._tiktok_guard("启动速卖通批量管线")
             return
         # Amazon 平台同样不能走速卖通管线（店小秘 Amazon 商品与 SMT 端点不同）。
         if self._is_amazon():
@@ -2572,6 +2831,15 @@ class App:
 
     def _run_scheduled(self, job):
         """到点执行「定时发布」：商品已保存，这里用 API op=2 直接发布（无浏览器）。"""
+        if self._is_tiktok():
+            # 定时发布属于 SMT 写操作：TikTok 平台不跑速卖通定时器（跳 14 号页 + WARN）。
+            self._log(f"TikTok 平台禁止速卖通定时发布：{getattr(job, 'product_id', '')}"
+                      "（请用「TikTok 刊登」页保存）", "WARN")
+            try:
+                self._switch(14)
+            except Exception:
+                pass
+            return
         if self._is_amazon():
             # 定时发布属于 SMT 写操作：Amazon 平台不跑速卖通定时器（跳 13 号页 + WARN）。
             self._log(f"Amazon 平台禁止速卖通定时发布：{getattr(job, 'product_id', '')}"
@@ -3020,6 +3288,20 @@ class App:
 
     def _publish_one(self, pid: str, on_done=None):
         """单独发布 / 重试一个商品。"""
+        if self._is_tiktok():
+            # SMT 写操作：TikTok 平台禁止走速卖通发布队列。
+            self._log(f"TikTok 平台禁止速卖通发布操作：{pid}（请用「TikTok 刊登」页）",
+                      "WARN")
+            try:
+                self.toast("TikTok 平台不允许速卖通发布操作", False)
+            except Exception:
+                pass
+            if on_done:
+                try:
+                    on_done()
+                except Exception:
+                    pass
+            return
         if self._is_amazon():
             # SMT 写操作：Amazon 平台禁止走速卖通发布队列。
             self._log(f"Amazon 平台禁止速卖通发布操作：{pid}（请用「Amazon 刊登」页）",
@@ -3054,6 +3336,63 @@ class App:
                 except Exception:
                     pass
         threading.Thread(target=go, daemon=True).start()
+
+    def _alibaba_publish_fail_dialog(self):
+        """只读查看店小秘「发布失败」商品及平台拒绝原因。"""
+        col = ft.Column(spacing=2, height=400, scroll=ft.ScrollMode.AUTO)
+        status = ft.Text("读取中…", size=12.5, color=MUTED)
+
+        def work():
+            try:
+                from ..services.alibaba_publish import make_client
+                c = make_client(self.cfg)
+                d = c.publish_fail_products(1, 100)
+                po = (d.get("data") or {}).get("page") or {}
+                rows = po.get("list") or []
+                items = []
+                for r in rows:
+                    pid = str(r.get("id") or "")
+                    why = str(r.get("errMsg") or "").strip()
+                    items.append(ft.ListTile(
+                        title=ft.Text(f"{pid} · {str(r.get('subject') or '')[:64]}",
+                                      size=13, color=TEXT, max_lines=2),
+                        subtitle=ft.Column([
+                            ft.Text(why[:220] or "平台未返回原因", size=11.5,
+                                    color=DANGER_C, selectable=True),
+                        ], spacing=2),
+                        dense=True,
+                        leading=ft.Icon(ft.Icons.ERROR_OUTLINE, size=16, color=DANGER_C),
+                        trailing=ft.TextButton(
+                            "打开商品", icon=ft.Icons.OPEN_IN_NEW,
+                            on_click=lambda e, _p=pid: self._open_alibaba_product(_p))))
+                col.controls = items or [empty_state("发布失败列表为空")]
+                status.value = f"发布失败：共 {po.get('totalSize', len(rows))} 个（只读）"
+                status.color = SUCCESS_C if not rows else DANGER_C
+            except Exception as ex:  # noqa: BLE001
+                status.value = f"读取失败：{str(ex)[:120]}"
+                status.color = DANGER_C
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+        threading.Thread(target=work, daemon=True).start()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Alibaba 发布失败（只读）"),
+            content=ft.Column([status, ft.Divider(color=BORDER, height=10), col],
+                              spacing=6, width=860),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())])
+        self._show_dlg(dlg)
+
+    def _open_alibaba_product(self, pid: str):
+        """把商品 ID 填入 Alibaba 刊登页并跳转（用于修复后重发）。"""
+        try:
+            self.cfg.set("alibaba_test_product_id", str(pid))
+            save_config(self.cfg)
+            self._switch(12)
+            self.toast(f"已打开商品 {pid}，修复后可重新发布", True)
+        except Exception as ex:  # noqa: BLE001
+            self.toast(f"打开商品失败：{str(ex)[:100]}", False)
 
     def _alibaba_products_dialog(self, state: str = "draft"):
         """只读查看 Alibaba ICBU 商品列表（草稿/在线）。
@@ -3423,6 +3762,10 @@ class App:
         if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
             self._log("Alibaba 平台禁止调用速卖通批量管线，已拦截", "ERROR")
             return
+        # TikTok 平台：商品/保存全部走 14 号页的 TikTok 管线。
+        if self._is_tiktok():
+            self._log("TikTok 平台禁止调用速卖通批量管线，已拦截", "ERROR")
+            return
         # Amazon 平台同样禁止（Amazon 走「Amazon 刊登」页的 AmazonClient/管线）。
         if self._is_amazon():
             self._log("Amazon 平台禁止调用速卖通批量管线，已拦截", "ERROR")
@@ -3709,14 +4052,14 @@ class App:
             hb_stop.set()
 
     def _p_store_alibaba(self):
-        """Alibaba 平台连接页：店小秘 Cookie + ICBU 店铺/测试商品。
+        """Alibaba 平台连接页：店小秘 Cookie + ICBU 店铺/校验商品。
 
         Alibaba 直连保存不需要「模板商品」，所以这里不展示 SMT 店铺选择与模板卡。
         """
         ck_ok, ck_text = self._cookie_status_text()
         self.cookie_status = ft.Text(f"Cookie：{ck_text}", size=12.5,
                                      color=ACCENT_2 if ck_ok else WARN_C, selectable=True)
-        self.store_status = ft.Text("点「测试 ICBU 连接」检查 Cookie 与商品读取",
+        self.store_status = ft.Text("点「检测 ICBU 连接」检查 Cookie 与商品读取",
                                     size=13.5, color=MUTED)
 
         def _save_field(key):
@@ -3730,7 +4073,7 @@ class App:
                                value=str(getattr(self.cfg, "alibaba_shop_id", "") or ""),
                                on_change=_save_field("alibaba_shop_id"),
                                hint_text="如 9466975")
-        prod_tf = ft.TextField(label="测试商品 ID（可选）", width=280, bgcolor=CARD_2,
+        prod_tf = ft.TextField(label="校验商品 ID（可选）", width=280, bgcolor=CARD_2,
                                border_color=CARD_2, color=TEXT,
                                value=str(getattr(self.cfg, "alibaba_test_product_id", "") or ""),
                                on_change=_save_field("alibaba_test_product_id"))
@@ -3770,7 +4113,7 @@ class App:
                     else:
                         d = c.list_products(1, 1, "draft")
                         total = ((d.get("data") or {}).get("page") or {}).get("totalSize")
-                        self.store_status.value = f"连接成功：ICBU 草稿共 {total} 个（填测试商品 ID 可读详情）"
+                        self.store_status.value = f"连接成功：ICBU 草稿共 {total} 个（填校验商品 ID 可读详情）"
                     self.store_status.color = ACCENT_2
                 except Exception as ex:  # noqa: BLE001
                     self.store_status.value = f"连接失败：{str(ex)[:120]}"
@@ -3793,7 +4136,7 @@ class App:
                                       on_click=refresh_cookie),
                     ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE,
                                       on_click=lambda e: self._paste_cookie()),
-                    ft.ElevatedButton("测试 ICBU 连接", icon=ft.Icons.WIFI_TETHERING,
+                    ft.ElevatedButton("检测 ICBU 连接", icon=ft.Icons.WIFI_TETHERING,
                                       bgcolor=ACCENT, color=ON_ACCENT, on_click=test_icbu)],
                    spacing=10, wrap=True),
             self.store_status,
@@ -3817,7 +4160,7 @@ class App:
             muted("· 发布/审核状态在「发布队列」只读查看，提交审核动作请在「Alibaba 刊登」页确认后执行。"),
         ], spacing=8))
 
-        return [page_header("Alibaba 连接", "连接 ICBU、选择测试商品，然后去「Alibaba 刊登」"),
+        return [page_header("Alibaba 连接", "连接 ICBU、选择校验商品，然后去「Alibaba 刊登」"),
                 conn_card, info_card, note_card]
 
     def _p_store(self):
@@ -5204,9 +5547,9 @@ class App:
         ], spacing=10))
 
         info_card = card(ft.Column([
-            h1("已被 Alibaba 平台移除的 SMT 设置", 15),
-            muted("以下设置只对速卖通/店小秘 SMT 保存生效，Alibaba 直连不使用，"
-                  "因此在本平台隐藏（切到速卖通平台仍完整保留）："),
+            h1("平台差异说明", 15),
+            muted("以下 SMT 设置只对速卖通保存生效，Alibaba 直连不使用，本平台不展示"
+                  "（切到速卖通平台仍完整保留）："),
             ft.Text("· 原箱 / 申报货值 / 高关注化学品 / 重量尺寸默认值", size=12.5, color=MUTED),
             ft.Text("· 欧盟资质（责任人/邮箱/电话）", size=12.5, color=MUTED),
             ft.Text("· 模板类目 / 自动分类 / 属性模板与自定义属性清理", size=12.5, color=MUTED),
@@ -5641,7 +5984,7 @@ class App:
             ft.Row([self.wm_pos, self.wm_opacity], spacing=10, wrap=True),
             ft.Row([self.wm_path,
                     ft.ElevatedButton("选择文件", icon=ft.Icons.IMAGE, bgcolor=CARD_2, color=TEXT, on_click=pick_file),
-                    ft.OutlinedButton("测试叠加", icon=ft.Icons.SCIENCE,
+                    ft.OutlinedButton("预览叠加", icon=ft.Icons.SCIENCE,
                                       on_click=lambda e: threading.Thread(target=self._test_watermark, daemon=True).start())],
                    spacing=10, wrap=True),
             ft.Row([self.wm_preview, self.wm_status], spacing=10),
@@ -5714,14 +6057,14 @@ class App:
                                 opacity=float(self.cfg.overlay_opacity or 0.7))
             self.wm_preview.src = str(out)
             self.wm_preview.visible = True
-            self.wm_status.value = (("预览（真实主图）：" if made else "预览（灰底测试图）：")
+            self.wm_status.value = (("预览（真实主图）：" if made else "预览（灰底示意图）：")
                                     + str(out))
             self.wm_status.color = ACCENT_2
             self._log(f"水印预览：{out}")
         except Exception as ex:
-            self.wm_status.value = f"测试失败：{str(ex)[:100]}"
+            self.wm_status.value = f"预览失败：{str(ex)[:100]}"
             self.wm_status.color = DANGER_C
-            self.toast(f"水印测试失败：{ex}", False)
+            self.toast(f"水印预览失败：{ex}", False)
         try:
             self._safe_update()
         except Exception:
@@ -7437,11 +7780,14 @@ class App:
                             d = c.list_products(1, 1, st)
                             po = (d.get("data") or {}).get("page") or {}
                             totals[st] = int(po.get("totalSize") or 0)
+                        fail_po = (c.publish_fail_products(1, 1).get("data") or {}).get("page") or {}
+                        fail_total = int(fail_po.get("totalSize") or 0)
                         self.alibaba_counts = {"draft": totals["draft"],
-                                               "onSelling": totals["online"]}
+                                               "onSelling": totals["online"],
+                                               "publishFail": fail_total}
                         self.pub_wait_txt.value = str(totals["draft"])
                         self.pub_fail_txt.value = str(totals["online"])
-                        self.pub_publishing_txt.value = "—"
+                        self.pub_publishing_txt.value = str(fail_total)
                         if getattr(self, "pub_counts_status", None) is not None:
                             self.pub_counts_status.value = (
                                 f"Alibaba ICBU · 草稿 {totals['draft']} · 在线 {totals['online']}"
@@ -7476,7 +7822,7 @@ class App:
             tiles = ft.Row([
                 kpi_tile("草稿", self.pub_wait_txt, "可编辑/刊登", INFO_C),
                 kpi_tile("在线", self.pub_fail_txt, "已上架", ACCENT_2),
-                kpi_tile("合计", self.pub_publishing_txt, "草稿+在线", MUTED)],
+                kpi_tile("发布失败", self.pub_publishing_txt, "含平台拒绝原因", DANGER_C)],
                 spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
             buttons = ft.Row([
                 ft.ElevatedButton("刷新数量", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
@@ -7485,11 +7831,14 @@ class App:
                                   on_click=lambda e: self._alibaba_products_dialog("draft")),
                 ft.OutlinedButton("查看在线", icon=ft.Icons.LIST_ALT,
                                   on_click=lambda e: self._alibaba_products_dialog("online")),
+                ft.OutlinedButton("查看发布失败", icon=ft.Icons.ERROR_OUTLINE,
+                                  on_click=lambda e: self._alibaba_publish_fail_dialog()),
                 ft.ElevatedButton("去 Alibaba 刊登", icon=ft.Icons.PUBLISH,
                                   bgcolor=ACCENT, color=ON_ACCENT,
                                   on_click=lambda e: self._switch(12)),
             ], spacing=10, wrap=True)
-            queue_intro = muted("Alibaba 商品在 ICBU 接口里；这里只读展示数量。"
+            queue_intro = muted("Alibaba 商品在 ICBU 接口里；这里只读展示数量与「发布失败」原因。"
+                                "审核中商品在详情 errMsg 显示「正在审核中」；"
                                 "保存/提交走「Alibaba 刊登」页的 op=1/2/3（会二次确认）。")
             queue_title = "Alibaba 商品队列（只读）"
         else:
@@ -8398,7 +8747,8 @@ class App:
                 self.run_status,
                 ft.Container(expand=True),
                 ft.ElevatedButton("停止任务", icon=ft.Icons.STOP_CIRCLE, bgcolor=DANGER_BG,
-                                  color="white", on_click=self._request_stop),
+                                  color="white", visible=self._cap("smt_run_stop"),
+                                  on_click=self._request_stop),
             ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             self.logs_progress,
             self.logs_progress_text,
@@ -8415,11 +8765,12 @@ class App:
                                   on_click=lambda e: self._open_log_file()),
                 ft.TextButton("清空", icon=ft.Icons.DELETE_OUTLINE, on_click=clear_logs),
             ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            ft.Row([
+            *([ft.Row([
                 self._edited_count_text(),
                 ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
                               on_click=lambda e: self._clear_edited()),
-            ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)]
+              if self._cap("smt_edited_history") else []),
             ft.Row([
                 ft.TextButton("复制全部日志", icon=ft.Icons.COPY,
                               tooltip="把当前日志全部复制到剪贴板",
@@ -8503,7 +8854,12 @@ class App:
         # 定时发布是 SMT 调度器能力；Alibaba 直连没有时间字段，不在该平台展示。
         if self._cap("scheduled_publish"):
             _log_tabs.append(("定时发布", [sched_card]))
-        return [page_header("任务与日志", destination(10).description), status_card,
+        _logs_subtitle = (destination(10).description
+                          if self._cap("smt_pipeline_actions")
+                          else ("跟踪 TikTok 运行日志与任务记录"
+                                if str(getattr(self.active_platform, "id", "")) == "tiktok"
+                                else "跟踪 Amazon 运行日志与任务记录"))
+        return [page_header("任务与日志", _logs_subtitle), status_card,
                 workspace_tabs(_log_tabs)]
 
     def _report_logs_now(self, e=None):
@@ -8567,7 +8923,10 @@ class App:
             if not ctrl:
                 return
             if key == "r":
-                if self._is_amazon():
+                if self._is_tiktok():
+                    # ⌘R 在 TikTok 平台不跑速卖通批量管线：跳 14 号页 + WARN。
+                    self._tiktok_guard("用快捷键⌘R启动速卖通批量管线")
+                elif self._is_amazon():
                     # ⌘R 在 Amazon 平台不跑速卖通批量管线：跳 13 号页 + WARN。
                     self._amazon_guard("用快捷键⌘R启动速卖通批量管线")
                 else:
@@ -8575,7 +8934,12 @@ class App:
             elif key == "l":
                 self._switch(10)
             elif key == "f":
-                self._global_search_dialog()
+                # Amazon 平台没有 SMT 商品搜索：⌘F 不打开速卖通搜索弹窗，
+                # 统一跳「Amazon 刊登」页（与导航/按钮守卫一致，不影响其它平台）。
+                if not self._cap("smt_pipeline_actions"):
+                    self._amazon_guard("用快捷键⌘F打开速卖通商品搜索")
+                else:
+                    self._global_search_dialog()
             elif key == "escape":
                 self.page.close_dialog()
         except Exception:
@@ -9044,7 +9408,7 @@ class App:
 
         def test_api(e):
             save_api()
-            self.api_status.value = "测试中…"
+            self.api_status.value = "检测中…"
             try:
                 self._safe_update()
             except Exception:
@@ -9093,7 +9457,7 @@ class App:
             self.api_key_field,
             ft.Row([self.cfg_concurrency, self.cfg_timeout,
                     ft.ElevatedButton("保存", icon=ft.Icons.SAVE, bgcolor=ACCENT, color=ON_ACCENT, on_click=save_api),
-                    ft.OutlinedButton("测试连接", icon=ft.Icons.WIFI_TETHERING, on_click=test_api),
+                    ft.OutlinedButton("检测连接", icon=ft.Icons.WIFI_TETHERING, on_click=test_api),
                     ft.OutlinedButton("检测余额", icon=ft.Icons.ACCOUNT_BALANCE,
                                       on_click=lambda e: threading.Thread(
                                           target=self._probe_balance, daemon=True).start()),
@@ -9163,7 +9527,7 @@ class App:
 
         def test_host(e=None):
             save_host()
-            self.host_status.value = "测试中…"
+            self.host_status.value = "检测中…"
             self.host_status.color = MUTED
             try:
                 self._safe_update()
@@ -9225,7 +9589,7 @@ class App:
                    spacing=8, wrap=True),
             ft.Row([ft.ElevatedButton("保存", icon=ft.Icons.SAVE, bgcolor=ACCENT, color=ON_ACCENT,
                                       on_click=save_host),
-                    ft.OutlinedButton("测试上传", icon=ft.Icons.CLOUD_UPLOAD, on_click=test_host),
+                    ft.OutlinedButton("检测上传", icon=ft.Icons.CLOUD_UPLOAD, on_click=test_host),
                     ft.TextButton("恢复推荐图床", icon=ft.Icons.RESTORE,
                                   on_click=lambda e: reset_host())],
                    spacing=8, wrap=True),
@@ -9286,7 +9650,9 @@ class App:
         inst_card = card(ft.Column([
             h1("多开 / 多任务", 15),
             muted("同一台电脑要同时跑多个店小秘账号时才需要", 11),
-            muted("每个实例独立配置、独立浏览器调试端口，可同时跑不同店铺；任务队列与定时发布也按实例隔离"),
+            muted("每个实例独立配置、独立浏览器调试端口，可同时跑不同店铺；任务队列与定时发布也按实例隔离"
+                  if self._cap("smt_pipeline_actions") else
+                  "每个实例独立配置、独立浏览器调试端口，可同时跑不同店铺；任务记录与日志也按实例隔离"),
             ft.Row([self.inst_name,
                     ft.ElevatedButton("创建实例", icon=ft.Icons.ADD, on_click=create),
                     ft.ElevatedButton("创建并启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color=ON_ACCENT,
@@ -9313,7 +9679,9 @@ class App:
                 target=self._download_ffmpeg, daemon=True).start())
         diag_card = card(ft.Column([
             h1("诊断（出问题时再点）", 15),
-            muted("检查 API、浏览器、店小秘、ffmpeg、磁盘；不影响正常使用"),
+            muted("检查 API、浏览器、店小秘、ffmpeg、磁盘；不影响正常使用"
+                  if self._cap("video_tools") else
+                  "检查 API、浏览器、店小秘、磁盘；不影响正常使用"),
             ft.Row([ft.ElevatedButton("开始诊断", icon=ft.Icons.HEALTH_AND_SAFETY, bgcolor=ACCENT, color=ON_ACCENT,
                                       on_click=lambda e: threading.Thread(target=self._run_diag, daemon=True).start()),
                     self.diag_ff_btn], spacing=8, wrap=True),
@@ -9337,18 +9705,27 @@ class App:
             self.toast("已恢复推荐值（图床/API 地址），重启后全部生效", True)
             self._switch(11)
 
+        # 「图床」相关行/按钮复用 image_settings：Amazon v1 不处理图片上传，隐藏该项。
+        _rec_rows = [h1i(ft.Icons.VERIFIED_OUTLINED, "推荐配置"),
+                     muted("发错环境时用这里一键回到官方默认；模型已锁定无需选择", 11)]
+        _rec_btns = []
+        if self._cap("image_settings"):
+            _rec_rows.append(_rec_row("图床", getattr(self.cfg, "image_host_url", ""),
+                                      _DEF.get("image_host_url", "")))
+            _rec_btns.append(ft.OutlinedButton("恢复图床", icon=ft.Icons.RESTORE,
+                                               on_click=lambda e: _restore("host")))
+        _rec_rows.append(_rec_row("API 地址", getattr(self.cfg, "api_base", ""),
+                                  _DEF.get("api_base", "")))
+        _rec_btns += [
+            ft.OutlinedButton("恢复 API 地址", icon=ft.Icons.RESTORE,
+                              on_click=lambda e: _restore("api")),
+            ft.ElevatedButton("全部恢复推荐值", icon=ft.Icons.SETTINGS_BACKUP_RESTORE,
+                              bgcolor=ACCENT, color=ON_ACCENT,
+                              on_click=lambda e: _restore("all")),
+        ]
         rec_card = card(ft.Column([
-            h1i(ft.Icons.VERIFIED_OUTLINED, "推荐配置"),
-            muted("发错环境时用这里一键回到官方默认；模型已锁定无需选择", 11),
-            _rec_row("图床", getattr(self.cfg, "image_host_url", ""), _DEF.get("image_host_url", "")),
-            _rec_row("API 地址", getattr(self.cfg, "api_base", ""), _DEF.get("api_base", "")),
-            ft.Row([ft.OutlinedButton("恢复图床", icon=ft.Icons.RESTORE,
-                                      on_click=lambda e: _restore("host")),
-                    ft.OutlinedButton("恢复 API 地址", icon=ft.Icons.RESTORE,
-                                      on_click=lambda e: _restore("api")),
-                    ft.ElevatedButton("全部恢复推荐值", icon=ft.Icons.SETTINGS_BACKUP_RESTORE,
-                                      bgcolor=ACCENT, color=ON_ACCENT,
-                                      on_click=lambda e: _restore("all"))], spacing=10, wrap=True),
+            *_rec_rows,
+            ft.Row(_rec_btns, spacing=10, wrap=True),
         ], spacing=8))
 
         self.price_list = ft.Column(spacing=3)
@@ -9428,13 +9805,17 @@ class App:
                           _plat_status], spacing=12, wrap=True),
         ], spacing=8))
 
-        return [page_header("设置", destination(11).description),
-                workspace_tabs([
-                    ("账号与连接", [api_card, lic_card, platform_card]),
-                    ("图片与模型", [host_card, model_card, price_card]),
-                    ("界面与实例", [ui_card, inst_card]),
-                    ("维护与诊断", [upd, diag_card, rec_card]),
-                ])]
+        # 图片与模型 tab（图床/图片编辑/模型价格）对 Amazon v1（不处理图片上传）不匹配。
+        _set_tabs = [("账号与连接", [api_card, lic_card, platform_card])]
+        if self._cap("image_settings"):
+            _set_tabs.append(("图片与模型", [host_card, model_card, price_card]))
+        _set_tabs += [("界面与实例", [ui_card, inst_card]),
+                      ("维护与诊断", [upd, diag_card, rec_card])]
+        # Amazon v1 不处理图片上传：「图片与模型」tab 隐藏，副标题也去掉「图片服务」。
+        _set_subtitle = (destination(11).description if self._cap("image_settings")
+                         else "管理 API、授权、界面与多开实例")
+        return [page_header("设置", _set_subtitle),
+                workspace_tabs(_set_tabs)]
 
     def _alibaba_cards(self):
         """Alibaba 刊登：连接、商品、类目、预设资料、价格贸易、预演/保存。"""
@@ -10054,7 +10435,8 @@ class App:
             value="1",
             options=[ft.dropdown.Option("1", "保存草稿（op=1，不提交）"),
                      ft.dropdown.Option("3", "保存并移入待发布（op=3）"),
-                     ft.dropdown.Option("2", "提交审核 / 发布（op=2，需评分≥4.5）")])
+                     ft.dropdown.Option("2", "提交审核 / 发布（op=2，需评分≥4.5）"),
+                     ft.dropdown.Option("5", "定时发布（op=5，填发布时间）")])
 
         def _close_dlg(dlg):
             try:
@@ -10085,7 +10467,8 @@ class App:
             op = str(op_dd.value or "1")
             op_text = {"1": "保存草稿（只更新这个商品，不提交审核）",
                        "3": "保存并移入待发布（会进入待发布列表）",
-                       "2": "提交审核 / 发布（会送平台审核，影响线上状态）"}.get(op, "保存")
+                       "2": "提交审核 / 发布（会送平台审核，影响线上状态）",
+                       "5": "定时发布（按填写的发布时间排队，平台校验类目/视频）"}.get(op, "保存")
 
             def work():
                 try:
@@ -10352,7 +10735,7 @@ class App:
             tf("alibaba_cookies", "Cookie（可留空自动沿用）", 720, True),
             ft.Row([tf("alibaba_shop_id", "店铺 ID（可选）", 200),
                     tf("alibaba_test_product_id", "当前商品 ID", 260),
-                    ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING, bgcolor=ACCENT,
+                    ft.ElevatedButton("检测连接", icon=ft.Icons.WIFI_TETHERING, bgcolor=ACCENT,
                                       color=ON_ACCENT, on_click=test_connect)], spacing=10, wrap=True),
         ], spacing=8))
 
@@ -10468,7 +10851,9 @@ class App:
                     tf("alibaba_weight", "重量 kg", 140), tf("alibaba_stock", "库存", 120),
                     tf("alibaba_hs_code", "HS 编码", 160)], spacing=10, wrap=True),
             tf("alibaba_price_tiers", "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）", 720, True),
-            ft.Row([tf("alibaba_process_period", "发货期(天)", 130,
+            ft.Row([tf("alibaba_schedule_time", "定时发布时间（如 2030-01-01 09:00）", 280,
+                        hint="op=5 定时发布用；空=平台默认排期"),
+                    tf("alibaba_process_period", "发货期(天)", 130,
                         hint="发布必填 deliver_periods.process_period"),
                     tf("alibaba_deliver_quantity", "发货期起订量", 150,
                        hint="deliver_periods.quantity，填 1 即可"),
@@ -12427,6 +12812,2432 @@ class App:
             _sync_state_buttons()
         return [conn_card, list_card, cat_card, text_card, price_card, save_card]
 
+    # ---------- TikTok Shop 刊登（14 号页，契约 §4） ----------
+    TIKTOK_STATES = (("draft", "采集箱", "待编辑/待刊登"),
+                     ("offline", "待发布", "可直接发布"),
+                     ("online", "在线", "已上架"))
+    # 动作下拉：key 里用 `|` 分隔 op 与 saveMode（op=2 + AS_DRAFT=发布为草稿）
+    TIKTOK_OP_OPTIONS = (("1", "保存（op=1，留在采集箱）"),
+                         ("3", "保存并移入待发布（op=3）"),
+                         ("2|AS_DRAFT", "发布为草稿（op=2 · AS_DRAFT）"),
+                         ("2", "发布（op=2，提交平台）"))
+
+    def _tiktok_backend(self):
+        """TikTok 后端延迟导入：后端未就绪时页面照常打开，回调提示「后端未就绪」。"""
+        from ..services.tiktok_publish import make_client
+        from ..services import tiktok_payload, tiktok_pipeline
+        return make_client, tiktok_payload, tiktok_pipeline
+
+    def _tiktok_client(self):
+        """按契约 §0 Cookie 优先级构造 TikTok 客户端（UI 不直接发 HTTP）。"""
+        make_client, _payload, _pipeline = self._tiktok_backend()
+        return make_client(self.cfg)
+
+    def _is_tiktok(self) -> bool:
+        return str(getattr(getattr(self, "active_platform", None), "id", "")) == "tiktok"
+
+    def _unsupported_guard(self, action: str = "操作") -> bool:
+        """implemented=False 的平台：拦截并回到该平台首页（不产生任何写操作）。"""
+        pf = getattr(self, "active_platform", None)
+        if bool(getattr(pf, "implemented", True)):
+            return False
+        name = str(getattr(pf, "name", "该平台") or "该平台")
+        try:
+            self._log(f"已阻止在暂不支持的平台（{name}）{action}", "WARN")
+        except Exception:
+            pass
+        try:
+            self.toast(f"{name} 暂不支持（开发中）；请切换到已开放平台", False)
+        except Exception:
+            pass
+        try:
+            pages = list(getattr(pf, "pages", ()) or ())
+            self._switch(pages[0].index if pages else 0)
+        except Exception:
+            pass
+        return True
+
+    def _tiktok_guard(self, action: str = "启动速卖通批量管线") -> bool:
+        """TikTok 平台守卫：拦截速卖通(SMT)写操作，跳 14 号页并写 WARN 日志。"""
+        if not self._is_tiktok():
+            return False
+        try:
+            self._log(f"已阻止在 TikTok 平台{action}，请使用「TikTok 刊登」页", "WARN")
+        except Exception:
+            pass
+        try:
+            self.toast("TikTok 商品请在「TikTok 刊登」页编辑并保存（不走速卖通批量管线）", False)
+        except Exception:
+            pass
+        try:
+            self._switch(14)
+        except Exception:
+            pass
+        return True
+
+    def _refresh_tiktok_counts(self, notify: bool = False):
+        """TikTok 概览计数（采集箱/待发布/在线/发布失败），只读。"""
+
+        def _num(v, default=0):
+            try:
+                return int(float(v))
+            except Exception:
+                return default
+
+        def work():
+            try:
+                c = self._tiktok_client()
+                draft = c.list_products("draft", 1, 1, "-1") or {}
+                offline = c.list_products("offline", 1, 1, "-1") or {}
+                online = c.list_products("online", 1, 1, "-1") or {}
+                counts = {
+                    "draft": _num(draft.get("drafts"), _num(draft.get("total"))),
+                    "offline": _num(offline.get("wait_publish"), _num(offline.get("total"))),
+                    "publishFail": _num(draft.get("publish_fail")),
+                    "online": _num(online.get("total")),
+                }
+                self.tiktok_counts = counts
+                self._tt_counts_ts = time.time()
+                self._update_tiktok_tiles()
+                if notify:
+                    self.toast("TikTok 计数已刷新", True)
+            except Exception as ex:
+                if notify:
+                    try:
+                        self.toast(f"刷新 TikTok 计数失败：{str(ex)[:90]}", False)
+                    except Exception:
+                        pass
+                try:
+                    self._log(f"TikTok 计数刷新失败：{str(ex)[:120]}", "WARN")
+                except Exception:
+                    pass
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _update_tiktok_tiles(self):
+        counts = getattr(self, "tiktok_counts", None) or {}
+        for key, num in (getattr(self, "ov_tiles", None) or {}).items():
+            if key in counts:
+                try:
+                    num.value = str(counts[key])
+                except Exception:
+                    pass
+        try:
+            ts = getattr(self, "ov_tiles_ts", None)
+            if ts is not None:
+                ts.value = "刚刚刷新"
+        except Exception:
+            pass
+        try:
+            self._safe_update()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _tiktok_site_meta_of(site: str) -> dict:
+        """站点元数据：优先后端 prompts.SITE_META，失败回退内置 §2 表。"""
+        code = str(site or "").strip().upper()
+        if not code:
+            return {}
+        try:
+            from ..services.tiktok_prompts import SITE_META as _SM
+            meta = (_SM or {}).get(code)
+            if isinstance(meta, dict) and meta:
+                out = dict(meta)
+                out.setdefault("code", code)
+                out.setdefault("site", code)
+                return out
+        except Exception:
+            pass
+        return dict(TIKTOK_SITE_META.get(code) or {})
+
+    @staticmethod
+    def _tiktok_site_rows() -> list:
+        """23 个 L7 站点（离线兜底，顺序与 getL7ShopIdAndSite 一致）。"""
+        return [dict(TIKTOK_SITE_META[code]) for code, *_ in TIKTOK_L7_SITE_ROWS]
+
+    def _p_tiktok_listing(self):
+        """TikTok Shop 刊登工作台（14 号页）：连接/店铺/站点 → 商品 → 类目 → 文案 →
+        图片/视频 → 价格/库存/物流 → 预演/保存 → 诊断。"""
+        self._current = 14
+        steps = ft.Container(
+            padding=ft.padding.symmetric(horizontal=14, vertical=8),
+            bgcolor=CARD_2, border_radius=8,
+            content=ft.Text(
+                "① 连接/店铺/站点  →  ② 选采集箱商品  →  ③ 类目/属性  →  "
+                "④ 文案 + AI  →  ⑤ 图片/视频  →  ⑥ 价格/库存/物流  →  "
+                "⑦ 预演 → 二次确认保存  →  ⑧ 诊断",
+                size=12, color=MUTED, selectable=False))
+        return [
+            page_header("TikTok 刊登",
+                        "TikTok 采集箱商品 → 店铺/站点 → 类目与属性 → AI 文案 → "
+                        "图片/价格/库存 → 预演 → 确认保存"),
+            steps,
+            *self._tiktok_cards(),
+        ]
+
+    def _tiktok_cards(self):
+        """TikTok 刊登八张卡片（契约 §4.2）；所有回调 try/except + toast，不抛到界面。"""
+        import json as _json
+
+        form = getattr(self, "_tt_form", None)
+        if not isinstance(form, dict):
+            form = {}
+            self._tt_form = form
+        detail = getattr(self, "_tt_detail", None) or {}
+        product = (getattr(self, "_tt_product", None) or {})
+        shops = getattr(self, "_tt_shops", None)
+        if not isinstance(shops, dict):
+            shops = {}
+        raw_sites = getattr(self, "_tt_sites", None) or []
+        if isinstance(raw_sites, dict):
+            site_rows = [dict(v) for v in raw_sites.values() if isinstance(v, dict)]
+        else:
+            site_rows = [dict(v) for v in raw_sites if isinstance(v, dict)]
+        if not site_rows:
+            site_rows = self._tiktok_site_rows()
+        cat_nodes = {}
+        self._tt_cat_nodes = cat_nodes
+        state_labels = {k: v for k, v, _h in self.TIKTOK_STATES}
+        field_labels = {"title": "标题", "description": "描述",
+                        "key_features": "五点卖点", "search_terms": "关键词"}
+
+        # ---------- 小工具 ----------
+        def _cget(key, default=""):
+            try:
+                return getattr(self.cfg, key, default)
+            except Exception:
+                return default
+
+        def _cset_raw(key, value):
+            try:
+                self.cfg.set(key, value)
+                save_config(self.cfg)
+            except Exception:
+                pass
+
+        def _cset(key, value):
+            _cset_raw(key, "" if value is None else str(value))
+
+        def _ui():
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def _toast(msg, ok=True):
+            try:
+                self.toast(msg, ok)
+            except Exception:
+                pass
+
+        def _status(ctrl, msg, color=MUTED):
+            try:
+                ctrl.value = msg
+                ctrl.color = color
+            except Exception:
+                pass
+            _ui()
+
+        def _backend():
+            try:
+                return self._tiktok_backend()
+            except Exception as ex:
+                raise RuntimeError("后端未就绪（TikTok 服务未安装）：" + str(ex)[:90])
+
+        def _client():
+            make_client = _backend()[0]
+            return make_client(self.cfg)
+
+        def _as_int(v, default=0):
+            try:
+                return int(float(str(v or "").strip()))
+            except Exception:
+                return default
+
+        def _as_float(v):
+            s = str(v or "").strip()
+            if not s:
+                return None
+            try:
+                return round(float(s), 2)
+            except Exception:
+                return None
+
+        def _pick(row, *keys, default=""):
+            if not isinstance(row, dict):
+                return default
+            for k in keys:
+                v = row.get(k)
+                if v not in (None, ""):
+                    return v
+            return default
+
+        def _as_list(v):
+            if isinstance(v, (list, tuple)):
+                return [x for x in v]
+            if v in (None, ""):
+                return []
+            return [v]
+
+        def _json_list(raw):
+            if isinstance(raw, (list, tuple)):
+                return [str(x) for x in raw]
+            s = str(raw or "").strip()
+            if s.startswith("["):
+                try:
+                    data = _json.loads(s)
+                    if isinstance(data, list):
+                        return [str(x) for x in data]
+                except Exception:
+                    pass
+            return [x.strip() for x in s.replace("±", "\n").splitlines() if x.strip()]
+
+        def _kf_parse(raw):
+            items = []
+            if isinstance(raw, (list, tuple)):
+                items = [str(x or "").strip() for x in raw]
+            else:
+                text = str(raw or "").replace("±", "\n")
+                items = [x.strip() for x in text.split("\n")]
+            return [x for x in items if x]
+
+        def _st_parse(raw):
+            if isinstance(raw, (list, tuple)):
+                items = [str(x or "").strip() for x in raw]
+            else:
+                items = re.split(r"[\s,，;；]+", str(raw or ""))
+            return [x for x in items if x]
+
+        def _split_pipe(raw):
+            try:
+                _make, payload, _pipeline = _backend()
+                return list(payload.split_pipe(str(raw or "")))
+            except Exception:
+                return [x.strip() for x in str(raw or "").split("|") if x.strip()]
+
+        def _site_meta(site):
+            return self._tiktok_site_meta_of(site)
+
+        def _site_label(meta):
+            meta = meta or {}
+            parts = [str(meta.get("code") or meta.get("site") or "").strip(),
+                     str(meta.get("country") or "").strip(),
+                     str(meta.get("currency") or "").strip(),
+                     str(meta.get("language_name") or "").strip()]
+            return " · ".join([p for p in parts if p]) or "-"
+
+        def _opt_text(dd_ctrl, value):
+            for o in (getattr(dd_ctrl, "options", None) or []):
+                if str(getattr(o, "key", "")) == str(value or ""):
+                    return str(getattr(o, "text", "") or "")
+            return ""
+
+        def _close(dlg=None):
+            try:
+                self._close_dlg(dlg)
+            except Exception:
+                try:
+                    if dlg is not None:
+                        dlg.open = False
+                except Exception:
+                    pass
+
+        def _default_limits():
+            return dict(TIKTOK_DEFAULT_LIMITS)
+
+        def _limits():
+            lim = getattr(self, "_tt_limits", None)
+            return dict(lim) if isinstance(lim, dict) and lim else _default_limits()
+
+        def _limits_text():
+            lim = _limits()
+            return (f"站点限额：标题 {lim.get('nameMin')}–{lim.get('nameMax')} 字符 · "
+                    f"描述 ≤{lim.get('descMax')} · 主图 {lim.get('imgCountMin')}–"
+                    f"{lim.get('imgCountMax')} · 价格 {lim.get('priceMin')}–"
+                    f"{lim.get('priceMax')} · 库存 ≤{lim.get('stockMax')}")
+
+        def _is_us_site():
+            return str(_cget("tiktok_site", "") or "").strip().upper() == "US"
+
+        # ---------- ① 连接与店铺 / 站点 ----------
+        _cookie0 = str(_cget("tiktok_cookies", "") or "")
+        _src0 = ("本页填写" if _cookie0 else
+                 ("店铺与登录 · 手动 Cookie" if getattr(self.cfg, "manual_cookies", None)
+                  else "未检测（点「读取本机 Cookie」或粘贴）"))
+        cookie_src_text = ft.Text("Cookie 来源：" + _src0, size=11.5, color=MUTED)
+        cookie_tf = ft.TextField(
+            label="店小秘 Cookie（可粘贴 a=1; b=2；留空自动用本机登录态）",
+            width=520, multiline=True, min_lines=3, max_lines=5,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT, value=_cookie0)
+        shop_dd = ft.Dropdown(
+            label="店铺（TikTok Shop）", width=270, bgcolor=CARD_2, border_color=CARD_2,
+            color=TEXT, value="", options=[],
+            tooltip="TikTok 店铺必填（保存需要）；点「测试连接」读取店铺列表")
+        shop_guide = ft.Text(
+            "未检测到 TikTok 店铺：请在店小秘『授权店铺』绑定 TikTok Shop 后点「测试连接」刷新",
+            size=11.5, color=WARN_C, visible=False, selectable=True)
+        site_dd = ft.Dropdown(
+            label="站点（L7）", width=330, bgcolor=CARD_2, border_color=CARD_2,
+            color=TEXT, value="", options=[],
+            tooltip="站点决定语言/币种/类目/限额；切换后需重选类目（未绑定店铺也可用）")
+        site_guide = ft.Text("", size=11.5, color=WARN_C, visible=False, selectable=True)
+        site_meta_text = ft.Text("当前站点：未选择", size=12.5, color=MUTED, selectable=True)
+        limit_text = ft.Text(_limits_text(), size=11.5, color=MUTED, selectable=True)
+        conn_status = ft.Text(
+            "未连接：点「测试连接」登录并读取店铺/站点/限额/计数", size=12.5,
+            color=MUTED, selectable=True)
+
+        # ---------- ② 采集箱商品 ----------
+        list_state = getattr(self, "_tt_list_state", None)
+        if not isinstance(list_state, dict):
+            list_state = {}
+            self._tt_list_state = list_state
+        _saved_state = str(_cget("tiktok_list_state", "draft") or "draft")
+        list_state.setdefault("state", _saved_state if _saved_state in state_labels else "draft")
+        list_state.setdefault("page", 1)
+        list_state.setdefault("pages", 1)
+        list_state.setdefault("items", [])
+        search_tf = ft.TextField(label="搜索标题 / 商品 ID", width=280, dense=True,
+                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                 value=str(list_state.get("keyword", "") or ""))
+        list_title = ft.Text("商品列表", size=FS_MD, weight=ft.FontWeight.BOLD, color=TEXT)
+        list_box = ft.Column(spacing=4)
+        page_info = ft.Text("", size=12, color=MUTED)
+        list_status = ft.Text("选择状态后点「刷新」读取采集箱商品", size=12.5, color=MUTED,
+                              selectable=True)
+        state_btns = {}
+        for _st, _label, _hint in self.TIKTOK_STATES:
+            state_btns[_st] = ft.TextButton(
+                _label, tooltip=_hint,
+                on_click=lambda e, _s=_st: switch_state(_s))
+
+        # ---------- ③ 类目与属性 ----------
+        cat_root_dd = ft.Dropdown(label="顶级类目", width=420, bgcolor=CARD_2,
+                                  border_color=CARD_2, color=TEXT, options=[])
+        cat_hist_dd = ft.Dropdown(label="最近使用类目", width=380, bgcolor=CARD_2,
+                                  border_color=CARD_2, color=TEXT, options=[])
+        cat_search_tf = ft.TextField(label="搜索类目关键词（如 phone）", width=260,
+                                     dense=True, bgcolor=CARD_2, border_color=CARD_2,
+                                     color=TEXT)
+        cat_child_box = ft.Column(spacing=2)
+        cat_crumb = ft.Text("当前类目：未选择", size=12.5, color=MUTED, selectable=True)
+        cat_status = ft.Text("先选择站点，再加载类目（无店铺也可用）", size=12.5,
+                             color=MUTED, selectable=True)
+        cert_text = ft.Text("类目资质：未读取（叶子类目可能要求资质）", size=11.5,
+                            color=MUTED, selectable=True)
+        attr_box = ft.Column(spacing=2)
+        attr_status = ft.Text("属性：选择叶子类目后加载", size=12, color=MUTED,
+                              selectable=True)
+        attr_json_text = ft.Text("", size=11, color=MUTED, selectable=True)
+        brand_tf = ft.TextField(label="品牌 ID（可空）", width=200, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=str(_cget("tiktok_brand_id", "") or ""))
+        maker_tf = ft.TextField(label="制造商 ID（可空）", width=200, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=str(_cget("tiktok_manufacturer_id", "") or ""))
+        responsible_tf = ft.TextField(label="欧盟责任人 ID（可空）", width=200, bgcolor=CARD_2,
+                                      border_color=CARD_2, color=TEXT,
+                                      value=str(_cget("tiktok_responsible_person_id", "") or ""))
+
+        # ---------- ④ 文案与 AI ----------
+        title_tf = ft.TextField(label="标题（25–255 字符）", width=760, multiline=True,
+                                min_lines=2, max_lines=3, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=str(_cget("tiktok_title", "") or ""))
+        title_count = ft.Text("", size=11.5, color=MUTED)
+        kf_tf = ft.TextField(
+            label="五点卖点（每行一条，仅 US/4Seller，≤5 条，总长 ≤1500）",
+            width=760, multiline=True, min_lines=5, max_lines=5, bgcolor=CARD_2,
+            border_color=CARD_2, color=TEXT,
+            value="\n".join(_json_list(_cget("tiktok_key_features", "[]"))[:5]))
+        kf_count = ft.Text("", size=11.5, color=MUTED)
+        desc_tf = ft.TextField(label="描述 HTML（≤10000 字符）", width=760,
+                               multiline=True, min_lines=8, max_lines=12,
+                               bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                               value=str(_cget("tiktok_description", "") or ""))
+        desc_count = ft.Text("", size=11.5, color=MUTED)
+        st_tf = ft.TextField(
+            label="Search Terms 关键词（仅 US/4Seller，≤15 个，总长 ≤250）",
+            width=760, multiline=True, min_lines=2, max_lines=3, bgcolor=CARD_2,
+            border_color=CARD_2, color=TEXT,
+            value=" ".join(_json_list(_cget("tiktok_search_terms", "[]"))[:15]))
+        st_count = ft.Text("", size=11.5, color=MUTED)
+        ai_us_hint = ft.Text("", size=11.5, color=MUTED, selectable=True)
+        ai_switch = ft.Switch(label="使用 AI（会调用付费 API，默认关闭）",
+                              value=bool(_cget("tiktok_use_ai", False)),
+                              active_color=ACCENT)
+        ai_status = ft.Text("", size=12, color=MUTED, selectable=True)
+
+        # ---------- ⑤ 图片与视频 ----------
+        images_tf = ft.TextField(
+            label="主图 URL（每行一个，1–9 张，第 1 张为主图）", width=760,
+            multiline=True, min_lines=3, max_lines=6, bgcolor=CARD_2,
+            border_color=CARD_2, color=TEXT,
+            value="\n".join(_json_list(_cget("tiktok_images", "[]"))[:9]))
+        img_count = ft.Text("主图 0/9 张（第 1 张为主图）", size=11.5, color=WARN_C)
+        img_box = ft.Row(spacing=8, wrap=True)
+        video_tf = ft.TextField(label="视频 ID / URL（可空）", width=420, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=str(_cget("tiktok_video_id", "") or ""))
+
+        # ---------- ⑥ 价格 / 库存 / 物流 ----------
+        price_tf = ft.TextField(label="价格", width=150, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=str(_cget("tiktok_price", "") or ""))
+        currency_text = ft.Text("币种：-", size=12.5, color=MUTED)
+        stock_tf = ft.TextField(label="库存（0–99999）", width=150,
+                                keyboard_type=ft.KeyboardType.NUMBER, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=str(_cget("tiktok_stock", 0) or 0))
+        sku_tf = ft.TextField(label="SKU（可空，自动生成）", width=220, bgcolor=CARD_2,
+                              border_color=CARD_2, color=TEXT,
+                              value=str(_cget("tiktok_sku", "") or ""))
+        weight_tf = ft.TextField(label="重量 (kg)", width=130, bgcolor=CARD_2,
+                                 border_color=CARD_2, color=TEXT,
+                                 value=str(_cget("tiktok_weight", "") or ""))
+        length_tf = ft.TextField(label="长 (cm)", width=110, bgcolor=CARD_2,
+                                 border_color=CARD_2, color=TEXT,
+                                 value=str(_cget("tiktok_length", "") or ""))
+        width_tf = ft.TextField(label="宽 (cm)", width=110, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=str(_cget("tiktok_width", "") or ""))
+        height_tf = ft.TextField(label="高 (cm)", width=110, bgcolor=CARD_2,
+                                 border_color=CARD_2, color=TEXT,
+                                 value=str(_cget("tiktok_height", "") or ""))
+        dim_dd = ft.Dropdown(
+            label="尺寸单位", width=150, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(_cget("tiktok_dimension_unit", "CENTIMETER") or "CENTIMETER"),
+            options=[ft.dropdown.Option("CENTIMETER", "厘米 CENTIMETER"),
+                     ft.dropdown.Option("INCH", "英寸 INCH")])
+        type_dd = ft.Dropdown(
+            label="刊登类型", width=170, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(_cget("tiktok_product_type", 1) or 1),
+            options=[ft.dropdown.Option("1", "多变种（默认）"),
+                     ft.dropdown.Option("0", "单品")])
+        warehouse_dd = ft.Dropdown(label="仓库（可空）", width=280, bgcolor=CARD_2,
+                                   border_color=CARD_2, color=TEXT, options=[],
+                                   value=str(_cget("tiktok_warehouse_id", "") or ""))
+        source_url_tf = ft.TextField(label="来源 URL（可空）", width=420, bgcolor=CARD_2,
+                                     border_color=CARD_2, color=TEXT,
+                                     value=str(_cget("tiktok_source_url", "") or ""))
+
+        # ---------- ⑦ 预演与保存 ----------
+        _op0 = str(_cget("tiktok_op", 1) or 1)
+        _mode0 = str(_cget("tiktok_save_mode", "") or "")
+        _op0 = f"{_op0}|{_mode0}" if _mode0 else _op0
+        op_dd = ft.Dropdown(
+            label="保存动作", width=330, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=_op0,
+            options=[ft.dropdown.Option(k, v) for k, v in self.TIKTOK_OP_OPTIONS])
+        save_status = ft.Text("尚未预演", size=12.5, color=MUTED, selectable=True)
+        result_box = ft.Column(spacing=2)
+        _preview_mode = bool(getattr(self, "_preview_mode", False)) or bool(
+            os.environ.get("AURORA_NO_SAVE") or os.environ.get("AURORA_TEST"))
+
+        # ---------- ⑧ 诊断 ----------
+        diag_box = ft.Column(spacing=2)
+        diag_status = ft.Text("点「运行诊断」逐项检查登录/店铺/站点/类目/详情/保存前置",
+                              size=12, color=MUTED, selectable=True)
+        run_diag_btn = ft.ElevatedButton("运行诊断", icon=ft.Icons.MEDICAL_SERVICES,
+                                         bgcolor=CARD_2, color=TEXT)
+
+        # ---------- 通用回调 ----------
+        def _on_cookie(e=None):
+            try:
+                _cset("tiktok_cookies", str(e.control.value or "").strip())
+            except Exception:
+                pass
+
+        cookie_tf.on_change = _on_cookie
+
+        def _bind_cfg(ctrl, key, cast=None):
+            def handler(e, _k=key, _c=cast):
+                try:
+                    raw = getattr(e.control, "value", "")
+                    _cset_raw(_k, _c(raw) if _c else str(raw or ""))
+                except Exception:
+                    pass
+            try:
+                ctrl.on_change = handler
+            except Exception:
+                pass
+
+        _bind_cfg(price_tf, "tiktok_price")
+        _bind_cfg(stock_tf, "tiktok_stock", lambda v: _as_int(v, 0))
+        _bind_cfg(sku_tf, "tiktok_sku")
+        _bind_cfg(weight_tf, "tiktok_weight")
+        _bind_cfg(length_tf, "tiktok_length")
+        _bind_cfg(width_tf, "tiktok_width")
+        _bind_cfg(height_tf, "tiktok_height")
+        _bind_cfg(dim_dd, "tiktok_dimension_unit")
+        _bind_cfg(type_dd, "tiktok_product_type", lambda v: _as_int(v, 1))
+        _bind_cfg(warehouse_dd, "tiktok_warehouse_id")
+        _bind_cfg(source_url_tf, "tiktok_source_url")
+        _bind_cfg(video_tf, "tiktok_video_id")
+        _bind_cfg(brand_tf, "tiktok_brand_id")
+        _bind_cfg(maker_tf, "tiktok_manufacturer_id")
+        _bind_cfg(responsible_tf, "tiktok_responsible_person_id")
+
+        def _on_ai_switch(e=None):
+            _cset_raw("tiktok_use_ai", bool(ai_switch.value))
+
+        ai_switch.on_change = _on_ai_switch
+
+        def _images():
+            raw = str(images_tf.value or "")
+            if raw.strip().startswith("[") and raw.strip().endswith("]"):
+                try:
+                    data = _json.loads(raw)
+                    if isinstance(data, list):
+                        return [str(x).strip() for x in data if str(x or "").strip()][:9]
+                except Exception:
+                    pass
+            if "|" in raw and "\n" not in raw:
+                parts = _split_pipe(raw)
+            else:
+                parts = [x.strip() for x in raw.splitlines()]
+            out = []
+            for x in parts:
+                if x and x not in out:
+                    out.append(x)
+            return out[:9]
+
+        def _kf_value():
+            return _kf_parse(kf_tf.value)
+
+        def _st_value():
+            return _st_parse(st_tf.value)[:15]
+
+        def _sync_counts():
+            try:
+                t = str(title_tf.value or "")
+                title_count.value = f"{len(t)}/{TIKTOK_TITLE_MAX}"
+                title_count.color = (DANGER_C if len(t) > TIKTOK_TITLE_MAX
+                                     else (WARN_C if 0 < len(t) < TIKTOK_TITLE_MIN else MUTED))
+                d = str(desc_tf.value or "")
+                desc_count.value = f"{len(d)}/{TIKTOK_DESC_MAX}"
+                desc_count.color = DANGER_C if len(d) > TIKTOK_DESC_MAX else MUTED
+                kfs = _kf_value()
+                kf_total = sum(len(x) for x in kfs)
+                kf_count.value = f"{len(kfs)}/5 条 · {kf_total}/1500 字符"
+                kf_count.color = (DANGER_C if (len(kfs) > 5 or kf_total > 1500) else MUTED)
+                sts = _st_value()
+                st_total = sum(len(x) for x in sts)
+                st_count.value = f"{len(sts)}/15 个 · {st_total}/250 字符"
+                st_count.color = (DANGER_C if (len(sts) > 15 or st_total > 250) else MUTED)
+            except Exception:
+                pass
+
+        def _update_us_fields():
+            us = _is_us_site()
+            try:
+                kf_tf.disabled = not us
+                st_tf.disabled = not us
+                ai_us_hint.value = ("US/4Seller：五点与关键词可生成并参与保存" if us
+                                    else "当前站点非 US/4Seller：五点与 Search Terms 不参与保存")
+                ai_us_hint.color = MUTED if us else WARN_C
+            except Exception:
+                pass
+            _sync_counts()
+
+        title_tf.on_change = lambda e: _sync_counts()
+        kf_tf.on_change = lambda e: _sync_counts()
+        desc_tf.on_change = lambda e: _sync_counts()
+        st_tf.on_change = lambda e: _sync_counts()
+
+        def _render_images():
+            try:
+                imgs = _images()
+                img_count.value = (f"主图 {len(imgs)}/9 张（第 1 张为主图）"
+                                   if imgs else "主图 0/9 张（至少 1 张才能保存）")
+                img_count.color = (DANGER_C if len(imgs) > TIKTOK_IMAGES_MAX
+                                   else (ACCENT_2 if imgs else WARN_C))
+                ctrls = []
+                for _i, _u in enumerate(imgs[:9]):
+                    ctrls.append(ft.Column([
+                        ft.Image(src=_u, width=72, height=72, fit=ft.ImageFit.COVER,
+                                 error_content=muted("加载失败", 10)),
+                        muted("主图" if _i == 0 else f"图 {_i + 1}", 10),
+                    ], spacing=2))
+                img_box.controls = ctrls or [muted("无图片（TikTok 保存至少 1 张主图）", 11)]
+            except Exception:
+                pass
+
+        images_tf.on_change = lambda e: _render_images()
+
+        def _render_attrs():
+            rows = []
+            for a in (getattr(self, "_tt_attrs", None) or [])[:80]:
+                if not isinstance(a, dict):
+                    continue
+                name = str(a.get("attrName") or a.get("name") or
+                           a.get("attributeName") or "")
+                req = bool(a.get("required") or a.get("isRequired") or a.get("is_required"))
+                vals = a.get("values") or a.get("attrValues") or a.get("options") or []
+                hint = ""
+                if isinstance(vals, list) and vals:
+                    parts = []
+                    for v in vals[:4]:
+                        if isinstance(v, dict):
+                            parts.append(str(v.get("name") or v.get("value") or ""))
+                        else:
+                            parts.append(str(v))
+                    hint = " · ".join([p for p in parts if p])
+                rows.append(ft.Row([
+                    ft.Icon(ft.Icons.ERROR_OUTLINE if req else ft.Icons.CHECK_CIRCLE,
+                            size=13, color=WARN_C if req else ACCENT_2),
+                    ft.Text(name or "-", size=12, color=TEXT, width=220),
+                    ft.Text("必填" if req else "选填", size=11,
+                            color=WARN_C if req else MUTED, width=42),
+                    ft.Text((hint or "—")[:80], size=11.5, color=MUTED, expand=True),
+                ], spacing=6))
+            attr_box.controls = rows or [
+                muted("选择叶子类目后加载属性（必填项高亮）", 11)]
+
+        def _set_cert_text(node):
+            raw = (node or {}).get("certifications") if isinstance(node, dict) else ""
+            if isinstance(raw, str) and raw.strip():
+                try:
+                    data = _json.loads(raw)
+                except Exception:
+                    data = []
+                names = []
+                for x in (data or [])[:8]:
+                    if isinstance(x, dict):
+                        nm = str(x.get("name") or x.get("certName") or "")
+                        if nm:
+                            names.append(nm + ("（必填）" if x.get("is_required") else ""))
+                if names:
+                    cert_text.value = "类目资质：" + "、".join(names)
+                    cert_text.color = WARN_C
+                    return
+            cert_text.value = "类目资质：未返回（叶子类目可能要求上传资质，保存前请确认）"
+            cert_text.color = MUTED
+
+        def _sync_shop_options():
+            opts = []
+            for sid, sh in (shops or {}).items():
+                opts.append(ft.dropdown.Option(str(sid), str(sh.get("name") or sid)))
+            shop_dd.options = opts
+            want = str(_cget("tiktok_shop_id", "") or "")
+            keys = [str(o.key) for o in opts]
+            shop_dd.value = want if want in keys else (keys[0] if keys else "")
+            try:
+                shop_guide.visible = not bool(opts)
+            except Exception:
+                pass
+
+        def _sync_site_options():
+            opts = [ft.dropdown.Option(str(m.get("code") or m.get("site") or ""),
+                                       _site_label(m))
+                    for m in site_rows
+                    if str(m.get("code") or m.get("site") or "")]
+            site_dd.options = opts
+            want = str(_cget("tiktok_site", "") or "").strip().upper()
+            keys = [str(o.key) for o in opts]
+            site_dd.value = want if want in keys else (keys[0] if keys else "")
+            try:
+                site_guide.visible = not bool(shops)
+                site_guide.value = ("未绑定店铺：可先选站点配类目/AI（保存时服务端会要求 TikTok 店铺）"
+                                    if not shops else "")
+            except Exception:
+                pass
+            return str(site_dd.value or "")
+
+        def _update_limits_text():
+            try:
+                limit_text.value = _limits_text()
+            except Exception:
+                pass
+
+        def _update_site_meta_text(site):
+            meta = _site_meta(site)
+            code = str(site or "").strip().upper() or "-"
+            if not site:
+                site_meta_text.value = "当前站点：未选择"
+                site_meta_text.color = MUTED
+                currency_text.value = "币种：-"
+                return
+            site_meta_text.value = (f"当前站点：{code} · {meta.get('country') or '-'} · "
+                                    f"{meta.get('currency') or '-'} · "
+                                    f"{meta.get('language_name') or '-'}")
+            site_meta_text.color = ACCENT_2
+            currency_text.value = "币种：" + (str(meta.get("currency") or "") or "-")
+
+        def _apply_site_cfg(site, clear_category=False, reload_limits=False):
+            code = str(site or "").strip().upper()
+            meta = _site_meta(code)
+            _cset("tiktok_site", code)
+            _cset("tiktok_site_name", str(meta.get("country") or ""))
+            _update_site_meta_text(code)
+            _update_us_fields()
+            _update_limits_text()
+            if clear_category:
+                _clear_category()
+            if reload_limits and code:
+                _load_limits(code)
+            _sync_counts()
+
+        def _load_limits(site):
+            code = str(site or "").strip().upper()
+
+            def work():
+                try:
+                    lim = _client().site_limits(code) or {}
+                    if isinstance(lim, dict) and lim:
+                        self._tt_limits = {**_default_limits(), **lim}
+                except Exception:
+                    pass
+                finally:
+                    _update_limits_text()
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _sync_state_buttons():
+            counts = getattr(self, "tiktok_counts", None) or {}
+            for st, btn in state_btns.items():
+                lbl = state_labels.get(st, st)
+                n = counts.get(st)
+                btn.text = f"{lbl} {n}" if n not in (None, "") else lbl
+                active = st == list_state.get("state")
+                try:
+                    btn.style = ft.ButtonStyle(
+                        bgcolor=CARD_2 if active else ft.Colors.TRANSPARENT,
+                        color=ACCENT if active else MUTED,
+                        padding=ft.padding.symmetric(horizontal=12),
+                        shape=ft.RoundedRectangleBorder(radius=8))
+                except Exception:
+                    pass
+
+        def _sync_op_bindings():
+            k, _sep, save_mode = str(op_dd.value or "1").partition("|")
+            _cset("tiktok_op", _as_int(k, 1))
+            _cset("tiktok_save_mode", save_mode)
+
+        op_dd.on_change = lambda e: _sync_op_bindings()
+
+        # ---------- ① 回调 ----------
+        def read_local_cookie(e=None):
+            def work():
+                try:
+                    from ..integrations.browser_cookies import describe, resolve
+                    src = resolve("dianxiaomi.com",
+                                  manual=getattr(self.cfg, "manual_cookies", None))
+                    if not (getattr(src, "ok", False) and getattr(src, "cookies", None)):
+                        _status(conn_status,
+                                "未读到店小秘 Cookie：请先在浏览器登录 dianxiaomi.com，"
+                                "或在本页手动粘贴 Cookie", WARN_C)
+                        _toast("未读到本机 Cookie，请手动粘贴", False)
+                        return
+                    raw = "; ".join(f"{k}={v}" for k, v in dict(src.cookies).items())
+                    try:
+                        desc = describe(src)
+                    except Exception:
+                        desc = "本机浏览器登录态"
+                    cookie_tf.value = raw
+                    _cset("tiktok_cookies", raw)
+                    cookie_src_text.value = "Cookie 来源：" + str(desc)
+                    _status(conn_status,
+                            f"已读取 Cookie（{len(src.cookies)} 项），可以点「测试连接」",
+                            SUCCESS_C)
+                    _toast("已读取本机 Cookie", True)
+                except Exception as ex:
+                    _status(conn_status, f"读取 Cookie 失败：{str(ex)[:120]}", DANGER_C)
+                    _toast(f"读取 Cookie 失败：{str(ex)[:60]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _merge_site_rows(rows):
+            merged = {}
+            for x in (rows or []):
+                if not isinstance(x, dict):
+                    continue
+                code = str(x.get("code") or x.get("site") or "").strip().upper()
+                if not code:
+                    continue
+                base = dict(TIKTOK_SITE_META.get(code) or {})
+                base.update({"site": code, "code": code})
+                base.update({k: v for k, v in x.items() if v not in (None, "")})
+                merged[code] = base
+            if not merged:
+                return self._tiktok_site_rows()
+            return list(merged.values())
+
+        def test_connect(e=None):
+            _status(conn_status, "正在连接店小秘 TikTok…", MUTED)
+
+            def work():
+                nonlocal shops, site_rows
+                try:
+                    c = _client()
+                    if not c.check_login():
+                        _status(conn_status,
+                                "登录失效：Cookie 已过期，请重新登录店小秘后点「读取本机 Cookie」",
+                                DANGER_C)
+                        _toast("店小秘登录失效，请更新 Cookie", False)
+                        return
+                    rows = c.shops() or []
+                    shops = {str(s.get("id")): s for s in rows
+                             if isinstance(s, dict) and str(s.get("id") or "")}
+                    self._tt_shops = shops
+                    _sync_shop_options()
+                    sid = str(shop_dd.value or _cget("tiktok_shop_id", "") or "")
+                    if sid:
+                        _cset("tiktok_shop_id", sid)
+                        _cset("tiktok_shop_name",
+                              str((shops.get(sid) or {}).get("name") or ""))
+                    srows = c.sites(sid) if sid else []
+                    site_rows = _merge_site_rows(srows)
+                    self._tt_sites = site_rows
+                    _sync_site_options()
+                    site_code = str(site_dd.value or "")
+                    if site_code:
+                        _apply_site_cfg(site_code)
+                    try:
+                        lim = c.site_limits(site_code) or {}
+                        if isinstance(lim, dict) and lim:
+                            self._tt_limits = {**_default_limits(), **lim}
+                        _update_limits_text()
+                    except Exception:
+                        pass
+                    counts = {"draft": 0, "offline": 0, "online": 0, "publishFail": 0}
+                    try:
+                        d = c.list_products("draft", 1, 1, "-1", "", "") or {}
+                        counts["draft"] = _as_int(d.get("drafts"), _as_int(d.get("total")))
+                        counts["publishFail"] = _as_int(d.get("publish_fail"))
+                        o = c.list_products("offline", 1, 1, "-1", "", "") or {}
+                        counts["offline"] = _as_int(o.get("wait_publish"),
+                                                    _as_int(o.get("total")))
+                        on = c.list_products("online", 1, 1, "-1", "", "") or {}
+                        counts["online"] = _as_int(on.get("total"))
+                    except Exception:
+                        pass
+                    self.tiktok_counts = counts
+                    self._tt_counts_ts = time.time()
+                    _sync_state_buttons()
+                    _no_shop = ("未检测到 TikTok 店铺（请在店小秘『授权店铺』绑定 TikTok Shop）；"
+                                if not shops else "")
+                    _status(conn_status,
+                            f"连接成功：TikTok 店铺 {len(shops)} 个 · 站点 {len(site_rows)} 个 · "
+                            f"{_no_shop}采集箱 {counts['draft']} / 待发布 {counts['offline']} / "
+                            f"在线 {counts['online']}（发布失败 {counts['publishFail']}）",
+                            SUCCESS_C if shops else WARN_C)
+                    try:
+                        self._log(
+                            f"TikTok 连接成功：店铺 {len(shops)} · 站点 {len(site_rows)} · "
+                            f"采集箱 {counts['draft']} / 待发布 {counts['offline']} / "
+                            f"在线 {counts['online']}", "INFO")
+                    except Exception:
+                        pass
+                    _toast("TikTok 连接成功" + ("" if shops
+                                                else "（无 TikTok 店铺，仅站点/类目可用）"),
+                           bool(shops))
+                    load_history()
+                    load_warehouses()
+                except Exception as ex:
+                    _status(conn_status, f"连接失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"连接失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _on_shop(e=None):
+            sid = str(shop_dd.value or "")
+            _cset("tiktok_shop_id", sid)
+            _cset("tiktok_shop_name", str((shops.get(sid) or {}).get("name") or ""))
+
+            def work():
+                nonlocal site_rows
+                try:
+                    c = _client()
+                    srows = c.sites(sid) if sid else []
+                    site_rows = _merge_site_rows(srows)
+                    self._tt_sites = site_rows
+                    cur = str(_cget("tiktok_site", "") or "").strip().upper()
+                    _sync_site_options()
+                    keys = [str(o.key) for o in (site_dd.options or [])]
+                    if cur and cur in keys:
+                        _apply_site_cfg(cur)
+                    elif keys:
+                        site_dd.value = keys[0]
+                        _apply_site_cfg(keys[0], clear_category=True)
+                        if cur:
+                            _status(conn_status,
+                                    f"当前站点 {cur} 不在新店铺可用范围内，已自动切到 {keys[0]}",
+                                    WARN_C)
+                            _toast(f"已自动切到站点 {keys[0]}", False)
+                    _status(conn_status, f"已切换店铺：{len(site_rows)} 个可用站点", SUCCESS_C)
+                    load_history()
+                    load_warehouses()
+                except Exception as ex:
+                    _status(conn_status, f"读取站点失败：{str(ex)[:120]}", DANGER_C)
+                    _toast(f"读取站点失败：{str(ex)[:60]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        shop_dd.on_change = _on_shop
+
+        def _on_site(e=None):
+            code = str(site_dd.value or "")
+            _apply_site_cfg(code, clear_category=True, reload_limits=True)
+            _status(cat_status, "站点已切换：需为新站点重新选择类目（原类目已清空）", WARN_C)
+            _status(conn_status,
+                    f"已切换站点：{code or '-'}（语言/币种/限额已更新）", SUCCESS_C)
+            load_categories()
+            load_history()
+            _ui()
+
+        site_dd.on_change = _on_site
+
+        # ---------- ② 回调 ----------
+        def _render_rows(items, selected_id=""):
+            rows = []
+            for it in items or []:
+                pid = str(_pick(it, "id", "idStr", "productId", "product_id"))
+                if not pid:
+                    continue
+                title = str(_pick(it, "productName", "title", "subject"))
+                site = str(_pick(it, "site", "siteCode"))
+                cat = str(_pick(it, "categoryName", "category_name"))
+                upd = str(_pick(it, "updateTime", "updatedAt", "modifyTime"))
+                price = _pick(it, "price", "salePrice", default="")
+                qty = _pick(it, "quantity", "stock", default="")
+                img = str(_pick(it, "imgUrl", "image", "mainImage"))
+                sel = bool(selected_id) and pid == str(selected_id)
+
+                def _edit(ev, _pid=pid):
+                    load_detail(_pid)
+
+                row = ft.Container(
+                    padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                    border_radius=8,
+                    bgcolor=(ft.Colors.with_opacity(0.12, ACCENT) if sel else CARD_2),
+                    border=ft.border.all(1, (ACCENT if sel else BORDER)),
+                    ink=True,
+                    on_click=lambda ev, _pid=pid: load_detail(_pid),
+                    content=ft.Row([
+                        (ft.Image(src=img, width=44, height=44, fit=ft.ImageFit.COVER,
+                                  error_content=ft.Container(width=44, height=44,
+                                                             bgcolor=CARD,
+                                                             content=muted("无图", 9)))
+                         if img else ft.Container(width=44, height=44, bgcolor=CARD,
+                                                  alignment=ft.alignment.center,
+                                                  content=muted("无图", 9))),
+                        ft.Column([
+                            ft.Text((title or pid)[:70], size=12.5, color=TEXT,
+                                    max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                            ft.Row([muted(pid, 10.5),
+                                    muted("站点 " + (site or "-"), 10.5),
+                                    muted((cat or "-")[:24], 10.5),
+                                    muted(f"{price if price not in ('', None) else '-'}", 10.5),
+                                    muted(f"库存 {qty if qty not in ('', None) else '-'}", 10.5),
+                                    muted((upd or "-")[:19], 10.5)],
+                                   spacing=8, wrap=True),
+                        ], spacing=1, expand=True),
+                        ft.OutlinedButton("编辑", on_click=_edit),
+                    ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+                rows.append(row)
+            list_box.controls = rows or [
+                empty_state("该状态没有商品：换个状态/关键词，或先到店小秘采集 TikTok 商品")]
+
+        def refresh_products(page=None):
+            st = str(list_state.get("state") or "draft")
+            pg = int(page or list_state.get("page") or 1)
+            kw = str(search_tf.value or "").strip()
+            list_state["keyword"] = kw
+            _status(list_status, "正在读取 TikTok 商品列表…", MUTED)
+
+            def work():
+                try:
+                    c = _client()
+                    shop_id = str(_cget("tiktok_shop_id", "") or "-1") or "-1"
+                    site = str(_cget("tiktok_site", "") or "")
+                    d = c.list_products(st, pg, 20, shop_id, kw, site) or {}
+                    items = d.get("items") or []
+                    total = d.get("total")
+                    page_no = _as_int(d.get("page_no"), pg)
+                    total_page = _as_int(d.get("total_page"), 1) or 1
+                    list_state["page"] = page_no
+                    list_state["pages"] = total_page
+                    list_state["total"] = total
+                    list_state["items"] = items
+                    new_counts = dict(getattr(self, "tiktok_counts", None) or {})
+                    if d.get("drafts") is not None:
+                        new_counts["draft"] = _as_int(d.get("drafts"))
+                    if d.get("wait_publish") is not None:
+                        new_counts["offline"] = _as_int(d.get("wait_publish"))
+                    if d.get("publish_fail") is not None:
+                        new_counts["publishFail"] = _as_int(d.get("publish_fail"))
+                    if st == "online" and total is not None:
+                        new_counts["online"] = _as_int(total)
+                    self.tiktok_counts = new_counts
+                    self._tt_counts_ts = time.time()
+                    _sync_state_buttons()
+                    _render_rows(items, form.get("id") or
+                                 _cget("tiktok_test_product_id", ""))
+                    page_info.value = (f"第 {page_no}/{total_page} 页 · "
+                                       f"共 {total if total is not None else len(items)} 个")
+                    _status(list_status,
+                            f"读取到 {len(items)} 个商品（{state_labels.get(st, st)}）",
+                            SUCCESS_C if items else WARN_C)
+                except Exception as ex:
+                    _status(list_status, f"读取商品失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"读取商品失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def switch_state(st):
+            if st not in state_labels:
+                return
+            list_state["state"] = st
+            list_state["page"] = 1
+            _cset("tiktok_list_state", st)
+            _sync_state_buttons()
+            refresh_products(page=1)
+
+        def list_prev(e=None):
+            pg = int(list_state.get("page") or 1)
+            if pg > 1:
+                refresh_products(page=pg - 1)
+            else:
+                _toast("已经是第一页", False)
+
+        def list_next(e=None):
+            pg = int(list_state.get("page") or 1)
+            if pg < int(list_state.get("pages") or 1):
+                refresh_products(page=pg + 1)
+            else:
+                _toast("已经是最后一页", False)
+
+        def load_detail(pid, title=""):
+            pid = str(pid or "").strip()
+            if not pid:
+                _toast("商品 ID 为空", False)
+                return
+            _status(list_status, f"正在载入商品 {pid} 详情…", MUTED)
+
+            def work():
+                nonlocal product, detail
+                try:
+                    c = _client()
+                    d = c.product_detail(pid) or {}
+                    p = {}
+                    try:
+                        _make, payload, _pipeline = _backend()
+                        p = payload.extract_detail_product(d) or {}
+                    except Exception:
+                        p = ((d.get("product") if isinstance(d, dict) else None) or d)
+                    if not isinstance(p, dict) or not p:
+                        raise RuntimeError("商品详情为空（可能已删除或不属于当前店铺）")
+                    detail = d
+                    self._tt_detail = d
+                    _hydrate(pid, p, d)
+                    list_state["selected"] = pid
+                    _status(list_status,
+                            f"已载入：{pid} · {str(p.get('productName') or
+                                                   p.get('title') or title or '')[:48]}",
+                            SUCCESS_C)
+                    _render_rows(list_state.get("items") or [],
+                                 form.get("id") or pid)
+                    try:
+                        self._log(f"TikTok 载入商品：{pid} · "
+                                  f"{str(p.get('productName') or p.get('title') or '')[:60]}",
+                                  "INFO")
+                    except Exception:
+                        pass
+                    _toast(f"已载入商品 {pid}", True)
+                except Exception as ex:
+                    _status(list_status, f"载入失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"载入失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _hydrate(pid, p, d):
+            nonlocal product
+            product = p or {}
+            pid = str(_pick(p, "id", "idStr", "productId") or pid)
+            form["id"] = pid
+            _cset("tiktok_test_product_id", pid)
+            form["title"] = str(_pick(p, "productName", "title"))
+            title_tf.value = form["title"]
+            _cset("tiktok_title", form["title"])
+            form["description"] = str(_pick(p, "description"))
+            desc_tf.value = form["description"]
+            _cset("tiktok_description", form["description"])
+            kfs = _as_list(_pick(p, "keyProductFeatures", "key_product_features",
+                                 default=[]))
+            kfs = [str(x) for x in kfs if str(x or "").strip()][:5]
+            kf_tf.value = "\n".join(kfs)
+            _cset("tiktok_key_features", _json.dumps(kfs, ensure_ascii=False))
+            sts = _as_list(_pick(p, "searchTerms", "search_terms", default=[]))
+            if len(sts) == 1 and "," in str(sts[0]):
+                sts = re.split(r"[\s,，;；]+", str(sts[0]))
+            sts = [str(x) for x in sts if str(x or "").strip()][:15]
+            st_tf.value = " ".join(sts)
+            _cset("tiktok_search_terms", _json.dumps(sts, ensure_ascii=False))
+            main_img = _pick(p, "mainImage", "main_image", default="")
+            imgs = _split_pipe(main_img) if isinstance(main_img, str) else \
+                [str(x) for x in _as_list(main_img) if str(x or "").strip()]
+            if not imgs:
+                draft_img = str(_pick(p, "draftImgUrl", "draft_img_url", default=""))
+                imgs = _split_pipe(draft_img) if draft_img else []
+            form["images"] = imgs[:9]
+            images_tf.value = "\n".join(form["images"])
+            _cset("tiktok_images", _json.dumps(form["images"], ensure_ascii=False))
+            video = str(_pick(p, "videoId", "video_id", default=""))
+            video_tf.value = video
+            _cset("tiktok_video_id", video)
+            src_url = str(_pick(p, "sourceUrl", "source_url", default=""))
+            source_url_tf.value = src_url
+            _cset("tiktok_source_url", src_url)
+            variations = _pick(p, "variationList", "variation_list", default=[])
+            if not isinstance(variations, list):
+                variations = []
+            first = (variations[0] if variations and isinstance(variations[0], dict)
+                     else {})
+            price = _pick(p, "price", default="")
+            if price in (None, ""):
+                price = _pick(first, "sourcePrice", "originalPrice",
+                              "sourceDiscountPrice", default="")
+            form["price"] = str(price or "")
+            price_tf.value = form["price"]
+            _cset("tiktok_price", form["price"])
+            stock = _pick(p, "quantity", default="")
+            if stock in (None, ""):
+                stock = _pick(first, "availableStock", "quantity", default="")
+            form["stock"] = str(stock if stock not in (None, "") else 0)
+            stock_tf.value = form["stock"]
+            _cset_raw("tiktok_stock", _as_int(form["stock"], 0))
+            sku = str(_pick(first, "sellerSku", "seller_sku", default="") or
+                      _pick(p, "sellerSku", "sku", default=""))
+            form["sku"] = sku
+            sku_tf.value = sku
+            _cset("tiktok_sku", sku)
+            weight = _pick(p, "packageWeight", "package_weight", default="")
+            weight_tf.value = str(weight or "")
+            _cset("tiktok_weight", str(weight or ""))
+            for _key, _field, _cf in (("packageLength", length_tf, "tiktok_length"),
+                                      ("packageWidth", width_tf, "tiktok_width"),
+                                      ("packageHeight", height_tf, "tiktok_height")):
+                _v = _pick(p, _key, _key.lower(), default="")
+                _field.value = str(_v or "")
+                _cset(_cf, str(_v or ""))
+            unit = str(_pick(p, "packageDimensionUnit", "dimension_unit",
+                             default="CENTIMETER") or "CENTIMETER")
+            dim_dd.value = unit if unit in ("CENTIMETER", "INCH") else "CENTIMETER"
+            _cset("tiktok_dimension_unit", str(dim_dd.value))
+            ptype = _as_int(_pick(p, "productType", "product_type", default=1), 1)
+            type_dd.value = "0" if ptype == 0 else "1"
+            _cset("tiktok_product_type", _as_int(type_dd.value, 1))
+            wh = str(_pick(p, "warehouseId", "warehouse_id", default=""))
+            warehouse_dd.value = wh or None
+            _cset("tiktok_warehouse_id", wh)
+            brand_id = str(_pick(p, "brandId", "brand_id", default=""))
+            brand_tf.value = brand_id
+            _cset("tiktok_brand_id", brand_id)
+            maker_id = str(_pick(p, "manufacturerId", "manufacturer_id", default=""))
+            maker_tf.value = maker_id
+            _cset("tiktok_manufacturer_id", maker_id)
+            resp_id = str(_pick(p, "responsiblePersonId", "responsible_person_id",
+                                default=""))
+            responsible_tf.value = resp_id
+            _cset("tiktok_responsible_person_id", resp_id)
+            attrs = _pick(p, "productAttributes", "product_attributes", default="")
+            if not isinstance(attrs, str):
+                try:
+                    attrs = _json.dumps(attrs, ensure_ascii=False)
+                except Exception:
+                    attrs = ""
+            form["product_attributes"] = str(attrs or "")
+            _cset("tiktok_product_attributes", form["product_attributes"])
+            attr_json_text.value = ("属性 JSON：" + form["product_attributes"][:180]
+                                    if form["product_attributes"] else "属性 JSON：未返回")
+            cid = str(_pick(p, "categoryId", "category_id", default=""))
+            cat_list = _pick(p, "categoryList", "category_list", default=None)
+            cname = str(_pick(p, "categoryName", "category_name", default=""))
+            cpath = str(_pick(p, "categoryPath", "categoryBrowsePath", "nodePathId",
+                              "category_path", default=""))
+            if cid and cid.lower() not in ("none", "null"):
+                _set_category({"categoryId": cid, "categoryName": cname,
+                               "categoryList": cat_list, "certifications": ""},
+                              path=cpath, leaf=True)
+            _render_images()
+            _sync_counts()
+            _update_us_fields()
+            site_code = str(_pick(p, "site", "siteCode", default=""))
+            if site_code:
+                keys = [str(o.key) for o in (site_dd.options or [])]
+                if site_code in keys:
+                    site_dd.value = site_code
+                _apply_site_cfg(site_code)
+            _sync_op_bindings()
+
+        # ---------- ③ 回调 ----------
+        def _clear_category():
+            form["category_id"] = ""
+            form["category_name"] = ""
+            form["category_path"] = ""
+            form["category_list"] = []
+            _cset("tiktok_category_id", "")
+            _cset("tiktok_category_name", "")
+            _cset("tiktok_category_path", "")
+            _cset("tiktok_category_list", "[]")
+            try:
+                cat_crumb.value = "当前类目：未选择"
+                cat_crumb.color = MUTED
+                cat_root_dd.options = []
+                cat_root_dd.value = None
+                cat_child_box.controls = []
+                attr_box.controls = []
+                attr_status.value = "属性：选择叶子类目后加载"
+                cert_text.value = "类目资质：未读取（叶子类目可能要求资质）"
+                cert_text.color = MUTED
+            except Exception:
+                pass
+            self._tt_attrs = []
+
+        def _set_category(node, path="", leaf=True):
+            node = node or {}
+            cid = str(node.get("categoryId") or node.get("id") or "")
+            name = str(node.get("categoryName") or node.get("transName") or
+                       node.get("chineseName") or "")
+            npath = str(path or node.get("nodePathId") or node.get("nodePath") or
+                        node.get("path") or cid)
+            cat_list = []
+            raw_list = node.get("categoryList")
+            if isinstance(raw_list, list) and raw_list:
+                for x in raw_list:
+                    if isinstance(x, dict):
+                        cat_list.append({"categoryId": str(x.get("categoryId") or ""),
+                                         "categoryName": str(x.get("categoryName") or "")})
+            if not cat_list:
+                cat_list = [{"categoryId": cid, "categoryName": name}]
+            form["category_id"] = cid
+            form["category_name"] = name
+            form["category_path"] = npath
+            form["category_list"] = cat_list
+            _cset("tiktok_category_id", cid)
+            _cset("tiktok_category_name", name)
+            _cset("tiktok_category_path", npath)
+            _cset("tiktok_category_list", _json.dumps(cat_list, ensure_ascii=False))
+            try:
+                cat_crumb.value = f"当前类目：{name or cid}（{cid}）· 路径 {npath}"
+                cat_crumb.color = ACCENT_2
+            except Exception:
+                pass
+            _set_cert_text(node)
+            self._tt_attrs = []
+            if cid:
+                _load_attributes(cid)
+            return cid, npath
+
+        def _render_category_rows(rows, parent=None):
+            boxes = []
+            for n in (rows or []):
+                if not isinstance(n, dict):
+                    continue
+                nid = str(n.get("id") or n.get("categoryId") or "")
+                if not nid:
+                    continue
+                cat_nodes[nid] = n
+                _leaf_raw = n.get("isLeaf")
+                is_leaf = (_leaf_raw is True or str(_leaf_raw) in ("1", "True", "true")
+                           or bool(n.get("leafCategory")))
+                label = (str(n.get("categoryName") or n.get("transName") or nid) +
+                         f"（{n.get('categoryId') or nid}）" +
+                         (" · 末级" if is_leaf else ""))
+
+                def _choose(ev, _n=n, _leaf=is_leaf):
+                    _pick_category_node(_n, _leaf)
+
+                def _down(ev, _n=n):
+                    _children(_n)
+
+                boxes.append(ft.Row([
+                    ft.Icon(ft.Icons.CATEGORY_OUTLINED if is_leaf
+                            else ft.Icons.FOLDER_OPEN, size=14, color=MUTED),
+                    ft.Text(label, size=12, color=TEXT, expand=True),
+                    ft.OutlinedButton("选择" if is_leaf else "下级",
+                                      on_click=_choose),
+                ], spacing=8))
+            cat_child_box.controls = boxes or [muted("没有子类目（可能已是末级）", 11)]
+            return len(boxes)
+
+        def _pick_category_node(node, leaf=True):
+            cid, path = _set_category(node, leaf=leaf)
+            if not leaf:
+                _children(node)
+                _status(cat_status,
+                        f"「{node.get('categoryName') or cid}」还有子类目，请继续下钻到末级",
+                        WARN_C)
+            else:
+                _status(cat_status, f"已选末级类目：{cid} · 路径 {path}", SUCCESS_C)
+            _ui()
+
+        def _children(parent_node):
+            site = str(_cget("tiktok_site", "") or "")
+            if not site:
+                _status(cat_status, "先选择站点，再加载子类目", WARN_C)
+                return
+            parent_id = str((parent_node or {}).get("categoryId") or
+                            (parent_node or {}).get("id") or "")
+            if not parent_id:
+                return
+            _status(cat_status, "正在加载子类目…", MUTED)
+
+            def work():
+                try:
+                    c = _client()
+                    rows = c.categories(site, parent_id,
+                                        str(_cget("tiktok_shop_id", "") or "-1"),
+                                        cross_border=True) or []
+                    n = _render_category_rows(rows, parent_node)
+                    _status(cat_status, f"子类目 {n} 个；只有末级类目能保存",
+                            SUCCESS_C if n else WARN_C)
+                except Exception as ex:
+                    _status(cat_status, f"加载子类目失败：{str(ex)[:150]}", DANGER_C)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def load_categories(e=None):
+            site = str(_cget("tiktok_site", "") or "")
+            if not site:
+                _status(cat_status, "先选择站点（站点代码为空，无法加载类目）", WARN_C)
+                return
+            _status(cat_status, "正在加载顶级类目…", MUTED)
+
+            def work():
+                nonlocal cat_nodes
+                try:
+                    c = _client()
+                    roots = c.categories(site, "0",
+                                         str(_cget("tiktok_shop_id", "") or "-1"),
+                                         cross_border=True) or []
+                    cat_nodes = {}
+                    opts = []
+                    for n in roots:
+                        if not isinstance(n, dict):
+                            continue
+                        nid = str(n.get("id") or n.get("categoryId") or "")
+                        if not nid:
+                            continue
+                        cat_nodes[nid] = n
+                        label = (str(n.get("categoryName") or n.get("transName") or "") +
+                                 f"（{n.get('categoryId') or nid}）")
+                        opts.append(ft.dropdown.Option(nid, label))
+                    self._tt_cat_nodes = cat_nodes
+                    cat_root_dd.options = opts
+                    cat_root_dd.value = None
+                    _status(cat_status,
+                            f"已加载 {len(opts)} 个顶级类目；逐级下钻到末级才能保存",
+                            SUCCESS_C if opts else WARN_C)
+                except Exception as ex:
+                    _status(cat_status, f"加载类目失败：{str(ex)[:150]}", DANGER_C)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _on_root(e=None):
+            nid = str(cat_root_dd.value or "")
+            node = cat_nodes.get(nid) or {}
+            if not node:
+                return
+            _children(node)
+
+        cat_root_dd.on_change = _on_root
+
+        def _search_categories(e=None):
+            kw = str(cat_search_tf.value or "").strip()
+            site = str(_cget("tiktok_site", "") or "")
+            if not kw:
+                _status(cat_status, "请输入类目搜索关键词（如 phone）", WARN_C)
+                return
+            if not site:
+                _status(cat_status, "先选择站点再搜索类目", WARN_C)
+                return
+            _status(cat_status, f"正在搜索类目「{kw}」…", MUTED)
+
+            def work():
+                try:
+                    c = _client()
+                    rows = c.search_categories(kw, site,
+                                               str(_cget("tiktok_shop_id", "") or "-1"),
+                                               cross_border=True) or []
+                    n = _render_category_rows(rows)
+                    _status(cat_status, f"搜索到 {n} 个类目；点「选择」或「下级」继续",
+                            SUCCESS_C if n else WARN_C)
+                except Exception as ex:
+                    _status(cat_status, f"搜索类目失败：{str(ex)[:150]}", DANGER_C)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def load_history(e=None):
+            site = str(_cget("tiktok_site", "") or "")
+            if not site:
+                return
+
+            def work():
+                try:
+                    c = _client()
+                    rows = c.category_history(site,
+                                              str(_cget("tiktok_shop_id", "") or "-1")) or []
+                    opts, hist_nodes = [], {}
+                    for n in rows:
+                        if not isinstance(n, dict):
+                            continue
+                        cid = str(n.get("categoryId") or "")
+                        if not cid:
+                            continue
+                        key = cid + "|" + str(n.get("nodePathId") or n.get("nodePath") or "")
+                        hist_nodes[key] = n
+                        opts.append(ft.dropdown.Option(
+                            key, f"{n.get('categoryName') or cid} · "
+                                 f"用过 {n.get('num') or n.get('useCount') or 0} 次"))
+                    self._tt_hist_nodes = hist_nodes
+                    cat_hist_dd.options = opts
+                    cat_hist_dd.value = None
+                    if opts:
+                        _status(cat_status, f"最近使用类目 {len(opts)} 个", MUTED)
+                except Exception:
+                    pass  # best-effort：历史类目失败不影响手选
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _on_history(e=None):
+            key = str(cat_hist_dd.value or "")
+            node = (getattr(self, "_tt_hist_nodes", None) or {}).get(key) or {}
+            if not node:
+                return
+            _set_category(node, path=str(node.get("nodePathId") or
+                                         node.get("nodePath") or ""), leaf=True)
+            _status(cat_status,
+                    f"已套用最近使用类目：{node.get('categoryName') or ''} · "
+                    f"{(node.get('nodePathId') or node.get('nodePath') or '')}",
+                    SUCCESS_C)
+            _ui()
+
+        cat_hist_dd.on_change = _on_history
+
+        def _load_attributes(cid):
+            site = str(_cget("tiktok_site", "") or "")
+            attr_status.value = "属性：加载中…"
+            attr_status.color = MUTED
+
+            def work():
+                try:
+                    c = _client()
+                    rows = c.category_attributes(
+                        site, cid, str(_cget("tiktok_shop_id", "") or "-1"),
+                        cross_border=True, attr_type=3) or []
+                    self._tt_attrs = [x for x in rows if isinstance(x, dict)]
+                    _render_attrs()
+                    req = sum(1 for a in self._tt_attrs
+                              if bool(a.get("required") or a.get("is_required")))
+                    attr_status.value = (f"属性：{len(self._tt_attrs)} 项（必填 {req} 项，"
+                                         f"必填项高亮；保存时原样回写）")
+                    attr_status.color = ACCENT_2 if self._tt_attrs else WARN_C
+                except Exception as ex:
+                    self._tt_attrs = []
+                    _render_attrs()
+                    attr_status.value = f"属性加载失败：{str(ex)[:120]}（可稍后重试）"
+                    attr_status.color = WARN_C
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _edit_attr_json(e=None):
+            cur = str(_cget("tiktok_product_attributes", "") or "") or "[]"
+            tf = ft.TextField(value=cur, multiline=True, min_lines=10, max_lines=18,
+                              width=620, text_size=11, bgcolor=CARD_2,
+                              border_color=CARD_2, color=TEXT)
+            tip = ft.Text("属性按 TikTok 保存包原样回写；改动后请确认 JSON 合法",
+                          size=11, color=MUTED)
+
+            def save(ev):
+                txt = str(tf.value or "").strip() or "[]"
+                try:
+                    _json.loads(txt)
+                except Exception:
+                    tip.value = "JSON 格式不合法，请修正后再保存"
+                    tip.color = DANGER_C
+                    _ui()
+                    return
+                _cset("tiktok_product_attributes", txt)
+                attr_json_text.value = "属性 JSON：" + txt[:180]
+                _close(dlg)
+                _toast("属性 JSON 已保存（保存时原样回写）", True)
+
+            dlg = ft.AlertDialog(
+                modal=True, title=ft.Text("编辑类目属性 JSON"),
+                content=ft.Column([tip, tf], spacing=6, width=640),
+                actions=[ft.TextButton("取消", on_click=lambda ev: _close(dlg)),
+                         ft.ElevatedButton("保存", bgcolor=ACCENT, color=ON_ACCENT,
+                                           on_click=save)])
+            self._show_dlg(dlg)
+
+        def load_warehouses(e=None):
+            sid = str(_cget("tiktok_shop_id", "") or "")
+
+            def work():
+                try:
+                    c = _client()
+                    rows = c.warehouses(sid) or []
+                    opts = [ft.dropdown.Option(str(w.get("id") or w.get("warehouseId") or ""),
+                                               str(w.get("name") or w.get("warehouseName") or
+                                                   w.get("id") or ""))
+                            for w in rows
+                            if isinstance(w, dict) and
+                            str(w.get("id") or w.get("warehouseId") or "")]
+                    warehouse_dd.options = opts
+                    want = str(_cget("tiktok_warehouse_id", "") or "")
+                    keys = [str(o.key) for o in opts]
+                    if want and want in keys:
+                        warehouse_dd.value = want
+                except Exception:
+                    pass  # best-effort：仓库失败不影响保存
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        # ---------- ④ 回调 ----------
+        def _ai_product():
+            base = dict(product or {})
+            base.update({
+                "productName": str(title_tf.value or ""),
+                "title": str(title_tf.value or ""),
+                "description": str(desc_tf.value or ""),
+                "keyProductFeatures": _kf_value(),
+                "searchTerms": _st_value(),
+                "mainImage": "|".join(_images()),
+                "site": str(_cget("tiktok_site", "") or ""),
+                "site_code": str(_cget("tiktok_site", "") or ""),
+                "categoryId": str(form.get("category_id") or ""),
+                "categoryName": str(form.get("category_name") or ""),
+            })
+            return base
+
+        def _apply_ai(field, value):
+            if field == "title":
+                title_tf.value = str(value or "")[:TIKTOK_TITLE_MAX]
+            elif field == "description":
+                desc_tf.value = str(value or "")
+            elif field == "key_features":
+                vals = _kf_parse(value)[:5]
+                kf_tf.value = "\n".join(vals)
+            elif field == "search_terms":
+                vals = _st_parse(value)[:15]
+                st_tf.value = " ".join(vals)
+            try:
+                form["key_features"] = _kf_value()
+                form["search_terms"] = _st_value()
+            except Exception:
+                pass
+            _sync_counts()
+            _render_images()
+
+        def _ai_confirm(label, runner):
+            model = ""
+            try:
+                from ..services import model_of
+                model = str(model_of(self.cfg, "text") or "")
+            except Exception:
+                model = str(_cget("text_model", "") or "")
+            dlg = ft.AlertDialog(
+                modal=True, title=ft.Text("确认使用 AI（付费）"),
+                content=ft.Column([
+                    ft.Text(f"用途：{label}", size=13, color=TEXT),
+                    ft.Text(f"模型：{model or '文本模型（设置页可改）'}",
+                            size=12.5, color=MUTED),
+                    muted("按 token 计费（以 API 账单为准）；无 API Key 时会失败并提示。", 11),
+                    muted("AI 结果会填入表单，保存前请人工复核（不得编造认证/规格）。", 11),
+                    muted("非英语站点会按站点语言生成；全球产品只允许英文。", 11),
+                ], spacing=6, width=440),
+                actions=[ft.TextButton("取消", on_click=lambda ev: _close(dlg)),
+                         ft.ElevatedButton(
+                             "确认生成", bgcolor=ACCENT, color=ON_ACCENT,
+                             on_click=lambda ev: (_close(dlg), runner()))])
+            self._show_dlg(dlg)
+
+        def _run_ai_field(field):
+            if not product:
+                _status(ai_status, "请先在②载入采集箱商品", WARN_C)
+                _toast("先载入一个采集箱商品，再让 AI 基于真实商品信息生成", False)
+                return
+            _status(ai_status, f"AI 正在生成{field_labels.get(field, field)}…", MUTED)
+
+            def work():
+                try:
+                    _make, _payload, pipeline = _backend()
+                    site = str(_cget("tiktok_site", "") or "")
+                    count = _as_int(_cget("tiktok_key_feature_count", 5), 5)
+                    value, notes = pipeline.ai_generate_field(
+                        _ai_product(), self.cfg, field, site=site, count=count)
+                    _apply_ai(field, value)
+                    notes = [str(n) for n in (notes or []) if str(n or "").strip()]
+                    _status(ai_status,
+                            f"AI 已生成{field_labels.get(field, field)}" +
+                            (f"；提示：{'；'.join(notes[:3])}" if notes else ""),
+                            WARN_C if notes else SUCCESS_C)
+                    try:
+                        self._log(f"TikTok AI {field_labels.get(field, field)} 已生成",
+                                  "INFO")
+                    except Exception:
+                        pass
+                except Exception as ex:
+                    _status(ai_status, f"AI 生成失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"AI 生成失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _ai_one(field):
+            def handler(e=None):
+                try:
+                    if not bool(ai_switch.value):
+                        _toast("请先打开「使用 AI」开关（会调用付费 API）", False)
+                        return
+                    _ai_confirm(f"AI 生成{field_labels.get(field, field)}",
+                                lambda: _run_ai_field(field))
+                except Exception as ex:
+                    _toast(f"AI 生成失败：{str(ex)[:60]}", False)
+            return handler
+
+        def ai_all(e=None):
+            if not product:
+                _status(ai_status, "请先在②载入采集箱商品", WARN_C)
+                _toast("先载入一个采集箱商品，再一键生成", False)
+                return
+            if not bool(ai_switch.value):
+                _toast("请先打开「使用 AI」开关（一键生成=多次付费调用）", False)
+                return
+
+            def run():
+                _status(ai_status, "AI 一键生成中（标题/描述/五点/关键词）…", MUTED)
+
+                def work():
+                    try:
+                        _make, _payload, pipeline = _backend()
+                        site = str(_cget("tiktok_site", "") or "")
+                        count = _as_int(_cget("tiktok_key_feature_count", 5), 5)
+                        data, notes = pipeline.ai_generate_all(
+                            _ai_product(), self.cfg, site=site, count=count)
+                        data = data if isinstance(data, dict) else {}
+                        for _f in ("title", "description", "key_features", "search_terms"):
+                            if data.get(_f) not in (None, ""):
+                                _apply_ai(_f, data.get(_f))
+                        notes = [str(n) for n in (notes or []) if str(n or "").strip()]
+                        _status(ai_status,
+                                "AI 一键生成完成；请逐项人工复核后再预演/保存" +
+                                (f"（提示：{'；'.join(notes[:3])}）" if notes else ""),
+                                WARN_C if notes else SUCCESS_C)
+                        _toast("AI 已生成文案，请复核", True)
+                        try:
+                            self._log("TikTok AI 一键生成完成", "INFO")
+                        except Exception:
+                            pass
+                    except Exception as ex:
+                        _status(ai_status, f"AI 一键生成失败：{str(ex)[:160]}", DANGER_C)
+                        _toast(f"AI 一键生成失败：{str(ex)[:70]}", False)
+                    finally:
+                        _ui()
+
+                threading.Thread(target=work, daemon=True).start()
+
+            _ai_confirm("AI 一键生成（标题+描述+五点+关键词；按站点语言）", run)
+
+        def ai_translate(e=None):
+            if not bool(ai_switch.value):
+                _toast("请先打开「使用 AI」开关（会调用付费 API）", False)
+                return
+            if not product:
+                _status(ai_status, "请先在②载入采集箱商品", WARN_C)
+                _toast("先载入一个采集箱商品，再按站点语言翻译", False)
+                return
+
+            def run():
+                _status(ai_status, "按站点语言重写标题/描述中…", MUTED)
+
+                def work():
+                    try:
+                        _make, _payload, pipeline = _backend()
+                        site = str(_cget("tiktok_site", "") or "")
+                        notes_all = []
+                        for _f in ("title", "description"):
+                            value, notes = pipeline.ai_generate_field(
+                                _ai_product(), self.cfg, _f, site=site,
+                                count=_as_int(_cget("tiktok_key_feature_count", 5), 5))
+                            _apply_ai(_f, value)
+                            notes_all += [str(n) for n in (notes or []) if str(n or "")]
+                        _status(ai_status,
+                                f"已按站点 {site or '-'} 语言重写标题/描述（付费）；请复核",
+                                WARN_C if notes_all else SUCCESS_C)
+                        _toast("已按站点语言重写标题/描述", True)
+                    except Exception as ex:
+                        _status(ai_status, f"AI 翻译失败：{str(ex)[:160]}", DANGER_C)
+                        _toast(f"AI 翻译失败：{str(ex)[:70]}", False)
+                    finally:
+                        _ui()
+
+                threading.Thread(target=work, daemon=True).start()
+
+            _ai_confirm("按站点语言重写标题与描述（AI 翻译）", run)
+
+        def apply_images(e=None):
+            form["images"] = _images()
+            _cset("tiktok_images", _json.dumps(form["images"], ensure_ascii=False))
+            _render_images()
+            _toast(f"已应用 {len(form['images'])} 张主图", True)
+
+        def restore_images(e=None):
+            main_img = str(_pick(product, "mainImage", "main_image", default=""))
+            imgs = _split_pipe(main_img) if main_img else []
+            if not imgs:
+                _toast("商品详情没有可恢复的主图", False)
+                return
+            form["images"] = imgs[:9]
+            images_tf.value = "\n".join(form["images"])
+            _cset("tiktok_images", _json.dumps(form["images"], ensure_ascii=False))
+            _render_images()
+            _toast("已从商品详情恢复主图", True)
+
+        def clear_images(e=None):
+            form["images"] = []
+            images_tf.value = ""
+            _cset("tiktok_images", "[]")
+            _render_images()
+            _toast("已清空主图", False)
+
+        def _open_video(e=None):
+            url = str(video_tf.value or "").strip()
+            if not url:
+                _toast("视频 ID/URL 为空", False)
+                return
+            if url.startswith(("http://", "https://")):
+                self._open_url(url)
+            else:
+                _toast("已记录视频 ID（保存时随保存包提交）", True)
+
+        # ---------- ⑦ 回调 ----------
+        def _overrides():
+            k, _sep, save_mode = str(op_dd.value or "1").partition("|")
+            cat_list = form.get("category_list")
+            if not isinstance(cat_list, list):
+                try:
+                    cat_list = _json.loads(str(_cget("tiktok_category_list", "[]") or "[]"))
+                except Exception:
+                    cat_list = []
+            return {
+                "title": str(title_tf.value or "").strip(),
+                "description": str(desc_tf.value or "").strip(),
+                "key_features": _kf_value(),
+                "search_terms": _st_value(),
+                "category_id": str(form.get("category_id") or
+                                   _cget("tiktok_category_id", "") or "").strip(),
+                "category_name": str(form.get("category_name") or
+                                     _cget("tiktok_category_name", "") or "").strip(),
+                "category_list": cat_list,
+                "images": _images(),
+                "video_id": str(video_tf.value or "").strip(),
+                "source_url": str(source_url_tf.value or "").strip(),
+                "product_type": _as_int(type_dd.value, 1),
+                "price": _as_float(price_tf.value),
+                "stock": _as_int(stock_tf.value, 0),
+                "seller_sku": str(sku_tf.value or "").strip(),
+                "weight": _as_float(weight_tf.value),
+                "length": _as_float(length_tf.value),
+                "width": _as_float(width_tf.value),
+                "height": _as_float(height_tf.value),
+                "dimension_unit": str(dim_dd.value or "CENTIMETER"),
+                "warehouse_id": str(warehouse_dd.value or "").strip(),
+                "product_unit": str(_cget("tiktok_product_unit", "") or ""),
+                "brand_id": str(brand_tf.value or "").strip(),
+                "manufacturer_id": str(maker_tf.value or "").strip(),
+                "responsible_person_id": str(responsible_tf.value or "").strip(),
+                "product_attributes": str(_cget("tiktok_product_attributes", "") or ""),
+                "certifications": str(getattr(self, "_tt_certifications", "") or ""),
+            }
+
+        def _pid():
+            return str(form.get("id") or
+                       _cget("tiktok_test_product_id", "") or "").strip()
+
+        def _precheck():
+            missing = []
+            if not str(_cget("tiktok_shop_id", "") or "").strip():
+                missing.append("未选择 TikTok 店铺：请在店小秘『授权店铺』绑定 TikTok Shop "
+                               "后点「测试连接」；无店铺时服务端会拒绝保存")
+            if not str(_cget("tiktok_site", "") or "").strip():
+                missing.append("未选择站点（站点决定类目/语言/币种/限额）")
+            if not str(_cget("tiktok_category_id", "") or "").strip():
+                missing.append("未选择类目：请下钻到叶子类目后点「选择」")
+            if not _images():
+                missing.append("主图至少 1 张（第 1 张为主图，最多 9 张）")
+            return missing
+
+        def _render_result(res, title, preview=False):
+            rows = [h1(title, 13)]
+            for s in (getattr(res, "steps", None) or []):
+                ok = bool(getattr(s, "ok", False))
+                rows.append(ft.Row([
+                    ft.Icon(ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE,
+                            size=14, color=ACCENT_2 if ok else DANGER_C),
+                    ft.Text(str(getattr(s, "name", "") or ""), size=12, color=TEXT,
+                            width=120),
+                    ft.Text(str(getattr(s, "detail", "") or ""), size=11.5, color=MUTED,
+                            expand=True, selectable=True)], spacing=6))
+            issues = [str(x) for x in (getattr(res, "issues", None) or [])
+                      if str(x or "").strip()]
+            warnings = [str(x) for x in (getattr(res, "warnings", None) or [])
+                        if str(x or "").strip()]
+            banned = [str(x) for x in (getattr(res, "banned_words", None) or [])
+                      if str(x or "").strip()]
+            if issues:
+                rows.append(ft.Text("阻断项（必须修正才能保存）：", size=12.5,
+                                    color=DANGER_C, weight=ft.FontWeight.BOLD))
+                rows += [ft.Text("✗ " + x, size=11.5, color=DANGER_C, selectable=True)
+                         for x in issues]
+            if warnings:
+                rows.append(ft.Text("提醒（不阻断）：", size=12.5, color=WARN_C,
+                                    weight=ft.FontWeight.BOLD))
+                rows += [ft.Text("· " + x, size=11.5, color=WARN_C, selectable=True)
+                         for x in warnings]
+            if banned:
+                rows.append(ft.Text("违禁词提示：" + "、".join(banned), size=11.5,
+                                    color=WARN_C, selectable=True))
+            try:
+                t = str(getattr(res, "title", "") or "")
+                kfs = getattr(res, "key_features", None) or []
+                sts = getattr(res, "search_terms", None) or []
+                ds = str(getattr(res, "description", "") or "")
+                rows.append(muted(
+                    f"摘要：标题 {len(t)} 字符 · 描述 {len(ds)} 字符 · 五点 {len(kfs)} 条 · "
+                    f"关键词 {len(sts)} 个 · 站点 {getattr(res, 'site', '') or '-'} · "
+                    f"类目 {getattr(res, 'category_id', '') or '-'} · "
+                    f"op={getattr(res, 'op', '') or '-'}", 11))
+            except Exception:
+                pass
+            save_result = getattr(res, "save_result", None) or {}
+            if isinstance(save_result, dict) and save_result:
+                try:
+                    rows.append(muted("接口返回：" + _json.dumps(
+                        save_result, ensure_ascii=False)[:400], 11))
+                except Exception:
+                    pass
+            err = str(getattr(res, "error", "") or "")
+            if err:
+                rows.append(ft.Text("失败原因：" + err, size=12, color=DANGER_C,
+                                    selectable=True))
+            if preview:
+                rows.append(muted("预演不写任何数据（saved=false）。", 11))
+            result_box.controls = rows
+
+        def _render_missing(missing, title="保存前置检查未通过"):
+            rows = [h1(title, 13)]
+            rows.append(ft.Text("以下条件缺失，未发起任何写请求：", size=12.5,
+                                color=DANGER_C, weight=ft.FontWeight.BOLD))
+            rows += [ft.Text("✗ " + x, size=11.5, color=DANGER_C, selectable=True)
+                     for x in missing]
+            rows.append(muted("补齐后请先「预演（不保存）」确认，再保存。", 11))
+            result_box.controls = rows
+
+        def _refresh_after_save():
+            try:
+                refresh_products(page=int(list_state.get("page") or 1))
+            except Exception:
+                pass
+            try:
+                self._refresh_tiktok_counts()
+            except Exception:
+                pass
+
+        def _save_run(pid, op, save_mode, op_text):
+            _status(save_status, f"正在保存（op={op} · {op_text}）…", MUTED)
+
+            def work():
+                try:
+                    _make, _payload, pipeline = _backend()
+                    res = pipeline.run_tiktok_product(
+                        pid, self.cfg, overrides=_overrides(), dry_run=False,
+                        use_ai=False, op=op, save_mode=save_mode,
+                        confirm_write=True)
+                    _render_result(res, "保存结果", preview=False)
+                    if bool(getattr(res, "saved", False)):
+                        _status(save_status, f"保存成功（op={op} · {op_text}）", SUCCESS_C)
+                        _toast(f"已保存到 TikTok（op={op}）", True)
+                        _cset("tiktok_last_status",
+                              f"{time.strftime('%Y-%m-%d %H:%M:%S')} 保存成功 op={op}")
+                        try:
+                            self._log(f"TikTok 保存成功：{pid} op={op} · "
+                                      f"{str(getattr(res, 'title', ''))[:50]}", "INFO")
+                        except Exception:
+                            pass
+                        _refresh_after_save()
+                    else:
+                        err = str(getattr(res, "error", "") or "见下方步骤/阻断项")
+                        _status(save_status, f"保存失败（op={op}）：{err[:140]}", DANGER_C)
+                        _toast(f"保存失败：{err[:70]}", False)
+                        _cset("tiktok_last_status",
+                              f"{time.strftime('%Y-%m-%d %H:%M:%S')} 保存失败：{err[:80]}")
+                        try:
+                            self._log(f"TikTok 保存失败：{pid} op={op} · {err[:100]}",
+                                      "ERROR")
+                        except Exception:
+                            pass
+                except Exception as ex:
+                    _status(save_status, f"保存失败：{str(ex)[:180]}", DANGER_C)
+                    _toast(f"保存失败：{str(ex)[:70]}", False)
+                    try:
+                        self._log(f"TikTok 保存异常：{pid} {str(ex)[:120]}", "ERROR")
+                    except Exception:
+                        pass
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def do_preview(e=None):
+            pid = _pid()
+            if not pid:
+                _status(save_status, "先选择/载入一个采集箱商品，再预演", WARN_C)
+                _toast("请先选择或载入采集箱商品", False)
+                return
+            op, _sep, save_mode = str(op_dd.value or "1").partition("|")
+            _status(save_status,
+                    "预演中（读取详情、校验；不发写请求、不花 AI 费用）…", MUTED)
+            result_box.controls = [muted("运行中…", 11)]
+            _ui()
+
+            def work():
+                try:
+                    _make, _payload, pipeline = _backend()
+                    res = pipeline.run_tiktok_product(
+                        pid, self.cfg, overrides=_overrides(), dry_run=True,
+                        use_ai=False, op=op or "1", save_mode=save_mode)
+                    _render_result(res, "预演结果（未保存）", preview=True)
+                    ok = bool(getattr(res, "ok", False))
+                    _status(save_status,
+                            ("预演通过，未保存、未花钱；确认无误后可点「保存」" if ok else
+                             "预演发现问题：" +
+                             str(getattr(res, "error", "") or "见下方阻断项")[:120]),
+                            SUCCESS_C if ok else DANGER_C)
+                    _toast("预演完成（未保存）", ok)
+                except Exception as ex:
+                    _status(save_status, f"预演失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"预演失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def show_payload(e=None):
+            pid = _pid()
+            if not pid:
+                _status(save_status, "先选择/载入一个采集箱商品", WARN_C)
+                _toast("请先选择或载入采集箱商品", False)
+                return
+            _status(save_status, "正在读取详情并组装保存包（只读，不发写请求）…", MUTED)
+
+            def work():
+                try:
+                    _make, _payload, pipeline = _backend()
+                    _detail, payload, issues, warnings = pipeline.prepare_save(
+                        pid, self.cfg, overrides=_overrides())
+                    txt = _json.dumps(payload or {}, ensure_ascii=False, indent=2)
+                    body = [muted(f"商品 {pid} · 保存包预览（未发出；真实保存前会二次确认）",
+                                  11)]
+                    if issues:
+                        body.append(ft.Text("阻断项：" + "；".join(
+                            [str(x) for x in issues[:6]]), size=11.5, color=DANGER_C,
+                            selectable=True))
+                    if warnings:
+                        body.append(ft.Text("提醒：" + "；".join(
+                            [str(x) for x in warnings[:6]]), size=11.5, color=WARN_C,
+                            selectable=True))
+                    body.append(ft.TextField(value=txt, multiline=True, min_lines=12,
+                                             max_lines=22, read_only=True, width=680,
+                                             text_size=11, bgcolor=CARD_2,
+                                             border_color=CARD_2, color=TEXT))
+                    dlg = ft.AlertDialog(
+                        modal=True, title=ft.Text("保存包预览（只读）"),
+                        content=ft.Column(body, spacing=6, width=700, height=460,
+                                          scroll=ft.ScrollMode.AUTO),
+                        actions=[ft.TextButton("关闭", on_click=lambda ev: _close(dlg))])
+                    self._show_dlg(dlg)
+                except Exception as ex:
+                    _status(save_status, f"保存包预览失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"保存包预览失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def do_save(e=None):
+            if _preview_mode:
+                _status(save_status,
+                        "当前是预演模式（AURORA_NO_SAVE/AURORA_TEST）：保存已拒绝，"
+                        "请用「预演」校验；真实保存需在正式环境操作", WARN_C)
+                _toast("预演模式：已拒绝真实保存，请用「预演」校验", False)
+                return
+            pid = _pid()
+            if not pid:
+                _status(save_status, "先选择/载入一个采集箱商品，再保存", WARN_C)
+                _toast("请先选择或载入采集箱商品", False)
+                return
+            missing = _precheck()
+            if missing:
+                _render_missing(missing)
+                _status(save_status,
+                        f"保存前置检查未通过（{len(missing)} 项），未发起写请求", DANGER_C)
+                _toast("保存前置检查未通过，已阻止保存", False)
+                _ui()
+                return
+            op, _sep, save_mode = str(op_dd.value or "1").partition("|")
+            op_value = op or "1"
+            op_text = _opt_text(op_dd, str(op_dd.value or "1")) or f"op={op_value}"
+            _status(save_status, "保存前校验中（读取详情 + 必填校验，不写数据）…", MUTED)
+
+            def work():
+                try:
+                    _make, _payload, pipeline = _backend()
+                    _detail, payload, issues, warnings = pipeline.prepare_save(
+                        pid, self.cfg, overrides=_overrides())
+                    if issues:
+                        dlg = ft.AlertDialog(
+                            modal=True, title=ft.Text("保存前校验未通过"),
+                            content=ft.Column([
+                                ft.Text(f"商品：{pid}", size=12.5, color=TEXT),
+                                *[ft.Text("✗ " + str(x), size=12, color=DANGER_C,
+                                          selectable=True) for x in issues[:12]],
+                                muted("修正后再预演/保存；UI 不会在阻断项存在时写平台。", 11),
+                            ], spacing=4, width=480, height=260,
+                                scroll=ft.ScrollMode.AUTO),
+                            actions=[ft.TextButton("关闭",
+                                                   on_click=lambda ev: _close(dlg))])
+                        self._show_dlg(dlg)
+                        _status(save_status,
+                                f"校验未通过：{len(issues)} 项，已阻止保存", DANGER_C)
+                        _toast("校验未通过，已阻止保存", False)
+                        return
+                    title = str((payload or {}).get("productName") or
+                                (payload or {}).get("title") or
+                                str(title_tf.value or ""))
+                    shop_name = (str((shops.get(str(_cget("tiktok_shop_id", "") or "")) or {})
+                                    .get("name") or "") or
+                                 str(_cget("tiktok_shop_name", "") or "-"))
+                    site_code = str(_cget("tiktok_site", "") or "")
+                    meta = _site_meta(site_code)
+                    dlg = ft.AlertDialog(
+                        modal=True, title=ft.Text("确认保存到 TikTok"),
+                        content=ft.Column([
+                            ft.Text(f"商品：{pid}", size=12.5, color=TEXT,
+                                    selectable=True),
+                            ft.Text(f"标题：{title[:70]}", size=12.5, color=TEXT),
+                            ft.Text(f"店铺：{shop_name}", size=12.5, color=TEXT),
+                            ft.Text("站点：" + _site_label(meta), size=12.5, color=TEXT),
+                            ft.Text(f"动作：{op_text}", size=13,
+                                    color=WARN_C if op_value in ("2", "3") else TEXT),
+                            *([ft.Text("提醒：" + "；".join([str(w) for w in warnings[:4]]),
+                                       size=11, color=WARN_C, selectable=True)]
+                              if warnings else []),
+                            muted("这会真实写入店小秘/TikTok Shop（不是预演）。", 11),
+                        ], spacing=6, width=470),
+                        actions=[ft.TextButton("取消", on_click=lambda ev: _close(dlg)),
+                                 ft.ElevatedButton(
+                                     "确认保存", bgcolor=SUCCESS_C, color=ON_ACCENT,
+                                     on_click=lambda ev: (
+                                         _close(dlg),
+                                         _save_run(pid, op_value, save_mode, op_text)))])
+                    self._show_dlg(dlg)
+                    _status(save_status, "等待二次确认…", MUTED)
+                except Exception as ex:
+                    _status(save_status, f"保存前检查失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"保存前检查失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        # ---------- ⑧ 诊断 ----------
+        def run_diag(e=None):
+            run_diag_btn.disabled = True
+            diag_box.controls = [muted("诊断中…", 11)]
+            _ui()
+
+            def add(name, ok, msg, warn=False):
+                color = WARN_C if warn else (ACCENT_2 if ok else DANGER_C)
+                icon = (ft.Icons.WARNING_AMBER if warn
+                        else (ft.Icons.CHECK_CIRCLE if ok else ft.Icons.ERROR_OUTLINE))
+                diag_box.controls.append(ft.Row([
+                    ft.Icon(icon, size=15, color=color),
+                    ft.Text(name, size=12.5, color=TEXT, width=96),
+                    ft.Text(str(msg)[:160], size=12, color=MUTED, expand=True,
+                            selectable=True)], spacing=8))
+                _ui()
+
+            def work():
+                try:
+                    ok_backend = True
+                    try:
+                        _backend()
+                    except Exception as ex:
+                        ok_backend = False
+                        add("后端模块", False,
+                            "后端未就绪：" + str(ex)[:100]
+                            + "（页面可继续用站点/类目配置，保存会提示）")
+                    if ok_backend:
+                        c = None
+                        try:
+                            c = _client()
+                            logged = bool(c.check_login())
+                            add("登录", logged, "已登录店小秘" if logged
+                                else "Cookie 失效/未登录：点「读取本机 Cookie」或粘贴")
+                        except Exception as ex:
+                            add("登录", False, str(ex)[:110])
+                        try:
+                            rows = (c.shops() if c is not None else []) or []
+                            tt_rows = [s for s in rows if isinstance(s, dict)]
+                            add("店铺", bool(tt_rows),
+                                (f"TikTok 店铺 {len(tt_rows)} 个：" + "、".join(
+                                    str(s.get("name") or s.get("id") or "")
+                                    for s in tt_rows[:3])) if tt_rows
+                                else "未检测到 TikTok 店铺：请在店小秘『授权店铺』绑定 "
+                                     "TikTok Shop 后点「测试连接」刷新")
+                        except Exception as ex:
+                            add("店铺", False, str(ex)[:110], warn=True)
+                    site = str(_cget("tiktok_site", "") or "").strip().upper()
+                    meta = _site_meta(site) if site else {}
+                    add("站点", bool(site and meta),
+                        (f"{site} · {meta.get('country') or '-'} · "
+                         f"{meta.get('currency') or '-'} · "
+                         f"{meta.get('language_name') or '-'}") if site and meta
+                        else "未选择站点")
+                    cid = str(_cget("tiktok_category_id", "") or "")
+                    add("类目", bool(cid), f"已选类目 {cid}" if cid
+                        else "未选择类目：需下钻到叶子类目")
+                    pid = _pid()
+                    add("商品详情", bool(pid and (product or detail)),
+                        f"已载入商品 {pid}" if (pid and (product or detail))
+                        else ("未载入商品详情（在②点「编辑」载入）" if pid
+                              else "未选择商品"))
+                    missing = _precheck()
+                    add("保存前置", not missing,
+                        "店铺/站点/类目/主图齐全，可预演或保存" if not missing
+                        else "缺：" + "；".join(missing), warn=bool(missing))
+                    diag_status.value = "诊断完成：红色项需修复，黄色项为提醒"
+                    diag_status.color = MUTED
+                except Exception as ex:
+                    diag_status.value = f"诊断异常：{str(ex)[:120]}"
+                    diag_status.color = DANGER_C
+                finally:
+                    run_diag_btn.disabled = False
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        run_diag_btn.on_click = run_diag
+
+        # ---------- 组装卡片 ----------
+        conn_card = card(ft.Column([
+            h1i(ft.Icons.STORE_OUTLINED, "① 连接与店铺 / 站点", FS_MD),
+            muted("店铺与站点分开：店铺用于保存（TikTok Shop 必填）；站点决定类目/语言/"
+                  "币种/限额，未绑定店铺时仍可用 23 个 L7 站点配类目与 AI。"),
+            cookie_src_text,
+            ft.Row([cookie_tf, ft.Column([
+                ft.ElevatedButton("读取本机 Cookie", icon=ft.Icons.COOKIE_OUTLINED,
+                                  bgcolor=CARD_2, color=TEXT, on_click=read_local_cookie),
+                ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
+                                  bgcolor=ACCENT, color=ON_ACCENT,
+                                  on_click=test_connect)], spacing=8, width=180)],
+                spacing=12, vertical_alignment=ft.CrossAxisAlignment.START),
+            muted("Cookie 优先级：本页填写 → 店铺与登录手动 Cookie → 本机浏览器登录态。"
+                  "测试连接只读（登录/店铺/站点/限额/计数）。", 11),
+            ft.Row([shop_dd, site_dd], spacing=12, wrap=True),
+            shop_guide, site_guide,
+            site_meta_text, limit_text,
+            conn_status,
+        ], spacing=8))
+
+        list_card = card(ft.Column([
+            h1i(ft.Icons.INVENTORY_2_OUTLINED, "② 采集箱商品", FS_MD),
+            muted("采集箱(draft) / 待发布(offline) / 在线(online)；点行或「编辑」把商品详情"
+                  "载入下方表单（只读拉取，不写平台）。"),
+            ft.Row([*(state_btns.values())], spacing=6, wrap=True),
+            ft.Row([search_tf,
+                    ft.ElevatedButton("刷新", icon=ft.Icons.REFRESH, bgcolor=ACCENT,
+                                      color=ON_ACCENT,
+                                      on_click=lambda e: refresh_products()),
+                    ft.OutlinedButton("上一页", icon=ft.Icons.CHEVRON_LEFT,
+                                      on_click=list_prev),
+                    ft.OutlinedButton("下一页", icon=ft.Icons.CHEVRON_RIGHT,
+                                      on_click=list_next),
+                    page_info], spacing=10, wrap=True),
+            list_title,
+            list_box,
+            list_status,
+        ], spacing=8))
+
+        cat_card = card(ft.Column([
+            h1i(ft.Icons.CATEGORY_OUTLINED, "③ 类目与属性", FS_MD),
+            muted("类目随站点：先「加载类目」逐级下钻到末级，或用关键词搜索/最近使用；"
+                  "切站点会清空类目（需重选）。属性必填项高亮，保存时原样回写。"),
+            ft.Row([cat_root_dd,
+                    ft.OutlinedButton("加载类目", icon=ft.Icons.REFRESH,
+                                      on_click=load_categories),
+                    cat_hist_dd], spacing=10, wrap=True),
+            cat_crumb,
+            cat_child_box,
+            ft.Row([cat_search_tf,
+                    ft.ElevatedButton("搜索类目", icon=ft.Icons.SEARCH,
+                                      bgcolor=ACCENT, color=ON_ACCENT,
+                                      on_click=_search_categories)], spacing=10,
+                   wrap=True),
+            cat_status, cert_text,
+            attr_status, attr_box,
+            ft.Row([attr_json_text,
+                    ft.TextButton("编辑属性 JSON", icon=ft.Icons.DATA_OBJECT,
+                                  on_click=_edit_attr_json)], spacing=8, wrap=True),
+            ft.Row([brand_tf, maker_tf, responsible_tf], spacing=10, wrap=True),
+        ], spacing=8))
+
+        text_card = card(ft.Column([
+            h1i(ft.Icons.EDIT_NOTE, "④ 文案与 AI", FS_MD),
+            muted("标题 25–255 字符；描述 HTML ≤10000；五点卖点仅 US/4Seller（≤5 条、总长"
+                  "≤1500）；Search Terms 仅 US（≤15 个、总长 ≤250）。非英语站点按站点语言"
+                  "生成；AI 结果全部可编辑。"),
+            ft.Row([ft.Container(content=title_tf, expand=True),
+                    ft.Column([ft.TextButton("AI 生成标题",
+                                             on_click=_ai_one("title")),
+                               title_count], spacing=0, width=110)], spacing=8),
+            ft.Row([ft.Container(content=kf_tf, expand=True),
+                    ft.Column([ft.TextButton("AI 生成五点",
+                                             on_click=_ai_one("key_features")),
+                               kf_count], spacing=0, width=110)], spacing=8),
+            ft.Row([ft.Container(content=desc_tf, expand=True),
+                    ft.Column([ft.TextButton("AI 生成描述",
+                                             on_click=_ai_one("description")),
+                               desc_count], spacing=0, width=110)], spacing=8),
+            ft.Row([ft.Container(content=st_tf, expand=True),
+                    ft.Column([ft.TextButton("AI 生成关键词",
+                                             on_click=_ai_one("search_terms")),
+                               st_count], spacing=0, width=130)], spacing=8),
+            ft.Row([ai_switch,
+                    ft.ElevatedButton("AI 一键生成全部（付费）",
+                                      icon=ft.Icons.AUTO_AWESOME, bgcolor=ACCENT,
+                                      color=ON_ACCENT, on_click=ai_all),
+                    ft.OutlinedButton("AI 一键翻译（站点语言）",
+                                      icon=ft.Icons.TRANSLATE,
+                                      on_click=ai_translate)], spacing=12, wrap=True),
+            ai_us_hint, ai_status,
+        ], spacing=8))
+
+        media_card = card(ft.Column([
+            h1i(ft.Icons.PHOTO_LIBRARY_OUTLINED, "⑤ 图片与视频", FS_MD),
+            muted("主图 URL 每行一个，1–9 张，第 1 张为主图（保存前校验 http/https）；"
+                  "视频可填 TikTok 视频 ID/URL（可空）。"),
+            ft.Row([ft.Container(content=images_tf, expand=True),
+                    ft.Column([ft.ElevatedButton("应用图片", icon=ft.Icons.CHECK,
+                                                 bgcolor=CARD_2, color=TEXT,
+                                                 on_click=apply_images),
+                               ft.TextButton("从商品详情恢复图片",
+                                             on_click=restore_images),
+                               ft.TextButton("清空图片", icon=ft.Icons.CLEAR,
+                                             on_click=clear_images)], spacing=4,
+                              width=180)], spacing=8),
+            img_count, img_box,
+            ft.Row([video_tf,
+                    ft.TextButton("打开视频地址", icon=ft.Icons.OPEN_IN_NEW,
+                                  on_click=_open_video)], spacing=10, wrap=True),
+        ], spacing=8))
+
+        price_card = card(ft.Column([
+            h1i(ft.Icons.SELL_OUTLINED, "⑥ 价格 / 库存 / 物流", FS_MD),
+            muted("价格币种随站点；库存 ≤99999；重量为 TikTok 物流必填（>0）；尺寸单位"
+                  "CENTIMETER/INCH。"),
+            ft.Row([price_tf, currency_text, stock_tf, sku_tf], spacing=10, wrap=True),
+            ft.Row([weight_tf, length_tf, width_tf, height_tf, dim_dd], spacing=10,
+                   wrap=True),
+            ft.Row([type_dd, warehouse_dd,
+                    ft.OutlinedButton("刷新仓库", icon=ft.Icons.REFRESH,
+                                      on_click=load_warehouses)], spacing=10, wrap=True),
+            ft.Row([source_url_tf], spacing=10, wrap=True),
+        ], spacing=8))
+
+        save_card = card(ft.Column([
+            h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "⑦ 预演与保存", FS_MD),
+            muted("先「预演（不保存、不花钱）」；真实保存会二次确认并列出商品/标题/店铺/站点/"
+                  "动作/校验问题。AURORA_NO_SAVE/AURORA_TEST 下只允许预演。"),
+            ft.Row([op_dd,
+                    ft.ElevatedButton("预演（不保存）", icon=ft.Icons.FACT_CHECK,
+                                      bgcolor=ACCENT, color=ON_ACCENT,
+                                      on_click=do_preview),
+                    ft.ElevatedButton("保存（预演模式）" if _preview_mode else "保存到 TikTok",
+                                      icon=ft.Icons.CLOUD_UPLOAD,
+                                      bgcolor=SUCCESS_C, color=ON_ACCENT,
+                                      on_click=do_save),
+                    ft.TextButton("查看保存包（预演）", icon=ft.Icons.DATA_OBJECT,
+                                  on_click=show_payload)], spacing=10, wrap=True),
+            save_status,
+            result_box,
+        ], spacing=8))
+
+        diag_card = card(ft.Column([
+            h1i(ft.Icons.MEDICAL_SERVICES_OUTLINED, "⑧ 诊断", FS_MD),
+            muted("逐项检查：后端模块 / 登录 / 店铺 / 站点 / 类目 / 商品详情 / 保存前置。"
+                  "未绑定 TikTok 店铺时给出可操作指引（不影响站点/类目/AI 配置）。"),
+            ft.Row([run_diag_btn], spacing=10, wrap=True),
+            diag_status, diag_box,
+        ], spacing=8))
+
+        # ---------- 初始状态 ----------
+        _render_images()
+        _sync_counts()
+        _sync_state_buttons()
+        _sync_shop_options()
+        if not getattr(self, "_tt_sites", None):
+            self._tt_sites = site_rows
+        _site0 = _sync_site_options()
+        _apply_site_cfg(_site0)
+        _update_us_fields()
+        _render_attrs()
+        _sync_op_bindings()
+        _cid0 = str(_cget("tiktok_category_id", "") or "")
+        if _cid0:
+            try:
+                cat_crumb.value = (f"当前类目：{_cget('tiktok_category_name', '') or _cid0}"
+                                   f"（{_cid0}）· 路径 "
+                                   f"{_cget('tiktok_category_path', '') or '-'}")
+                cat_crumb.color = ACCENT_2
+            except Exception:
+                pass
+        _pid0 = str(_cget("tiktok_test_product_id", "") or "")
+        if _pid0:
+            form.setdefault("id", _pid0)
+        if list_state.get("state"):
+            _sync_state_buttons()
+        return [conn_card, list_card, cat_card, text_card, media_card, price_card,
+                save_card, diag_card]
+
     def _price_of(self, model: str) -> float:
         try:
             from ..api import ApiClient
@@ -12482,17 +15293,18 @@ class App:
         except Exception as ex:
             add("店小秘登录", False, str(ex)[:80], warn=True)
 
-        # 5) ffmpeg
-        try:
-            info = video_probe()
-            _ff_ok = bool(info.get("available"))
-            add("ffmpeg", _ff_ok, info.get("version", "")[:60] or "未安装", warn=not _ff_ok)
+        # 5) ffmpeg（Amazon 无视频功能：不显示该项，也不给下载按钮）
+        if self._cap("video_tools"):
             try:
-                self.diag_ff_btn.visible = not _ff_ok
-            except Exception:
-                pass
-        except Exception as ex:
-            add("ffmpeg", False, str(ex)[:60], warn=True)
+                info = video_probe()
+                _ff_ok = bool(info.get("available"))
+                add("ffmpeg", _ff_ok, info.get("version", "")[:60] or "未安装", warn=not _ff_ok)
+                try:
+                    self.diag_ff_btn.visible = not _ff_ok
+                except Exception:
+                    pass
+            except Exception as ex:
+                add("ffmpeg", False, str(ex)[:60], warn=True)
 
         # 6) 磁盘
         try:
@@ -12672,6 +15484,9 @@ class App:
         if getattr(self, "_dlg", None) is not None:
             return
         """当前设置会用到 ffmpeg（生成主图视频）却没安装时，启动即提示下载。"""
+        if not self._cap("video_tools"):
+            # Amazon 平台没有视频能力：不弹 ffmpeg 下载提示（避免无关 UI）。
+            return
         try:
             need = (str(getattr(self.cfg, "video_source", "") or "").lower() == "generated"
                     or bool(getattr(self.cfg, "generate_main_video", False)))

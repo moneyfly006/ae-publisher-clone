@@ -24,7 +24,7 @@ MODULES = (
     # Amazon 刊登（task-4 接入；AURORA_TEST=1 下应全绿）
     "test_amazon_contract", "test_amazon_client", "test_amazon_payload",
     "test_amazon_prompts", "test_amazon_pipeline", "test_amazon_ui_page",
-    "test_amazon_adapter",
+    "test_amazon_adapter", "test_amazon_platform_ui_filter",
 )
 
 
