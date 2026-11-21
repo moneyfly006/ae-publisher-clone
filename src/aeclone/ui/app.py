@@ -2514,7 +2514,7 @@ class App:
                 _is_amazon = _pid_now == "amazon"
                 _is_tiktok = _pid_now == "tiktok"
                 try:
-                    self.btn_run.tooltip = ("打开 Alibaba 刊登页" if _is_alibaba else
+                    self.btn_run.tooltip = ("打开 Alibaba 刊登页并处理采集箱" if _is_alibaba else
                                             "打开 TikTok 刊登页" if _is_tiktok else
                                             "打开 Amazon 刊登页" if _is_amazon else
                                             "启动 / 停止本次任务（⌘R / Ctrl+R）")
@@ -2532,7 +2532,7 @@ class App:
                     self.btn_run_icon.name = (ft.Icons.PUBLISH if _is_alibaba
                                                else ft.Icons.ROCKET_LAUNCH)
                     self.btn_run_icon.color = ON_ACCENT
-                    self.btn_run_text.value = ("去 Alibaba 刊登" if _is_alibaba
+                    self.btn_run_text.value = ("处理采集箱" if _is_alibaba
                                                else "启动任务")
                 self.btn_run_text.color = ON_ACCENT
                 self.btn_run.bgcolor = ACCENT
@@ -2552,7 +2552,7 @@ class App:
             return
         if (str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba"
                 and not running and not bool(getattr(self, "_stop_requested", False))):
-            self._alibaba_guard("启动任务")
+            self._alibaba_start_batch()
             (getattr(self, '_sync_run_button', None) or (lambda: None))()
             return
         if self._is_tiktok() and not running and not bool(getattr(self, "_stop_requested", False)):
@@ -10146,16 +10146,31 @@ class App:
             threading.Thread(target=work, daemon=True).start()
 
         def _attr_ctx():
-            """读取类目必填属性 + 当前商品已有属性，返回 (client, attrs, missing, product)。"""
+            """读取类目必填属性 + 当前商品已有属性（自动选采集箱第一个/识别类目）。"""
+            c = client()
             cid = str(getattr(self.cfg, "alibaba_category_id", "") or "").strip()
             pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
-            if not cid:
-                raise RuntimeError("先搜索并选择一个类目")
             if not pid:
-                raise RuntimeError("先选择一个商品（商品页）")
-            c = client()
-            attrs = c.required_attributes(cid)
+                try:
+                    from ..services.alibaba_batch import list_collect_products
+                    rows = list_collect_products(c, page_size=1)
+                    if rows:
+                        pid = str(rows[0].get("id") or "")
+                        self.cfg.set("alibaba_test_product_id", pid)
+                except Exception:
+                    pass
+            if not pid:
+                raise RuntimeError("采集箱没有商品，请先采集商品")
             p = c.product_detail(pid)
+            if not cid:
+                cid = str(p.get("categoryId") or "").strip()
+                if cid and cid.lower() not in ("none", "null"):
+                    self.cfg.set("alibaba_category_id", cid)
+                    self.cfg.set("alibaba_full_cid",
+                                 str(p.get("fullCid") or "").replace("/", ","))
+                else:
+                    raise RuntimeError("商品没有类目，请先在「类目」页选择")
+            attrs = c.required_attributes(cid)
             have = {str(x.get("attribute_name") or "").strip().lower()
                     for x in (p.get("attributes") or []) if isinstance(x, dict)}
             missing = [a for a in attrs
@@ -10329,7 +10344,7 @@ class App:
                             cat_now.value = (f"当前类目：{name or _cat}（{_cat}）"
                                              f" · 路径 {full}")
                             cat_now.color = ACCENT_2
-                            status.value = f"已选择商品 {pid}，类目路径已同步"
+                            status.value = f"已选择商品 {pid}，已自动识别类目并读取必填属性"
                             status.color = SUCCESS_C
                         except Exception:
                             pass
@@ -10341,17 +10356,59 @@ class App:
                             status.color = WARN_C
                         except Exception:
                             pass
+                    try:
+                        load_required(None)   # 自动读取该类目必填属性
+                    except Exception:
+                        pass
                     try:self._safe_update()
                     except Exception: pass
                 threading.Thread(target=_sync_cat, daemon=True).start()
             else:
+                # 列表没带类目时，自动读取商品详情识别类目（不需要用户手选）
                 self.cfg.set("alibaba_full_cid", "")
                 self.cfg.set("alibaba_category_name", "")
                 try:
-                    cat_now.value = "当前类目：未选择（先在「类目」页选类目再保存）"
-                    cat_now.color = DANGER_C
+                    cat_now.value = "当前类目：正在自动识别…"
+                    cat_now.color = MUTED
                 except Exception:
                     pass
+
+                def _auto_cat():
+                    try:
+                        p = client().product_detail(str(pid))
+                        cid = str(p.get("categoryId") or "").strip()
+                        full = str(p.get("fullCid") or "").strip()
+                        if cid and cid.lower() not in ("none", "null"):
+                            self.cfg.set("alibaba_category_id", cid)
+                            if full:
+                                self.cfg.set("alibaba_full_cid",
+                                             full.replace("/", ","))
+                            try:
+                                d = client().category_detail(cid)
+                                nm = f"{d.get('nameZh') or ''} / {d.get('nameEn') or ''}".strip(" /")
+                                if nm:
+                                    self.cfg.set("alibaba_category_name", nm)
+                                if not full:
+                                    self.cfg.set("alibaba_full_cid",
+                                                 str(d.get("nodePathId") or cid).replace("/", ","))
+                                cat_now.value = f"自动识别类目：{nm or cid}（{cid}）"
+                                cat_now.color = ACCENT_2
+                            except Exception:
+                                cat_now.value = f"自动识别类目：{cid}"
+                                cat_now.color = ACCENT_2
+                            save_config(self.cfg)
+                            load_required(None)  # 自动读取该类目必填属性
+                        else:
+                            cat_now.value = "未能从商品识别类目，请手动选择"
+                            cat_now.color = WARN_C
+                    except Exception as ex:  # noqa: BLE001
+                        cat_now.value = f"自动识别类目失败：{str(ex)[:80]}"
+                        cat_now.color = WARN_C
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+                threading.Thread(target=_auto_cat, daemon=True).start()
             save_config(self.cfg)
             prod_now.value = f"当前商品：{pid} · {str(subject)[:44]}" + (
                 f" · 类目 {category}" if category else "")
@@ -10360,6 +10417,28 @@ class App:
                 prod_id_tf.value = str(pid)
             except Exception:
                 pass
+
+        def auto_pick_first_product(on_ready=None):
+            """未选商品时自动用采集箱第一个商品，避免反复提示“请选择商品”。"""
+            def work():
+                try:
+                    from ..services.alibaba_batch import list_collect_products
+                    rows = list_collect_products(client(), page_size=5)
+                    if not rows:
+                        raise RuntimeError("采集箱没有商品，请先采集商品")
+                    r = rows[0]
+                    set_product(str(r.get("id")), str(r.get("subject") or ""),
+                                str(r.get("categoryId") or ""))
+                    if on_ready:
+                        on_ready()
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"自动选择商品失败：{str(ex)[:100]}"
+                    status.color = DANGER_C
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+            threading.Thread(target=work, daemon=True).start()
 
         def open_by_id(e=None):
             """按商品 ID 直接打开（在线 2600+ 时不必翻页找）。"""
@@ -10487,10 +10566,11 @@ class App:
         def do_save(e=None, op_override=None):
             pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
             if not pid:
-                status.value = "先选择一个商品（上方「读取商品」或填写商品 ID）"
-                status.color = WARN_C
+                status.value = "未选择商品：正在自动读取采集箱第一个商品…"
+                status.color = MUTED
                 try:self._safe_update()
                 except Exception: pass
+                auto_pick_first_product(lambda: do_save(None, op_override))
                 return
             op = str(op_override or "1")
             use_ai = bool(save_ai_use.value)
@@ -10542,6 +10622,12 @@ class App:
                                         size=13, color=DANGER_C),
                                 *[ft.Text("· " + f, size=12, color=WARN_C, selectable=True)
                                   for f in (precheck.score_fixes or [])[:8]],
+                                *[ft.Text("✗ " + i, size=12, color=DANGER_C,
+                                          selectable=True) for i in (precheck.issues or [])[:8]],
+                                *([ft.Text("· " + str(precheck.scope.get("advice")),
+                                           size=12, color=WARN_C, selectable=True)]
+                                  if precheck.scope and not precheck.scope.get("in_scope_guess", True)
+                                  and precheck.scope.get("advice") else []),
                                 *[ft.Text(("✗ " if not st.ok else "· ") + st.name + "：" + st.detail,
                                           size=12, color=DANGER_C if not st.ok else MUTED,
                                           selectable=True) for st in precheck.steps],
@@ -10649,6 +10735,15 @@ class App:
         batch_limit = ft.TextField(label="本次处理数量（0=全部）", width=180, value="10",
                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         batch_ai = ft.Switch(label="本次使用 AI 生成文案", value=False, active_color=ACCENT)
+        batch_only_cat = ft.Switch(label="只处理匹配类目（可选）", value=False,
+                                   active_color=ACCENT)
+        batch_cat_tf = ft.TextField(label="批量处理的目标类目", width=220, dense=True,
+                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                    value=str(getattr(self.cfg, "alibaba_batch_category_id", "") or ""),
+                                    hint_text="如 127726092（机械类）",
+                                    on_change=lambda e: (self.cfg.set("alibaba_batch_category_id",
+                                                                      str(e.control.value or "").strip()),
+                                                         save_config(self.cfg)))
 
         def _batch_limit() -> int:
             try:
@@ -10694,6 +10789,9 @@ class App:
             threading.Thread(target=work, daemon=True).start()
 
         def run_batch(e=None, op="1", confirmed=False):
+            if getattr(self, "_alibaba_batch_running", False):
+                self.toast("采集箱正在批量处理中，请稍候…", False)
+                return
             if op == "2" and not confirmed:
                 def _go(ev):
                     _close_dlg(dlg)
@@ -10709,6 +10807,7 @@ class App:
                                                on_click=_go)])
                 _show_dlg(dlg)
                 return
+            self._alibaba_batch_running = True
             batch_status.value = "批量处理中…"
             batch_status.color = MUTED
             batch_box.controls = []
@@ -10721,11 +10820,13 @@ class App:
                 try:
                     from ..services.alibaba_batch import run_collect_batch
                     def progress(i, total, rec):
-                        ok = "✓" if rec.get("ok") else "✗"
-                        color = ACCENT_2 if rec.get("ok") else DANGER_C
+                        skipped = bool(rec.get("skipped"))
+                        ok = "⏭" if skipped else ("✓" if rec.get("ok") else "✗")
+                        color = MUTED if skipped else (ACCENT_2 if rec.get("ok") else DANGER_C)
                         batch_box.controls.append(ft.Text(
                             f"{ok} {i}/{total} {rec.get('id')} · {str(rec.get('subject') or '')[:40]}"
                             f"  {('评分 %.2f' % rec['score']) if rec.get('score') else ''}"
+                            f"{(' · 自动补属性 %d 项（请复核）' % len(rec.get('autofilled') or [])) if rec.get('autofilled') else ''}"
                             f"{(' · ' + rec['error'][:70]) if rec.get('error') else ''}",
                             size=11.5, color=color, selectable=True))
                         batch_status.value = f"批量处理：{i}/{total}"
@@ -10735,25 +10836,37 @@ class App:
                             pass
                     results = run_collect_batch(
                         self.cfg, op=str(op), limit=_batch_limit(),
-                        use_ai=bool(batch_ai.value), client=client(), progress=progress)
+                        use_ai=bool(batch_ai.value), client=client(), progress=progress,
+                        only_current_category=bool(batch_only_cat.value),
+                        current_category=str(batch_cat_tf.value or "").strip())
                     ok_n = sum(1 for x in results if x.get("ok"))
-                    batch_status.value = f"批量完成：成功 {ok_n} / {len(results)}"
-                    batch_status.color = ACCENT_2 if ok_n == len(results) else WARN_C
-                    self.toast(f"采集箱批量完成：成功 {ok_n}/{len(results)}", ok_n == len(results))
+                    skip_n = sum(1 for x in results if x.get("skipped"))
+                    fail_n = len(results) - ok_n - skip_n
+                    batch_status.value = (f"批量完成：成功 {ok_n} / 跳过 {skip_n} / 失败 {fail_n}")
+                    batch_status.color = (ACCENT_2 if fail_n == 0 else WARN_C)
+                    self.toast(f"采集箱批量完成：成功 {ok_n}，跳过 {skip_n}，失败 {fail_n}",
+                               fail_n == 0)
                 except Exception as ex:  # noqa: BLE001
                     batch_status.value = f"批量处理失败：{str(ex)[:150]}"
                     batch_status.color = DANGER_C
+                finally:
+                    self._alibaba_batch_running = False
                 try:
                     self._safe_update()
                 except Exception:
                     pass
             threading.Thread(target=work, daemon=True).start()
 
+        self._alibaba_batch_run = run_batch
+        self._alibaba_batch_load = load_collect
+        self._alibaba_batch_limit = _batch_limit
+
         batch_card = card(ft.Column([
             h1("采集箱批量处理（不用手动选商品）", FS_MD),
-            muted("参考速卖通流程：读取采集箱商品 → 按下方预设资料批量修改 → 保存草稿/发布；"
-                  "不需要逐个手选。失败的会逐条显示原因。"),
-            ft.Row([batch_limit, batch_ai,
+            muted("参考速卖通流程：读取采集箱商品 → 按每个商品自己的类目自动补齐必填属性 → "
+                  "保存草稿/发布；不需要逐个手选。自动补的属性会标记「请复核」，"
+                  "发布仍需评分 ≥4.5。"),
+            ft.Row([batch_limit, batch_cat_tf, batch_ai, batch_only_cat,
                     ft.ElevatedButton("刷新采集箱", icon=ft.Icons.REFRESH, bgcolor=CARD_2,
                                       color=TEXT, on_click=load_collect),
                     ft.ElevatedButton("处理全部（保存草稿）", icon=ft.Icons.SAVE,
@@ -11169,12 +11282,13 @@ class App:
         def do_score(e=None):
             pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
             if not pid:
-                status.value = "先选择一个商品再评分"
-                status.color = WARN_C
+                status.value = "未选择商品：正在自动读取采集箱第一个商品…"
+                status.color = MUTED
                 try:
                     self._safe_update()
                 except Exception:
                     pass
+                auto_pick_first_product(lambda: do_score(None))
                 return
 
             def work():
@@ -11337,6 +11451,11 @@ class App:
         from ..services import amazon_payload, amazon_pipeline
         return make_client, amazon_payload, amazon_pipeline
 
+    def _amazon_presets(self):
+        """延迟导入 Amazon 提示词预设库（task-12；后端未就绪时 UI 仍可打开页面）。"""
+        from ..services import amazon_presets
+        return amazon_presets
+
     def _amazon_client(self):
         """按契约 §0 Cookie 优先级构造 Amazon 客户端（UI 不直接发 HTTP）。"""
         make_client, _payload, _pipeline = self._amazon_backend()
@@ -11349,6 +11468,7 @@ class App:
             "alibaba_shop_id": "9466975",
             "alibaba_shop_name": "zzyugong",
             "alibaba_category_id": "127726092",
+            "alibaba_batch_category_id": "127726092",
             "alibaba_category_name": "其他混凝土机械 / Other Concrete Machinery",
             "alibaba_full_cid": "201943703,1326,100010658,127726092",
             "alibaba_ai_preset": "machinery_industrial",
@@ -11491,7 +11611,8 @@ class App:
             bgcolor=CARD_2, border_radius=8,
             content=ft.Text(
                 "① 连接店铺/站点  →  ② 选采集箱商品  →  ③ 选类目  →  "
-                "④ 标题/五点/描述 + AI  →  ⑤ 价格/库存/物流  →  ⑥ 发布前检查 → 确认保存",
+                "④ 标题/五点/描述 + AI  →  ④b AI 提示词预设  →  ⑤ 价格/库存/物流  →  "
+                "⑦ 图片提示词  →  ⑥ 发布前检查 → 确认保存",
                 size=12, color=MUTED, selectable=False))
         return [
             page_header("Amazon 刊登",
@@ -11537,6 +11658,28 @@ class App:
 
         def _cset(key, value):
             _cset_raw(key, "" if value is None else str(value))
+
+        def _save_later(delay=0.6):
+            """提示词编辑防抖落盘（只在 Timer 里 save_config，不阻塞输入）。"""
+            try:
+                prev = getattr(self, "_amz_preset_timer", None)
+                if prev is not None:
+                    prev.cancel()
+            except Exception:
+                pass
+
+            def flush():
+                try:
+                    save_config(self.cfg)
+                except Exception:
+                    pass
+            try:
+                t = threading.Timer(delay, flush)
+                t.daemon = True
+                self._amz_preset_timer = t
+                t.start()
+            except Exception:
+                pass
 
         def _ui():
             try:
@@ -11958,6 +12101,7 @@ class App:
         sku_tf = ft.TextField(label="SKU", width=240, bgcolor=CARD_2,
                               border_color=CARD_2, color=TEXT,
                               value=str(_cget("amazon_sku", "") or ""))
+        sku_ai_status = ft.Text("", size=11.5, color=MUTED, selectable=True)
         img_text = ft.Text("图片：主图 0 张 + 附加图 0 张", size=12.5, color=MUTED)
         img_box = ft.Row(spacing=8)
         attr_text = ft.Text("产品属性：未载入商品", size=12, color=MUTED, selectable=True)
@@ -12016,6 +12160,42 @@ class App:
         self._amz_attr_tfs = attr_tfs
         self._amz_attr_extra_box = attr_extra_box
         self._amz_attr_extra_scroll = attr_extra_scroll
+
+        # ---------- ④b/⑦ AI 提示词预设（task-12/13） ----------
+        # (kind, 显示名, 提示词 cfg 键, 预设标记 cfg 键)
+        _PRESET_KINDS = (
+            ("title", "标题", "amazon_title_prompt", "amazon_title_preset"),
+            ("bullets", "五点描述", "amazon_bullet_prompt", "amazon_bullet_preset"),
+            ("description", "产品描述", "amazon_description_prompt",
+             "amazon_description_preset"),
+            ("search_terms", "Search Terms", "amazon_search_terms_prompt",
+             "amazon_search_terms_preset"),
+            ("sku", "SKU", "amazon_sku_prompt", "amazon_sku_preset"),
+            ("image", "图片", "amazon_image_prompt", "amazon_image_preset"),
+        )
+        preset_widgets = {}
+        for _kind, _plabel, _pkey, _mkey in _PRESET_KINDS:
+            _pdd = ft.Dropdown(label=f"{_plabel}预设", width=380, bgcolor=CARD_2,
+                               border_color=CARD_2, color=TEXT, options=[],
+                               tooltip="选择预设后用「套用」写入提示词")
+            _pname = ft.Text("当前预设：内置默认", size=11.5, color=MUTED)
+            _ptf = ft.TextField(
+                label=f"{_plabel}提示词（可编辑，留空=内置默认）", width=760,
+                multiline=True, min_lines=4, max_lines=10, bgcolor=CARD_2,
+                border_color=CARD_2, color=TEXT,
+                value=str(_cget(_pkey, "") or ""))
+
+            def _on_prompt_edit(e, _k=_pkey):
+                try:
+                    self.cfg.set(_k, str(e.control.value or ""))
+                    _save_later()
+                except Exception:
+                    pass
+            _ptf.on_change = _on_prompt_edit
+            preset_widgets[_kind] = {"dd": _pdd, "name": _pname, "tf": _ptf,
+                                     "label": _plabel, "prompt_key": _pkey,
+                                     "marker_key": _mkey}
+        self._amz_preset_widgets = preset_widgets
 
         # ---------- ⑥ 发布前检查与保存 ----------
         op_dd = ft.Dropdown(
@@ -13074,6 +13254,237 @@ class App:
             _sync_counts()
             _ui()
 
+        # ---------- ④b/⑦ AI 提示词预设（task-12/13） ----------
+        def _presets():
+            try:
+                return self._amazon_presets()
+            except Exception as ex:
+                raise RuntimeError("预设库未就绪（等待后端 amazon_presets）："
+                                   + str(ex)[:80])
+
+        def _preset_label(kind, key):
+            try:
+                p = _presets().get_preset(kind, key) or {}
+                if isinstance(p, dict):
+                    name = str(p.get("name") or "")
+                    desc = str(p.get("desc") or "")
+                    return f"{name} · {desc[:30]}" if desc else name
+            except Exception:
+                pass
+            return str(key or "")
+
+        def _selected_preset_key(kind):
+            w = preset_widgets.get(kind) or {}
+            try:
+                val = _presets().resolve_selected(self.cfg, kind)
+                if isinstance(val, str) and val:
+                    return val
+                if isinstance(val, dict):
+                    for k in ("key", "preset", "name"):
+                        if val.get(k):
+                            return str(val[k])
+            except Exception:
+                pass
+            return str(_cget(w.get("marker_key", ""), "") or "")
+
+        def _preset_name(kind, key):
+            try:
+                p = _presets().get_preset(kind, key) or {}
+                if isinstance(p, dict) and p.get("name"):
+                    return str(p["name"])
+            except Exception:
+                pass
+            return str(key or "")
+
+        def _sync_preset_name(kind):
+            w = preset_widgets.get(kind) or {}
+            try:
+                name = _preset_name(kind, _selected_preset_key(kind))
+            except Exception:
+                name = ""
+            try:
+                w["name"].value = "当前预设：" + (name or "内置默认")
+                w["name"].color = ACCENT_2 if name else MUTED
+            except Exception:
+                pass
+
+        def _load_presets(kind):
+            w = preset_widgets.get(kind) or {}
+            try:
+                rows = list(_presets().preset_options(kind) or [])
+                opts = []
+                for item in rows:
+                    try:
+                        key, fallback = str(item[0]), str(item[1])
+                    except Exception:
+                        continue
+                    opts.append(ft.dropdown.Option(key,
+                                                   _preset_label(kind, key) or fallback))
+                w["dd"].options = opts
+                w["dd"].disabled = not opts
+                w["dd"].tooltip = ("" if opts else
+                                   "预设库未就绪（等待后端 amazon_presets）")
+                keys = [str(o.key) for o in opts]
+                sel = _selected_preset_key(kind)
+                w["dd"].value = sel if sel in keys else ""
+                if w.get("tf") is not None:
+                    w["tf"].value = str(_cget(w["prompt_key"], "") or "")
+            except Exception:
+                try:
+                    w["dd"].options = []
+                    w["dd"].disabled = True
+                    w["dd"].tooltip = "预设库未就绪（等待后端 amazon_presets）"
+                except Exception:
+                    pass
+            _sync_preset_name(kind)
+
+        def _apply_preset(kind):
+            def handler(e=None):
+                w = preset_widgets.get(kind) or {}
+                key = str((w.get("dd").value if w.get("dd") else "") or "")
+                if not key:
+                    # 后端缺失时优先给「预设库未就绪」，不要误报「请先选择预设」
+                    try:
+                        _presets()
+                    except Exception as ex:
+                        _toast(f"套用预设失败：{str(ex)[:70]}", False)
+                        return
+                    _toast("请先选择一个预设", False)
+                    return
+                try:
+                    prompt = _presets().apply_to_cfg(self.cfg, kind, key) or ""
+                    save_config(self.cfg)
+                    if w.get("tf") is not None:
+                        w["tf"].value = str(prompt or _cget(w["prompt_key"], "") or "")
+                    _sync_preset_name(kind)
+                    name = _preset_name(kind, key) or key
+                    _toast(f"已套用预设：{name}", True)
+                    try:
+                        self._log(f"Amazon 提示词预设：{w.get('label', kind)} → {name}",
+                                  "INFO")
+                    except Exception:
+                        pass
+                except Exception as ex:
+                    _toast(f"套用预设失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+            return handler
+
+        def _reset_preset(kind):
+            def handler(e=None):
+                w = preset_widgets.get(kind) or {}
+                try:
+                    res_key = _presets().reset_to_default(self.cfg, kind) or ""
+                    save_config(self.cfg)
+                    if w.get("tf") is not None:
+                        w["tf"].value = str(_cget(w["prompt_key"], "") or "")
+                    if w.get("dd") is not None:
+                        keys = [str(o.key) for o in (w["dd"].options or [])]
+                        w["dd"].value = str(res_key) if str(res_key) in keys else ""
+                    _sync_preset_name(kind)
+                    _toast("已恢复内置提示词", True)
+                except Exception as ex:
+                    _toast(f"恢复内置失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+            return handler
+
+        def _prompt_render_mapping():
+            mid = str(_cget("amazon_site", "") or _pick(product, "marketPlaceId"))
+            meta = _site_meta(mid)
+            title = str(form.get("title") or _pick(product, "title", "subject") or "")
+            words = title.split()
+            return {
+                "title": title[:120],
+                "subject": (" ".join(words[:7]))[:120],
+                "language": str(meta.get("language_name") or meta.get("language") or ""),
+                "lang": str(meta.get("language") or ""),
+                "country": str(meta.get("country") or ""),
+                "code": str(meta.get("code") or ""),
+            }
+
+        def _render_prompt_text(kind, raw):
+            text = str(raw or "")
+            try:
+                fn = getattr(self._amazon_presets(), "render", None)
+                if callable(fn):
+                    return str(fn(text, _prompt_render_mapping()))
+            except Exception:
+                pass
+            try:
+                out = text
+                for k, v in _prompt_render_mapping().items():
+                    if v:
+                        out = out.replace("{" + k + "}", str(v))
+                return out
+            except Exception:
+                return text
+
+        def _copy_prompt(kind):
+            def handler(e=None):
+                w = preset_widgets.get(kind) or {}
+                raw = str((w.get("tf").value if w.get("tf") else "") or "")
+                if not raw:
+                    raw = str(_cget(w.get("prompt_key", ""), "") or "")
+                if not raw:
+                    _toast("当前提示词为空", False)
+                    return
+                has_product = bool(form.get("id") or product)
+                text = _render_prompt_text(kind, raw) if has_product else raw
+                try:
+                    self.page.set_clipboard(text)
+                    if has_product:
+                        _toast("已复制提示词（占位符已替换为当前商品/站点值）", True)
+                    else:
+                        _toast("已复制提示词（占位符可用 {title}/{subject}/{language} 替换）",
+                               True)
+                except Exception as ex:
+                    _toast(f"复制失败：{str(ex)[:60]}", False)
+            return handler
+
+        def _ai_sku(e=None):
+            if not product:
+                _toast("先载入一个采集箱商品，再让 AI 生成 SKU", False)
+                _status(sku_ai_status, "请先在②载入采集箱商品", WARN_C)
+                return
+
+            def run():
+                _status(sku_ai_status, "AI 正在生成 SKU…", MUTED)
+
+                def work():
+                    try:
+                        _make, _payload, pipeline = _backend()
+                        mid = str(_cget("amazon_site", "") or
+                                  _pick(product, "marketPlaceId"))
+                        value, notes = pipeline.ai_generate_field(
+                            _ai_product(), self.cfg, "sku",
+                            marketplace_id=mid,
+                            count=_as_int(_cget("amazon_bullet_count", 5), 5))
+                        if isinstance(value, (list, tuple)):
+                            value = value[0] if value else ""
+                        raw = str(value or "").strip()
+                        sku = "".join(ch for ch in raw
+                                      if ch.isalnum() or ch in "-_")[:40]
+                        if not sku:
+                            raise RuntimeError("AI 返回的 SKU 为空（请检查提示词/API Key）")
+                        sku_tf.value = sku
+                        _cset("amazon_sku", sku)
+                        form["sku"] = sku
+                        notes = [str(n) for n in (notes or []) if str(n or "").strip()]
+                        _status(sku_ai_status,
+                                f"AI 已生成 SKU：{sku}" +
+                                (f"（{'；'.join(notes[:2])}）" if notes else ""),
+                                WARN_C if notes else SUCCESS_C)
+                        _toast(f"AI 已生成 SKU：{sku}", True)
+                    except Exception as ex:
+                        _status(sku_ai_status,
+                                f"AI 生成 SKU 失败：{str(ex)[:140]}", DANGER_C)
+                        _toast(f"AI 生成 SKU 失败：{str(ex)[:70]}", False)
+                    finally:
+                        _ui()
+                threading.Thread(target=work, daemon=True).start()
+            _ai_confirm("AI 生成 SKU（只填入 SKU 输入框，保存时才随 overrides 提交）", run)
+
         # ---------- ⑤ 回调 ----------
         def load_logistics(e=None):
             sid = str(_cget("amazon_shop_id", "") or "")
@@ -13649,6 +14060,32 @@ class App:
             ai_status,
         ], spacing=8))
 
+        def _preset_block(kind, label, with_copy=False):
+            w = preset_widgets[kind]
+            btns = [ft.ElevatedButton("套用", icon=ft.Icons.CHECK,
+                                      bgcolor=ACCENT, color=ON_ACCENT,
+                                      on_click=_apply_preset(kind)),
+                    ft.TextButton("恢复内置", icon=ft.Icons.RESTART_ALT,
+                                  on_click=_reset_preset(kind))]
+            if with_copy:
+                btns.append(ft.TextButton("复制提示词", icon=ft.Icons.COPY,
+                                          on_click=_copy_prompt(kind)))
+            return [h1(label, 13),
+                    ft.Row([w["dd"], *btns], spacing=10, wrap=True),
+                    w["name"], w["tf"]]
+
+        preset_card = card(ft.Column([
+            h1i(ft.Icons.TUNE, "④b AI 提示词预设（标题 / 五点 / 描述 / Search Terms / SKU）",
+                FS_MD),
+            muted("选预设 →「套用」写入对应提示词（可继续编辑，留空=内置默认）；"
+                  "「恢复内置」清空覆盖。预设只是提示词模板，生成结果仍需人工复核；"
+                  "AI 输出须遵守 Amazon 规则（≤200 标题 / 同词≤2 / 无促销与联系方式）。"),
+            *[c for _kind, _label in (
+                ("title", "标题"), ("bullets", "五点描述"), ("description", "产品描述"),
+                ("search_terms", "Search Terms"), ("sku", "SKU"))
+              for c in _preset_block(_kind, _label)],
+        ], spacing=10))
+
         price_card = card(ft.Column([
             h1i(ft.Icons.SELL_OUTLINED, "⑤ 价格 / 库存 / 物流 / 品牌 / SKU", FS_MD),
             muted("价格/数量/品牌/SKU 会覆盖保存包；图片只读保留原图；"
@@ -13660,7 +14097,11 @@ class App:
             ft.Row([ship_dd,
                     ft.OutlinedButton("刷新运费模板", icon=ft.Icons.REFRESH,
                                       on_click=load_logistics)], spacing=10, wrap=True),
-            ft.Row([brand_tf, maker_tf, sku_tf], spacing=10, wrap=True),
+            ft.Row([brand_tf, maker_tf, sku_tf,
+                    ft.TextButton("AI 生成 SKU", icon=ft.Icons.AUTO_AWESOME,
+                                  tooltip="AI 生成 SKU（只填入输入框，保存时才提交）",
+                                  on_click=_ai_sku)], spacing=10, wrap=True),
+            sku_ai_status,
             # ---------- 发布必填属性（task-8/9）：常用 4 项 + 失败原因动态追加 ----------
             ft.Divider(color=BORDER, height=12),
             h1i(ft.Icons.RULE, "发布必填属性（缺失会导致发布失败）", 14),
@@ -13678,6 +14119,14 @@ class App:
                     ft.TextButton("查看 productAttr（只读）", icon=ft.Icons.DATA_OBJECT,
                                   on_click=show_attrs)], spacing=8, wrap=True),
         ], spacing=8))
+
+        image_preset_card = card(ft.Column([
+            h1i(ft.Icons.IMAGE_OUTLINED, "⑦ AI 图片提示词预设（图片只读，v1 备用）",
+                FS_MD),
+            muted("v1 Amazon 图片只读（不上传/不替换）；提示词用于图片工作台或后续图片处理。"
+                  "主图禁文字/水印，不改变产品本体形状/颜色/材质/比例。"),
+            *_preset_block("image", "图片提示词", with_copy=True),
+        ], spacing=10))
 
         save_card = card(ft.Column([
             h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "⑥ 发布前检查与保存", FS_MD),
@@ -13716,7 +14165,14 @@ class App:
                 pass
         if list_state.get("state"):
             _sync_state_buttons()
-        return [conn_card, list_card, cat_card, text_card, price_card, save_card]
+        # 预设库延迟加载（后端未就绪时下拉禁用，页面不崩）
+        for _kind in ("title", "bullets", "description", "search_terms", "sku", "image"):
+            try:
+                _load_presets(_kind)
+            except Exception:
+                pass
+        return [conn_card, list_card, cat_card, text_card, preset_card,
+                price_card, image_preset_card, save_card]
 
     # ---------- TikTok Shop 刊登（14 号页，契约 §4） ----------
     TIKTOK_STATES = (("draft", "采集箱", "待编辑/待刊登"),
@@ -13741,6 +14197,58 @@ class App:
 
     def _is_tiktok(self) -> bool:
         return str(getattr(getattr(self, "active_platform", None), "id", "")) == "tiktok"
+
+    def _alibaba_start_batch(self) -> bool:
+        """侧栏「运行」按钮：打开 Alibaba 刊登页并开始处理采集箱（保存草稿）。"""
+        if str(getattr(getattr(self, "active_platform", None), "id", "")) != "alibaba":
+            return False
+        try:
+            if self._page_idx != 12:
+                self._switch(12)
+        except Exception:
+            pass
+        if getattr(self, "_alibaba_batch_running", False):
+            try:
+                self.toast("采集箱正在批量处理中，请稍候…", False)
+            except Exception:
+                pass
+            return True
+        run = getattr(self, "_alibaba_batch_run", None)
+        if not callable(run):
+            try:
+                self.toast("已打开 Alibaba 刊登页：请点「处理全部」", True)
+            except Exception:
+                pass
+            return True
+        try:
+            limit = int(getattr(self, "_alibaba_batch_limit", lambda: 10)() or 0)
+        except Exception:
+            limit = 10
+        try:
+            def _go(ev):
+                try:
+                    self.page.close_dialog()
+                except Exception:
+                    pass
+                run(None, "1")
+            dlg = ft.AlertDialog(
+                modal=True, title=ft.Text("处理采集箱商品"),
+                content=ft.Column([
+                    ft.Text(f"将自动读取采集箱商品，按当前预设资料处理前 {limit or '全部'} 个。",
+                            size=13),
+                    ft.Text("动作：保存草稿（不提交审核）；失败的会逐条显示原因。",
+                            size=12.5, color=WARN_C),
+                ], spacing=6, width=420),
+                actions=[ft.TextButton("取消", on_click=lambda e: self.page.close_dialog()),
+                         ft.ElevatedButton("开始处理", bgcolor=SUCCESS_C, color=ON_ACCENT,
+                                           on_click=_go)])
+            self._show_dlg(dlg)
+        except Exception:
+            try:
+                self.toast("已打开 Alibaba 刊登页，请点「处理全部（保存草稿）」", True)
+            except Exception:
+                pass
+        return True
 
     def _alibaba_guard(self, action: str = "启动任务") -> bool:
         """Alibaba 平台不使用速卖通批量管线：点击运行 = 打开 Alibaba 刊登页。
@@ -15270,16 +15778,30 @@ class App:
 
             def work():
                 try:
+                    _make, payload_mod, _pipeline = _backend()
                     c = _client()
-                    rows = c.category_attributes(
-                        site, cid, str(_cget("tiktok_shop_id", "") or "-1"),
-                        cross_border=True, attr_type=3) or []
+                    loader = getattr(payload_mod, "load_category_attributes", None)
+                    errs = []
+                    if callable(loader):
+                        rows = loader(
+                            site, cid, c,
+                            shop_id=str(_cget("tiktok_shop_id", "") or "-1"),
+                            cross_border=True, attr_type=3, errors=errs) or []
+                    else:  # 旧后端兜底：直接用客户端原始属性
+                        rows = c.category_attributes(
+                            site, cid, str(_cget("tiktok_shop_id", "") or "-1"),
+                            cross_border=True, attr_type=3) or []
                     self._tt_attrs = [x for x in rows if isinstance(x, dict)]
+                    self._tt_attr_errors = [str(e) for e in (errs or [])]
                     _render_attrs()
                     req = sum(1 for a in self._tt_attrs
-                              if bool(a.get("required") or a.get("is_required")))
-                    attr_status.value = (f"属性：{len(self._tt_attrs)} 项（必填 {req} 项，"
-                                         f"必填项高亮；保存时原样回写）")
+                              if bool(a.get("isMandatory") or a.get("required")
+                                      or a.get("is_required")))
+                    extra = ("；" + self._tt_attr_errors[0][:80]
+                             if self._tt_attr_errors else "")
+                    attr_status.value = (
+                        f"属性：{len(self._tt_attrs)} 项（必填 {req} 项，必填项高亮）"
+                        f"{extra} · 可点「补全属性」自动填缺失值")
                     attr_status.color = ACCENT_2 if self._tt_attrs else WARN_C
                 except Exception as ex:
                     self._tt_attrs = []
@@ -15290,6 +15812,80 @@ class App:
                     _ui()
 
             threading.Thread(target=work, daemon=True).start()
+
+        def _current_attrs():
+            raw = str(_cget("tiktok_product_attributes", "") or "").strip() or "[]"
+            try:
+                data = _json.loads(raw)
+                if isinstance(data, dict):
+                    return list(data.get("productAttributes") or data.get("attributes") or [])
+                return data if isinstance(data, list) else []
+            except Exception:
+                return []
+
+        def _apply_attr_suggest(use_ai=False):
+            """类目属性补全：规则优先，可选 AI；只补空值，不覆盖用户已填值。"""
+            cid = str(form.get("category_id") or _cget("tiktok_category_id", "") or "")
+            site = str(_cget("tiktok_site", "") or "")
+            attrs = list(getattr(self, "_tt_attrs", None) or [])
+            if not cid:
+                _toast("先选择叶子类目，再补全属性", False)
+                return
+            if not attrs:
+                _toast("属性未加载：请先选叶子类目（或重新加载类目）", False)
+                return
+            attr_status.value = "属性补全：规则推导中…" + ("（AI 兜底）" if use_ai else "")
+            attr_status.color = MUTED
+
+            def work():
+                try:
+                    _make, payload_mod, _pipeline = _backend()
+                    product = _ai_product()
+                    existing = _current_attrs()
+                    product["productAttributes"] = _json.dumps(
+                        existing, ensure_ascii=False)
+                    fn = getattr(payload_mod, "suggest_attributes", None)
+                    if not callable(fn):
+                        raise RuntimeError("后端未提供 suggest_attributes（请更新后端）")
+                    res = fn(product, attrs, site, use_ai=bool(use_ai), cfg=self.cfg) or {}
+                    merge = getattr(payload_mod, "merge_product_attributes", None)
+                    if callable(merge):
+                        merged = merge(existing, res)
+                    else:
+                        merged = existing
+                    text = _json.dumps(merged, ensure_ascii=False)
+                    _cset("tiktok_product_attributes", text)
+                    try:
+                        attr_json_text.value = "属性 JSON：" + (text[:180] or "[]")
+                    except Exception:
+                        pass
+                    miss = res.get("missing_mandatory") or []
+                    coverage = res.get("coverage") or {}
+                    ai_used = bool(res.get("ai_used"))
+                    notes = "；".join(str(n) for n in (res.get("notes") or [])[:2])
+                    attr_status.value = (
+                        f"属性补全完成：{len(merged)} 项（{'AI+规则' if ai_used else '规则'}）"
+                        + (f" · 仍缺必填 {len(miss)} 项" if miss
+                           else " · 必填已齐")
+                        + (f" · 覆盖 {coverage.get('rule_covered')} 项" if isinstance(coverage, dict)
+                           and coverage.get("rule_covered") else "")
+                        + (f" · {notes}" if notes else ""))
+                    attr_status.color = SUCCESS_C if not miss else WARN_C
+                    _toast("属性已补全" + ("（AI，需复核）" if ai_used else ""), True)
+                except Exception as ex:
+                    attr_status.value = f"属性补全失败：{str(ex)[:140]}"
+                    attr_status.color = DANGER_C
+                    _toast(f"属性补全失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def _suggest_attrs_rule(e=None):
+            _apply_attr_suggest(use_ai=False)
+
+        def _suggest_attrs_ai(e=None):
+            _apply_attr_suggest(use_ai=True)
 
         def _edit_attr_json(e=None):
             cur = str(_cget("tiktok_product_attributes", "") or "") or "[]"
@@ -16038,6 +16634,15 @@ class App:
                     ft.ElevatedButton("搜索类目", icon=ft.Icons.SEARCH,
                                       bgcolor=ACCENT, color=ON_ACCENT,
                                       on_click=_search_categories)], spacing=10,
+                   wrap=True),
+            ft.Row([ft.OutlinedButton("补全属性（规则）", icon=ft.Icons.AUTO_FIX_HIGH,
+                                      tooltip="按标题/描述/SKU/已有属性推导缺失的类目属性；"
+                                              "只补空值，不覆盖已填值",
+                                      on_click=_suggest_attrs_rule),
+                    ft.OutlinedButton("AI 补全属性（付费）", icon=ft.Icons.AUTO_AWESOME,
+                                      tooltip="规则补不上的必填属性用 AI 建议（枚举必须命中，"
+                                              "需复核后再保存）",
+                                      on_click=_suggest_attrs_ai)], spacing=10,
                    wrap=True),
             cat_status, cert_text,
             attr_status, attr_box,

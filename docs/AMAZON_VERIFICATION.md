@@ -14,6 +14,7 @@
 | 真实账号只读核验 | **PASS 18/18** | `docs/amazon-readonly-verification.json`（generated_at `2026-11-22T02:13:07+08:00`） |
 | 发布状态独立核验（task-10/11） | **PASS**：最新实时 25 个发布失败 = **A 23（92.0%）/ B 2（8.0%）/ C 0 / D 0**；发布中 0（瞬态） | `docs/amazon-publish-state.json`（generated_at `2026-11-22T03:33:42+08:00`） |
 | 发布 UI / 全按钮 / 逻辑矩阵（task-11） | **27/27 PASS**；69 个可见按钮 0 异常；9 条逻辑断言全 PASS；正式版文案 prod/test 泄漏 0 | `docs/amazon-publish-ui-verify.json`（generated_at `2026-11-22T03:35:14+08:00`） |
+| AI 提示词预设库（task-14） | **25/25 PASS**；50 个预设（title 10/bullets 7/description 7/search_terms 6/sku 6/image 14）；合规扫描 0 未豁免命中 | `docs/amazon-presets-verification.json`（generated_at `2026-11-22T03:47:47+08:00`） |
 | Amazon 测试（8 文件 194 用例） | **194/194 OK**（`AURORA_TEST=1`） | `tests/test_amazon_*.py` |
 | 离线契约测试 | **27/27 OK** | `tests/test_amazon_contract.py` |
 | 平台隔离审计（task-6 独立实现） | **79/79 PASS**（含 ⌘F 修复后复验；隐藏过头=0 / 隐藏不足=0） | `docs/amazon-platform-isolation.json` |
@@ -317,6 +318,8 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 | `docs/amazon-platform-isolation.json` | 平台隔离独立审计（79/79 PASS；隐藏过头/隐藏不足均为空） |
 | `docs/amazon-publish-state.json` | 发布状态只读核验（最新 25 个发布失败：A23/B2/C0/D0，实时快照） |
 | `docs/amazon-publish-ui-verify.json` | 发布 UI/全按钮/逻辑矩阵/正式版文案扫描（27/27 PASS，69 按钮 0 异常） |
+| `docs/amazon-presets-verification.json` | AI 提示词预设库独立验收（25/25 PASS；50 预设/合规/功能/UI/隔离） |
+| `docs/design/amazon-presets.png` | 13 页 ④b 预设卡 + ⑦ 图片预设卡截图（449,304 B） |
 | `docs/design/amazon-listing-page.png` | 13 页顶部截图（274,162 B） |
 | `docs/design/amazon-listing-page-2-price-preview.png` | 13 页价格/预演截图（263,971 B） |
 | `docs/design/amazon-listing-page-3-save.png` | 13 页底部截图（265,636 B） |
@@ -505,3 +508,90 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 - 结论：**软件发布链路（op=2）真实可用**；「发布失败」列表需先看 errMsg——100521 是平台审核中，
   不是软件失败；B 类按缺失属性补齐、C 类改文案、D 类按平台规则改标题后均可重发成功。
 
+
+
+---
+
+## 12. AI 提示词预设库独立验收（task-14）
+
+工具：`tools/verify_amazon_presets.py`（离线/只读：公开 API 实测 + 沙箱 UI，不联网、不真实写）。
+证据：`docs/amazon-presets-verification.json`（generated_at `2026-11-22T03:47:47+08:00`，
+**25/25 PASS**，PRESET_VERSION `2026-11-22.1`）。截图：
+`docs/design/amazon-presets.png`（449,304 B，13 页 ④b 预设卡 + ⑦ 图片预设卡）。
+
+### 12.1 六类预设清单（共 50 个）
+
+| 类别 | 数量 | 最低要求 |
+|---|---|---|
+| title | **10** | ≥6 ✅ |
+| bullets | **7** | ≥5 ✅ |
+| description | **7** | ≥5 ✅ |
+| search_terms | **6** | ≥5 ✅ |
+| sku | **6** | ≥5 ✅ |
+| image | **14** | ≥10 ✅ |
+
+- **title（10）**：工业机械 B2B 参数型、工程机械高转化、农机 / 园林、包装 / 食品机械、数控 / 金属加工、激光 / 焊接、通用工业品高转化 SEO、品牌 + 型号 + 规格 + 场景、移动端短标题（≤80 字符）、型号 / 规格优先
+- **bullets（7）**：Benefit-first（默认）、参数规格优先、场景化（施工 / 农场 / 仓储）、B2B 采购关注（耐用 / 维护 / 配件）、差异化对比（不贬低竞品）、合规安全型、FAQ 式卖点
+- **description（7）**：标准工业结构（用途→参数→结构→服务）、参数表导向、场景应用型、B2B 信任型（质保 / 配件 / 售后）、移动端短描述、中性方案对比、A+ 风格分段
+- **search_terms（6）**：核心词 + 属性 + 场景、长尾组合、同义词 / 拼写变体、采购意图词、型号系列词、应用场景词
+- **sku（6）**：品牌-型号-规格、型号-变体属性、站点-类目-序号、简码-尺寸-功率、纯字母数字短码、型号-颜色-数量
+- **image（14）**：主图纯白底、主图浅灰棚拍、工业场景图、细节特写、尺寸 / 规格信息图（仅副图）、配件 / 包装清单图、去水印 / Logo / 二维码、图片文字翻译（站点语言）、老图修复清晰化、A+ 生活方式图、作业动作主视觉、包装箱 / 托盘展示（仅副图）、多张细节拼合（仅副图）、多角度展示
+
+### 12.2 内容合规审计
+
+- **命名/描述/prompt 质量**：50 条名称、desc 非空，prompt 长度 ≥120 字符；全部含明确约束
+  （长度上限/同词频次/禁止项/输出格式）。
+- **占位符白名单**：仅 `{country}{code}{language}{lang}{title_limit}{bullet_limit}
+  {bullet_suggest}{count}{desc_bytes}{st_bytes}{title}{subject}`；50 条预设**0 个未知占位符**；
+  `render` 只替换已知占位符，未知 `{unknown_ph}` 原样保留且不报错。
+- **促销/联系方式扫描**：非 image 类 36 条 prompt 扫描 `best / No.1 / 100% / free shipping /
+  sale / guarantee / http / @ / 电话 / WhatsApp`，**0 条未豁免命中**。
+  白名单规则：命中词若所在分句含「禁止/不得/不要/不含/避免/切勿/无」等否定语境则豁免
+  （避免把「禁止促销」的合规指令误判为示例）。
+- **SKU 预设约束**：6 条均包含 ≤40、字母/数字/-/_、不得含空格、只输出 SKU。
+- **图片主图约束**：`white_bg_main` 同时包含「纯白、文字、水印、产品本体、Logo」约束。
+
+### 12.3 功能验收（全 PASS）
+
+- `list_presets / preset_options / get_preset / apply_to_cfg / resolve_selected /
+  reset_to_default / render` 六类行为一致；apply 写入 prompt+选择 key+版本 key；
+  resolve 合法回显、非法回落默认；reset 回默认。
+- **build_*_prompt 确实使用新 prompt**：title / bullets / description / search_terms / sku
+  五类套用后构建的 prompt 均包含预设文本；cfg 自定义提示词覆盖也生效。
+- **`ai_generate_field("sku")`**：FakeApi 返回非法脏文本 `Seller SKU: hw20 28/CA_01` →
+  清洗为 `hw20-28-CA_01`（合法 ≤40、[A-Za-z0-9_-]）。
+- **`parse_sku` 边界**：空串、代码围栏+标签、超长 60 字符（截断 ≤40）、非法字符/中文/空格
+  全部清洗为合法字符集。
+- **UI**：六类预设下拉（10/7/7/6/6/14 选项）+ 套用×6 + 恢复内置×6 + 复制提示词 +
+  5 类文本提示词可编辑框 + 图片提示词可编辑框 + 当前预设名 +「AI 生成 SKU」按钮；
+  实测点「套用」写入 `amazon_title_prompt` 成功。
+- **后端缺失降级**：`amazon_presets` 模块不可用时 13 页仍渲染（下拉禁用/提示未就绪），不崩溃。
+
+### 12.4 平台隔离
+
+- AliExpress `TEXT_PROMPT_PRESETS` 仍存在；Alibaba `services/alibaba_prompts.py` 行业预设模块仍在；
+  AliExpress AI 文案页 / Alibaba 12 页 / Amazon 13 页均可渲染。
+- Amazon 预设只写 `amazon_*_prompt/amazon_*_preset/amazon_presets_version` 独占键；
+  实测 apply 六类后 Alibaba/AliExpress 提示词键**完全未被修改**。
+- Amazon 页面正式版文案扫描：**0 泄漏**（AURORA_/预演模式/本地验收/测试连接/沙箱/mock/验收预演）。
+
+### 12.5 回归与 P0/P1/P2
+
+- `tools/verify_amazon_presets.py`：**25/25 PASS**；截图 `docs/design/amazon-presets.png`（449,304 B）。
+- 全部 `tests/test_amazon_*.py`（12 文件）：**全部 PASS**（含新增 `test_amazon_presets_audit` 11 用例、
+  `test_amazon_presets` 25 用例、`test_amazon_ui_page` 25 用例）。
+- `tools/verify_regressions.py`：**71 模块 70 PASS / 1 FAIL**；唯一 FAIL 为
+  `test_ui_redesign`（外部 Alibaba 页新增 `Switch(bool)` 导致测试 join 报错，非 Amazon，单列）。
+- `tools/test_offline.py`：**754 tests OK**（已接入 `test_amazon_presets_audit`）。
+- `button_audit`：**21 页 / 618 回调，ERROR 0**。
+- `verify_amazon.py`：18/18 PASS；`verify_amazon_ui.py`：27/27 PASS；`compileall`：exit 0。
+- **P0：无。**
+- **P1：无（Amazon）。** 唯一回归失败 `test_ui_redesign` 属外部 Alibaba 并发改动（非 Amazon）。
+- **P2**：
+  1. 图片提示词输入框 label 文案重复：「图片提示词提示词（可编辑，留空=内置默认）」→
+     建议改为「图片提示词（可编辑…）」（UI 文案小瑕疵，不影响功能）。
+  2. 「复制提示词」在未载入商品时复制原始占位符文本（设计如此，提示用户可用
+     `{title}/{subject}/{language}` 替换）；载入商品后走后端 render 替换。
+  3. 图片预设 v1 仅作提示词备用（Amazon 图片只读，不上传/不替换），截图中的 ⑦ 卡为提示词预览。
+- **外部问题单列**：`test_ui_redesign` 1 ERROR 来自 Alibaba 页新增 `Switch(bool)`（外部并发改动），
+  非 Amazon，已按 Lead 要求单列不计。

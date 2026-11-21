@@ -186,15 +186,22 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                        "Search Terms（≤250 字节）", "保存动作",
                        "型号（model_number）", "型号名称（model_name）",
                        "零件编号（part_number）",
-                       "制造商联系信息（manufacturer_contact_information）"):
+                       "制造商联系信息（manufacturer_contact_information）",
+                       "标题预设", "五点描述预设", "产品描述预设",
+                       "Search Terms预设", "SKU预设", "图片预设"):
             self.assertIn(expect, labels)
         btn_texts = {str(getattr(b, "text", "")) for b in visible_buttons(self.app)}
         for expect in ("读取本机 Cookie", "检测连接", "刷新", "加载类目", "校验路径",
-                       "AI 生成标题", "AI 一键生成全部（付费）", "发布前检查（不保存）",
-                       "查询发布结果", "自动补齐并重试发布", "自动补齐必填属性",
+                       "AI 生成标题", "AI 一键生成全部（付费）", "AI 生成 SKU",
+                       "发布前检查（不保存）", "查询发布结果", "自动补齐并重试发布",
+                       "自动补齐必填属性", "套用", "恢复内置", "复制提示词",
                        "发布中", "发布失败"):
             self.assertIn(expect, btn_texts, f"13 页缺少可用控件：{expect}")
         self.assertTrue(any("保存" in t for t in btn_texts))
+        # 新增预设卡（task-12/13）
+        page_text = " ".join(texts(self.app))
+        self.assertIn("④b AI 提示词预设", page_text)
+        self.assertIn("⑦ AI 图片提示词预设", page_text)
         # 正式版文案：可见文本不含测试/开发措辞
         page_all = " ".join(texts(self.app)) + " " + " ".join(btn_texts)
         for banned in ("AURORA_", "预演", "测试连接", "本地验收"):

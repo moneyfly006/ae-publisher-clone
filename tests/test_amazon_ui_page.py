@@ -252,7 +252,8 @@ def make_backend():
         value = {"title": "AI Title Example",
                  "bullets": ["AI 卖点 1", "AI 卖点 2", "AI 卖点 3", "AI 卖点 4", "AI 卖点 5"],
                  "description": "<p>AI 描述</p>",
-                 "search_terms": "ai keyword"}.get(field, "")
+                 "search_terms": "ai keyword",
+                 "sku": "Fake-SKU-001"}.get(field, "")
         return value, []
 
     def ai_generate_all(product, cfg, marketplace_id="", count=5):
@@ -290,6 +291,91 @@ def fake_backend(behavior=None):
                       lambda self: (make_client, payload, pipeline)):
         yield SimpleNamespace(client=client, calls=calls, payload=payload,
                               pipeline=pipeline, behavior=beh)
+
+
+# ---------- mock 预设库（task-12 契约） ----------
+PRESET_PROMPT_KEYS = {"title": "amazon_title_prompt",
+                      "bullets": "amazon_bullet_prompt",
+                      "description": "amazon_description_prompt",
+                      "search_terms": "amazon_search_terms_prompt",
+                      "sku": "amazon_sku_prompt",
+                      "image": "amazon_image_prompt"}
+PRESET_MARKER_KEYS = {"title": "amazon_title_preset",
+                      "bullets": "amazon_bullet_preset",
+                      "description": "amazon_description_preset",
+                      "search_terms": "amazon_search_terms_preset",
+                      "sku": "amazon_sku_preset",
+                      "image": "amazon_image_preset"}
+
+
+def make_presets():
+    data = {
+        "title": {"industry_b2b": ("工业机械 B2B 参数型", "型号+规格+场景"),
+                  "seo_generic": ("通用 SEO 标题", "高转化关键词")},
+        "bullets": {"benefit_first": ("Benefit-first", "利益点开头"),
+                    "spec_first": ("参数规格优先", "B2B 采购")},
+        "description": {"industrial_standard": ("标准工业结构", ""),
+                        "param_table": ("参数表导向", "")},
+        "search_terms": {"core_attr": ("核心词+属性", ""),
+                         "longtail": ("长尾组合", "")},
+        "sku": {"brand_model": ("品牌-型号-规格", ""),
+                "short_code": ("纯字母数字短码", "")},
+        "image": {"main_white": ("主图纯白底", "白底主图"),
+                  "scene": ("工业场景图", "场景"),
+                  "translate": ("图片文字翻译", "")},
+    }
+    presets = {}
+    for kind, items in data.items():
+        presets[kind] = {k: {"name": name, "desc": desc,
+                             "prompt": f"{kind} {k} {{title}} {{language}}"}
+                         for k, (name, desc) in items.items()}
+    calls = {"apply": [], "reset": []}
+
+    def preset_options(kind):
+        return [(k, v["name"]) for k, v in presets.get(kind, {}).items()]
+
+    def get_preset(kind, key):
+        return dict(presets.get(kind, {}).get(key) or {})
+
+    def list_presets(kind):
+        return list(presets.get(kind, {}).values())
+
+    def apply_to_cfg(cfg, kind, key):
+        prompt = presets[kind][key]["prompt"]
+        cfg.set(PRESET_PROMPT_KEYS[kind], prompt)
+        cfg.set(PRESET_MARKER_KEYS[kind], key)
+        calls["apply"].append((kind, key))
+        return prompt
+
+    def resolve_selected(cfg, kind):
+        return str(cfg.get(PRESET_MARKER_KEYS[kind], "") or "")
+
+    def reset_to_default(cfg, kind):
+        cfg.set(PRESET_PROMPT_KEYS[kind], "")
+        cfg.set(PRESET_MARKER_KEYS[kind], "")
+        calls["reset"].append(kind)
+        return ""
+
+    def render(text, mapping):
+        out = str(text or "")
+        for k, v in (mapping or {}).items():
+            if v:
+                out = out.replace("{" + k + "}", str(v))
+        return out
+
+    return SimpleNamespace(PRESET_KINDS=tuple(PRESET_PROMPT_KEYS),
+                           presets=presets, calls=calls,
+                           preset_options=preset_options, get_preset=get_preset,
+                           list_presets=list_presets, apply_to_cfg=apply_to_cfg,
+                           resolve_selected=resolve_selected,
+                           reset_to_default=reset_to_default, render=render)
+
+
+@contextmanager
+def fake_presets():
+    mod = make_presets()
+    with patch.object(ui.App, "_amazon_presets", lambda self: mod):
+        yield mod
 
 
 @contextmanager
@@ -404,8 +490,11 @@ class AmazonPageTests(unittest.TestCase):
         self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
         all_text = texts(self.app)
         for title in ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
-                      "④ 标题与卖点（AI）", "⑤ 价格 / 库存 / 物流 / 品牌 / SKU",
-                      "⑥ 发布前检查与保存"):
+                      "④ 标题与卖点（AI）",
+                      "④b AI 提示词预设（标题 / 五点 / 描述 / Search Terms / SKU）",
+                      "⑤ 价格 / 库存 / 物流 / 品牌 / SKU",
+                      "⑥ 发布前检查与保存",
+                      "⑦ AI 图片提示词预设（图片只读，v1 备用）"):
             self.assertIn(title, all_text)
         # 关键控件（契约 §4.3）
         self.assertIn("店铺", labels(self.app))
@@ -426,10 +515,15 @@ class AmazonPageTests(unittest.TestCase):
                     "加载类目", "校验路径", "AI/平台推荐产品类型",
                     "AI 生成标题", "AI 生成五点", "＋添加卖点", "AI 生成描述",
                     "AI 生成关键词",
-                    "AI 一键生成全部（付费）", "刷新运费模板", "查看 productAttr（只读）",
+                    "AI 一键生成全部（付费）", "AI 生成 SKU", "刷新运费模板",
+                    "查看 productAttr（只读）",
                     "发布前检查（不保存）", "查询发布结果", "自动补齐并重试发布",
-                    "自动补齐必填属性"):
+                    "自动补齐必填属性", "套用", "恢复内置", "复制提示词"):
             find_button(self.app, btn)
+        # 预设下拉 6 类（5 文案 + 图片）
+        for label in ("标题预设", "五点描述预设", "产品描述预设",
+                      "Search Terms预设", "SKU预设", "图片预设"):
+            self.assertIn(label, labels(self.app), f"缺少预设下拉：{label}")
         # 检查模式（AURORA_TEST=1）下保存按钮明示
         self.assertTrue(any("检查模式" in str(b.text) for b in buttons(self.app)))
         # 状态按钮：采集箱/待发布/发布中/发布失败/在线
@@ -516,6 +610,110 @@ class AmazonPageTests(unittest.TestCase):
             click(find_button(self.app, "AI/平台推荐产品类型"))
         self.assertTrue(any(isinstance(c, ft.Text) and c.value
                             and "OUTDOOR_LIVING" in c.value for c in controls(self.app)))
+
+    # ---------- ④b/⑦ AI 提示词预设 + SKU AI（task-12/13） ----------
+    def _preset_dropdown(self, label):
+        return find_control(self.app, ft.Dropdown,
+                            lambda c: getattr(c, "label", "") == label)
+
+    def _preset_buttons(self, text):
+        return [b for b in buttons(self.app)
+                if str(getattr(b, "text", "")) == text]
+
+    def test_prompt_presets_apply_edit_reset_and_selection_name(self):
+        with fake_presets() as mod:
+            self.app._switch(0)
+            self.app._switch(13)
+            dd = self._preset_dropdown("标题预设")
+            self.assertIsNotNone(dd, "缺少标题预设下拉")
+            self.assertFalse(dd.disabled, "预设库就绪时下拉应可用")
+            self.assertEqual(len(dd.options), 2)
+            key = str(dd.options[0].key)
+            dd.value = key
+            click(self._preset_buttons("套用")[0])
+            prompt = mod.presets["title"][key]["prompt"]
+            self.assertEqual(self.app.cfg.amazon_title_prompt, prompt)
+            self.assertEqual(self.app.cfg.amazon_title_preset, key)
+            self.assertIn("已套用预设", snack(self.app))
+            self.assertIn(mod.presets["title"][key]["name"], " ".join(texts(self.app)))
+            tf = find_control(
+                self.app, ft.TextField,
+                lambda c: getattr(c, "label", "") == "标题提示词（可编辑，留空=内置默认）")
+            self.assertEqual(tf.value, prompt)
+            # 编辑即写回 cfg（防抖落盘）
+            tf.value = "自定义标题提示词：{title} {language}"
+            change(tf)
+            self.assertEqual(self.app.cfg.amazon_title_prompt, tf.value)
+            # 恢复内置
+            click(self._preset_buttons("恢复内置")[0])
+            self.assertEqual(self.app.cfg.amazon_title_prompt, "")
+            self.assertEqual(self.app.cfg.amazon_title_preset, "")
+            self.assertIn("内置默认", " ".join(texts(self.app)))
+            # 预设下拉覆盖 5 类文案 + 图片
+            for label, count in (("五点描述预设", 2), ("产品描述预设", 2),
+                                 ("Search Terms预设", 2), ("SKU预设", 2),
+                                 ("图片预设", 3)):
+                dd = self._preset_dropdown(label)
+                self.assertIsNotNone(dd, f"缺少预设下拉：{label}")
+                self.assertEqual(len(dd.options), count, label)
+
+    def test_ai_generate_sku_button_fills_input_only(self):
+        self.app._switch(13)
+        self._load_product()
+        with fake_backend() as env, sync_threads():
+            click(find_button(self.app, "AI 生成 SKU"))
+            self.assertIsNotNone(self.app.page.dialog, "SKU AI 缺少付费确认")
+            self.assertIn("付费", str(self.app.page.dialog.title.value))
+            click(self.app.page.dialog.actions[1])
+        sku_tf = find_control(self.app, ft.TextField,
+                              lambda c: getattr(c, "label", "") == "SKU")
+        self.assertEqual(sku_tf.value, "Fake-SKU-001")
+        self.assertEqual(self.app.cfg.amazon_sku, "Fake-SKU-001")
+        self.assertEqual(env.calls["ai"][-1]["field"], "sku")
+        self.assertEqual(env.calls["run"], [], "SKU AI 只填输入框，不得真实保存/发布")
+
+    def test_image_preset_apply_and_copy_renders_placeholders(self):
+        with fake_presets() as mod:
+            self.app._switch(0)
+            self.app._switch(13)
+            self._load_product()
+            dd = self._preset_dropdown("图片预设")
+            self.assertIsNotNone(dd)
+            key = "main_white"
+            dd.value = key
+            # 第 6 个「套用」= 图片卡（前 5 个是标题/五点/描述/Search Terms/SKU）
+            click(self._preset_buttons("套用")[5])
+            self.assertEqual(self.app.cfg.amazon_image_prompt,
+                             mod.presets["image"][key]["prompt"])
+            self.assertIn(mod.presets["image"][key]["name"], " ".join(texts(self.app)))
+            # 已载入商品/站点：复制时占位符渲染为实际值
+            click(find_button(self.app, "复制提示词"))
+            clip = str(self.app.page.clipboard or "")
+            self.assertIn("Fake Backhoe Title", clip, f"占位符未渲染：{clip}")
+            self.assertIn("英语", clip, "站点语言占位符未渲染")
+            self.assertNotIn("{title}", clip)
+            # 未载入商品：复制原文并提示占位符用法
+            self.app._amz_form = {}
+            self.app._amz_detail = {}
+            with fake_presets():
+                self.app._switch(0)
+                self.app._switch(13)
+            click(find_button(self.app, "复制提示词"))
+            clip2 = str(self.app.page.clipboard or "")
+            self.assertIn("{title}", clip2)
+            self.assertIn("占位符可用", snack(self.app))
+
+    def test_presets_backend_missing_is_friendly(self):
+        with patch.object(ui.App, "_amazon_presets",
+                          side_effect=ImportError("no amazon_presets")):
+            self.app._switch(0)
+            self.app._switch(13)
+            dd = self._preset_dropdown("标题预设")
+            self.assertTrue(dd.disabled, "预设库缺失时下拉应禁用")
+            click(self._preset_buttons("套用")[0])
+        self.assertIn("预设库未就绪", snack(self.app))
+        self.assertIn("④b AI 提示词预设", " ".join(texts(self.app)))
+        self.assertIn("⑦ AI 图片提示词预设", " ".join(texts(self.app)))
 
     # ---------- ④ AI ----------
     def test_ai_generation_needs_switch_then_fills_fields(self):

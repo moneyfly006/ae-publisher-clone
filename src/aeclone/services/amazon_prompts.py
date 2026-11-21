@@ -173,14 +173,37 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "6) 不含品牌词/他人品牌/竞品名，不含促销词与联系方式；\n"
         "7) 只输出关键词本身，不要解释。"
     ),
+    "sku": (
+        "你是 Amazon 卖家 SKU 命名专家。请根据商品信息生成一个后台 Seller SKU。\n"
+        "硬性要求：\n"
+        "1) 只输出一行 SKU，≤ 40 字符；\n"
+        "2) 只允许英文字母、数字、连字符 - 与下划线 _，不得含空格、中文、标点、emoji；\n"
+        "3) 结构建议：品牌缩写-型号-关键规格/变体；品牌与型号必须来自商品原文或原标题/SKU；\n"
+        "4) 不编造品牌、认证与不存在的系列；同一商品 SKU 需唯一（可加站点/序号后缀）；\n"
+        "5) 只输出 SKU 本身，不要解释、不要引号、不要代码块围栏。"
+    ),
+    # 类目必填属性兜底（只有确定性映射补不了的文本属性才会走这里）
+    "attribute": (
+        "你是 Amazon 类目属性填写专家。请根据商品事实，为 {country} 站点"
+        "（Amazon {code}）商品补齐一个必填属性。\n"
+        "硬性要求：\n"
+        "1) 属性名：{attribute}（{hint}）；\n"
+        "2) 只能使用商品原文/标题/SKU/品牌里存在的真实信息，不得编造认证、参数、"
+        "价格、识别码（UPC/EAN/GTIN）、尺寸或产地；\n"
+        "3) 使用{language}（站点语言）；布尔/数字属性只输出值本身（如 true / 1）；\n"
+        "4) 无法从原文确定时只输出 N/A；\n"
+        "5) 只输出属性值，不要解释、不要引号、不要 Markdown、不要代码块围栏。"
+    ),
 }
 
-# 配置键 → DEFAULT_PROMPTS 键
+# 配置键 → DEFAULT_PROMPTS 键（``amazon_attribute_prompt`` 可选，UI 未强制暴露）
 _PROMPT_CFG_KEYS = {
     "title": "amazon_title_prompt",
     "bullets": "amazon_bullet_prompt",
     "description": "amazon_description_prompt",
     "search_terms": "amazon_search_terms_prompt",
+    "sku": "amazon_sku_prompt",
+    "attribute": "amazon_attribute_prompt",
 }
 
 
@@ -294,6 +317,62 @@ def build_search_terms_prompt(product, cfg, marketplace_id) -> str:
         _render(_prompt_cfg(cfg, "search_terms"), mapping),
         _product_context(product),
         "请直接输出一行小写关键词，空格分隔，不要标点与解释。",
+    ])
+
+
+def build_sku_prompt(product, cfg, marketplace_id) -> str:
+    """SKU 生成提示词：站点信息 + 预设/内置指令 + 商品事实。"""
+    mapping = _common_mapping(marketplace_id)
+    p = product or {}
+    title = str(p.get("title") or p.get("subject") or "").strip()
+    mapping["title"] = title
+    mapping["subject"] = title
+    return "\n\n".join([
+        _site_line(marketplace_id),
+        _render(_prompt_cfg(cfg, "sku"), mapping),
+        _product_context(product),
+        "请直接输出一行 SKU（仅字母/数字/-/_，≤40 字符），不要解释与引号。",
+    ])
+
+
+# ---------------- 类目属性兜底建议（AI 只在确定性映射补不了时用） ----------------
+# 常见必填属性的「应填什么」提示；未列出的属性用通用提示。
+ATTRIBUTE_HINTS: dict[str, str] = {
+    "model_number": "产品型号（如 HW20-28），只能来自原标题/SKU，不得编造",
+    "model_name": "型号名称（≤100 字符），通常与型号一致，不含品牌/颜色/类型词",
+    "part_number": "零件号/制造商编号，通常直接用 SKU",
+    "manufacturer_contact_information": "制造商联系信息，格式「制造商或品牌, 国家代码」，如 Generic, CN",
+    "country_of_origin": "原产国 ISO 代码（如 CN）",
+    "color": "颜色（站点语言，如 Yellow / Black）",
+    "material": "主要材质（只能来自原文，如 Steel / Plastic）",
+    "size": "尺寸/规格（如 5 Ton / 1.5 m³）",
+    "item_package_quantity": "包装内商品数量（整数，通常 1）",
+    "power_source_type": "动力类型枚举值（如 diesel_powered / electric）",
+    "supplier_declared_dg_hz_regulation": "危险品法规声明枚举值（常见 not_applicable）",
+    "is_assembly_required": "是否需要组装（true/false）",
+    "contains_liquid_contents": "是否含液体（true/false）",
+    "batteries_required": "是否需要电池（true/false）",
+    "is_expiration_dated_product": "是否有保质期（true/false）",
+}
+
+
+def attribute_hint(attribute: str) -> str:
+    """属性名 → 中文填写提示（未知属性返回空串）。"""
+    return ATTRIBUTE_HINTS.get(str(attribute or "").strip(), "")
+
+
+def build_attributes_prompt(product, cfg, marketplace_id, attribute: str) -> str:
+    """单个类目必填属性的 AI 兜底提示词（一次只问一个属性，便于逐字段隔离失败）。"""
+    name = str(attribute or "").strip()
+    mapping = dict(_common_mapping(marketplace_id))
+    mapping["attribute"] = name
+    mapping["hint"] = attribute_hint(name) or "Amazon 该类目要求的合法值"
+    return "\n\n".join([
+        _site_line(marketplace_id),
+        _render(_prompt_cfg(cfg, "attribute"), mapping),
+        _product_context(product),
+        f"请只输出属性 `{name}` 的值（{mapping['hint']}）。"
+        "无法从商品原文确定时只输出 N/A，不要编造、不要解释。",
     ])
 
 
@@ -554,14 +633,80 @@ def parse_search_terms(text: str, max_bytes: int = SEARCH_TERMS_SUGGEST_BYTES) -
     return truncate_bytes(joined, max_bytes).strip()
 
 
+# 属性建议清洗：布尔/数字属性的合法化，其它按单行文本
+_ATTR_NA_TOKENS = {"n/a", "na", "none", "null", "unknown", "n.a.", "无法确定",
+                   "未知", "不确定", "-", "—"}
+_ATTR_BOOL_SUFFIXES = ("_required", "_included", "_exempt", "_flagged")
+_ATTR_BOOL_PREFIXES = ("is_", "contains_", "has_")
+_ATTR_NUMERIC = {"item_package_quantity", "number_of_items", "unit_count",
+                 "item_package_quantity", "quantity"}
+
+
+def parse_attribute_suggestion(attribute: str, text) -> object:
+    """AI 单属性输出 → 可填入 productAttr 的原始值（布尔/整数/字符串；无效返回 ""）。
+
+    - 布尔属性（``*_required`` / ``is_*`` / ``contains_*`` / ``has_*``）只接受 yes/no；
+    - 数字属性（如 ``item_package_quantity``）提取第一个整数；
+    - 其它按单行文本清洗（去引号/标签/emoji），≤200 字符；
+    - 模型回 ``N/A``/``None``/``无法确定`` → ``""``（表示没有建议，不编造）。
+    """
+    name = str(attribute or "").strip()
+    s = _CODE_FENCE_RE.sub("", str(text or "").strip())
+    if name:
+        # 容忍模型回「model_number: xxx」「属性名：xxx」
+        s = re.sub(r"^\s*(?:" + re.escape(name) + r"|属性|value|值)\s*[:：]\s*",
+                   "", s, count=1, flags=re.I)
+    s = strip_html(s)
+    s = remove_emoji(s).strip().strip('"').strip("'").strip("“”‘’").strip()
+    s = re.sub(r"\s+", " ", s).strip()
+    if not s or s.lower() in _ATTR_NA_TOKENS:
+        return ""
+    lowered = name.lower()
+    if lowered.endswith(_ATTR_BOOL_SUFFIXES) or lowered.startswith(_ATTR_BOOL_PREFIXES):
+        low = s.lower().strip(".")
+        if low in ("true", "yes", "y", "1", "是", "需要", "有"):
+            return True
+        if low in ("false", "no", "n", "0", "否", "不需要", "没有"):
+            return False
+        return ""
+    if lowered in _ATTR_NUMERIC:
+        match = re.search(r"-?\d+", s)
+        return int(match.group(0)) if match else ""
+    return s[:200]
+
+
+_SKU_INVALID_RE = re.compile(r"[^A-Za-z0-9_-]+")
+_SKU_LABEL_RE = re.compile(r"^\s*(?:seller\s*)?sku\s*[:：]\s*", re.I)
+
+
+def clean_sku(text: str) -> str:
+    """SKU 清洗：单行、≤40 字符、仅 A-Za-z0-9-_，去空格/中文/标点/引号。"""
+    s = _CODE_FENCE_RE.sub("", str(text or "").strip())
+    lines = [ln.strip() for ln in s.splitlines() if ln.strip()]
+    s = lines[0] if lines else ""
+    s = _SKU_LABEL_RE.sub("", s)
+    s = _SKU_INVALID_RE.sub("-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-_")
+    if len(s) > 40:
+        s = s[:40].rstrip("-_")
+    return s
+
+
+def parse_sku(text: str) -> str:
+    """解析 AI 输出为单个合法 SKU（只输出一行）。"""
+    return clean_sku(text)
+
+
 __all__ = [
-    "SITE_META", "DEFAULT_PROMPTS", "PROMO_WHITELIST",
+    "SITE_META", "DEFAULT_PROMPTS", "PROMO_WHITELIST", "ATTRIBUTE_HINTS",
     "TITLE_MAX", "BULLET_MAX_ITEMS", "BULLET_MAX_CHARS", "BULLET_SUGGEST_CHARS",
     "BULLET_MIN_AI", "BULLET_DEFAULT_COUNT", "DESCRIPTION_MAX_BYTES",
     "SEARCH_TERMS_MAX_CHARS", "SEARCH_TERMS_MAX_BYTES", "SEARCH_TERMS_SUGGEST_BYTES",
-    "language_for_site", "site_meta", "is_chinese_site",
+    "language_for_site", "site_meta", "is_chinese_site", "attribute_hint",
     "build_title_prompt", "build_bullets_prompt", "build_description_prompt",
-    "build_search_terms_prompt", "parse_bullets", "parse_search_terms",
+    "build_search_terms_prompt", "build_sku_prompt",
+    "build_attributes_prompt", "parse_attribute_suggestion",
+    "parse_bullets", "parse_search_terms", "parse_sku", "clean_sku",
     "clean_title", "clean_bullet", "sanitize_description", "clean_for_site",
     "remove_emoji", "has_chinese", "strip_html", "truncate_words", "truncate_bytes",
 ]

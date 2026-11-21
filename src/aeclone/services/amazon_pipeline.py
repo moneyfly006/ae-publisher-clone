@@ -32,10 +32,10 @@ from .amazon_publish import (
 )
 from .amazon_prompts import (
     BULLET_DEFAULT_COUNT, build_attributes_prompt, build_bullets_prompt,
-    build_description_prompt, build_search_terms_prompt, build_title_prompt,
-    clean_bullet, clean_for_site, clean_title, parse_attribute_suggestion,
-    parse_bullets, parse_search_terms, sanitize_description,
-    site_meta as prompt_site_meta, strip_html,
+    build_description_prompt, build_search_terms_prompt, build_sku_prompt,
+    build_title_prompt, clean_bullet, clean_for_site, clean_title,
+    parse_attribute_suggestion, parse_bullets, parse_search_terms, parse_sku,
+    sanitize_description, site_meta as prompt_site_meta, strip_html,
 )
 
 ENV_NO_SAVE = "AURORA_NO_SAVE"
@@ -48,8 +48,10 @@ OP_LABELS = {
 }
 
 AI_FIELDS = ("title", "bullets", "description", "search_terms")
+# sku 只支持单字段生成（不参与「AI 一键生成全部」的 4 次调用）
+AI_EXTRA_FIELDS = ("sku",)
 AI_LABELS = {"title": "标题", "bullets": "五点描述", "description": "产品描述",
-             "search_terms": "Search Terms"}
+             "search_terms": "Search Terms", "sku": "SKU"}
 
 
 @dataclass
@@ -918,10 +920,11 @@ def _bullets_count(cfg, count: int = 0) -> int:
 
 def ai_generate_field(product: dict, cfg, field: str,
                       marketplace_id: str = "", count: int = 5) -> tuple[object, list[str]]:
-    """生成单个字段：title(str) / bullets(list[str]) / description(str) / search_terms(str)。"""
+    """生成单个字段：title / bullets / description / search_terms / sku（均为字符串或列表）。"""
     name = str(field or "").strip().lower()
-    if name not in AI_FIELDS:
-        return None, [f"未知字段：{field}（可选 {'/'.join(AI_FIELDS)}）"]
+    allowed = AI_FIELDS + AI_EXTRA_FIELDS
+    if name not in allowed:
+        return None, [f"未知字段：{field}（可选 {'/'.join(allowed)}）"]
     mp = _marketplace_for(product or {}, cfg, marketplace_id)
     meta = prompt_site_meta(mp) if mp else {}
     want = _bullets_count(cfg, count)
@@ -933,8 +936,10 @@ def ai_generate_field(product: dict, cfg, field: str,
         "bullets": lambda: build_bullets_prompt(product, cfg, mp, want),
         "description": lambda: build_description_prompt(product, cfg, mp),
         "search_terms": lambda: build_search_terms_prompt(product, cfg, mp),
+        "sku": lambda: build_sku_prompt(product, cfg, mp),
     }
-    max_tokens = {"title": 320, "bullets": 1800, "description": 2200, "search_terms": 220}
+    max_tokens = {"title": 320, "bullets": 1800, "description": 2200,
+                  "search_terms": 220, "sku": 120}
     try:
         client = _ai_client(cfg)
         text = client.chat(_ai_model(cfg), [
@@ -970,6 +975,13 @@ def ai_generate_field(product: dict, cfg, field: str,
         if not value:
             return "", [f"{AI_LABELS[name]}生成失败：清洗后为空"]
         notes.append(f"已生成（{len(value.encode('utf-8'))} 字节 HTML）")
+        return value, notes
+
+    if name == "sku":
+        value = parse_sku(clean_for_site(text, mp))
+        if not value:
+            return "", [f"{AI_LABELS[name]}生成失败：清洗后为空"]
+        notes.append(f"已生成（{len(value)} 字符）")
         return value, notes
 
     # search_terms

@@ -23,14 +23,17 @@ MODULES = (
     "test_image_hosting_optimization",
     # Amazon 刊登（task-4 接入；AURORA_TEST=1 下应全绿）
     "test_amazon_contract", "test_amazon_client", "test_amazon_payload",
-    "test_amazon_prompts", "test_amazon_pipeline", "test_amazon_ui_page",
+    "test_amazon_prompts", "test_amazon_pipeline", "test_amazon_presets",
+    "test_amazon_ui_page",
     "test_amazon_adapter", "test_amazon_attributes", "test_amazon_platform_ui_filter",
     "test_amazon_publish_ui",
+    "test_amazon_presets_audit",
     # 授权：token 解析 / 授权服务器地址归一化与 308 query 保留
     "test_licensing", "test_license_server",
     # TikTok Shop 刊登（task-5 接入；AURORA_TEST=1 下应全绿）
     "test_tiktok_client", "test_tiktok_payload", "test_tiktok_prompts",
     "test_tiktok_pipeline", "test_tiktok_contract", "test_tiktok_ui_page",
+    "test_alibaba_attributes", "test_smt_attributes", "test_tiktok_attributes",
 )
 
 

@@ -122,6 +122,7 @@ DEFAULTS: dict = {
     "template_library": "{}",
     "auto_detect_category": True,                        # 自动识别类目：优先用商品自带 categoryId
     "apply_template_on_save": True,
+    "smt_attr_autofill": True,                           # 保存/发布前补齐速卖通类目必填属性（只补缺失，不覆盖已有）
     # AI 主图生成 / 指定图片编辑
     "main_image_generate_enable": False,
     "main_image_generate_prompt": "电商主图：{title}，让 {subject} 居中并占画面约 80%，纯白背景（#FFFFFF），柔和棚拍光，阴影自然，细节清晰，颜色准确，1:1 正方形，画册级质感。不要文字、不要水印、不要 Logo、不要多余道具、不要人物、不要边框。",
@@ -374,6 +375,7 @@ DEFAULTS: dict = {
     "alibaba_group_id": "",
     "alibaba_group_name": "",
     "alibaba_category_id": "127726092",
+    "alibaba_batch_category_id": "127726092",   # 批量处理目标类目（与单个商品选择分开）
     "alibaba_category_name": "其他混凝土机械 / Other Concrete Machinery",
     "alibaba_full_cid": "201943703,1326,100010658,127726092",
     "alibaba_keywords": "",
@@ -438,6 +440,15 @@ DEFAULTS: dict = {
     "amazon_bullet_prompt": "",
     "amazon_description_prompt": "",
     "amazon_search_terms_prompt": "",
+    "amazon_sku_prompt": "",
+    "amazon_image_prompt": "",
+    "amazon_title_preset": "",
+    "amazon_bullet_preset": "",
+    "amazon_description_preset": "",
+    "amazon_search_terms_preset": "",
+    "amazon_sku_preset": "",
+    "amazon_image_preset": "",
+    "amazon_presets_version": "",
     "amazon_last_status": "",
     "amazon_manufacturer_contact": "",   # 发布必填 manufacturer_contact_information；空=自动 "品牌, CN"
     "amazon_publish_wait": 60,           # op=2 发布后轮询发布状态的最长秒数（0=只查一次）
