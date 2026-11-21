@@ -294,3 +294,25 @@ CAPABILITIES = {
   - 管理端：https://license.moneyfly.club/shop/admin.php（套餐价格、订单、用户、授权、易支付、SMTP）
 - 旧路径 https://ali.moneyfly.club/license/ 已 308 跳转到 /shop
 - 桌面客户端默认授权服务器：https://license.moneyfly.club/shop
+
+## 8. 嵌入原后台（2026-11-22 最终形态）
+
+原授权中心（license.moneyfly.club/admin）**保持原样**，仅在其导航中新增 5 个页内入口，
+页面使用原后台同一套 layout/CSS/登录态，不再跳转外部后台：
+
+| 菜单 | 路径 | 功能 |
+|---|---|---|
+| 套餐管理 | /admin/shop-packages | 列表、行内改价格/天数/启用、新增、删除 |
+| 支付设置 | /admin/shop-pay | 易支付参数、公告、SMTP 邮件、注册验证开关 |
+| 套餐订单 | /admin/shop-orders | 订单列表、标记已付并自动开通 |
+| 套餐用户 | /admin/shop-users | 注册用户、授权数、到期 |
+| 套餐授权 | /admin/shop-licenses | 套餐授权列表、吊销 |
+
+用户端仍在 https://license.moneyfly.club/shop/（品牌页/登录/购买/我的授权/运行状态/产品）。
+
+部署文件（原应用副本，便于重装）：
+- `deploy/legacy-app-patch/shop_admin.php` → `/www/server/ae-license/app/`
+- `deploy/legacy-app-patch/views/shop_*.php` → `/www/server/ae-license/app/views/`
+- `deploy/legacy-app-patch/apply.py` → 给 `public/index.php` 加路由、给 layout 加菜单（自动备份）
+
+已验证：套餐价格 99→119→99 保存成功；嵌入页面渲染与原后台风格一致。
