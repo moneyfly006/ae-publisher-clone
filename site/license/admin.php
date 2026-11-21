@@ -119,15 +119,36 @@ async function loadAll(){loadStats();loadPkgs();loadOrds();loadUsr();loadLic();}
 async function loadStats(){const r=await api('admin_stats');if(r.code!==0)return;const d=r.data;
   $('#stats').innerHTML=[['用户',d.users],['订单',d.orders],['已支付',d.paid],['收入', '¥'+d.revenue],['有效授权',d.licenses],['24h心跳',d.heartbeats24]]
     .map(([k,v])=>`<div class="kpi"><b>${v}</b><span>${k}</span></div>`).join('');}
-async function loadPkgs(){const r=await api('admin_packages');const t=$('#pkgTable');
-  t.innerHTML='<tr><th>ID</th><th>名称</th><th>平台</th><th>功能</th><th>价格</th><th>天数</th><th>状态</th><th>操作</th></tr>'+
-   (r.data||[]).map(p=>`<tr><td>${p.id}</td><td>${esc(p.name)}</td><td>${(p.platforms||[]).map(x=>platName[x]||x).join(',')}</td>
-     <td>${esc((p.features||[]).join(','))}</td><td>¥${p.price}</td><td>${p.days}</td><td>${p.active?'启用':'停用'}</td>
-     <td><button class="btn" data-edit="${p.id}">编辑</button></td></tr>`).join('');
+let PKG_CACHE=[];
+async function loadPkgs(){const r=await api('admin_packages');PKG_CACHE=r.data||[];const t=$('#pkgTable');
+  t.innerHTML='<tr><th>ID</th><th>名称</th><th>平台</th><th>功能</th><th>价格(元)</th><th>天数</th><th>状态</th><th>操作</th></tr>'+
+   PKG_CACHE.map(p=>`<tr><td>${p.id}</td><td>${esc(p.name)}</td><td>${(p.platforms||[]).map(x=>platName[x]||x).join(',')}</td>
+     <td>${esc((p.features||[]).join(','))}</td>
+     <td><input type="number" step="0.01" data-price="${p.id}" value="${p.price}" style="width:90px"></td>
+     <td><input type="number" data-days="${p.id}" value="${p.days}" style="width:70px"></td>
+     <td><select data-active="${p.id}"><option value="1" ${p.active==1?'selected':''}>启用</option><option value="0" ${p.active==1?'':'selected'}>停用</option></select></td>
+     <td><button class="btn primary small" data-save="${p.id}">保存</button>
+         <button class="btn small" data-edit="${p.id}">编辑详情</button>
+         <button class="btn danger small" data-del="${p.id}">删除</button></td></tr>`).join('');
+  t.querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{
+    const p=PKG_CACHE.find(x=>x.id==b.dataset.save); if(!p)return;
+    const price=+$(`[data-price="${p.id}"]`).value, days=+$(`[data-days="${p.id}"]`).value;
+    const active=+$(`[data-active="${p.id}"]`).value;
+    const r2=await api('admin_packages',{id:p.id,name:p.name,price,days,active,
+      platforms:p.platforms,features:p.features,description:p.description||'',sort:p.sort||0});
+    if(r2.code!==0){alert(r2.msg);return;}
+    b.textContent='已保存'; setTimeout(()=>b.textContent='保存',1200); loadPkgs();
+  });
+  t.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('删除该套餐？')) return;
+    const r2=await api('admin_package_delete',{id:+b.dataset.del});
+    if(r2.code!==0){alert(r2.msg);return;} loadPkgs();
+  });
   t.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>{
-    const p=(r.data||[]).find(x=>x.id==b.dataset.edit); if(!p)return;
+    const p=PKG_CACHE.find(x=>x.id==b.dataset.edit); if(!p)return;
     $('#pId').value=p.id;$('#pName').value=p.name;$('#pPrice').value=p.price;$('#pDays').value=p.days;
     $('#pPlat').value=(p.platforms||[]).join(',');$('#pFeat').value=(p.features||[]).join(',');$('#pDesc').value=p.description||'';
+    window.scrollTo({top:0,behavior:'smooth'});
   });
 }
 $('#pReset').onclick=()=>{['pId','pName','pPrice','pPlat','pFeat','pDesc'].forEach(k=>$('#'+k).value='');$('#pDays').value=365};

@@ -109,6 +109,11 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
       <div class="hint" style="margin-top:14px">登录后即可购买套餐；已有授权可在这里绑定/解绑设备。</div>
     </div>
   </div>
+  <div style="padding:6px 0 46px">
+    <h2 style="font-size:24px;margin-bottom:4px">套餐</h2>
+    <div class="sub" style="margin-bottom:16px">登录后可直接购买；已有授权自动续期</div>
+    <div class="grid" id="landingPkgs"></div>
+  </div>
 </div>
 
 <!-- 登录后 -->
@@ -225,9 +230,21 @@ function renderAuth(){
 }
 /* 未登录预览套餐 */
 async function loadPublicPkgs(){
-  const r=await api('packages');
-  // 未登录时不显示购买按钮之外的页面内容（登录后统一渲染）
-  return r.data||[];
+  const r=await api('packages'); const list=r.data||[];
+  const g=document.getElementById('landingPkgs'); if(!g) return list;
+  g.innerHTML=list.map(p=>{
+    const pl=(p.platforms||[]).map(x=>`<span class="tag p">${platName[x]||x}</span>`).join('');
+    const ft=(p.features||[]).map(x=>`<span class="tag">${featName[x]||x}</span>`).join('');
+    return `<div class="pkg"><div class="top"><h3>${esc(p.name)}</h3><span class="days">${p.days} 天</span></div>
+      <div class="price">¥${p.price}<small> / 起</small></div><div class="desc">${esc(p.description||'')}</div>
+      <div class="tags">${pl}${ft}</div>
+      <button class="btn primary" data-loginbuy="${p.id}" style="margin-top:auto">登录后购买</button></div>`;
+  }).join('');
+  g.querySelectorAll('[data-loginbuy]').forEach(b=>b.onclick=()=>{
+    document.querySelector('.auth-card')?.scrollIntoView({behavior:'smooth',block:'center'});
+    document.getElementById('aEmail')?.focus();
+  });
+  return list;
 }
 
 /* ---------- 登录后 ---------- */

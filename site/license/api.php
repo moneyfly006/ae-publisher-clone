@@ -226,8 +226,9 @@ case 'admin_stats': {
 }
 case 'admin_packages': {
     require_admin();
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $in = body(); $id = (int)($in['id'] ?? 0);
+    $in = body();
+    if (array_key_exists('name', $in)) {
+        $id = (int)($in['id'] ?? 0);
         $args = [trim((string)$in['name']), j($in['platforms'] ?? []), j($in['features'] ?? []),
                  (int)round(((float)($in['price'] ?? 0))*100), (int)($in['days'] ?? 365),
                  (int)($in['active'] ?? 1), (int)($in['sort'] ?? 0), (string)($in['description'] ?? '')];
@@ -238,6 +239,12 @@ case 'admin_packages': {
     $rows = db()->query('SELECT * FROM packages ORDER BY sort,id')->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as &$r) { $r['platforms']=json_decode($r['platforms'],true); $r['features']=json_decode($r['features'],true); $r['price']=$r['price_cents']/100; }
     out($rows);
+}
+case 'admin_package_delete': {
+    require_admin(); $in = body(); $id = (int)($in['id'] ?? 0);
+    if ($id <= 0) fail('缺少 id');
+    db()->prepare('DELETE FROM packages WHERE id=?')->execute([$id]);
+    out(['ok'=>true]);
 }
 case 'admin_orders': {
     require_admin();
