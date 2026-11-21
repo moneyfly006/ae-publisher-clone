@@ -13,7 +13,8 @@
         <td><?= (int)$r['paid_orders'] ?></td>
         <td><?= e($r['tags'] ?? '') ?></td>
         <td><?= e(date('Y-m-d', (int)$r['created_at'])) ?></td>
-        <td class="ops"><a class="btn ghost sm" href="/admin/shop-users/<?= (int)$r['id'] ?>">管理</a></td>
+        <td class="ops"><a class="btn ghost sm" href="/admin/shop-users/<?= (int)$r['id'] ?>">管理</a>
+          <a class="btn sm" href="/admin/shop-users/<?= (int)$r['id'] ?>#grant">开通权限</a></td>
       </tr>
     <?php endforeach; ?>
     </tbody>

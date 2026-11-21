@@ -4,6 +4,7 @@ from __future__ import annotations
 from .. import __version__ as VERSION
 
 import datetime
+import re
 import sys
 import tempfile
 import os
@@ -9229,24 +9230,174 @@ class App:
                     c = client()
                     attrs = c.required_attributes(cid)
                     fields = c.category_schema(cid)["fields"]
-                    required_box.controls = [h1("类目必填项", 13)]
+                    # 当前商品已有属性 → 标出哪些必填项还缺，避免用户盲填
+                    p = {}
+                    _pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+                    if _pid:
+                        try:
+                            p = c.product_detail(_pid)
+                        except Exception:
+                            p = {}
+                    have = {str(x.get("attribute_name") or "").strip().lower()
+                            for x in (p.get("attributes") or []) if isinstance(x, dict)}
+                    missing = []
+                    required_box.controls = [h1("类目必填项（✅已有 / ⚠缺失）", 13)]
                     for a in attrs:
+                        nm = str(a.get("nameEn") or a.get("nameZh") or "")
                         vals = _json.loads(a.get("values") or "[]") if isinstance(a.get("values"), str) else (a.get("values") or [])
                         names = [str(v.get("name_en") or v.get("name") or "") for v in vals][:6]
+                        ok = nm.lower() in have
+                        if not ok:
+                            missing.append(nm)
                         required_box.controls.append(ft.Text(
-                            f"• 属性 {a.get('nameEn')}（attrNameId={a.get('attrNameId')}）可选：{', '.join(names)}",
-                            size=12, color=TEXT))
+                            ("✅ " if ok else "⚠ ") +
+                            f"属性 {nm}（attrNameId={a.get('attrNameId')}）可选：{', '.join(names)}",
+                            size=12, color=ACCENT_2 if ok else WARN_C))
                     for f in fields:
                         required_box.controls.append(ft.Text(
                             f"• 模块 {f.get('fieldId')}：{f.get('name')}", size=12, color=TEXT))
+                    if missing:
+                        required_box.controls.append(ft.Text(
+                            f"⚠ 还缺 {len(missing)} 项必填属性：{', '.join(missing[:8])}"
+                            "；可用下方「生成属性预设模板」或「AI 建议缺失属性」补齐后复核",
+                            size=12, color=WARN_C))
                     self.cfg.set("alibaba_last_category_required", _json.dumps(
                         {"attrs": [a.get("nameEn") for a in attrs],
                          "fields": [f.get("fieldId") for f in fields]}, ensure_ascii=False))
                     save_config(self.cfg)
-                    status.value = f"类目 {cid}：{len(attrs)} 个必填属性，{len(fields)} 个模块字段"
-                    status.color = SUCCESS_C
+                    status.value = (f"类目 {cid}：{len(attrs)} 个必填属性（缺 {len(missing)} 项），"
+                                    f"{len(fields)} 个模块字段")
+                    status.color = SUCCESS_C if not missing else WARN_C
                 except Exception as ex:  # noqa: BLE001
                     status.value = f"读取失败：{ex}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def _attr_ctx():
+            """读取类目必填属性 + 当前商品已有属性，返回 (client, attrs, missing, product)。"""
+            cid = str(getattr(self.cfg, "alibaba_category_id", "") or "").strip()
+            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            if not cid:
+                raise RuntimeError("先搜索并选择一个类目")
+            if not pid:
+                raise RuntimeError("先选择一个商品（连接与商品页）")
+            c = client()
+            attrs = c.required_attributes(cid)
+            p = c.product_detail(pid)
+            have = {str(x.get("attribute_name") or "").strip().lower()
+                    for x in (p.get("attributes") or []) if isinstance(x, dict)}
+            missing = [a for a in attrs
+                       if str(a.get("nameEn") or a.get("nameZh") or "").strip().lower() not in have]
+            return c, attrs, missing, p
+
+        def _merge_presets(new_vals: dict) -> None:
+            try:
+                current = _json.loads(str(getattr(self.cfg, "alibaba_attr_presets", "") or "{}"))
+                if not isinstance(current, dict):
+                    current = {}
+            except Exception:
+                current = {}
+            current.update(new_vals)
+            self.cfg.set("alibaba_attr_presets", _json.dumps(current, ensure_ascii=False, indent=1))
+            save_config(self.cfg)
+
+        def gen_attr_template(e=None):
+            """把缺失的必填属性生成 JSON 模板写进「属性预设」（值为空，待人工填）。"""
+            def work():
+                try:
+                    _c, attrs, missing, _p = _attr_ctx()
+                    if not missing:
+                        status.value = "当前商品必填属性已齐全，无需生成模板"
+                        status.color = ACCENT_2
+                        return
+                    vals = {str(a.get("nameEn") or a.get("nameZh") or "").strip(): ""
+                            for a in missing}
+                    _merge_presets(vals)
+                    required_box.controls = [
+                        h1("属性预设模板已写入（请填值）", 13),
+                        muted("已写到「预设资料 → 属性预设 JSON」，把每个属性的空字符串改成真实值，"
+                              "再点「预演（不保存）」校验。", 12),
+                        ft.Text(self.cfg.get("alibaba_attr_presets") or "", size=11.5,
+                                color=TEXT, selectable=True)]
+                    status.value = f"已生成 {len(vals)} 项属性预设模板"
+                    status.color = SUCCESS_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"生成模板失败：{str(ex)[:120]}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def ai_suggest_attrs(e=None):
+            """AI 按标题/详情为缺失必填属性建议取值（只从候选值选，需人工复核）。"""
+            def work():
+                try:
+                    _c, attrs, missing, p = _attr_ctx()
+                    targets = missing or attrs
+                    if not targets:
+                        status.value = "没有需要建议的必填属性"
+                        status.color = ACCENT_2
+                        return
+                    from ..services.text_pipeline import TextPipeline
+                    tp = TextPipeline(self.cfg)
+                    res = tp.suggest_attributes(targets,
+                                                str(p.get("subject") or ""),
+                                                str(p.get("textDesc") or ""))
+                    if not getattr(res, "ok", False):
+                        status.value = f"AI 建议失败：{getattr(res, 'error', '')[:120]}"
+                        status.color = DANGER_C
+                        return
+                    raw = str(res.value or "")
+                    m = re.search(r"\{[\s\S]*\}", raw)
+                    if not m:
+                        raise RuntimeError("模型没有返回 JSON")
+                    suggestion = _json.loads(m.group(0))
+                    if not isinstance(suggestion, dict):
+                        raise RuntimeError("模型返回不是 JSON 对象")
+                    # 只接受「属性名在必填列表中 + 值在候选值里」的建议
+                    allowed: dict[str, dict[str, str]] = {}
+                    for a in targets:
+                        nm = str(a.get("nameEn") or a.get("nameZh") or "").strip()
+                        vals = a.get("values") or []
+                        m2: dict[str, str] = {}
+                        for v in (vals if isinstance(vals, list) else []):
+                            if not isinstance(v, dict):
+                                continue
+                            canon = str(v.get("name_en") or v.get("name") or "").strip()
+                            if not canon:
+                                continue
+                            m2[re.sub(r"[^a-z0-9]", "", canon.lower())] = canon
+                        allowed[nm.lower()] = m2
+                    picked: dict[str, str] = {}
+                    skipped: list[str] = []
+                    for k, v in suggestion.items():
+                        name = str(k).strip()
+                        val = str(v).strip()
+                        cand = allowed.get(name.lower()) or {}
+                        key = re.sub(r"[^a-z0-9]", "", val.lower())
+                        if cand and key in cand:
+                            picked[name] = cand[key]
+                        else:
+                            skipped.append(f"{name}={val}")
+                    if not picked:
+                        raise RuntimeError("建议值都不在候选列表里，已拒绝写入")
+                    _merge_presets(picked)
+                    required_box.controls = [
+                        h1("AI 建议已写入属性预设（需复核）", 13),
+                        ft.Text("以下值来自 AI，已校验属于类目候选值；"
+                                "请核对真实规格后再保存：", size=12, color=WARN_C),
+                        *[ft.Text(f"· {k} = {v}", size=12, color=TEXT) for k, v in picked.items()],
+                        *([ft.Text("未采用：" + "；".join(skipped[:6]), size=11.5, color=MUTED)]
+                          if skipped else []),
+                        muted("可到「预设资料 → 属性预设 JSON」手工修正。", 11)]
+                    status.value = (f"AI 建议 {len(picked)} 项已写入预设"
+                                    f"{('；未采用 ' + str(len(skipped)) + ' 项') if skipped else ''}")
+                    status.color = SUCCESS_C
+                    self._log(f"Alibaba 属性 AI 建议：{picked}", "INFO")
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"AI 建议失败：{str(ex)[:140]}"
                     status.color = DANGER_C
                 try:self._safe_update()
                 except Exception: pass
@@ -9718,6 +9869,12 @@ class App:
             ft.Row([search_kw, ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, bgcolor=ACCENT,
                                                  color=ON_ACCENT, on_click=do_search),
                     ft.OutlinedButton("读取必填属性", icon=ft.Icons.CHECKLIST, on_click=load_required),
+                    ft.OutlinedButton("生成属性预设模板", icon=ft.Icons.EDIT_NOTE,
+                                      tooltip="把缺失的必填属性写成空值 JSON，填好后预演",
+                                      on_click=gen_attr_template),
+                    ft.OutlinedButton("AI 建议缺失属性", icon=ft.Icons.AUTO_FIX_HIGH,
+                                      tooltip="AI 按标题/详情从类目候选值里建议（会产生文本 API 费用，需复核）",
+                                      on_click=ai_suggest_attrs),
                     ft.OutlinedButton("展开子类目", icon=ft.Icons.ACCOUNT_TREE,
                                       on_click=lambda e: _load_children({"categoryId": str(getattr(self.cfg, "alibaba_category_id", "") or ""), "nameZh": str(getattr(self.cfg, "alibaba_category_name", "") or "")}))],
                    spacing=10, wrap=True),

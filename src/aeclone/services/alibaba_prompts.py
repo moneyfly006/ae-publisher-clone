@@ -35,9 +35,11 @@
 """
 from __future__ import annotations
 
+import re
+
 from .alibaba_payload import MAX_KEYWORDS, MAX_SUBJECT, MIN_KEYWORDS
 
-PRESET_VERSION = "2026-11-22.1"
+PRESET_VERSION = "2026-11-22.2"
 DEFAULT_PRESET_ID = "container_pool"
 
 # apply_to_cfg 允许写入的配置键（与 config.DEFAULTS / schema_ai / schema_review 对齐）
@@ -105,6 +107,54 @@ _SKU_RULES = (
 )
 
 
+# ---------------- 编造风险体检（AI 输出后置检查，离线） ----------------
+_FAB_UNIT = re.compile(
+    r"\b(\d+(?:\.\d+)?)[\s-]*(ft|feet|foot|m|mm|cm|kg|kw|w|v|ah|inch|in|years?|months?)\b",
+    re.I,
+)
+_FAB_MATERIALS = (
+    "fiberglass", "stainless steel", "carbon steel", "steel frame", "galvanized",
+    "aluminum", "acrylic", "tempered glass",
+)
+_FAB_CERTS = ("ce", "iso", "sgs", "fda", "epa", "dot", "ul", "rohs", "tuv")
+_FAB_ABSOLUTE = ("best", "cheapest", "no.1", "100%", "guaranteed", "world class", "world-class")
+
+
+def _plain(s) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", str(s or ""))).strip()
+
+
+def fabrication_warnings(text: str, source_text: str = "") -> list[str]:
+    """本地「编造风险」体检：生成文本出现原文没有的规格数字/材质/认证时给出中文提醒。
+
+    - 返回 ``[]`` 表示未发现明显编造；不修改文本，供 UI 在 AI 生成后展示 warning；
+    - ``source_text`` 应传「商品原标题 + 原详情纯文本」，覆盖越全误报越少；
+    - 只能发现「原文完全没有」的情况，不能判断参数与原文是否一致（仍需人工复核）。
+    """
+    gen = _plain(text).lower()
+    src = _plain(source_text).lower()
+    out: list[str] = []
+    for m in _FAB_UNIT.finditer(gen):
+        token = m.group(0).lower()
+        num, unit = m.group(1), m.group(2).lower()
+        grounded = bool(
+            re.search(rf"\b{re.escape(num)}[\s-]*{re.escape(unit)}\b", src)
+            or (unit in src and re.search(rf"\b{re.escape(num)}\b", src))
+        )
+        if not grounded:
+            out.append(f"规格数字疑似编造：{token}（原文无对应数据）")
+    for mat in _FAB_MATERIALS:
+        if mat in gen and mat not in src:
+            out.append(f"材质词疑似编造：{mat}（原文未出现）")
+    for cert in _FAB_CERTS:
+        if re.search(rf"\b{cert}\b", gen) and not re.search(rf"\b{cert}\b", src):
+            out.append(f"认证词疑似编造：{cert.upper()}（原文未出现）")
+    for w in _FAB_ABSOLUTE:
+        if w in gen and w not in src:
+            out.append(f"绝对化/夸大用语：{w}")
+    return list(dict.fromkeys(out))
+
+
 def _review_prompt(industry_extra: str) -> str:
     """内容审查提示词：统一基线 + 行业补充。"""
     return (
@@ -148,9 +198,11 @@ PRESETS: dict[str, dict] = {
             "基于商品原始信息生成一条可直接上架的英文标题。\n"
             "要求：\n"
             "1) 保留真实产品名与结构形式（container pool / prefabricated pool / "
-            "above ground pool / fiberglass pool / pool ladder），保留材质"
-            "（fiberglass、steel frame、acrylic window）、尺寸或容量（如 15ft/20ft/40ft）"
-            "与真实卖点（ready made / customized / outdoor）；" + _NO_FABRICATION_NOTE + "\n"
+            "above ground pool / pool ladder）；材质与尺寸只能写原文明确出现的"
+            "（原文有 fiberglass / steel frame / acrylic window 才写，原文有具体 ft/m 尺寸才写）；"
+            "原文没有具体尺寸或材质时，标题中禁止出现任何尺寸数字（如 40ft）和材质词"
+            "（如 fiberglass），用 Customized / Custom Size 代替；保留真实卖点"
+            "（ready made / customized / outdoor）；" + _NO_FABRICATION_NOTE + "\n"
             "2) 结构建议：定制/规格词 + 核心产品词 + 材质或结构 + 尺寸 + 场景词，"
             "自然融入 2~4 个搜索词，不堆砌重复词；\n"
             "3) 全英文 ≤128 字符（尽量控制在 120 以内，避免被截断）；\n" + _TITLE_TAIL
@@ -159,9 +211,11 @@ PRESETS: dict[str, dict] = {
             "你是 Alibaba.com 集装箱泳池 / 泳池设备类目的英文详情页文案专家。"
             "基于商品原始信息重写英文 HTML 详情片段。\n"
             "结构（按顺序）：\n"
-            "1) 产品概述：是什么、适用场景（villa/hotel/resort/backyard），可定制尺寸与颜色；\n"
-            "2) 核心规格表 <table>：尺寸/容量/材质/结构/安装方式，只使用原文有依据的数据，"
-            "缺失参数写 Customizable 或省略，禁止编造；\n"
+            "1) 产品概述：是什么、适用场景（villa/hotel/resort/backyard）；"
+            "尺寸与颜色定制只在原文提到 customization 时才写；\n"
+            "2) 核心规格表 <table>：尺寸/容量/材质/结构/安装方式，只使用原文有依据的数据；"
+            "原文没有具体尺寸时禁止写任何 ft/m 数字（如 40ft），写 Custom Size 或省略；"
+            "原文没有的材质词（如 fiberglass）不得出现；禁止编造；\n"
             "3) 结构与工艺：池体、钢架、亚克力玻璃窗、循环过滤系统等，只描述原文提到的部分；\n"
             "4) 安装与交付：可提供安装图纸/视频指导、集装箱海运包装，不承诺原文没有的交期；\n"
             "5) 定制与服务：颜色、尺寸、logo、包装定制与售后说明，不承诺原文没有的质保年限/认证。\n"
@@ -724,5 +778,5 @@ __all__ = [
     "PRESET_VERSION", "DEFAULT_PRESET_ID", "PROMPT_KEYS", "BANNED_WORDS",
     "PRESETS", "PRESET_IDS", "INDUSTRY_PRESET_IDS", "FUNCTION_PRESET_IDS",
     "resolve_preset", "apply_to_cfg", "list_presets", "preset_options",
-    "get_prompt", "describe_preset",
+    "get_prompt", "describe_preset", "fabrication_warnings",
 ]

@@ -276,6 +276,7 @@ def _brief(product: dict) -> dict:
     return {
         "id": snap["id"],
         "subject": snap["subject"][:140],
+        "subject_chars": snap["subject_chars"],
         "category_id": snap["categoryId"],
         "full_cid": snap["fullCid"],
         "price_type": snap["priceType"],
@@ -459,6 +460,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--output", default=str(DEFAULT_OUTPUT), help="JSON 输出路径")
     ap.add_argument("--config-dir", default="", help="隔离配置目录（默认真实配置）")
     ap.add_argument("--skip-inventory", action="store_true", help="跳过全量草稿体检")
+    ap.add_argument("--post-check", action="store_true",
+                    help="只读回读已保存商品并更新报告（不保存任何商品）")
     args = ap.parse_args(argv)
 
     dry_run = not args.save
@@ -547,6 +550,10 @@ def main(argv: list[str] | None = None) -> int:
         session = AlibabaClient(cfg.alibaba_cookies, timeout=30)
         client = session if args.save else ReadOnlyClient(session)
     report["notes"].append("客户端 Cookie 顺序：alibaba_cookies > manual_cookies > 本机浏览器（不记录内容）")
+
+    # ---------- 0) 只读保存后校验（不保存任何商品） ----------
+    if args.post_check:
+        return _run_post_check(args, cfg, client, plan, output)
 
     # ---------- 1) 只读体检 ----------
     rows: list[dict] = []
@@ -849,6 +856,301 @@ def _known_defects(report: dict) -> list[dict]:
                 "evidence": unchanged,
             })
     return defects
+
+
+# ---------------- 只读保存后校验（--post-check） ----------------
+def _readback_record(client, pid: str, plan_entry: dict) -> dict:
+    """只读回读一个商品：类目/标题/关键词/价格/SKU/图片/属性/交易信息。"""
+    product = client.product_detail(pid)
+    snap = _snapshot(product)
+    attrs = {a["name"]: a["value"][:160] for a in _as_attr_rows(product)}
+    expected_cid = str(plan_entry.get("category_id") or "")
+    expected_full = snap["fullCid"]
+    if expected_cid:
+        try:
+            expected_full = client.category_detail(expected_cid).get("nodePathId") or ""
+            parts = [p.strip() for p in str(expected_full).split("/") if p.strip()]
+            expected_full = ",".join(parts)
+        except Exception:
+            expected_full = ""
+    return {
+        "product_id": pid,
+        "subject": snap["subject"][:160],
+        "subject_chars": snap["subject_chars"],
+        "keywords": snap["keywords"],
+        "categoryId": snap["categoryId"],
+        "fullCid": snap["fullCid"],
+        "expected_category_id": expected_cid,
+        "expected_full_cid": expected_full,
+        "category_matches_plan": (snap["categoryId"] == expected_cid) if expected_cid else None,
+        "priceType": snap["priceType"],
+        "bulkDiscountPrices": snap["bulkDiscountPrices"][:300],
+        "productSku_present": bool(snap["sku"]["present"]),
+        "productSku_valid": snap["sku"]["valid"],
+        "productSku_is_empty_array": str(product.get("productSku") or "").strip() in ("[]", ""),
+        "mainImage_count": snap["mainImage_count"],
+        "mainImage_first": snap["mainImage_first"],
+        "textDesc_chars": snap["textDesc_chars"],
+        "dxmState": snap["dxmState"],
+        "attributes_count": snap["attributes_count"],
+        "attributes": attrs,
+        "wholesaleTrade": _trade_summary(product),
+    }
+
+
+def _preset_names_landed(report: dict, pid: str, plan_entry: dict) -> dict:
+    """从体检记录推断：哪些预设属性是真正补写进去的、哪些是原属性已覆盖而不写。"""
+    presets = list((plan_entry.get("attributes") or {}).keys())
+    missing = []
+    covered = []
+    for rec in ((report.get("inventory") or {}).get("records") or []):
+        if rec.get("product_id") != pid:
+            continue
+        cov = rec.get("required_coverage") or {}
+        names = {str(n).strip().lower() for n in (cov.get("missing") or [])}
+        have = {str(n).strip().lower() for n in (cov.get("covered") or [])}
+        for name in presets:
+            key = name.lower()
+            if key in names:
+                missing.append(name)
+            elif key in have:
+                covered.append(name)
+        break
+    return {"attrs_written_from_presets": missing, "attrs_preserved_existing": covered}
+
+
+def _post_check_defects(report: dict, readbacks: dict, write_summary: dict) -> list[dict]:
+    """保存后回读才能确认的缺陷/数据问题（与 _known_defects 合并去重）。"""
+    defects = list(report.get("defects") or [])
+    have = {str(d.get("id")) for d in defects}
+    ok_rows = {pid: r for pid, r in readbacks.items() if "error" not in r}
+
+    empty_sku = [pid for pid, r in ok_rows.items() if r.get("productSku_is_empty_array")]
+    if empty_sku and "productsku-empty-array" not in have:
+        defects.append({
+            "id": "productsku-empty-array",
+            "level": "P2-代码",
+            "detail": "无 productSku 的 ladder 商品保存后 productSku 变成 []（present-but-empty），"
+                      "因为 build_save_dict 把缺失值序列化成 \"[]\"；ladder_price 校验不拦，"
+                      "但 SKU 编辑器/后续 sku_price 切换会看到「有 SKU 数据但为空」",
+            "file_line": "src/aeclone/integrations/alibaba.py:223（j(product.get(\"productSku\"))）",
+            "evidence": empty_sku,
+        })
+
+    clipped = []
+    for pid, entry in write_summary.items():
+        subj = entry.get("subject") or {}
+        if subj.get("changed"):
+            clipped.append({"product_id": pid, "before_chars": subj.get("before_chars"),
+                            "after_chars": subj.get("after_chars"),
+                            "after": str((ok_rows.get(pid) or {}).get("subject") or "")[:140]})
+    if clipped and "subject-truncated" not in have:
+        defects.append({
+            "id": "subject-truncated",
+            "level": "P2-数据/预期行为",
+            "detail": "标题超过 Alibaba subject≤128 时被 clip_title 按词边界截断（ATV 147→122），"
+                      "属预期保护，但语义被截断，发布前需人工确认标题可读性",
+            "file_line": "src/aeclone/services/alibaba_pipeline.py:126-133",
+            "evidence": clipped,
+        })
+
+    kw_rows = [{"product_id": pid, "keywords": r.get("keywords")}
+               for pid, r in ok_rows.items()]
+    if kw_rows and "keywords-from-title" not in have:
+        defects.append({
+            "id": "keywords-from-title",
+            "level": "P1-数据",
+            "detail": "全部草稿原 keywords 为空，保存时由标题提取 5 个词写入；非英文标题"
+                      "（如 ATV 葡萄牙语）会生成非英文关键词（quadriciclo/off-road/sem/escovas/para），"
+                      "面向英文站需人工替换后再发布",
+            "file_line": "src/aeclone/services/alibaba_pipeline.py:358-375",
+            "evidence": kw_rows,
+        })
+
+    normalized = [{"product_id": pid, "side_effects": entry.get("side_effect_fields")}
+                  for pid, entry in write_summary.items() if entry.get("side_effect_fields")]
+    if normalized and "field-normalization" not in have:
+        defects.append({
+            "id": "field-normalization",
+            "level": "P3-预期归一化",
+            "detail": "sku_price 商品 bulkDiscountPrices 由空串归一为 []；所有商品 wholesaleTrade "
+                      "被重写为含 min_order_quantity/unit_type/sale_type 的规范结构（package_size/"
+                      "weight/inventory/阶梯价等业务值均保留未改）；priceType/productSku/mainImage "
+                      "未出现在 changed_fields",
+            "file_line": "src/aeclone/services/alibaba_payload.py:336-390",
+            "evidence": normalized,
+        })
+    return defects
+
+
+def _run_post_check(args, cfg, client, plan: dict, output: Path) -> int:
+    """只读回读已保存商品，把 post_check/write_summary/rollback_reference 写回 JSON。"""
+    from aeclone.integrations.alibaba import AlibabaClient  # noqa: F401
+
+    if not output.exists():
+        print(f"ERROR: 找不到已有报告 {output}；先跑一次 dry-run/--save 再 --post-check")
+        return 1
+    try:
+        report = json.loads(output.read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001
+        print(f"ERROR: 读取已有报告失败：{type(e).__name__}: {e}")
+        return 1
+    pids = [str(s.get("product_id")) for s in (report.get("saves") or []) if s.get("product_id")]
+    if not pids:
+        pids = list(plan.keys())
+    if not pids:
+        print("ERROR: 报告里没有已保存商品，也没有候选计划")
+        return 1
+
+    readbacks = {}
+    for pid in pids:
+        entry = plan.get(pid) or {}
+        try:
+            readbacks[pid] = _readback_record(client, pid, entry)
+            print(f"  回读 {pid}: cat={readbacks[pid]['categoryId']} "
+                  f"plan_match={readbacks[pid]['category_matches_plan']} "
+                  f"state={readbacks[pid]['dxmState']} attrs={readbacks[pid]['attributes_count']}")
+        except Exception as e:  # noqa: BLE001
+            readbacks[pid] = {"product_id": pid,
+                              "error": f"{type(e).__name__}: {str(e)[:160]}"}
+
+    # 回滚参考：保存前原始值（来自本轮体检 + 保存前快照）vs 实际写入值
+    inventory = {r.get("product_id"): r for r in ((report.get("inventory") or {}).get("records") or [])}
+    save_by_id = {s.get("product_id"): s for s in (report.get("saves") or [])}
+    rollback, write_summary = {}, {}
+    for pid in pids:
+        before = inventory.get(pid) or {}
+        save = save_by_id.get(pid) or {}
+        after = readbacks.get(pid) or {}
+        entry = plan.get(pid) or {}
+        landed = _preset_names_landed(report, pid, entry)
+        rollback[pid] = {
+            "product_id": pid,
+            "before": {
+                "categoryId": str(before.get("category_id") or ""),
+                "fullCid": str(before.get("full_cid") or ""),
+                "subject": str(before.get("subject") or ""),
+                "keywords": str(before.get("keywords_raw") or ""),
+                "priceType": str(before.get("price_type") or ""),
+                "bulkDiscountPrices": before.get("bulk_discount_prices"),
+                "dxmState": str(before.get("dxm_state") or ""),
+                "attributes_count": before.get("attributes_count"),
+            },
+            "after": {
+                "categoryId": after.get("categoryId"),
+                "fullCid": after.get("fullCid"),
+                "subject": after.get("subject"),
+                "keywords": after.get("keywords"),
+                "priceType": after.get("priceType"),
+                "bulkDiscountPrices": after.get("bulkDiscountPrices"),
+                "dxmState": after.get("dxmState"),
+                "attributes_count": after.get("attributes_count"),
+            },
+            "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；"
+                             "priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改",
+        }
+        changed = list((save.get("changed_fields") or {}).keys())
+        expected_changes = {"categoryId", "fullCid", "keywords", "subject", "attributes_count"}
+        side_effects = [k for k in changed if k not in expected_changes]
+        write_summary[pid] = {
+            "category_written": {"categoryId": after.get("categoryId"),
+                                 "fullCid": after.get("fullCid")},
+            "subject": {
+                "changed": "subject" in changed,
+                "before_chars": (before.get("subject_chars")
+                                 or (save.get("before") or {}).get("subject_chars")),
+                "after_chars": after.get("subject_chars"),
+            },
+            "keywords_written": after.get("keywords"),
+            "attrs_written_from_presets": landed["attrs_written_from_presets"],
+            "attrs_preserved_existing": landed["attrs_preserved_existing"],
+            "autofilled_default_before_presets": next(
+                (c.get("autofill_default") for c in (report.get("candidates") or [])
+                 if c.get("product_id") == pid), None),
+            "side_effect_fields": side_effects,
+            "data_assumptions": ASSUMPTIONS.get(pid, []),
+        }
+
+    # 580（Lead 保留）与草稿总数校验
+    protected = {}
+    try:
+        p580 = client.product_detail("220114598434958580")
+        snap580 = _snapshot(p580)
+        prev_path = ROOT / "docs" / "alibaba-real-save-verification.json"
+        same_as_lead_save = None
+        if prev_path.exists():
+            try:
+                prev = json.loads(prev_path.read_text(encoding="utf-8")).get("after") or {}
+                same_as_lead_save = all(
+                    str(snap580.get(k) or "") == str(prev.get(k) or "")
+                    for k in ("subject", "categoryId", "fullCid", "priceType", "keywords"))
+            except Exception:
+                same_as_lead_save = None
+        protected = {"product_id": "220114598434958580",
+                     "subject": snap580["subject"], "categoryId": snap580["categoryId"],
+                     "fullCid": snap580["fullCid"], "priceType": snap580["priceType"],
+                     "keywords": snap580["keywords"], "dxmState": snap580["dxmState"],
+                     "keywords_unchanged_vs_lead_save": same_as_lead_save}
+    except Exception as e:  # noqa: BLE001
+        protected = {"product_id": "220114598434958580",
+                     "error": f"{type(e).__name__}: {str(e)[:160]}"}
+
+    drafts = {}
+    try:
+        rows, info = _list_all_drafts(client, args.shop_id, args.page_size)
+        empty = [str(r.get("id")) for r in rows if not str(r.get("categoryId") or "").strip()]
+        drafts = {**info, "empty_category_count": len(empty),
+                  "empty_category_ids": empty,
+                  "filled_category_count": len(rows) - len(empty)}
+    except Exception as e:  # noqa: BLE001
+        drafts = {"error": f"{type(e).__name__}: {str(e)[:160]}"}
+
+    changed_map = {str(s.get("product_id")): list((s.get("changed_fields") or {}).keys())
+                   for s in (report.get("saves") or [])}
+    all_products = [readbacks[p] for p in pids if "error" not in readbacks[p]]
+    checks = {
+        "all_categories_match_plan": all(r.get("category_matches_plan") for r in all_products) if all_products else None,
+        "all_still_draft": all(r.get("dxmState") == "draft" for r in all_products) if all_products else None,
+        "price_type_preserved": all(
+            not (inventory.get(r["product_id"]) or {}).get("price_type")
+            or str((inventory.get(r["product_id"]) or {}).get("price_type")) == str(r.get("priceType"))
+            for r in all_products) if all_products else None,
+        "main_image_not_in_changed_fields": all(
+            "mainImage" not in (changed_map.get(r["product_id"]) or []) for r in all_products),
+        "productSku_not_in_changed_fields": all(
+            "productSku" not in (changed_map.get(r["product_id"]) or []) for r in all_products),
+        "publish_state_verified": False,
+        "publish_note": "本次只做 op=1 保存草稿；未发布、未提交审核，发布链路未验证",
+    }
+
+    readback_errors = [r for r in readbacks.values() if "error" in r]
+    report["defects"] = _post_check_defects(report, readbacks, write_summary)
+    report["post_check"] = {
+        "readback_at": _stamp(),
+        "mode": "read-only 回读（不发保存请求）",
+        "checks": checks,
+        "products": readbacks,
+        "protected_580": protected,
+        "drafts_after": drafts,
+        "readback_errors": readback_errors,
+    }
+    report["write_summary"] = write_summary
+    report["rollback_reference"] = rollback
+    report["data_assumptions"] = {
+        "general": GENERAL_ASSUMPTIONS,
+        "per_product": ASSUMPTIONS,
+        "note": "推断/占位值只用于打通保存链路；不代表真实规格，提交审核前必须人工复核",
+    }
+    report["status"] = "ERROR" if readback_errors else report.get("status", "OK")
+    report["post_check_ok"] = not readback_errors
+    _write_json(output, report)
+    print(f"\npost-check：回读 {len(readbacks)} 个商品，错误 {len(readback_errors)} 个")
+    print(f"  类目全部匹配计划：{checks['all_categories_match_plan']}；仍在草稿：{checks['all_still_draft']}；"
+          f"priceType 保持：{checks['price_type_preserved']}")
+    print(f"  580 未被改动：{protected.get('keywords_unchanged_vs_lead_save')}")
+    print(f"  草稿数：{drafts.get('count')}，仍缺类目：{drafts.get('empty_category_count')}")
+    print(f"报告已更新 {output}")
+    return 0 if not readback_errors else 1
 
 
 if __name__ == "__main__":

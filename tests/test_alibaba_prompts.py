@@ -237,6 +237,61 @@ class ApplyToCfgTests(unittest.TestCase):
         self.assertEqual(cfg.as_dict(), before)
 
 
+class FabricationWarningTests(unittest.TestCase):
+    """真实实测发现「示例数字会被模型抄进标题」，这里离线锁住后置体检能力。"""
+
+    def test_flags_fabricated_spec_material_absolute(self):
+        source = "Customized Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool"
+        text = "Customized 40ft Fiberglass Container Pool 100% Waterproof"
+        w = AP.fabrication_warnings(text, source)
+        joined = " | ".join(w)
+        self.assertIn("40ft", joined)
+        self.assertIn("fiberglass", joined.lower())
+        self.assertIn("100%", joined)
+
+    def test_no_warning_when_grounded(self):
+        source = "Fiberglass Container Pool 40ft Customized outdoor pool"
+        text = "Customized 40ft Fiberglass Container Pool"
+        self.assertEqual(AP.fabrication_warnings(text, source), [])
+
+    def test_hyphen_unit_flagged(self):
+        w = AP.fabrication_warnings("Prefabricated 40-foot container pool", "container pool")
+        self.assertTrue(any("40-foot" in x for x in w), w)
+
+    def test_source_with_contact_only_gets_spec_warnings(self):
+        # 真实环境里 220114598434958576 的原详情只有联系方式、没有任何规格
+        source = "Contact: Whatsapp +8615890156038 Email: a@b.com Please leave message for quote"
+        w = AP.fabrication_warnings("40ft Fiberglass Pool with 30 years warranty", source)
+        joined = " | ".join(w)
+        self.assertIn("40ft", joined)
+        self.assertIn("fiberglass", joined.lower())
+        self.assertIn("30", joined)
+
+    def test_empty_and_non_ascii_inputs(self):
+        self.assertEqual(AP.fabrication_warnings("", ""), [])
+        self.assertEqual(AP.fabrication_warnings(None, None), [])
+        self.assertEqual(AP.fabrication_warnings("纯中文没有规格", "原文"), [])
+
+    def test_measured_real_regression_case(self):
+        """v1 预设实测回归：576 原文只有标题、无 fiberglass/尺寸，新标题却写了。"""
+        source_576 = ("Customized Large Size Prefabricated Container Swimming Pool "
+                      "Acrylic Glass Window Outdoor Above Ground Pool for Sale")
+        old_title = "Large Prefab Container Swimming Pool with Acrylic Glass Window – Outdoor Above-Ground Pool"
+        new_title_v1 = ("Customized 40ft Prefabricated Container Pool with Acrylic Window – "
+                        "Outdoor Above Ground Fiberglass Pool")
+        self.assertEqual(AP.fabrication_warnings(old_title, source_576), [])
+        joined = " | ".join(AP.fabrication_warnings(new_title_v1, source_576))
+        self.assertIn("40ft", joined)
+        self.assertIn("fiberglass", joined.lower())
+
+    def test_pool_prompt_hardened_against_examples(self):
+        """v2 加固：泳池标题/详情提示词明确禁止搬用示例尺寸与材质。"""
+        p = AP.PRESETS["container_pool"]
+        self.assertIn("禁止出现任何尺寸数字", p["title_prompt"])
+        self.assertIn("原文没有具体尺寸时禁止写任何 ft/m 数字", p["detail_prompt"])
+        self.assertEqual(AP.PRESET_VERSION, "2026-11-22.2")
+
+
 class TextPipelineCompatibilityTests(unittest.TestCase):
     """预设要能直接作为 TextPipeline 的 system prompt 使用（离线，不联网）。"""
 

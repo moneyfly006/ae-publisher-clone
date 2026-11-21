@@ -4138,9 +4138,1076 @@
           ]
         }
       ]
+    },
+    {
+      "id": "productsku-empty-array",
+      "level": "P2-代码",
+      "detail": "无 productSku 的 ladder 商品保存后 productSku 变成 []（present-but-empty），因为 build_save_dict 把缺失值序列化成 \"[]\"；ladder_price 校验不拦，但 SKU 编辑器/后续 sku_price 切换会看到「有 SKU 数据但为空」",
+      "file_line": "src/aeclone/integrations/alibaba.py:223（j(product.get(\"productSku\"))）",
+      "evidence": [
+        "220114598434958576",
+        "220114598434958574",
+        "220114598434958562"
+      ]
+    },
+    {
+      "id": "subject-truncated",
+      "level": "P2-数据/预期行为",
+      "detail": "标题超过 Alibaba subject≤128 时被 clip_title 按词边界截断（ATV 147→122），属预期保护，但语义被截断，发布前需人工确认标题可读性",
+      "file_line": "src/aeclone/services/alibaba_pipeline.py:126-133",
+      "evidence": [
+        {
+          "product_id": "220114598434958114",
+          "before_chars": 147,
+          "after_chars": 122,
+          "after": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico,"
+        }
+      ]
+    },
+    {
+      "id": "keywords-from-title",
+      "level": "P1-数据",
+      "detail": "全部草稿原 keywords 为空，保存时由标题提取 5 个词写入；非英文标题（如 ATV 葡萄牙语）会生成非英文关键词（quadriciclo/off-road/sem/escovas/para），面向英文站需人工替换后再发布",
+      "file_line": "src/aeclone/services/alibaba_pipeline.py:358-375",
+      "evidence": [
+        {
+          "product_id": "220114598434958576",
+          "keywords": "large, size, prefabricated, container, swimming"
+        },
+        {
+          "product_id": "220114598434958578",
+          "keywords": "container, swimming, pool, prefab, above"
+        },
+        {
+          "product_id": "220114598434958574",
+          "keywords": "high-end, luxury, container, swimming, pool"
+        },
+        {
+          "product_id": "220114598434958570",
+          "keywords": "container, pool, luxury, outdoor, swimming"
+        },
+        {
+          "product_id": "220114598434958562",
+          "keywords": "sinoy, portable, prefab, container, pools"
+        },
+        {
+          "product_id": "220114598434958114",
+          "keywords": "quadriciclo, off-road, sem, escovas, para"
+        },
+        {
+          "product_id": "220114598434958546",
+          "keywords": "outdoor, swimming, pool, large, capacity"
+        },
+        {
+          "product_id": "220114598434958532",
+          "keywords": "dual, spray, water, fountain, adjustable"
+        }
+      ]
+    },
+    {
+      "id": "field-normalization",
+      "level": "P3-预期归一化",
+      "detail": "sku_price 商品 bulkDiscountPrices 由空串归一为 []；所有商品 wholesaleTrade 被重写为含 min_order_quantity/unit_type/sale_type 的规范结构（package_size/weight/inventory/阶梯价等业务值均保留未改）；priceType/productSku/mainImage 未出现在 changed_fields",
+      "file_line": "src/aeclone/services/alibaba_payload.py:336-390",
+      "evidence": [
+        {
+          "product_id": "220114598434958576",
+          "side_effects": [
+            "wholesaleTrade",
+            "sku"
+          ]
+        },
+        {
+          "product_id": "220114598434958578",
+          "side_effects": [
+            "bulkDiscountPrices",
+            "wholesaleTrade"
+          ]
+        },
+        {
+          "product_id": "220114598434958574",
+          "side_effects": [
+            "wholesaleTrade",
+            "sku"
+          ]
+        },
+        {
+          "product_id": "220114598434958570",
+          "side_effects": [
+            "bulkDiscountPrices",
+            "wholesaleTrade"
+          ]
+        },
+        {
+          "product_id": "220114598434958562",
+          "side_effects": [
+            "wholesaleTrade",
+            "sku"
+          ]
+        },
+        {
+          "product_id": "220114598434958114",
+          "side_effects": [
+            "bulkDiscountPrices",
+            "wholesaleTrade"
+          ]
+        },
+        {
+          "product_id": "220114598434958546",
+          "side_effects": [
+            "bulkDiscountPrices",
+            "wholesaleTrade"
+          ]
+        },
+        {
+          "product_id": "220114598434958532",
+          "side_effects": [
+            "bulkDiscountPrices",
+            "wholesaleTrade"
+          ]
+        }
+      ]
     }
   ],
   "notes": [
     "客户端 Cookie 顺序：alibaba_cookies > manual_cookies > 本机浏览器（不记录内容）"
-  ]
+  ],
+  "post_check": {
+    "readback_at": "2026-11-22T01:41:48+08:00",
+    "mode": "read-only 回读（不发保存请求）",
+    "checks": {
+      "all_categories_match_plan": true,
+      "all_still_draft": true,
+      "price_type_preserved": true,
+      "main_image_not_in_changed_fields": true,
+      "productSku_not_in_changed_fields": true,
+      "publish_state_verified": false,
+      "publish_note": "本次只做 op=1 保存草稿；未发布、未提交审核，发布链路未验证"
+    },
+    "products": {
+      "220114598434958576": {
+        "product_id": "220114598434958576",
+        "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+        "subject_chars": 115,
+        "keywords": "large, size, prefabricated, container, swimming",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "expected_category_id": "202107201",
+        "expected_full_cid": "18,100005657,100005663,202107201",
+        "category_matches_plan": true,
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":7751.6}]",
+        "productSku_present": true,
+        "productSku_valid": 0,
+        "productSku_is_empty_array": true,
+        "mainImage_count": 6,
+        "mainImage_first": "https://ae-pic-a1.aliexpress-media.com/kf/Sf32c482dcb174c7b9dd3960cdff834879.jpg",
+        "textDesc_chars": 355,
+        "dxmState": "draft",
+        "attributes_count": 20,
+        "attributes": {
+          "Charge Status": "No",
+          "High-concerned chemical": "None",
+          "Origin": "Mainland China",
+          "Certification": "CE",
+          "Place of Origin": "Hebei, China",
+          "Material": "Stainless Steel, FRP, Acrylic",
+          "Applicable People": "Children, Adult",
+          "Type": "Children's Pools, Spa Pools, Public Pools, Above Ground Pools, Swimming Pools",
+          "Brand Name": "Yugong",
+          "Shape": "Rectangle",
+          "Application": "Home, Commercial, Swimming Pool, Swim, family swimming pool, swimming season, Water Games, outdoor pool",
+          "Size": "Custom Made",
+          "Advantage": "Quick Set-up",
+          "MOQ": "1 Piece",
+          "Shipping": "20-30Working Days",
+          "Standard size": "20ft 40ft",
+          "Window": "Optional",
+          "Delivery": "15-20 days",
+          "Feature": "Waterproof, Eco-Friendly, Durable, Easy Install, High Efficiency, Fast Set",
+          "Color": "Other"
+        },
+        "wholesaleTrade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "200.0X200.0X150.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 100
+            }
+          ],
+          "has_hs": false
+        }
+      },
+      "220114598434958578": {
+        "product_id": "220114598434958578",
+        "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+        "subject_chars": 120,
+        "keywords": "container, swimming, pool, prefab, above",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "expected_category_id": "202107201",
+        "expected_full_cid": "18,100005657,100005663,202107201",
+        "category_matches_plan": true,
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "productSku_present": true,
+        "productSku_valid": 6,
+        "productSku_is_empty_array": false,
+        "mainImage_count": 6,
+        "mainImage_first": "https://ae-pic-a1.aliexpress-media.com/kf/Sc96d2c62294c48e0b0c7f6ed4b5707b6x.jpg",
+        "textDesc_chars": 1476,
+        "dxmState": "draft",
+        "attributes_count": 19,
+        "attributes": {
+          "Charge Status": "Yes",
+          "High-concerned chemical": "None",
+          "Condition": "New",
+          "Origin": "Mainland China",
+          "Certification": "CE",
+          "Place of Origin": "henan China",
+          "Thickness": "10mm",
+          "Brand Name": "YG",
+          "Material": "Glass Fiber, FRP",
+          "Warranty": "30",
+          "Model Number": "A",
+          "Applicable People": "Children, Adult, All",
+          "Type": "Above Ground Pools, Swimming Pools",
+          "Feature": "Eco-Friendly, Durable, Uv Resistant, Easy Install, rectangular frame pool",
+          "Shape": "Rectangle",
+          "Power Supply": "220V Electrical Equipment, 120 V",
+          "Application": "Home, Swimming Pool, Swim, Durable, Anti-Uv, family swimming pool, outdoor pool",
+          "Accessories": "safety ladder",
+          "Color": "Blue+white"
+        },
+        "wholesaleTrade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "500.0X500.0X500.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        }
+      },
+      "220114598434958574": {
+        "product_id": "220114598434958574",
+        "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+        "subject_chars": 101,
+        "keywords": "high-end, luxury, container, swimming, pool",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "expected_category_id": "202107201",
+        "expected_full_cid": "18,100005657,100005663,202107201",
+        "category_matches_plan": true,
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":6172.53}]",
+        "productSku_present": true,
+        "productSku_valid": 0,
+        "productSku_is_empty_array": true,
+        "mainImage_count": 6,
+        "mainImage_first": "https://ae-pic-a1.aliexpress-media.com/kf/S68a063cbce7445299d2eac15e2d4ab8bZ.jpg",
+        "textDesc_chars": 456,
+        "dxmState": "draft",
+        "attributes_count": 10,
+        "attributes": {
+          "Charge Status": "No",
+          "High-concerned chemical": "None",
+          "Condition": "New",
+          "Origin": "Mainland China",
+          "Certification": "CE",
+          "Place of Origin": "China",
+          "Color": "Other",
+          "Material": "Other",
+          "Applicable People": "All",
+          "Type": "Above Ground Pools"
+        },
+        "wholesaleTrade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "500.0X200.0X200.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 55
+            }
+          ],
+          "has_hs": false
+        }
+      },
+      "220114598434958570": {
+        "product_id": "220114598434958570",
+        "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+        "subject_chars": 113,
+        "keywords": "container, pool, luxury, outdoor, swimming",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "expected_category_id": "202107201",
+        "expected_full_cid": "18,100005657,100005663,202107201",
+        "category_matches_plan": true,
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "productSku_present": true,
+        "productSku_valid": 1,
+        "productSku_is_empty_array": false,
+        "mainImage_count": 6,
+        "mainImage_first": "https://ae-pic-a1.aliexpress-media.com/kf/S6f31423ff6cd41809d4487f40dd314bbo.jpg",
+        "textDesc_chars": 1562,
+        "dxmState": "draft",
+        "attributes_count": 9,
+        "attributes": {
+          "Charge Status": "No",
+          "High-concerned chemical": "None",
+          "Condition": "New",
+          "Origin": "Mainland China",
+          "Place of Origin": "China",
+          "Color": "Other",
+          "Material": "Other",
+          "Applicable People": "All",
+          "Type": "Above Ground Pools"
+        },
+        "wholesaleTrade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "250.0X250.0X350.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        }
+      },
+      "220114598434958562": {
+        "product_id": "220114598434958562",
+        "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+        "subject_chars": 127,
+        "keywords": "sinoy, portable, prefab, container, pools",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "expected_category_id": "202107201",
+        "expected_full_cid": "18,100005657,100005663,202107201",
+        "category_matches_plan": true,
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":5821.65}]",
+        "productSku_present": true,
+        "productSku_valid": 0,
+        "productSku_is_empty_array": true,
+        "mainImage_count": 6,
+        "mainImage_first": "https://ae-pic-a1.aliexpress-media.com/kf/S5a2d24e77d9c4b5ea4a81ec00ad00b08m.jpg",
+        "textDesc_chars": 1534,
+        "dxmState": "draft",
+        "attributes_count": 13,
+        "attributes": {
+          "Charge Status": "No",
+          "High-concerned chemical": "None",
+          "Condition": "New",
+          "Origin": "Mainland China",
+          "Place of Origin": "Henan, China",
+          "Brand Name": "yugong",
+          "Type": "Pool",
+          "Feature": "UV Resistant, wind-proof, puncture resistant, crack resistant",
+          "Material": "fiberglass",
+          "Dimensions": "custom",
+          "Application": "Outdoor, Customized, Pool, Above ground pool, acrylic swimming pool",
+          "Color": "Other",
+          "Applicable People": "All"
+        },
+        "wholesaleTrade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "300.0X500.0X400.0",
+          "weight": 500.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 23
+            }
+          ],
+          "has_hs": false
+        }
+      },
+      "220114598434958114": {
+        "product_id": "220114598434958114",
+        "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico,",
+        "subject_chars": 122,
+        "keywords": "quadriciclo, off-road, sem, escovas, para",
+        "categoryId": "201139102",
+        "fullCid": "201275273,127676029,201139102",
+        "expected_category_id": "201139102",
+        "expected_full_cid": "201275273,127676029,201139102",
+        "category_matches_plan": true,
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "productSku_present": true,
+        "productSku_valid": 2,
+        "productSku_is_empty_array": false,
+        "mainImage_count": 6,
+        "mainImage_first": "https://ae-pic-a1.aliexpress-media.com/kf/Sf3eda8c9a4a44e79884a3ae4b26e5432H.jpg",
+        "textDesc_chars": 878,
+        "dxmState": "draft",
+        "attributes_count": 14,
+        "attributes": {
+          "Estado da carga": "Não",
+          "Produto Químico de Alta Preocupação": "Nenhum",
+          "Origem": "CN (Origem)",
+          "Certificação": "CE",
+          "Maximum Torque(Nm)": "60-80Nm",
+          "Maximum Speed": "75-100Km/h",
+          "Driving Type": "4Wd",
+          "Charge Time(h)": "7-9h",
+          "Grade Ability": "20-25°",
+          "Driving Mileage": "≥90km",
+          "Transmission System": "Chain Drive",
+          "Power": "> 1000W",
+          "Voltage": "60 V",
+          "Place of Origin": "China"
+        },
+        "wholesaleTrade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "30.0X30.0X30.0",
+          "weight": 30.0,
+          "inventory": null,
+          "has_hs": false
+        }
+      },
+      "220114598434958546": {
+        "product_id": "220114598434958546",
+        "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+        "subject_chars": 121,
+        "keywords": "outdoor, swimming, pool, large, capacity",
+        "categoryId": "201730007",
+        "fullCid": "1524,201709904,201730007",
+        "expected_category_id": "201730007",
+        "expected_full_cid": "1524,201709904,201730007",
+        "category_matches_plan": true,
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "productSku_present": true,
+        "productSku_valid": 1,
+        "productSku_is_empty_array": false,
+        "mainImage_count": 6,
+        "mainImage_first": "https://ae-pic-a1.aliexpress-media.com/kf/S02b17b70454b4bba8cb7475581ac98ceI.jpg",
+        "textDesc_chars": 245,
+        "dxmState": "draft",
+        "attributes_count": 8,
+        "attributes": {
+          "Is it pool toy": "N",
+          "High-concerned chemical": "None",
+          "Origin": "Mainland China",
+          "Style": "Other",
+          "Logo/Pattern": "Other",
+          "Place of Origin": "China",
+          "Material": "Mesh",
+          "Color": "Other"
+        },
+        "wholesaleTrade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "34.0X24.0X10.0",
+          "weight": 0.6100000143051147,
+          "inventory": null,
+          "has_hs": false
+        }
+      },
+      "220114598434958532": {
+        "product_id": "220114598434958532",
+        "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+        "subject_chars": 101,
+        "keywords": "dual, spray, water, fountain, adjustable",
+        "categoryId": "100001819",
+        "fullCid": "15,125,100001813,100001819",
+        "expected_category_id": "100001819",
+        "expected_full_cid": "15,125,100001813,100001819",
+        "category_matches_plan": true,
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "productSku_present": true,
+        "productSku_valid": 1,
+        "productSku_is_empty_array": false,
+        "mainImage_count": 6,
+        "mainImage_first": "https://ae-pic-a1.aliexpress-media.com/kf/Sc86485eaab0341f49dff07fbeec9b0396.jpg",
+        "textDesc_chars": 1519,
+        "dxmState": "draft",
+        "attributes_count": 7,
+        "attributes": {
+          "Is it pool toy": "N",
+          "High-concerned chemical": "None",
+          "Type": "Pool",
+          "Origin": "Mainland China",
+          "Color": "Other",
+          "Place of Origin": "China",
+          "Material": "Plastic"
+        },
+        "wholesaleTrade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "35.0X16.0X8.0",
+          "weight": 0.6399999856948853,
+          "inventory": null,
+          "has_hs": false
+        }
+      }
+    },
+    "protected_580": {
+      "product_id": "220114598434958580",
+      "subject": "Customized Fiberglass Swimming Pool Container",
+      "categoryId": "202107201",
+      "fullCid": "18,100005657,100005663,202107201",
+      "priceType": "ladder_price",
+      "keywords": "fiberglass pool, container pool, above ground pool",
+      "dxmState": "draft",
+      "keywords_unchanged_vs_lead_save": true
+    },
+    "drafts_after": {
+      "count": 28,
+      "total_size": 28,
+      "total_page": 1,
+      "empty_category_count": 19,
+      "empty_category_ids": [
+        "220114598434958572",
+        "220114598434958568",
+        "220114598434958566",
+        "220114598434958564",
+        "220114598434958560",
+        "220114598434958558",
+        "220114598434958556",
+        "220114598434958554",
+        "220114598434958552",
+        "220114598434958550",
+        "220114598434958548",
+        "220114598434958544",
+        "220114598434958542",
+        "220114598434958540",
+        "220114598434958538",
+        "220114598434958536",
+        "220114598434958534",
+        "220114598434958530",
+        "220114598434958528"
+      ],
+      "filled_category_count": 9
+    },
+    "readback_errors": []
+  },
+  "write_summary": {
+    "220114598434958576": {
+      "category_written": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201"
+      },
+      "subject": {
+        "changed": false,
+        "before_chars": 115,
+        "after_chars": 115
+      },
+      "keywords_written": "large, size, prefabricated, container, swimming",
+      "attrs_written_from_presets": [
+        "Color"
+      ],
+      "attrs_preserved_existing": [
+        "Place of Origin",
+        "Material",
+        "Applicable People",
+        "Type"
+      ],
+      "autofilled_default_before_presets": [
+        "Color=Other"
+      ],
+      "side_effect_fields": [
+        "wholesaleTrade",
+        "sku"
+      ],
+      "data_assumptions": [
+        "Color=Other：商品缺必填 Color，无来源，占位值需人工复核"
+      ]
+    },
+    "220114598434958578": {
+      "category_written": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201"
+      },
+      "subject": {
+        "changed": false,
+        "before_chars": 120,
+        "after_chars": 120
+      },
+      "keywords_written": "container, swimming, pool, prefab, above",
+      "attrs_written_from_presets": [],
+      "attrs_preserved_existing": [
+        "Place of Origin",
+        "Color",
+        "Material",
+        "Applicable People",
+        "Type"
+      ],
+      "autofilled_default_before_presets": [],
+      "side_effect_fields": [
+        "bulkDiscountPrices",
+        "wholesaleTrade"
+      ],
+      "data_assumptions": []
+    },
+    "220114598434958574": {
+      "category_written": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201"
+      },
+      "subject": {
+        "changed": false,
+        "before_chars": 101,
+        "after_chars": 101
+      },
+      "keywords_written": "high-end, luxury, container, swimming, pool",
+      "attrs_written_from_presets": [
+        "Place of Origin",
+        "Color",
+        "Material",
+        "Applicable People",
+        "Type"
+      ],
+      "attrs_preserved_existing": [],
+      "autofilled_default_before_presets": [
+        "Place of Origin=other",
+        "Color=Other",
+        "Material=Other",
+        "Applicable People=Other",
+        "Type=Other"
+      ],
+      "side_effect_fields": [
+        "wholesaleTrade",
+        "sku"
+      ],
+      "data_assumptions": [
+        "Place of Origin=China、Color=Other、Material=Other、Applicable People=All、Type=Above Ground Pools：商品原有属性不含这些必填项，全部为占位/推断值，需人工复核后才能提交审核"
+      ]
+    },
+    "220114598434958570": {
+      "category_written": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201"
+      },
+      "subject": {
+        "changed": false,
+        "before_chars": 113,
+        "after_chars": 113
+      },
+      "keywords_written": "container, pool, luxury, outdoor, swimming",
+      "attrs_written_from_presets": [
+        "Place of Origin",
+        "Color",
+        "Material",
+        "Applicable People",
+        "Type"
+      ],
+      "attrs_preserved_existing": [],
+      "autofilled_default_before_presets": [
+        "Place of Origin=other",
+        "Color=Other",
+        "Material=Other",
+        "Applicable People=Other",
+        "Type=Other"
+      ],
+      "side_effect_fields": [
+        "bulkDiscountPrices",
+        "wholesaleTrade"
+      ],
+      "data_assumptions": [
+        "Place of Origin=China、Color=Other、Material=Other、Applicable People=All、Type=Above Ground Pools：商品原有属性不含这些必填项，全部为占位/推断值，需人工复核后才能提交审核"
+      ]
+    },
+    "220114598434958562": {
+      "category_written": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201"
+      },
+      "subject": {
+        "changed": false,
+        "before_chars": 127,
+        "after_chars": 127
+      },
+      "keywords_written": "sinoy, portable, prefab, container, pools",
+      "attrs_written_from_presets": [
+        "Color",
+        "Applicable People"
+      ],
+      "attrs_preserved_existing": [
+        "Place of Origin",
+        "Material",
+        "Type"
+      ],
+      "autofilled_default_before_presets": [
+        "Color=Other",
+        "Applicable People=Other"
+      ],
+      "side_effect_fields": [
+        "wholesaleTrade",
+        "sku"
+      ],
+      "data_assumptions": [
+        "Color=Other、Applicable People=All：商品缺必填项，占位值需人工复核"
+      ]
+    },
+    "220114598434958114": {
+      "category_written": {
+        "categoryId": "201139102",
+        "fullCid": "201275273,127676029,201139102"
+      },
+      "subject": {
+        "changed": true,
+        "before_chars": 147,
+        "after_chars": 122
+      },
+      "keywords_written": "quadriciclo, off-road, sem, escovas, para",
+      "attrs_written_from_presets": [
+        "Maximum Torque(Nm)",
+        "Maximum Speed",
+        "Driving Type",
+        "Charge Time(h)",
+        "Grade Ability",
+        "Driving Mileage",
+        "Transmission System",
+        "Power",
+        "Voltage",
+        "Place of Origin"
+      ],
+      "attrs_preserved_existing": [],
+      "autofilled_default_before_presets": [
+        "Maximum Torque(Nm)=60-80Nm",
+        "Maximum Speed=75-100Km/h",
+        "Driving Type=4Wd",
+        "Charge Time(h)=7-9h",
+        "Grade Ability=20-25°",
+        "Driving Mileage=≤30km",
+        "Transmission System=Shaft Drive",
+        "Power=< 500W",
+        "Voltage=48 V",
+        "Place of Origin=other"
+      ],
+      "side_effect_fields": [
+        "bulkDiscountPrices",
+        "wholesaleTrade"
+      ],
+      "data_assumptions": [
+        "Voltage=60 V、Power=> 1000W：由标题「60V 2000W」推断",
+        "Driving Mileage=≥90km：由标题「90km de Autonomia」推断",
+        "Certificate/CE 未写入属性（标题含 Certificado CE，但该类目无对应必填属性）",
+        "Maximum Speed=75-100Km/h、Maximum Torque(Nm)=60-80Nm、Driving Type=4Wd、Charge Time(h)=7-9h、Grade Ability=20-25°、Transmission System=Chain Drive：商品数据无来源，按电动 ATV 常见值推断，需人工复核",
+        "Place of Origin=China：按采集源产地推断"
+      ]
+    },
+    "220114598434958546": {
+      "category_written": {
+        "categoryId": "201730007",
+        "fullCid": "1524,201709904,201730007"
+      },
+      "subject": {
+        "changed": false,
+        "before_chars": 121,
+        "after_chars": 121
+      },
+      "keywords_written": "outdoor, swimming, pool, large, capacity",
+      "attrs_written_from_presets": [
+        "Style",
+        "Logo/Pattern",
+        "Place of Origin",
+        "Material",
+        "Color"
+      ],
+      "attrs_preserved_existing": [],
+      "autofilled_default_before_presets": [
+        "Style=Other",
+        "Logo/Pattern=Other",
+        "Place of Origin=other",
+        "Material=Felt",
+        "Color=Other"
+      ],
+      "side_effect_fields": [
+        "bulkDiscountPrices",
+        "wholesaleTrade"
+      ],
+      "data_assumptions": [
+        "Material=Mesh：由标题「Mesh Bag」推断",
+        "Style=Other、Logo/Pattern=Other、Color=Other：无来源，占位值需人工复核",
+        "Place of Origin=China：按采集源产地推断"
+      ]
+    },
+    "220114598434958532": {
+      "category_written": {
+        "categoryId": "100001819",
+        "fullCid": "15,125,100001813,100001819"
+      },
+      "subject": {
+        "changed": false,
+        "before_chars": 101,
+        "after_chars": 101
+      },
+      "keywords_written": "dual, spray, water, fountain, adjustable",
+      "attrs_written_from_presets": [
+        "Color",
+        "Place of Origin",
+        "Material"
+      ],
+      "attrs_preserved_existing": [],
+      "autofilled_default_before_presets": [
+        "Color=Other",
+        "Place of Origin=other",
+        "Material=Other"
+      ],
+      "side_effect_fields": [
+        "bulkDiscountPrices",
+        "wholesaleTrade"
+      ],
+      "data_assumptions": [
+        "Material=Plastic：按喷头品类常见材质推断（也可能是 Metal），需人工复核",
+        "Color=Other：无来源，占位值需人工复核",
+        "Place of Origin=China：按采集源产地推断"
+      ]
+    }
+  },
+  "rollback_reference": {
+    "220114598434958576": {
+      "product_id": "220114598434958576",
+      "before": {
+        "categoryId": "",
+        "fullCid": "",
+        "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+        "keywords": "",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":7751.6}]",
+        "dxmState": "draft",
+        "attributes_count": 19
+      },
+      "after": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+        "keywords": "large, size, prefabricated, container, swimming",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":7751.6}]",
+        "dxmState": "draft",
+        "attributes_count": 20
+      },
+      "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改"
+    },
+    "220114598434958578": {
+      "product_id": "220114598434958578",
+      "before": {
+        "categoryId": "",
+        "fullCid": "",
+        "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+        "keywords": "",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "",
+        "dxmState": "draft",
+        "attributes_count": 19
+      },
+      "after": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+        "keywords": "container, swimming, pool, prefab, above",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "dxmState": "draft",
+        "attributes_count": 19
+      },
+      "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改"
+    },
+    "220114598434958574": {
+      "product_id": "220114598434958574",
+      "before": {
+        "categoryId": "",
+        "fullCid": "",
+        "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+        "keywords": "",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":6172.53}]",
+        "dxmState": "draft",
+        "attributes_count": 5
+      },
+      "after": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+        "keywords": "high-end, luxury, container, swimming, pool",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":6172.53}]",
+        "dxmState": "draft",
+        "attributes_count": 10
+      },
+      "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改"
+    },
+    "220114598434958570": {
+      "product_id": "220114598434958570",
+      "before": {
+        "categoryId": "",
+        "fullCid": "",
+        "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+        "keywords": "",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "",
+        "dxmState": "draft",
+        "attributes_count": 4
+      },
+      "after": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+        "keywords": "container, pool, luxury, outdoor, swimming",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "dxmState": "draft",
+        "attributes_count": 9
+      },
+      "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改"
+    },
+    "220114598434958562": {
+      "product_id": "220114598434958562",
+      "before": {
+        "categoryId": "",
+        "fullCid": "",
+        "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+        "keywords": "",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":5821.65}]",
+        "dxmState": "draft",
+        "attributes_count": 11
+      },
+      "after": {
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+        "keywords": "sinoy, portable, prefab, container, pools",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": "[{\"start_quantity\":1,\"price\":5821.65}]",
+        "dxmState": "draft",
+        "attributes_count": 13
+      },
+      "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改"
+    },
+    "220114598434958114": {
+      "product_id": "220114598434958114",
+      "before": {
+        "categoryId": "",
+        "fullCid": "",
+        "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico, Produtos Personalizáveis",
+        "keywords": "",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "",
+        "dxmState": "draft",
+        "attributes_count": 4
+      },
+      "after": {
+        "categoryId": "201139102",
+        "fullCid": "201275273,127676029,201139102",
+        "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico,",
+        "keywords": "quadriciclo, off-road, sem, escovas, para",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "dxmState": "draft",
+        "attributes_count": 14
+      },
+      "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改"
+    },
+    "220114598434958546": {
+      "product_id": "220114598434958546",
+      "before": {
+        "categoryId": "",
+        "fullCid": "",
+        "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+        "keywords": "",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "",
+        "dxmState": "draft",
+        "attributes_count": 3
+      },
+      "after": {
+        "categoryId": "201730007",
+        "fullCid": "1524,201709904,201730007",
+        "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+        "keywords": "outdoor, swimming, pool, large, capacity",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "dxmState": "draft",
+        "attributes_count": 8
+      },
+      "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改"
+    },
+    "220114598434958532": {
+      "product_id": "220114598434958532",
+      "before": {
+        "categoryId": "",
+        "fullCid": "",
+        "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+        "keywords": "",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "",
+        "dxmState": "draft",
+        "attributes_count": 4
+      },
+      "after": {
+        "categoryId": "100001819",
+        "fullCid": "15,125,100001813,100001819",
+        "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+        "keywords": "dual, spray, water, fountain, adjustable",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": "[]",
+        "dxmState": "draft",
+        "attributes_count": 7
+      },
+      "rollback_note": "把 before 里的 categoryId/keywords 清空（categoryId 置空）即可回到采集箱原始状态；priceType/bulkDiscountPrices/productSku/mainImage 未被本工具修改"
+    }
+  },
+  "data_assumptions": {
+    "general": [
+      "所有 attributes 中标记为 Other/推断 的值只用于打通「保存链路」测试，不代表真实规格；提交审核前必须人工复核",
+      "商品原有属性一律保留，预设只补齐缺失的必填项；报告 attrs_written 里列出实际补写项",
+      "ATV 标题原长 147 字符，保存时按 Alibaba subject≤128 截到 122 字符（词边界），语义被截断",
+      "ATV 关键词语种来自葡萄牙语原标题（quadriciclo/off-road/sem/escovas/para），面向英文站发布前应改为英文关键词",
+      "所有 8 个商品原 keywords 为空，保存时由标题提取 5 个英文词写入",
+      "sku_price 商品的 bulkDiscountPrices 由空串规整为 []；ladder_price 商品原阶梯价保留",
+      "无 SKU 的 ladder 商品保存后 productSku 变成 []（present-but-empty），由 build_save_dict 把缺失值序列化为 [] 导致"
+    ],
+    "per_product": {
+      "220114598434958114": [
+        "Voltage=60 V、Power=> 1000W：由标题「60V 2000W」推断",
+        "Driving Mileage=≥90km：由标题「90km de Autonomia」推断",
+        "Certificate/CE 未写入属性（标题含 Certificado CE，但该类目无对应必填属性）",
+        "Maximum Speed=75-100Km/h、Maximum Torque(Nm)=60-80Nm、Driving Type=4Wd、Charge Time(h)=7-9h、Grade Ability=20-25°、Transmission System=Chain Drive：商品数据无来源，按电动 ATV 常见值推断，需人工复核",
+        "Place of Origin=China：按采集源产地推断"
+      ],
+      "220114598434958546": [
+        "Material=Mesh：由标题「Mesh Bag」推断",
+        "Style=Other、Logo/Pattern=Other、Color=Other：无来源，占位值需人工复核",
+        "Place of Origin=China：按采集源产地推断"
+      ],
+      "220114598434958532": [
+        "Material=Plastic：按喷头品类常见材质推断（也可能是 Metal），需人工复核",
+        "Color=Other：无来源，占位值需人工复核",
+        "Place of Origin=China：按采集源产地推断"
+      ],
+      "220114598434958576": [
+        "Color=Other：商品缺必填 Color，无来源，占位值需人工复核"
+      ],
+      "220114598434958574": [
+        "Place of Origin=China、Color=Other、Material=Other、Applicable People=All、Type=Above Ground Pools：商品原有属性不含这些必填项，全部为占位/推断值，需人工复核后才能提交审核"
+      ],
+      "220114598434958570": [
+        "Place of Origin=China、Color=Other、Material=Other、Applicable People=All、Type=Above Ground Pools：商品原有属性不含这些必填项，全部为占位/推断值，需人工复核后才能提交审核"
+      ],
+      "220114598434958562": [
+        "Color=Other、Applicable People=All：商品缺必填项，占位值需人工复核"
+      ]
+    },
+    "note": "推断/占位值只用于打通保存链路；不代表真实规格，提交审核前必须人工复核"
+  },
+  "post_check_ok": true
 }
