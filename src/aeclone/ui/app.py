@@ -5908,6 +5908,61 @@ class App:
         except Exception:
             pass
 
+    def _alibaba_preset_control(self):
+        """Alibaba 行业提示词预设控件（AI 文案页 / Alibaba 刊登页共用）。
+
+        只写标题/详情/SKU/审查提示词与关键词提示词，不绕过用户后续手工微调。
+        """
+        try:
+            from ..services import alibaba_prompts as AP
+        except Exception:
+            return None
+        opts = AP.preset_options()
+        if not opts:
+            return None
+        dd = ft.Dropdown(
+            width=330, dense=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=AP.DEFAULT_PRESET_ID,
+            options=[ft.dropdown.Option(k, v) for k, v in opts])
+        info = muted("", 11)
+
+        def refresh_info(e=None):
+            try:
+                info.value = AP.describe_preset(AP.resolve_preset(dd.value))
+            except Exception:
+                info.value = ""
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def apply(e=None):
+            try:
+                preset = AP.resolve_preset(dd.value)
+                written = AP.apply_to_cfg(self.cfg, preset)
+                kw_prompt = str(preset.get("keyword_prompt") or "").strip()
+                if kw_prompt:
+                    self.cfg.set("alibaba_keyword_prompt", kw_prompt)
+                save_config(self.cfg)
+                self._log(f"套用 Alibaba 提示词预设：{preset.get('name')}"
+                          f"（{len(written)} 项）", "INFO")
+                self.toast(f"已套用 Alibaba 预设：{preset.get('name')}，可继续手工微调")
+                try:
+                    self._switch(self._page_idx)
+                except Exception:
+                    pass
+            except Exception as ex:  # noqa: BLE001
+                self.toast(f"套用失败：{ex}", False)
+
+        dd.on_change = refresh_info
+        refresh_info()
+        return ft.Column([
+            ft.Row([muted("Alibaba 行业预设", FS_SM), dd,
+                    ft.OutlinedButton("套用预设", icon=ft.Icons.AUTO_FIX_HIGH,
+                                      on_click=apply)], spacing=8, wrap=True),
+            info,
+        ], spacing=4)
+
     def _p_ai(self):
         """AI 文案：能力卡片（开关置顶 + 提示词折叠），保留全部配置项。"""
         self._current = 3
@@ -6098,9 +6153,15 @@ class App:
                 rows.append(ft.Row([ft.Text(f"{label}预设", size=FS_BASE, color=TEXT, width=70),
                                     dd,
                                     ft.OutlinedButton("套用", on_click=apply)], spacing=10))
-            return card(ft.Column([h1("提示词预设库", FS_MD),
-                                   muted("选一个行业/风格，一键替换对应提示词；仍可在下方继续微调"),
-                                   *rows], spacing=10))
+            ali = self._alibaba_preset_control()
+            return card(ft.Column([
+                h1("Alibaba 行业预设（推荐先用这个）", FS_MD),
+                muted("按品类一键写入标题/详情/SKU/审查/关键词提示词；套用后仍可在下方微调"),
+                *([ali] if ali else []),
+                ft.Divider(color=BORDER, height=16),
+                h1("提示词预设库（速卖通/通用）", FS_MD),
+                muted("选一个行业/风格，一键替换对应提示词；仍可在下方继续微调"),
+                *rows], spacing=10))
 
         return [self._settings_header("AI 文案", destination(3).description),
                 workspace_tabs([
@@ -9608,11 +9669,13 @@ class App:
             try:self._safe_update()
             except Exception: pass
 
+        _ai_preset_ctl = self._alibaba_preset_control()
         ai_card = card(ft.Column([
             h1("AI 文案 → 保存（新链路）", FS_MD),
-            muted("AI 生成英文标题（≤128）与详情 HTML，再按类目必填校验后保存；"
+            muted("AI 生成英文标题（≤128）与关键词/详情 HTML，再按类目必填校验后保存；"
                   "默认只预演，保存需二次确认。"),
             ai_use,
+            *([_ai_preset_ctl] if _ai_preset_ctl else []),
             ft.Row([ft.ElevatedButton("AI 预演（不保存）", icon=ft.Icons.AUTO_AWESOME,
                                       bgcolor=ACCENT, color=ON_ACCENT, on_click=ai_preview),
                     ft.ElevatedButton("AI 生成并保存", icon=ft.Icons.CLOUD_UPLOAD,

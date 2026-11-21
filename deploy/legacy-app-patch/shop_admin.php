@@ -259,7 +259,10 @@ function page_shop_user_update(int $id): void
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { flash('bad', '邮箱格式不正确'); redirect('/admin/shop-users/' . $id); }
     $st = shop_pdo()->prepare('SELECT id FROM users WHERE email=? AND id<>?'); $st->execute([$email, $id]);
     if ($st->fetch()) { flash('bad', '邮箱已被其他用户使用'); redirect('/admin/shop-users/' . $id); }
-    shop_pdo()->prepare('UPDATE users SET email=?, name=? WHERE id=?')->execute([$email, $name, $id]);
+    if (function_exists('ops_migrate_extra')) { ops_migrate_extra(); }
+    $tags = trim((string)($_POST['tags'] ?? ''));
+    $note = trim((string)($_POST['note'] ?? ''));
+    shop_pdo()->prepare('UPDATE users SET email=?, name=?, tags=?, note=? WHERE id=?')->execute([$email, $name, $tags, $note, $id]);
     audit('修改套餐用户信息', 'user:' . $id, '', $email);
     flash('ok', '用户信息已保存');
     redirect('/admin/shop-users/' . $id);

@@ -443,14 +443,13 @@ def autofill_required_attributes(product: dict, attr_defs: list | None, cfg=None
         elif val is not None:
             v_name = str(val)
         if not v_name:
+            # 不再「随便取第一个候选值」：ATV 类目第一个候选可能是 48V/<500W，
+            # 网袋类目第一个候选可能是 Felt——静默写入错误规格比拦住更危险。
+            # 取不到通用值就标记 unresolved，由 validate 阻断并提示用户填预设。
             for cand in values:
                 nm = str(cand.get("name_en") or cand.get("name") or "").strip()
                 if nm.lower() in GENERIC_VALUES:
                     v_name, v_id = nm, cand.get("id"); break
-        if not v_name and values:
-            cand = values[0]
-            v_name = str(cand.get("name_en") or cand.get("name") or "").strip()
-            v_id = cand.get("id")
         if v_name:
             attrs.append({"attribute_id": str(d.get("attrNameId") or d.get("attribute_id") or "-1"),
                           "attribute_name": name,

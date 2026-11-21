@@ -431,6 +431,56 @@ class CookieOrderTests(unittest.TestCase):
         self.assertEqual(client.s.cookies.get("dxm_i"), "dict_cfg")
 
 
+class AiKeywordTests(unittest.TestCase):
+    """AI 关键词：商品原 keywords 为空/小语种时生成英文关键词，cfg 显式配置优先。"""
+
+    class _Tp(FakeTextPipeline):
+        def __init__(self, kws="fiberglass swimming pool, container pool, prefab pool",
+                     ok=True):
+            super().__init__()
+            self.kws = kws
+            self.ok = ok
+            self.keyword_calls = []
+
+        def make_keywords(self, title, detail_text="", limit=5):
+            self.keyword_calls.append((title, detail_text[:40], limit))
+            return FakeTextResult(self.ok, self.kws, "3 个" if self.ok else "",
+                                  [] if self.ok else ["boom"])
+
+    def test_ai_keywords_used_when_not_configured(self):
+        client = FakeClient(product=make_product(keywords=""))
+        with clean_env(AURORA_SKIP_LICENSE="1"):
+            r = run_alibaba_product("pid-1", make_cfg(), dry_run=True,
+                                    client=client, text_pipeline=self._Tp())
+        self.assertTrue(r.ok, r.error)
+        self.assertEqual(r.keywords, ["fiberglass swimming pool",
+                                      "container pool", "prefab pool"])
+        self.assertTrue(any(s.name == "AI 关键词" and s.ok for s in r.steps))
+
+    def test_cfg_keywords_win_over_ai_keywords(self):
+        tp = self._Tp()
+        with clean_env(AURORA_SKIP_LICENSE="1"):
+            r = run_alibaba_product("pid-1", make_cfg(alibaba_keywords="my pool, spa"),
+                                    dry_run=True, client=FakeClient(), text_pipeline=tp)
+        self.assertEqual(tp.keyword_calls, [], "配置了关键词就不应再调 AI 生成")
+        self.assertEqual(r.keywords[:2], ["my pool", "spa"])
+
+    def test_ai_keyword_failure_falls_back(self):
+        tp = self._Tp(ok=False)
+        with clean_env(AURORA_SKIP_LICENSE="1"):
+            r = run_alibaba_product("pid-1", make_cfg(), dry_run=True,
+                                    client=FakeClient(), text_pipeline=tp)
+        self.assertTrue(r.ok, r.error)
+        self.assertGreaterEqual(len(r.keywords), 3)
+
+    def test_clip_title_sanitizes_unicode_dashes_and_fullwidth(self):
+        from aeclone.services.alibaba_pipeline import clip_title
+        out = clip_title("Custom Pool – Durable — 定制")
+        self.assertNotIn("–", out)
+        self.assertNotIn("—", out)
+        self.assertLessEqual(len(out), 128)
+
+
 if __name__ == "__main__":
     result = unittest.main(verbosity=2, exit=False)
     sys.exit(0 if result.result.wasSuccessful() else 1)

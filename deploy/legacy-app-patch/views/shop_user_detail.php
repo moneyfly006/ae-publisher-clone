@@ -17,7 +17,11 @@
     <div class="toolbar" style="flex-wrap:wrap;gap:10px">
       <label style="width:80px">邮箱</label><input name="email" value="<?= e($u['email']) ?>" style="width:320px" required>
       <label>称呼</label><input name="name" value="<?= e($u['name'] ?? '') ?>" style="width:200px">
+      <label>标签</label><input name="tags" value="<?= e($u['tags'] ?? '') ?>" placeholder="如：VIP,待续费" style="width:180px">
       <button class="btn ghost sm" type="submit">保存账号</button>
+    </div>
+    <div class="toolbar" style="margin-top:8px;gap:10px">
+      <label style="width:80px">备注</label><textarea name="note" rows="2" style="width:520px"><?= e($u['note'] ?? '') ?></textarea>
     </div>
   </form>
   <form method="post" action="/admin/shop-users/<?= (int)$u['id'] ?>/password" style="margin-top:10px">

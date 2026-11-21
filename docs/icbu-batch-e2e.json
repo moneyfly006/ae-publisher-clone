@@ -1,0 +1,4146 @@
+{
+  "generated_at": "2026-11-22T01:39:29+08:00",
+  "mode": "save (op=1)",
+  "status": "OK",
+  "use_ai": false,
+  "dry_run": false,
+  "op": "1",
+  "authorized_scope": "用户授权：仅 op=1 保存草稿；禁止 op=2/3/5、删除、发布、重试、改价；最多 8 个商品；不改 220114598434958580",
+  "env_guard": {
+    "AURORA_NO_SAVE": null,
+    "AURORA_TEST": null
+  },
+  "config_source": "real (~/Library/Application Support/AuroraList)",
+  "cookie_source": "manual_cookies",
+  "shop_id": "9466975",
+  "plan": {
+    "220114598434958576": {
+      "category_id": "202107201",
+      "attributes": [
+        "Applicable People",
+        "Color",
+        "Material",
+        "Place of Origin",
+        "Type"
+      ]
+    },
+    "220114598434958578": {
+      "category_id": "202107201",
+      "attributes": [
+        "Applicable People",
+        "Color",
+        "Material",
+        "Place of Origin",
+        "Type"
+      ]
+    },
+    "220114598434958574": {
+      "category_id": "202107201",
+      "attributes": [
+        "Applicable People",
+        "Color",
+        "Material",
+        "Place of Origin",
+        "Type"
+      ]
+    },
+    "220114598434958570": {
+      "category_id": "202107201",
+      "attributes": [
+        "Applicable People",
+        "Color",
+        "Material",
+        "Place of Origin",
+        "Type"
+      ]
+    },
+    "220114598434958562": {
+      "category_id": "202107201",
+      "attributes": [
+        "Applicable People",
+        "Color",
+        "Material",
+        "Place of Origin",
+        "Type"
+      ]
+    },
+    "220114598434958114": {
+      "category_id": "201139102",
+      "attributes": [
+        "Charge Time(h)",
+        "Driving Mileage",
+        "Driving Type",
+        "Grade Ability",
+        "Maximum Speed",
+        "Maximum Torque(Nm)",
+        "Place of Origin",
+        "Power",
+        "Transmission System",
+        "Voltage"
+      ]
+    },
+    "220114598434958546": {
+      "category_id": "201730007",
+      "attributes": [
+        "Color",
+        "Logo/Pattern",
+        "Material",
+        "Place of Origin",
+        "Style"
+      ]
+    },
+    "220114598434958532": {
+      "category_id": "100001819",
+      "attributes": [
+        "Color",
+        "Material",
+        "Place of Origin"
+      ]
+    }
+  },
+  "inventory": {
+    "shop_id": "9466975",
+    "count": 28,
+    "total_size": 28,
+    "total_page": 1,
+    "empty_category_count": 27,
+    "empty_category_ids": [
+      "220114598434958578",
+      "220114598434958576",
+      "220114598434958574",
+      "220114598434958572",
+      "220114598434958570",
+      "220114598434958568",
+      "220114598434958566",
+      "220114598434958564",
+      "220114598434958562",
+      "220114598434958560",
+      "220114598434958558",
+      "220114598434958556",
+      "220114598434958554",
+      "220114598434958552",
+      "220114598434958550",
+      "220114598434958548",
+      "220114598434958546",
+      "220114598434958544",
+      "220114598434958542",
+      "220114598434958540",
+      "220114598434958538",
+      "220114598434958536",
+      "220114598434958534",
+      "220114598434958532",
+      "220114598434958530",
+      "220114598434958528",
+      "220114598434958114"
+    ],
+    "records": [
+      {
+        "product_id": "220114598434958580",
+        "list": {
+          "subject": "Customized Fiberglass Swimming Pool Container",
+          "categoryId": "202107201",
+          "fullCid": "18,100005657,100005663,202107201",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Customized Fiberglass Swimming Pool Container",
+        "subject_chars": 45,
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": true,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 2108,
+        "main_image_count": 6,
+        "detail_image_count": 21,
+        "attributes_count": 11,
+        "attributes_names": [
+          "Place of Origin",
+          "province",
+          "Type",
+          "Model Number",
+          "Charge Status",
+          "High-concerned chemical",
+          "Origin",
+          "Certification",
+          "Color",
+          "Material",
+          "Applicable People"
+        ],
+        "keywords_raw": "fiberglass pool, container pool, above ground pool",
+        "bulk_discount_prices": "[{\"start_quantity\": 1, \"price\": 4300.0}]",
+        "wholesale_trade": {
+          "moq": 1,
+          "unit_type": "Piece",
+          "sale_type": "normal",
+          "package_size": "300X200X150",
+          "weight": "300",
+          "inventory": [
+            {
+              "warehouseCode": "CN_LOCAL_01",
+              "value": 10
+            }
+          ],
+          "has_hs": true
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958578",
+        "list": {
+          "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+        "subject_chars": 120,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 6,
+          "dims": true
+        },
+        "text_desc_chars": 1476,
+        "main_image_count": 6,
+        "detail_image_count": 15,
+        "attributes_count": 19,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Thickness",
+          "Brand Name",
+          "Material",
+          "Warranty",
+          "Model Number",
+          "Applicable People",
+          "Type",
+          "Feature",
+          "Shape",
+          "Power Supply",
+          "Application",
+          "Accessories",
+          "Color"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "500.0X500.0X500.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": true,
+        "target": {
+          "category_id": "202107201",
+          "full_cid": "18,100005657,100005663,202107201",
+          "attributes_presets": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        },
+        "required_coverage": {
+          "required_count": 5,
+          "required": [
+            "Place of Origin",
+            "Color",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "covered": [
+            "Place of Origin",
+            "Color",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "missing": [],
+          "preset_fill_planned": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        }
+      },
+      {
+        "product_id": "220114598434958576",
+        "list": {
+          "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+        "subject_chars": 115,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 355,
+        "main_image_count": 6,
+        "detail_image_count": 12,
+        "attributes_count": 19,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Material",
+          "Applicable People",
+          "Type",
+          "Brand Name",
+          "Shape",
+          "Application",
+          "Size",
+          "Advantage",
+          "MOQ",
+          "Shipping",
+          "Standard size",
+          "Window",
+          "Delivery",
+          "Feature"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":7751.6}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "200.0X200.0X150.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 100
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": true,
+        "target": {
+          "category_id": "202107201",
+          "full_cid": "18,100005657,100005663,202107201",
+          "attributes_presets": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        },
+        "required_coverage": {
+          "required_count": 5,
+          "required": [
+            "Place of Origin",
+            "Color",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "covered": [
+            "Place of Origin",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "missing": [
+            "Color"
+          ],
+          "preset_fill_planned": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        }
+      },
+      {
+        "product_id": "220114598434958574",
+        "list": {
+          "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+        "subject_chars": 101,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 456,
+        "main_image_count": 6,
+        "detail_image_count": 11,
+        "attributes_count": 5,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Certification"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":6172.53}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "500.0X200.0X200.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 55
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": true,
+        "target": {
+          "category_id": "202107201",
+          "full_cid": "18,100005657,100005663,202107201",
+          "attributes_presets": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        },
+        "required_coverage": {
+          "required_count": 5,
+          "required": [
+            "Place of Origin",
+            "Color",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "covered": [],
+          "missing": [
+            "Place of Origin",
+            "Color",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "preset_fill_planned": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        }
+      },
+      {
+        "product_id": "220114598434958572",
+        "list": {
+          "subject": "Customized Small Sized 20ft 40ft Container Fiberglass Outdoor Swimming Pools Swimming Pool Aboveground Container Swimming Pool",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Customized Small Sized 20ft 40ft Container Fiberglass Outdoor Swimming Pools Swimming Pool Aboveground Container Swimming Pool",
+        "subject_chars": 126,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 2108,
+        "main_image_count": 6,
+        "detail_image_count": 21,
+        "attributes_count": 7,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Model Number",
+          "Type"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":4001.4}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "300.0X300.0X300.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 21
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958570",
+        "list": {
+          "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+        "subject_chars": 113,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1562,
+        "main_image_count": 6,
+        "detail_image_count": 18,
+        "attributes_count": 4,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "250.0X250.0X350.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": true,
+        "target": {
+          "category_id": "202107201",
+          "full_cid": "18,100005657,100005663,202107201",
+          "attributes_presets": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        },
+        "required_coverage": {
+          "required_count": 5,
+          "required": [
+            "Place of Origin",
+            "Color",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "covered": [],
+          "missing": [
+            "Place of Origin",
+            "Color",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "preset_fill_planned": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        }
+      },
+      {
+        "product_id": "220114598434958568",
+        "list": {
+          "subject": "Backyard Prefab Modular Container Swimming Pool Family House Hotel Resort Outdoor Above Ground Prefab Swimming Pools for Sale",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Backyard Prefab Modular Container Swimming Pool Family House Hotel Resort Outdoor Above Ground Prefab Swimming Pools for Sale",
+        "subject_chars": 125,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 2,
+          "dims": true
+        },
+        "text_desc_chars": 2562,
+        "main_image_count": 5,
+        "detail_image_count": 12,
+        "attributes_count": 13,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Type",
+          "Material",
+          "Application",
+          "Warranty",
+          "Advantage",
+          "Shape",
+          "Keyword"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "500.0X500.0X500.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958566",
+        "list": {
+          "subject": "Customized 26ft Inground Fiberglass Garden Prefabricated Large Size Spa Swim Pool Container Swimming Pools Outdoor",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Customized 26ft Inground Fiberglass Garden Prefabricated Large Size Spa Swim Pool Container Swimming Pools Outdoor",
+        "subject_chars": 114,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 356,
+        "main_image_count": 6,
+        "detail_image_count": 12,
+        "attributes_count": 9,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Type",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Brand Name",
+          "Material",
+          "Application"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":3853.19}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "300.0X300.0X300.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 20
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958564",
+        "list": {
+          "subject": "Small Backyard Container Swimming Pool Compact Shipping Container Size Space Saving Quick Assembly Outdoor Prefab Swim Pool",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Small Backyard Container Swimming Pool Compact Shipping Container Size Space Saving Quick Assembly Outdoor Prefab Swim Pool",
+        "subject_chars": 123,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 3,
+          "dims": true
+        },
+        "text_desc_chars": 603,
+        "main_image_count": 6,
+        "detail_image_count": 12,
+        "attributes_count": 12,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Origin",
+          "Packaging",
+          "Place of Origin",
+          "Model Number",
+          "Type",
+          "Feature",
+          "Material",
+          "Capacity",
+          "Application",
+          "Dimensions"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "100.0X100.0X100.0",
+          "weight": 100.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958562",
+        "list": {
+          "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+        "subject_chars": 127,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 1534,
+        "main_image_count": 6,
+        "detail_image_count": 15,
+        "attributes_count": 11,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Place of Origin",
+          "Brand Name",
+          "Type",
+          "Feature",
+          "Material",
+          "Dimensions",
+          "Application"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":5821.65}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "300.0X500.0X400.0",
+          "weight": 500.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 23
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": true,
+        "target": {
+          "category_id": "202107201",
+          "full_cid": "18,100005657,100005663,202107201",
+          "attributes_presets": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        },
+        "required_coverage": {
+          "required_count": 5,
+          "required": [
+            "Place of Origin",
+            "Color",
+            "Material",
+            "Applicable People",
+            "Type"
+          ],
+          "covered": [
+            "Place of Origin",
+            "Material",
+            "Type"
+          ],
+          "missing": [
+            "Color",
+            "Applicable People"
+          ],
+          "preset_fill_planned": [
+            "Applicable People",
+            "Color",
+            "Material",
+            "Place of Origin",
+            "Type"
+          ]
+        }
+      },
+      {
+        "product_id": "220114598434958560",
+        "list": {
+          "subject": "Large Container Swimming Pool 20ft 40ft Long Durable Outdoor Above Ground Swimming Container for Resort Family Customized Sale",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Large Container Swimming Pool 20ft 40ft Long Durable Outdoor Above Ground Swimming Container for Resort Family Customized Sale",
+        "subject_chars": 126,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 6,
+          "dims": true
+        },
+        "text_desc_chars": 837,
+        "main_image_count": 6,
+        "detail_image_count": 12,
+        "attributes_count": 10,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "brand name",
+          "brand name",
+          "Application",
+          "Specification"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "500.0X500.0X500.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958558",
+        "list": {
+          "subject": "Compact Modular Container Swimming Pool Space Saving Design Easy Transport Quick Assembly Outdoor Above Ground Swim Pool Garden",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Compact Modular Container Swimming Pool Space Saving Design Easy Transport Quick Assembly Outdoor Above Ground Swim Pool Garden",
+        "subject_chars": 127,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 4,
+          "dims": true
+        },
+        "text_desc_chars": 598,
+        "main_image_count": 6,
+        "detail_image_count": 12,
+        "attributes_count": 12,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Origin",
+          "Packaging",
+          "Place of Origin",
+          "Model Number",
+          "Type",
+          "Feature",
+          "Material",
+          "Capacity",
+          "Application",
+          "Dimensions"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "100.0X100.0X100.0",
+          "weight": 100.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958556",
+        "list": {
+          "subject": "Fiberglass Acrylic Window Pool Swimming Outdoor Above Ground Pool Prefabricated Container Swimming Pool",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Fiberglass Acrylic Window Pool Swimming Outdoor Above Ground Pool Prefabricated Container Swimming Pool",
+        "subject_chars": 103,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 2069,
+        "main_image_count": 6,
+        "detail_image_count": 24,
+        "attributes_count": 14,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Type",
+          "Product Name",
+          "Material",
+          "Color",
+          "MOQ",
+          "Function",
+          "Warranty",
+          "Advantage",
+          "Shape"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":4755.58}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "300.0X300.0X300.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 30
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958554",
+        "list": {
+          "subject": "Factory Outdoor Large Luxury Fiberglass Swimming Acrylic Glass Window Prefab Pool Shipping Container Swimming Pool 20ft 40ft",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Factory Outdoor Large Luxury Fiberglass Swimming Acrylic Glass Window Prefab Pool Shipping Container Swimming Pool 20ft 40ft",
+        "subject_chars": 124,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1534,
+        "main_image_count": 6,
+        "detail_image_count": 15,
+        "attributes_count": 11,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Place of Origin",
+          "Brand Name",
+          "Type",
+          "Feature",
+          "Material",
+          "Dimensions",
+          "Application"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "300.0X500.0X400.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958552",
+        "list": {
+          "subject": "Customized Above Ground Fiberglass 20ft 40 Feet Container Swimming Pool With Window Outdoor Fiber Glass Shipping Container Pools",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Customized Above Ground Fiberglass 20ft 40 Feet Container Swimming Pool With Window Outdoor Fiber Glass Shipping Container Pools",
+        "subject_chars": 128,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 2416,
+        "main_image_count": 6,
+        "detail_image_count": 23,
+        "attributes_count": 7,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Model Number",
+          "Type"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":5828.29}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "300.0X300.0X300.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 30
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958550",
+        "list": {
+          "subject": "Customized 26ft Inground Fiberglass Garden Prefabricated Large Size Spa Swim Pool Container Swimming Pools Outdoor",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Customized 26ft Inground Fiberglass Garden Prefabricated Large Size Spa Swim Pool Container Swimming Pools Outdoor",
+        "subject_chars": 114,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 356,
+        "main_image_count": 6,
+        "detail_image_count": 12,
+        "attributes_count": 9,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Type",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Brand Name",
+          "Material",
+          "Application"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":3853.19}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "300.0X300.0X300.0",
+          "weight": 300.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 20
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958548",
+        "list": {
+          "subject": "Backyard Prefab Modular Container Swimming Pool Family House Hotel Resort Outdoor Above Ground Prefab Swimming Pools for Sale",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Backyard Prefab Modular Container Swimming Pool Family House Hotel Resort Outdoor Above Ground Prefab Swimming Pools for Sale",
+        "subject_chars": 125,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 2,
+          "dims": true
+        },
+        "text_desc_chars": 2562,
+        "main_image_count": 5,
+        "detail_image_count": 12,
+        "attributes_count": 13,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Type",
+          "Material",
+          "Application",
+          "Warranty",
+          "Advantage",
+          "Shape",
+          "Keyword"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "500.0X500.0X500.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958546",
+        "list": {
+          "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+        "subject_chars": 121,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 245,
+        "main_image_count": 6,
+        "detail_image_count": 5,
+        "attributes_count": 3,
+        "attributes_names": [
+          "Is it pool toy",
+          "High-concerned chemical",
+          "Origin"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "34.0X24.0X10.0",
+          "weight": 0.6100000143051147,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": true,
+        "target": {
+          "category_id": "201730007",
+          "full_cid": "1524,201709904,201730007",
+          "attributes_presets": [
+            "Color",
+            "Logo/Pattern",
+            "Material",
+            "Place of Origin",
+            "Style"
+          ]
+        },
+        "required_coverage": {
+          "required_count": 5,
+          "required": [
+            "Style",
+            "Logo/Pattern",
+            "Place of Origin",
+            "Material",
+            "Color"
+          ],
+          "covered": [],
+          "missing": [
+            "Style",
+            "Logo/Pattern",
+            "Place of Origin",
+            "Material",
+            "Color"
+          ],
+          "preset_fill_planned": [
+            "Color",
+            "Logo/Pattern",
+            "Material",
+            "Place of Origin",
+            "Style"
+          ]
+        }
+      },
+      {
+        "product_id": "220114598434958544",
+        "list": {
+          "subject": "Custom Design Prefab Diving Pools Divers Training Big Outdoor Acrylic Window Fiberglass 20ft 40ft Container Swimming Pool",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Custom Design Prefab Diving Pools Divers Training Big Outdoor Acrylic Window Fiberglass 20ft 40ft Container Swimming Pool",
+        "subject_chars": 121,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 4543,
+        "main_image_count": 6,
+        "detail_image_count": 19,
+        "attributes_count": 13,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Brand Name",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Type",
+          "Product Name",
+          "Material",
+          "MOQ",
+          "Shape",
+          "Warranty"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":4274.09}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "200.0X200.0X150.0",
+          "weight": 350.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 100
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958542",
+        "list": {
+          "subject": "Outdoor Large Size Frp 20ft 40ft Fiberglass Prefabricated Pool Design Above Ground Shipping Container Swimming Pool for Sale",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Outdoor Large Size Frp 20ft 40ft Fiberglass Prefabricated Pool Design Above Ground Shipping Container Swimming Pool for Sale",
+        "subject_chars": 124,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 5505,
+        "main_image_count": 6,
+        "detail_image_count": 15,
+        "attributes_count": 11,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Material",
+          "Applicable People",
+          "Type",
+          "Feature",
+          "Shape",
+          "Application"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":3705.0}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "200.0X200.0X150.0",
+          "weight": 450.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 200
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958540",
+        "list": {
+          "subject": "New Design Factory Direct Sales  Container Pools Swimming Outdoor Portable Container Pool with Deck and Visible Glass",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "New Design Factory Direct Sales  Container Pools Swimming Outdoor Portable Container Pool with Deck and Visible Glass",
+        "subject_chars": 117,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 12,
+          "dims": true
+        },
+        "text_desc_chars": 1011,
+        "main_image_count": 6,
+        "detail_image_count": 12,
+        "attributes_count": 16,
+        "attributes_names": [
+          "High-concerned chemical",
+          "Brand Name",
+          "Brand Name",
+          "Origin",
+          "Place of Origin",
+          "Model Number",
+          "Type",
+          "Age Group",
+          "Pool Shape",
+          "Pool Type",
+          "Seating Capacity",
+          "Size",
+          "Control Way",
+          "Material",
+          "Transport Package",
+          "Trademark"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "100.0X100.0X100.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958538",
+        "list": {
+          "subject": "20ft Container Swimming Pool Prefab Steel Pool Outdoor Landscape Design Backyard Entertainment Center Customized Shape",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "20ft Container Swimming Pool Prefab Steel Pool Outdoor Landscape Design Backyard Entertainment Center Customized Shape",
+        "subject_chars": 118,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 3,
+          "dims": true
+        },
+        "text_desc_chars": 1305,
+        "main_image_count": 6,
+        "detail_image_count": 16,
+        "attributes_count": 19,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Certification",
+          "Place of Origin",
+          "Brand Name",
+          "Thickness",
+          "Material",
+          "Warranty",
+          "Model Number",
+          "Applicable People",
+          "Type",
+          "Feature",
+          "Shape",
+          "Power Supply",
+          "Application",
+          "Accessories",
+          "Color"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "500.0X500.0X500.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958536",
+        "list": {
+          "subject": "Customized Big Made Above Ground Home Family Outdoor Use 20ft 40ft  Shipping Container Swimming Pool",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Customized Big Made Above Ground Home Family Outdoor Use 20ft 40ft  Shipping Container Swimming Pool",
+        "subject_chars": 100,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 4,
+          "dims": true
+        },
+        "text_desc_chars": 1305,
+        "main_image_count": 6,
+        "detail_image_count": 16,
+        "attributes_count": 15,
+        "attributes_names": [
+          "Charge Status",
+          "High-concerned chemical",
+          "Condition",
+          "Origin",
+          "Place of Origin",
+          "Brand Name",
+          "Warranty",
+          "Applicable People",
+          "Type",
+          "Feature",
+          "Shape",
+          "Application",
+          "Color",
+          "Material",
+          "Usage"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "500.0X500.0X500.0",
+          "weight": 500.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958534",
+        "list": {
+          "subject": "Container Swimming Pool 20ft 40ft Fiberglass Portable with Acrylic Glass Window",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Container Swimming Pool 20ft 40ft Fiberglass Portable with Acrylic Glass Window",
+        "subject_chars": 79,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 3015,
+        "main_image_count": 6,
+        "detail_image_count": 12,
+        "attributes_count": 16,
+        "attributes_names": [
+          "Origin",
+          "Type",
+          "Length (feet)",
+          "External Dimensions(l x W x H)(mm)",
+          "Internal Dimensions(l x W x H)(mm)",
+          "Certification",
+          "Container Tare Weight",
+          "Container Color",
+          "Container Certification",
+          "Water pump",
+          "Air heating pump",
+          "Container Lighting",
+          "Container Function",
+          "Swimming pool accessories",
+          "Voltage transformer",
+          "Loading capacity"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":7065.34}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "200.0X200.0X150.0",
+          "weight": 450.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 100
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958532",
+        "list": {
+          "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+        "subject_chars": 101,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1519,
+        "main_image_count": 6,
+        "detail_image_count": 5,
+        "attributes_count": 4,
+        "attributes_names": [
+          "Is it pool toy",
+          "High-concerned chemical",
+          "Type",
+          "Origin"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "35.0X16.0X8.0",
+          "weight": 0.6399999856948853,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": true,
+        "target": {
+          "category_id": "100001819",
+          "full_cid": "15,125,100001813,100001819",
+          "attributes_presets": [
+            "Color",
+            "Material",
+            "Place of Origin"
+          ]
+        },
+        "required_coverage": {
+          "required_count": 3,
+          "required": [
+            "Color",
+            "Place of Origin",
+            "Material"
+          ],
+          "covered": [],
+          "missing": [
+            "Color",
+            "Place of Origin",
+            "Material"
+          ],
+          "preset_fill_planned": [
+            "Color",
+            "Material",
+            "Place of Origin"
+          ]
+        }
+      },
+      {
+        "product_id": "220114598434958530",
+        "list": {
+          "subject": "Hot Sale 20ft 40ft Fiberglass Shipping Container Swimming Pools for Sale",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Hot Sale 20ft 40ft Fiberglass Shipping Container Swimming Pools for Sale",
+        "subject_chars": 72,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 3109,
+        "main_image_count": 6,
+        "detail_image_count": 13,
+        "attributes_count": 17,
+        "attributes_names": [
+          "Origin",
+          "Type",
+          "Feature",
+          "Shape",
+          "Thickness",
+          "Warranty",
+          "After-sale Service",
+          "Application",
+          "Place of Origin",
+          "Brand Name",
+          "Material",
+          "Use",
+          "Product Type",
+          "Design Style",
+          "Model Number",
+          "Main Materials",
+          "Product name"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":6782.72}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "200.0X200.0X150.0",
+          "weight": 450.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 100
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958528",
+        "list": {
+          "subject": "Custom Size Steel Container Swimming Pool 40ft for Family Backyard and Resort",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "ladder_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Custom Size Steel Container Swimming Pool 40ft for Family Backyard and Resort",
+        "subject_chars": 77,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 3015,
+        "main_image_count": 4,
+        "detail_image_count": 12,
+        "attributes_count": 10,
+        "attributes_names": [
+          "Origin",
+          "Type",
+          "Length (feet)",
+          "Capacity",
+          "External Dimensions(l x W x H)(mm)",
+          "Place of Origin",
+          "Brand Name",
+          "Style",
+          "Application",
+          "Certification"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "[{\"start_quantity\":1,\"price\":7074.41}]",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "200.0X200.0X150.0",
+          "weight": 450.0,
+          "inventory": [
+            {
+              "warehouseCode": null,
+              "value": 100
+            }
+          ],
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": false
+      },
+      {
+        "product_id": "220114598434958114",
+        "list": {
+          "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico, Produtos Personalizáveis",
+          "categoryId": null,
+          "fullCid": "",
+          "priceType": "sku_price",
+          "dxmState": "draft",
+          "shopId": "9466975"
+        },
+        "detail_ok": true,
+        "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico, Produtos Personalizáveis",
+        "subject_chars": 147,
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 2,
+          "dims": true
+        },
+        "text_desc_chars": 879,
+        "main_image_count": 6,
+        "detail_image_count": 21,
+        "attributes_count": 4,
+        "attributes_names": [
+          "Estado da carga",
+          "Produto Químico de Alta Preocupação",
+          "Origem",
+          "Certificação"
+        ],
+        "keywords_raw": "",
+        "bulk_discount_prices": "",
+        "wholesale_trade": {
+          "moq": null,
+          "unit_type": null,
+          "sale_type": "normal",
+          "package_size": "30.0X30.0X30.0",
+          "weight": 30.0,
+          "inventory": null,
+          "has_hs": false
+        },
+        "dxm_state": "draft",
+        "in_plan": true,
+        "target": {
+          "category_id": "201139102",
+          "full_cid": "201275273,127676029,201139102",
+          "attributes_presets": [
+            "Charge Time(h)",
+            "Driving Mileage",
+            "Driving Type",
+            "Grade Ability",
+            "Maximum Speed",
+            "Maximum Torque(Nm)",
+            "Place of Origin",
+            "Power",
+            "Transmission System",
+            "Voltage"
+          ]
+        },
+        "required_coverage": {
+          "required_count": 10,
+          "required": [
+            "Maximum Torque(Nm)",
+            "Maximum Speed",
+            "Driving Type",
+            "Charge Time(h)",
+            "Grade Ability",
+            "Driving Mileage",
+            "Transmission System",
+            "Power",
+            "Voltage",
+            "Place of Origin"
+          ],
+          "covered": [],
+          "missing": [
+            "Maximum Torque(Nm)",
+            "Maximum Speed",
+            "Driving Type",
+            "Charge Time(h)",
+            "Grade Ability",
+            "Driving Mileage",
+            "Transmission System",
+            "Power",
+            "Voltage",
+            "Place of Origin"
+          ],
+          "preset_fill_planned": [
+            "Charge Time(h)",
+            "Driving Mileage",
+            "Driving Type",
+            "Grade Ability",
+            "Maximum Speed",
+            "Maximum Torque(Nm)",
+            "Place of Origin",
+            "Power",
+            "Transmission System",
+            "Voltage"
+          ]
+        }
+      }
+    ]
+  },
+  "candidates": [
+    {
+      "product_id": "220114598434958576",
+      "planned_category": "202107201",
+      "before": {
+        "id": "220114598434958576",
+        "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 355,
+        "main_image_count": 6,
+        "attributes_count": 19,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "autofill_default": [
+        "Color=Other"
+      ],
+      "unresolved_default": [],
+      "autofill_with_presets": [],
+      "unresolved_with_presets": [],
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "category_id": "202107201",
+        "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+        "subject_chars": 115,
+        "keywords": [
+          "large",
+          "size",
+          "prefabricated",
+          "container",
+          "swimming"
+        ],
+        "text_chars": 355,
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Customized Large Size Prefabricated Container Swimming Pool  · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "large, size, prefabricated, container, swimming"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ]
+      }
+    },
+    {
+      "product_id": "220114598434958578",
+      "planned_category": "202107201",
+      "before": {
+        "id": "220114598434958578",
+        "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 6,
+          "dims": true
+        },
+        "text_desc_chars": 1476,
+        "main_image_count": 6,
+        "attributes_count": 19,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "autofill_default": [],
+      "unresolved_default": [],
+      "autofill_with_presets": [],
+      "unresolved_with_presets": [],
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "category_id": "202107201",
+        "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+        "subject_chars": 120,
+        "keywords": [
+          "container",
+          "swimming",
+          "pool",
+          "prefab",
+          "above"
+        ],
+        "text_chars": 1476,
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "20ft Shipping Container Swimming Pool Prefab Above Ground Cu · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "container, swimming, pool, prefab, above"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ]
+      }
+    },
+    {
+      "product_id": "220114598434958574",
+      "planned_category": "202107201",
+      "before": {
+        "id": "220114598434958574",
+        "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 456,
+        "main_image_count": 6,
+        "attributes_count": 5,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "autofill_default": [
+        "Place of Origin=other",
+        "Color=Other",
+        "Material=Other",
+        "Applicable People=Other",
+        "Type=Other"
+      ],
+      "unresolved_default": [],
+      "autofill_with_presets": [],
+      "unresolved_with_presets": [],
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "category_id": "202107201",
+        "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+        "subject_chars": 101,
+        "keywords": [
+          "high-end",
+          "luxury",
+          "container",
+          "swimming",
+          "pool"
+        ],
+        "text_chars": 456,
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "High-End Luxury Container Swimming Pool For Hotel & Resort C · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "high-end, luxury, container, swimming, pool"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ]
+      }
+    },
+    {
+      "product_id": "220114598434958570",
+      "planned_category": "202107201",
+      "before": {
+        "id": "220114598434958570",
+        "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1562,
+        "main_image_count": 6,
+        "attributes_count": 4,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "autofill_default": [
+        "Place of Origin=other",
+        "Color=Other",
+        "Material=Other",
+        "Applicable People=Other",
+        "Type=Other"
+      ],
+      "unresolved_default": [],
+      "autofill_with_presets": [],
+      "unresolved_with_presets": [],
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "category_id": "202107201",
+        "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+        "subject_chars": 113,
+        "keywords": [
+          "container",
+          "pool",
+          "luxury",
+          "outdoor",
+          "swimming"
+        ],
+        "text_chars": 1560,
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Po · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "container, pool, luxury, outdoor, swimming"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ]
+      }
+    },
+    {
+      "product_id": "220114598434958562",
+      "planned_category": "202107201",
+      "before": {
+        "id": "220114598434958562",
+        "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 1534,
+        "main_image_count": 6,
+        "attributes_count": 11,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "autofill_default": [
+        "Color=Other",
+        "Applicable People=Other"
+      ],
+      "unresolved_default": [],
+      "autofill_with_presets": [],
+      "unresolved_with_presets": [],
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "category_id": "202107201",
+        "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+        "subject_chars": 127,
+        "keywords": [
+          "sinoy",
+          "portable",
+          "prefab",
+          "container",
+          "pools"
+        ],
+        "text_chars": 1525,
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made  · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "sinoy, portable, prefab, container, pools"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ]
+      }
+    },
+    {
+      "product_id": "220114598434958114",
+      "planned_category": "201139102",
+      "before": {
+        "id": "220114598434958114",
+        "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico, Produtos Personal",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 2,
+          "dims": true
+        },
+        "text_desc_chars": 879,
+        "main_image_count": 6,
+        "attributes_count": 4,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "201139102",
+        "full_cid": "201275273,127676029,201139102",
+        "attributes": [
+          "Charge Time(h)",
+          "Driving Mileage",
+          "Driving Type",
+          "Grade Ability",
+          "Maximum Speed",
+          "Maximum Torque(Nm)",
+          "Place of Origin",
+          "Power",
+          "Transmission System",
+          "Voltage"
+        ]
+      },
+      "autofill_default": [
+        "Maximum Torque(Nm)=60-80Nm",
+        "Maximum Speed=75-100Km/h",
+        "Driving Type=4Wd",
+        "Charge Time(h)=7-9h",
+        "Grade Ability=20-25°",
+        "Driving Mileage=≤30km",
+        "Transmission System=Shaft Drive",
+        "Power=< 500W",
+        "Voltage=48 V",
+        "Place of Origin=other"
+      ],
+      "unresolved_default": [],
+      "autofill_with_presets": [],
+      "unresolved_with_presets": [],
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "category_id": "201139102",
+        "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico,",
+        "subject_chars": 122,
+        "keywords": [
+          "quadriciclo",
+          "off-road",
+          "sem",
+          "escovas",
+          "para"
+        ],
+        "text_chars": 869,
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 201139102：10 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "quadriciclo, off-road, sem, escovas, para"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ]
+      }
+    },
+    {
+      "product_id": "220114598434958546",
+      "planned_category": "201730007",
+      "before": {
+        "id": "220114598434958546",
+        "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 245,
+        "main_image_count": 6,
+        "attributes_count": 3,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "201730007",
+        "full_cid": "1524,201709904,201730007",
+        "attributes": [
+          "Color",
+          "Logo/Pattern",
+          "Material",
+          "Place of Origin",
+          "Style"
+        ]
+      },
+      "autofill_default": [
+        "Style=Other",
+        "Logo/Pattern=Other",
+        "Place of Origin=other",
+        "Material=Felt",
+        "Color=Other"
+      ],
+      "unresolved_default": [],
+      "autofill_with_presets": [],
+      "unresolved_with_presets": [],
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "category_id": "201730007",
+        "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+        "subject_chars": 121,
+        "keywords": [
+          "outdoor",
+          "swimming",
+          "pool",
+          "large",
+          "capacity"
+        ],
+        "text_chars": 245,
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach  · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 201730007：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "outdoor, swimming, pool, large, capacity"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ]
+      }
+    },
+    {
+      "product_id": "220114598434958532",
+      "planned_category": "100001819",
+      "before": {
+        "id": "220114598434958532",
+        "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1519,
+        "main_image_count": 6,
+        "attributes_count": 4,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "100001819",
+        "full_cid": "15,125,100001813,100001819",
+        "attributes": [
+          "Color",
+          "Material",
+          "Place of Origin"
+        ]
+      },
+      "autofill_default": [
+        "Color=Other",
+        "Place of Origin=other",
+        "Material=Other"
+      ],
+      "unresolved_default": [],
+      "autofill_with_presets": [],
+      "unresolved_with_presets": [],
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "category_id": "100001819",
+        "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+        "subject_chars": 101,
+        "keywords": [
+          "dual",
+          "spray",
+          "water",
+          "fountain",
+          "adjustable"
+        ],
+        "text_chars": 1519,
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkle · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 100001819：3 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "dual, spray, water, fountain, adjustable"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ]
+      }
+    }
+  ],
+  "saves": [
+    {
+      "product_id": "220114598434958576",
+      "op": "1",
+      "before": {
+        "id": "220114598434958576",
+        "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 355,
+        "main_image_count": 6,
+        "attributes_count": 19,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "elapsed_sec": 0.73,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958576"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Customized Large Size Prefabricated Container Swimming Pool  · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "large, size, prefabricated, container, swimming"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "after": {
+        "id": "220114598434958576",
+        "subject": "Customized Large Size Prefabricated Container Swimming Pool Acrylic Glass Window Outdoor Above Ground Pool for Sale",
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": true,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 355,
+        "main_image_count": 6,
+        "attributes_count": 20,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "changed_fields": {
+        "categoryId": {
+          "before": "",
+          "after": "202107201"
+        },
+        "fullCid": {
+          "before": "",
+          "after": "18,100005657,100005663,202107201"
+        },
+        "keywords": {
+          "before": "",
+          "after": "large, size, prefabricated, container, swimming"
+        },
+        "wholesaleTrade": {
+          "before_sha": "17bbb0e81b4e",
+          "after_sha": "2717ecb0b554",
+          "before_chars": 180,
+          "after_chars": 180
+        },
+        "attributes_count": {
+          "before": 19,
+          "after": 20
+        },
+        "sku": {
+          "before": {
+            "present": false,
+            "valid": 0,
+            "dims": false
+          },
+          "after": {
+            "present": true,
+            "valid": 0,
+            "dims": false
+          }
+        }
+      },
+      "ok": true
+    },
+    {
+      "product_id": "220114598434958578",
+      "op": "1",
+      "before": {
+        "id": "220114598434958578",
+        "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 6,
+          "dims": true
+        },
+        "text_desc_chars": 1476,
+        "main_image_count": 6,
+        "attributes_count": 19,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "elapsed_sec": 0.43,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958578"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "20ft Shipping Container Swimming Pool Prefab Above Ground Cu · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "container, swimming, pool, prefab, above"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "after": {
+        "id": "220114598434958578",
+        "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Customized Courtyard Balcony Adults Children Durable Pool Pump",
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 6,
+          "dims": true
+        },
+        "text_desc_chars": 1476,
+        "main_image_count": 6,
+        "attributes_count": 19,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "changed_fields": {
+        "categoryId": {
+          "before": "",
+          "after": "202107201"
+        },
+        "fullCid": {
+          "before": "",
+          "after": "18,100005657,100005663,202107201"
+        },
+        "keywords": {
+          "before": "",
+          "after": "container, swimming, pool, prefab, above"
+        },
+        "bulkDiscountPrices": {
+          "before_sha": "e3b0c44298fc",
+          "after_sha": "4f53cda18c2b",
+          "before_chars": 0,
+          "after_chars": 2
+        },
+        "wholesaleTrade": {
+          "before_sha": "eba04ad9bac8",
+          "after_sha": "549f494fc6aa",
+          "before_chars": 145,
+          "after_chars": 145
+        }
+      },
+      "ok": true
+    },
+    {
+      "product_id": "220114598434958574",
+      "op": "1",
+      "before": {
+        "id": "220114598434958574",
+        "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 456,
+        "main_image_count": 6,
+        "attributes_count": 5,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "elapsed_sec": 0.47,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958574"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "High-End Luxury Container Swimming Pool For Hotel & Resort C · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "high-end, luxury, container, swimming, pool"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "after": {
+        "id": "220114598434958574",
+        "subject": "High-End Luxury Container Swimming Pool For Hotel & Resort Container Home Pool Backyard Swimming Pool",
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": true,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 456,
+        "main_image_count": 6,
+        "attributes_count": 10,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "changed_fields": {
+        "categoryId": {
+          "before": "",
+          "after": "202107201"
+        },
+        "fullCid": {
+          "before": "",
+          "after": "18,100005657,100005663,202107201"
+        },
+        "keywords": {
+          "before": "",
+          "after": "high-end, luxury, container, swimming, pool"
+        },
+        "wholesaleTrade": {
+          "before_sha": "7b81f7d1df27",
+          "after_sha": "e41276b6780f",
+          "before_chars": 179,
+          "after_chars": 179
+        },
+        "attributes_count": {
+          "before": 5,
+          "after": 10
+        },
+        "sku": {
+          "before": {
+            "present": false,
+            "valid": 0,
+            "dims": false
+          },
+          "after": {
+            "present": true,
+            "valid": 0,
+            "dims": false
+          }
+        }
+      },
+      "ok": true
+    },
+    {
+      "product_id": "220114598434958570",
+      "op": "1",
+      "before": {
+        "id": "220114598434958570",
+        "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1562,
+        "main_image_count": 6,
+        "attributes_count": 4,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "elapsed_sec": 0.64,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958570"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Po · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "container, pool, luxury, outdoor, swimming"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "after": {
+        "id": "220114598434958570",
+        "subject": "Shipping Container Pool 20ft 40ft Luxury Outdoor Swimming Pool With Fiberglass Liner Filtration System LED Lights",
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1562,
+        "main_image_count": 6,
+        "attributes_count": 9,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "changed_fields": {
+        "categoryId": {
+          "before": "",
+          "after": "202107201"
+        },
+        "fullCid": {
+          "before": "",
+          "after": "18,100005657,100005663,202107201"
+        },
+        "keywords": {
+          "before": "",
+          "after": "container, pool, luxury, outdoor, swimming"
+        },
+        "bulkDiscountPrices": {
+          "before_sha": "e3b0c44298fc",
+          "after_sha": "4f53cda18c2b",
+          "before_chars": 0,
+          "after_chars": 2
+        },
+        "wholesaleTrade": {
+          "before_sha": "8e114b43181d",
+          "after_sha": "2f6ab3bab638",
+          "before_chars": 145,
+          "after_chars": 145
+        },
+        "attributes_count": {
+          "before": 4,
+          "after": 9
+        }
+      },
+      "ok": true
+    },
+    {
+      "product_id": "220114598434958562",
+      "op": "1",
+      "before": {
+        "id": "220114598434958562",
+        "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": false,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 1534,
+        "main_image_count": 6,
+        "attributes_count": 11,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "attributes": [
+          "Applicable People",
+          "Color",
+          "Material",
+          "Place of Origin",
+          "Type"
+        ]
+      },
+      "elapsed_sec": 0.41,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958562"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made  · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "sinoy, portable, prefab, container, pools"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "after": {
+        "id": "220114598434958562",
+        "subject": "Sinoy Portable Prefab 15Ft 20 Ft Container Pools Ready Made Steel Frame Prefabricated Shipping Container Swimming Pool for Sale",
+        "category_id": "202107201",
+        "full_cid": "18,100005657,100005663,202107201",
+        "price_type": "ladder_price",
+        "sku": {
+          "present": true,
+          "valid": 0,
+          "dims": false
+        },
+        "text_desc_chars": 1534,
+        "main_image_count": 6,
+        "attributes_count": 13,
+        "has_bulk_discount": true,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "changed_fields": {
+        "categoryId": {
+          "before": "",
+          "after": "202107201"
+        },
+        "fullCid": {
+          "before": "",
+          "after": "18,100005657,100005663,202107201"
+        },
+        "keywords": {
+          "before": "",
+          "after": "sinoy, portable, prefab, container, pools"
+        },
+        "wholesaleTrade": {
+          "before_sha": "3eafa9ac618f",
+          "after_sha": "2027ad8e2a4b",
+          "before_chars": 179,
+          "after_chars": 179
+        },
+        "attributes_count": {
+          "before": 11,
+          "after": 13
+        },
+        "sku": {
+          "before": {
+            "present": false,
+            "valid": 0,
+            "dims": false
+          },
+          "after": {
+            "present": true,
+            "valid": 0,
+            "dims": false
+          }
+        }
+      },
+      "ok": true
+    },
+    {
+      "product_id": "220114598434958114",
+      "op": "1",
+      "before": {
+        "id": "220114598434958114",
+        "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico, Produtos Personal",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 2,
+          "dims": true
+        },
+        "text_desc_chars": 879,
+        "main_image_count": 6,
+        "attributes_count": 4,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "201139102",
+        "full_cid": "201275273,127676029,201139102",
+        "attributes": [
+          "Charge Time(h)",
+          "Driving Mileage",
+          "Driving Type",
+          "Grade Ability",
+          "Maximum Speed",
+          "Maximum Torque(Nm)",
+          "Place of Origin",
+          "Power",
+          "Transmission System",
+          "Voltage"
+        ]
+      },
+      "elapsed_sec": 0.49,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958114"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 201139102：10 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "quadriciclo, off-road, sem, escovas, para"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "after": {
+        "id": "220114598434958114",
+        "subject": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulico,",
+        "category_id": "201139102",
+        "full_cid": "201275273,127676029,201139102",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 2,
+          "dims": true
+        },
+        "text_desc_chars": 878,
+        "main_image_count": 6,
+        "attributes_count": 14,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "changed_fields": {
+        "categoryId": {
+          "before": "",
+          "after": "201139102"
+        },
+        "fullCid": {
+          "before": "",
+          "after": "201275273,127676029,201139102"
+        },
+        "subject": {
+          "before": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulic",
+          "after": "Quadriciclo Off-Road 60V 2000W Sem Escovas para Uso Agrícola, Certificado CE, 90km de Autonomia, Freio a Disco Hidráulic"
+        },
+        "keywords": {
+          "before": "",
+          "after": "quadriciclo, off-road, sem, escovas, para"
+        },
+        "bulkDiscountPrices": {
+          "before_sha": "e3b0c44298fc",
+          "after_sha": "4f53cda18c2b",
+          "before_chars": 0,
+          "after_chars": 2
+        },
+        "wholesaleTrade": {
+          "before_sha": "1295c6fa6bfd",
+          "after_sha": "9fca9a95553d",
+          "before_chars": 141,
+          "after_chars": 141
+        },
+        "attributes_count": {
+          "before": 4,
+          "after": 14
+        }
+      },
+      "ok": true
+    },
+    {
+      "product_id": "220114598434958546",
+      "op": "1",
+      "before": {
+        "id": "220114598434958546",
+        "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 245,
+        "main_image_count": 6,
+        "attributes_count": 3,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "201730007",
+        "full_cid": "1524,201709904,201730007",
+        "attributes": [
+          "Color",
+          "Logo/Pattern",
+          "Material",
+          "Place of Origin",
+          "Style"
+        ]
+      },
+      "elapsed_sec": 0.37,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958546"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach  · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 201730007：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "outdoor, swimming, pool, large, capacity"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "after": {
+        "id": "220114598434958546",
+        "subject": "Outdoor Swimming Pool Large Capacity Storage Mesh Bag Beach Inflatable Toy Swimming Pool Hanging Storage Bagswimming pool",
+        "category_id": "201730007",
+        "full_cid": "1524,201709904,201730007",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 245,
+        "main_image_count": 6,
+        "attributes_count": 8,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "changed_fields": {
+        "categoryId": {
+          "before": "",
+          "after": "201730007"
+        },
+        "fullCid": {
+          "before": "",
+          "after": "1524,201709904,201730007"
+        },
+        "keywords": {
+          "before": "",
+          "after": "outdoor, swimming, pool, large, capacity"
+        },
+        "bulkDiscountPrices": {
+          "before_sha": "e3b0c44298fc",
+          "after_sha": "4f53cda18c2b",
+          "before_chars": 0,
+          "after_chars": 2
+        },
+        "wholesaleTrade": {
+          "before_sha": "a67a1e71bc83",
+          "after_sha": "34d7805c2e9e",
+          "before_chars": 155,
+          "after_chars": 155
+        },
+        "attributes_count": {
+          "before": 3,
+          "after": 8
+        }
+      },
+      "ok": true
+    },
+    {
+      "product_id": "220114598434958532",
+      "op": "1",
+      "before": {
+        "id": "220114598434958532",
+        "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+        "category_id": "",
+        "full_cid": "",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1519,
+        "main_image_count": 6,
+        "attributes_count": 4,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "overrides": {
+        "category_id": "100001819",
+        "full_cid": "15,125,100001813,100001819",
+        "attributes": [
+          "Color",
+          "Material",
+          "Place of Origin"
+        ]
+      },
+      "elapsed_sec": 0.44,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [],
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958532"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkle · 类目 None"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 100001819：3 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "dual, spray, water, fountain, adjustable"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "after": {
+        "id": "220114598434958532",
+        "subject": "Dual Spray Water Fountain Adjustable Waterfall Pool Sprinkler Creative Swimming Pool Sprayer Fountain",
+        "category_id": "100001819",
+        "full_cid": "15,125,100001813,100001819",
+        "price_type": "sku_price",
+        "sku": {
+          "present": true,
+          "valid": 1,
+          "dims": true
+        },
+        "text_desc_chars": 1519,
+        "main_image_count": 6,
+        "attributes_count": 7,
+        "has_bulk_discount": false,
+        "dxm_state": "draft",
+        "shop_id": "9466975"
+      },
+      "changed_fields": {
+        "categoryId": {
+          "before": "",
+          "after": "100001819"
+        },
+        "fullCid": {
+          "before": "",
+          "after": "15,125,100001813,100001819"
+        },
+        "keywords": {
+          "before": "",
+          "after": "dual, spray, water, fountain, adjustable"
+        },
+        "bulkDiscountPrices": {
+          "before_sha": "e3b0c44298fc",
+          "after_sha": "4f53cda18c2b",
+          "before_chars": 0,
+          "after_chars": 2
+        },
+        "wholesaleTrade": {
+          "before_sha": "223d20e68742",
+          "after_sha": "e6ca166b5156",
+          "before_chars": 154,
+          "after_chars": 154
+        },
+        "attributes_count": {
+          "before": 4,
+          "after": 7
+        }
+      },
+      "ok": true
+    }
+  ],
+  "summary": {
+    "phase": "save",
+    "candidates": 8,
+    "dry_run_passed": 8,
+    "saved_attempted": 8,
+    "saved_ok": 8,
+    "save_failed": 0,
+    "failure_classes": {},
+    "inventory_drafts": 28,
+    "inventory_empty_category": 27,
+    "protected_ids_not_touched": [
+      "220114598434958580"
+    ],
+    "conclusion": "真实 op=1 保存成功 8/8 个；失败 0 个"
+  },
+  "defects": [
+    {
+      "id": "dirty-draft-category",
+      "level": "P0-数据",
+      "detail": "27 个草稿 categoryId 为空/None，直接保存会被 validate 拦截（采集箱导入未落类目）；必须显式选类目或批量补类目",
+      "evidence": "inventory.records[].category_id"
+    },
+    {
+      "id": "autofill-first-value",
+      "level": "P1-代码",
+      "detail": "autofill_required_attributes 对缺失必填属性在无 Other/China 时取 values[0]，会把电动 ATV 填成 48V/<500W/≤30km、网袋 Material 填成 Felt；批量保存前应给 alibaba_attr_presets 或按类目预设，避免写入错误规格",
+      "file_line": "src/aeclone/services/alibaba_payload.py:450-459",
+      "evidence": [
+        {
+          "product_id": "220114598434958114",
+          "autofill_default": [
+            "Maximum Torque(Nm)=60-80Nm",
+            "Maximum Speed=75-100Km/h",
+            "Driving Type=4Wd",
+            "Charge Time(h)=7-9h",
+            "Grade Ability=20-25°",
+            "Driving Mileage=≤30km",
+            "Transmission System=Shaft Drive",
+            "Power=< 500W",
+            "Voltage=48 V",
+            "Place of Origin=other"
+          ]
+        },
+        {
+          "product_id": "220114598434958546",
+          "autofill_default": [
+            "Style=Other",
+            "Logo/Pattern=Other",
+            "Place of Origin=other",
+            "Material=Felt",
+            "Color=Other"
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "客户端 Cookie 顺序：alibaba_cookies > manual_cookies > 本机浏览器（不记录内容）"
+  ]
+}

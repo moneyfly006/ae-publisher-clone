@@ -133,6 +133,8 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
         <a class="on" data-p="dash">概览</a>
         <a data-p="pkgs">套餐购买</a>
         <a data-p="lic">我的授权</a>
+        <a data-p="devices">设备管理</a>
+        <a data-p="invite">邀请好友</a>
         <a data-p="status">软件运行状态</a>
         <a data-p="products">刊登产品</a>
         <a data-p="orders">订单记录</a>
@@ -146,6 +148,10 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
     </aside>
     <main>
       <section class="panel on" id="p-dash">
+        <div class="card" id="expiryBanner" style="display:none;border-color:rgba(234,192,120,.5)">
+          <div class="row"><span class="st bad">到期提醒</span><span id="expiryText" class="muted"></span>
+          <a class="btn primary small" style="margin-left:auto" onclick="document.querySelector('.snav a[data-p=\'pkgs\']').click()">去续费</a></div>
+        </div>
         <h2>概览</h2><div class="sub" id="dashSub"></div>
         <div class="kpis" id="dashKpis"></div>
         <div class="card"><h3>授权摘要</h3><div id="dashLic" class="muted">加载中…</div></div>
@@ -183,6 +189,19 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
       <section class="panel" id="p-orders">
         <h2>订单记录</h2><div class="sub">最近 50 笔订单</div>
         <table id="orderTable"><tr><th>订单号</th><th>套餐</th><th>金额</th><th>状态</th><th>时间</th></tr></table>
+      </section>
+      <section class="panel" id="p-devices">
+        <h2>设备管理</h2><div class="sub">一个授权可绑定多台设备（按套餐设备数）；解绑后该设备将无法自动拉取授权</div>
+        <div class="card"><div id="devList" class="muted">加载中…</div></div>
+      </section>
+      <section class="panel" id="p-invite">
+        <h2>邀请好友</h2><div class="sub">把邀请链接发给朋友，注册时自动记录邀请关系</div>
+        <div class="card">
+          <div class="row"><b>我的邀请码</b><code id="invCode" style="font-size:16px">-</code>
+            <button class="btn small" id="invCopy">复制邀请链接</button>
+            <span class="muted">已邀请：<b id="invUses">0</b> 人</span></div>
+          <div class="hint">朋友通过你的链接注册后，可在后台统计邀请关系（返佣/奖励规则可后续配置）</div>
+        </div>
       </section>
       <section class="panel" id="p-invoice">
         <h2>发票申请</h2><div class="sub">支持电子普通发票；提交后 1~3 个工作日处理</div>
@@ -279,7 +298,7 @@ $('#aSubmit').onclick=async()=>{
   if(!email){$('#aErr').textContent='请填写邮箱';return;}
   let r;
   if(AUTH_MODE==='login'){ r=await api('login',{email,password:$('#aPass').value}); }
-  else if(AUTH_MODE==='register'){ r=await api('register',{email,password:$('#aPass').value,name:$('#aName').value.trim()}); }
+  else if(AUTH_MODE==='register'){ const ref=new URLSearchParams(location.search).get('ref')||''; r=await api('register',{email,password:$('#aPass').value,name:$('#aName').value.trim(),invite_code:ref}); }
   else if(AUTH_MODE==='verify'){ r=await api('verify_email',{email,code:$('#aCode').value.trim()}); }
   else { r=await api('reset_password',{email,code:$('#aCode').value.trim(),password:$('#aNewPass').value}); }
   if(r.code!==0){$('#aErr').style.color='var(--danger)';$('#aErr').textContent=r.msg;return;}
@@ -331,11 +350,16 @@ document.querySelectorAll('.snav a').forEach(a=>a.onclick=()=>{
   if(a.dataset.p==='products') renderProducts();
   if(a.dataset.p==='orders') renderOrders();
   if(a.dataset.p==='invoice') loadInvoices();
+  if(a.dataset.p==='devices') loadDevices();
+  if(a.dataset.p==='invite') loadInvite();
   if(a.dataset.p==='tickets') loadTickets();
 });
 
 async function boot(){
   const me=await api('me'); ME=me.data.user; LIC=me.data.license;
+  const hint=me.data.expiry_hint||'';
+  const eb=$('#expiryBanner');
+  if(eb){ if(hint){ eb.style.display='block'; $('#expiryText').textContent=hint; } else { eb.style.display='none'; } }
   renderAuth(); if(!ME) return;
   $('#uEmail').textContent=ME.email;
   $('#uSince').textContent='注册于 '+new Date(ME.created_at*1000).toLocaleDateString();
@@ -412,6 +436,30 @@ function renderOrders(){
       <td><span class="st ${o.status==='paid'?'ok':'bad'}">${o.status==='paid'?'已支付':'待支付'}</span></td>
       <td>${new Date(o.created_at*1000).toLocaleString()}</td></tr>`).join('');
 }
+async function loadDevices(){
+  const r=await api('devices'); const list=r.data||[];
+  $('#devList').innerHTML=list.length? `<table><tr><th>授权ID</th><th>平台</th><th>机器码</th><th>到期</th><th>操作</th></tr>`+
+    list.map(d=>`<tr><td>${d.id}</td><td>${Object.keys(d.platforms||{}).map(k=>platName[k]||k).join(',')}</td>
+      <td><code>${esc(d.machine_code)}</code></td><td>${esc(d.expires_at)}</td>
+      <td><a style="color:var(--danger);cursor:pointer" data-dev="${d.id}">解绑</a></td></tr>`).join('')+'</table>'
+    : '暂未绑定设备（软件登录后自动绑定）';
+  document.querySelectorAll('[data-dev]').forEach(a=>a.onclick=async()=>{
+    if(!confirm('解绑该设备？')) return;
+    const x=await api('device_unbind',{license_id:+a.dataset.dev});
+    if(x.code!==0){alert(x.msg);return;}
+    await boot(); loadDevices();
+  });
+}
+async function loadInvite(){
+  const r=await api('invite_info'); const d=r.data||{};
+  $('#invCode').textContent=d.code||'-'; $('#invUses').textContent=d.uses||0;
+}
+$('#invCopy') && ($('#invCopy').onclick=async()=>{
+  const code=$('#invCode').textContent.trim();
+  const link='https://license.moneyfly.club/?ref='+encodeURIComponent(code);
+  try{ await navigator.clipboard.writeText(link); alert('邀请链接已复制：'+link); }
+  catch(e){ alert('邀请链接：'+link); }
+});
 async function loadInvoices(){
   const r=await api('invoices');
   const list=r.data||[];

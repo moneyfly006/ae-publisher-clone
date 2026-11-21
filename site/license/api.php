@@ -55,6 +55,8 @@ case 'register': {
     $st->execute([$email, password_hash($pass, PASSWORD_DEFAULT),
                   trim((string)($in['name'] ?? '')), $need ? 0 : 1, now()]);
     $uid = (int)db()->lastInsertId();
+    $inviteCode = trim((string)($in['invite_code'] ?? ''));
+    if ($inviteCode !== '' && function_exists('user_invite_bind')) { user_invite_bind($inviteCode, $uid); }
     if ($need) {
         $code = save_code($email, 'verify');
         [$ok, $err] = send_code_email($email, $code, 'verify');
@@ -122,7 +124,11 @@ case 'me': {
     $u = current_user();
     $lic = null;
     if ($u) { $l = license_for_user((int)$u['id']); if ($l) $lic = ['expires_at'=>$l['expires_at'],'platforms'=>json_decode($l['platforms'],true),'machine_code'=>$l['machine_code']]; }
-    out(['user'=>$u, 'license'=>$lic]);
+    $hint = '';
+    if ($lic && function_exists('user_expiry_hint')) {
+        $hint = user_expiry_hint(['expires_at'=>$lic['expires_at']]);
+    }
+    out(['user'=>$u, 'license'=>$lic, 'expiry_hint'=>$hint]);
 }
 case 'site': { out(['name'=>get_setting('site_name'), 'announcement'=>get_setting('announcement'), 'epay'=> (get_setting('epay_pid')!=='' )]); }
 case 'packages': { out(packages()); }
@@ -286,6 +292,20 @@ case 'unbind': {
     out(['ok'=>true]);
 }
 
+case 'devices': {
+    $u = require_user();
+    out(user_devices((int)$u['id']));
+}
+case 'device_unbind': {
+    $u = require_user(); $in = body();
+    [$ok, $err] = user_device_unbind((int)$u['id'], (int)($in['license_id'] ?? 0));
+    if (!$ok) fail($err);
+    out(['ok'=>true]);
+}
+case 'invite_info': {
+    $u = require_user();
+    out(user_invite_info((int)$u['id']));
+}
 case 'heartbeat': {
     $in = body();
     $mc = trim((string)($in['machine_code'] ?? ''));

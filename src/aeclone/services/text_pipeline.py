@@ -257,6 +257,52 @@ class TextPipeline:
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))
 
+    # ---------- Alibaba 必填属性建议（人工复核后写入预设） ----------
+    def suggest_attributes(self, attr_defs: list[dict], title: str = "",
+                           detail: str = "") -> TextResult:
+        """为类目必填属性建议取值，返回 JSON 文本（不是最终配置）。
+
+        只允许模型从候选值里选，避免编造规格；调用方必须让用户复核后再保存。
+        """
+        lines: list[str] = []
+        for a in attr_defs or []:
+            name = str(a.get("nameEn") or a.get("nameZh") or "").strip()
+            if not name:
+                continue
+            vals = a.get("values") or []
+            names = []
+            for v in vals if isinstance(vals, list) else []:
+                if isinstance(v, dict):
+                    nm = str(v.get("name_en") or v.get("name") or "").strip()
+                else:
+                    nm = str(v or "").strip()
+                if nm:
+                    names.append(nm)
+            lines.append(f'- {name}: allowed = {", ".join(names[:15]) or "(free text)"}')
+        if not lines:
+            return TextResult(False, error="没有可建议的必填属性")
+        prompt = (
+            "You are an Alibaba.com product data assistant. Given the product title, "
+            "details and the allowed values of each required attribute, return ONLY a "
+            "JSON object that maps each attribute name to ONE allowed value. Rules: "
+            "use only values from the allowed list; if the product evidence is "
+            "insufficient use \"Other\" when it is allowed, otherwise leave it out; "
+            "never invent specs; ASCII output only; no explanations."
+        )
+        detail_flat = re.sub(r"\s+", " ", str(detail or ""))[:900]
+        user = (f"Product title: {title}\n"
+                f"Product details: {detail_flat}\n"
+                f"Required attributes:\n" + "\n".join(lines))
+        try:
+            from . import model_of
+            out = self.client.chat(model_of(self.cfg, "text"), [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user},
+            ], max_tokens=500)
+            return TextResult(True, out)
+        except Exception as e:  # noqa: BLE001
+            return TextResult(False, error=str(e))
+
     # ---------- 估重 ----------
     def estimate_weight(self, image_url: str, product_name: str = "") -> TextResult:
         try:

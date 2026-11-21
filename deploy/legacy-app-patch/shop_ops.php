@@ -488,3 +488,85 @@ function shop_bound_devices(int $uid): array
     $st->execute([$uid]);
     return array_column($st->fetchAll(), 'machine_code');
 }
+
+/* ---------- 设备 / 邀请 / 客户标签 ---------- */
+function ops_migrate_extra(): void
+{
+    $db = ops_pdo();
+    try { $db->exec('ALTER TABLE users ADD COLUMN tags TEXT DEFAULT \'\''); } catch (Exception $e) {}
+    try { $db->exec('ALTER TABLE users ADD COLUMN note TEXT DEFAULT \'\''); } catch (Exception $e) {}
+    $db->exec("CREATE TABLE IF NOT EXISTS invites(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE NOT NULL, user_id INTEGER NOT NULL,
+      uses INTEGER DEFAULT 0, max_uses INTEGER DEFAULT 0, created_at INTEGER NOT NULL)");
+    $db->exec("CREATE TABLE IF NOT EXISTS invite_uses(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, invite_id INTEGER NOT NULL, invitee_id INTEGER NOT NULL,
+      created_at INTEGER NOT NULL)");
+}
+
+function user_devices(int $uid): array
+{
+    $st = ops_pdo()->prepare("SELECT id, platforms, machine_code, expires_at, created_at
+        FROM licenses WHERE user_id=? AND revoked=0 AND machine_code<>'' ORDER BY id DESC");
+    $st->execute([$uid]);
+    $rows = $st->fetchAll();
+    foreach ($rows as &$r) $r['platforms'] = json_decode((string)$r['platforms'], true) ?: [];
+    return $rows;
+}
+
+function user_device_unbind(int $uid, int $licenseId): array
+{
+    $st = ops_pdo()->prepare('SELECT * FROM licenses WHERE id=? AND user_id=? AND revoked=0');
+    $st->execute([$licenseId, $uid]);
+    $l = $st->fetch();
+    if (!$l) return [false, '设备不存在'];
+    ops_pdo()->prepare('UPDATE licenses SET machine_code=\'\' WHERE id=?')->execute([$licenseId]);
+    return [true, ''];
+}
+
+function user_invite_info(int $uid): array
+{
+    ops_migrate_extra();
+    $db = ops_pdo();
+    $st = $db->prepare('SELECT * FROM invites WHERE user_id=? ORDER BY id DESC LIMIT 1');
+    $st->execute([$uid]);
+    $inv = $st->fetch();
+    if (!$inv) {
+        $code = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+        $db->prepare('INSERT INTO invites(code,user_id,uses,max_uses,created_at) VALUES(?,?,0,0,?)')
+           ->execute([$code, $uid, time()]);
+        $st->execute([$uid]); $inv = $st->fetch();
+    }
+    return ['code' => $inv['code'], 'uses' => (int)$inv['uses']];
+}
+
+function user_invite_bind(string $code, int $inviteeId): void
+{
+    ops_migrate_extra();
+    $st = ops_pdo()->prepare('SELECT * FROM invites WHERE code=?');
+    $st->execute([strtoupper(trim($code))]);
+    $inv = $st->fetch();
+    if (!$inv || (int)$inv['user_id'] === $inviteeId) return;
+    if ((int)$inv['max_uses'] > 0 && (int)$inv['uses'] >= (int)$inv['max_uses']) return;
+    ops_pdo()->prepare('UPDATE invites SET uses=uses+1 WHERE id=?')->execute([$inv['id']]);
+    ops_pdo()->prepare('INSERT INTO invite_uses(invite_id,invitee_id,created_at) VALUES(?,?,?)')
+        ->execute([$inv['id'], $inviteeId, time()]);
+}
+
+function page_shop_invites(): void
+{
+    require_admin();
+    ops_migrate_extra();
+    $rows = ops_pdo()->query('SELECT i.*, u.email FROM invites i LEFT JOIN users u ON u.id=i.user_id ORDER BY i.uses DESC, i.id DESC LIMIT 200')->fetchAll();
+    render('shop_invites', ['title' => '邀请码', 'rows' => $rows]);
+}
+
+/* 到期提醒横幅数据 */
+function user_expiry_hint(array $lic): string
+{
+    $exp = (string)($lic['expires_at'] ?? '');
+    if ($exp === '') return '';
+    $days = (int)ceil((strtotime($exp . ' 23:59:59') - time()) / 86400);
+    if ($days < 0) return '授权已过期，请立即续费';
+    if ($days <= 30) return "授权将在 {$days} 天后到期（{$exp}），建议及时续费";
+    return '';
+}

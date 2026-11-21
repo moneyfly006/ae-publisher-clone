@@ -63,6 +63,18 @@ class AlibabaRequiredTests(unittest.TestCase):
         self.assertIn("Material=Other", filled)
         self.assertEqual(unresolved, [])
 
+    def test_autofill_does_not_fabricate_first_candidate_value(self):
+        """无预设且无 Other/China 时，不能把候选列表第一个值当真实规格写入。"""
+        from aeclone.services.alibaba_payload import autofill_required_attributes
+        attrs, filled, unresolved = autofill_required_attributes(
+            {"attributes": []},
+            [{"attrNameId": "2", "nameEn": "Voltage", "required": 1,
+              "values": [{"id": "48", "name_en": "48 V"}, {"id": "60", "name_en": "60 V"}]}],
+            {"alibaba_attr_presets": ""})
+        self.assertEqual(attrs, [])
+        self.assertEqual(filled, [])
+        self.assertEqual(unresolved, ["Voltage"])
+
     def test_validate_reports_missing_required_and_bad_tiers(self):
         from aeclone.services.alibaba_payload import validate_alibaba_save
         save = {"subject": "A", "keywords": "", "mainImage": "",
