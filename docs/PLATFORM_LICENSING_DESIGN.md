@@ -281,3 +281,16 @@ CAPABILITIES = {
   - 显示回调地址 `https://ali.moneyfly.club/license/pay/notify.php`
 
 支付参数保存在 settings 表，后台修改即时生效；new-api 后台同一套易支付参数可直接复制。
+
+---
+
+# 域名与兼容说明（2026-11-22）
+
+- **原授权中心（保留，未改动业务）**：https://license.moneyfly.club/ 与 /admin
+  - 原授权数据、页面、API（POST /api/v1/license/verify）全部保留
+  - 原后台顶部导航新增两个入口：「套餐 / 支付」「用户端」（链接到 /shop）
+- **新增功能（独立应用，不碰原数据）**：https://license.moneyfly.club/shop/
+  - 用户端：注册/登录、套餐购买、我的授权、运行状态、产品、订单
+  - 管理端：https://license.moneyfly.club/shop/admin.php（套餐价格、订单、用户、授权、易支付、SMTP）
+- 旧路径 https://ali.moneyfly.club/license/ 已 308 跳转到 /shop
+- 桌面客户端默认授权服务器：https://license.moneyfly.club/shop
