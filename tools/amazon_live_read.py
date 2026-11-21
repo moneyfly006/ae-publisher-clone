@@ -28,7 +28,9 @@ DEFAULT_PRODUCT_ID = "220114595363182310"
 sys.path.insert(0, str(ROOT / "src"))
 
 from aeclone.config import AppConfig  # noqa: E402
-from aeclone.integrations.amazon import AmazonClient, AmazonError  # noqa: E402
+from aeclone.integrations.amazon import (  # noqa: E402
+    AmazonClient, AmazonError, parse_required_attrs,
+)
 from aeclone.services import amazon_payload as AP  # noqa: E402
 from aeclone.services import amazon_prompts as PR  # noqa: E402
 from aeclone.services.amazon_pipeline import (  # noqa: E402
@@ -148,9 +150,10 @@ def main(argv=None) -> int:
         codes = ", ".join(f"{s['code']}({s['currency']})" for s in sites)
         rep.step("站点 sites", bool(sites), codes or "无可用站点")
 
-        # 4) 三态列表
+        # 4) 列表：draft/offline/online（pageList）+ 待发布三态（offline.json）
         lists: dict[str, dict] = {}
-        for state in ("draft", "offline", "online"):
+        for state in ("draft", "offline", "online", "waitPublish",
+                      "publishing", "publishFail"):
             try:
                 data = client.list_products(state=state, page=1, page_size=5,
                                             shop_id="-1")
@@ -202,6 +205,41 @@ def main(argv=None) -> int:
         except Exception as exc:  # noqa: BLE001
             rep.step("详情 editSp", False, f"{exc}")
             return _finish(rep, args.out)
+
+        # 5b) 发布状态核实（只读；匹配 id 所在列表 + errMsg/缺失属性）
+        try:
+            st = client.publish_state(pid)
+            known = {"draft", "online", "waitPublish", "publishing", "publishFail"}
+            req = parse_required_attrs(st.get("err_msg") or "")
+            rep.data["publish_state"] = st
+            rep.step("发布状态 publish_state", st.get("state") in known,
+                     f"state={st.get('state')} · counts={st.get('counts')} · "
+                     f"缺失属性={req or '无'}"
+                     + (f" · err={str(st.get('err_msg'))[:120]}"
+                        if st.get("err_msg") else ""))
+        except Exception as exc:  # noqa: BLE001
+            rep.step("发布状态 publish_state", False, f"{exc}")
+
+        # 5c) 发布失败样例（只读）：验证 errMsg → 必填属性解析
+        fail_items = (lists.get("publishFail") or {}).get("items") or []
+        if fail_items:
+            fail_id = str(fail_items[0].get("id") or "")
+            try:
+                fail_state = client.publish_state(fail_id)
+                fail_req = parse_required_attrs(fail_state.get("err_msg") or "")
+                rep.data["publish_fail_sample"] = {
+                    "id": fail_id,
+                    "state": fail_state.get("state"),
+                    "required_attrs": fail_req,
+                    "err_msg": str(fail_state.get("err_msg") or "")[:500],
+                }
+                rep.step("发布失败样例 publish_state",
+                         fail_state.get("state") == "publishFail"
+                         and bool(fail_req),
+                         f"id={fail_id} · state={fail_state.get('state')} · "
+                         f"缺失属性={fail_req}")
+            except Exception as exc:  # noqa: BLE001
+                rep.step("发布失败样例 publish_state", False, f"{exc}")
 
         if not site_code:
             site_code = next((s["code"] for s in sites), "CA")
@@ -390,9 +428,16 @@ def main(argv=None) -> int:
                 "steps": [{"name": s.name, "ok": s.ok, "detail": s.detail}
                           for s in res.steps],
             }
-            rep.step("流水线预演 dry-run", res.ok and res.preview and not res.saved,
-                     f"ok={res.ok} preview={res.preview} saved={res.saved} "
-                     f"steps={len(res.steps)}" + (f" · {res.error[:120]}" if res.error else ""))
+            # 预演的目的是「读出详情+组装+校验且绝不写」；校验阻断属正确拦截，
+            # 因此以 preview=True / saved=False 判定通过，并把 issues 记入证据。
+            ok_preview = bool(res.preview and not res.saved)
+            detail = (f"ok={res.ok} preview={res.preview} saved={res.saved} "
+                      f"steps={len(res.steps)}")
+            if res.issues:
+                detail += f" · 校验阻断 {len(res.issues)} 项（dry-run 已正确拦截，未保存）"
+            elif res.error:
+                detail += f" · {res.error[:120]}"
+            rep.step("流水线预演 dry-run", ok_preview, detail)
         except Exception as exc:  # noqa: BLE001
             rep.step("流水线预演 dry-run", False, f"{exc}")
 

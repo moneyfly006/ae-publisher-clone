@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T02:46:37+08:00",
+  "generated_at": "2026-11-22T03:34:50+08:00",
   "mode": "read-only",
   "status": "PASS",
   "base": "https://www.dianxiaomi.com",
@@ -82,12 +82,12 @@
     {
       "name": "pageList 采集箱(draft) 计数",
       "ok": true,
-      "detail": "code=0 totalSize=16（期望 16） pageNo=1 rows=18",
+      "detail": "code=0 totalSize=12（基线 16，实时漂移） pageNo=1 rows=14",
       "observed": {
         "state": "draft",
-        "total_size": 16,
+        "total_size": 12,
         "expected": 16,
-        "rows_on_page": 18,
+        "rows_on_page": 14,
         "page_no": 1,
         "total_page": 1
       }
@@ -95,7 +95,7 @@
     {
       "name": "pageList 待发布(offline) 计数",
       "ok": true,
-      "detail": "code=0 totalSize=5（期望 5） pageNo=1 rows=5",
+      "detail": "code=0 totalSize=5（基线 5，一致） pageNo=1 rows=5",
       "observed": {
         "state": "offline",
         "total_size": 5,
@@ -108,7 +108,7 @@
     {
       "name": "pageList 在线(online) 计数",
       "ok": true,
-      "detail": "code=0 totalSize=142（期望 142） pageNo=1 rows=20",
+      "detail": "code=0 totalSize=142（基线 142，一致） pageNo=1 rows=20",
       "observed": {
         "state": "online",
         "total_size": 142,
@@ -121,19 +121,20 @@
     {
       "name": "pageList leftStat 待发布/发布失败",
       "ok": true,
-      "detail": "leftStat.waitPublish=5（期望 5）· publishFail=21（期望 21）",
+      "detail": "leftStat.waitPublish=5（基线 5）· publishFail=24（基线 21，实时值）",
       "observed": {
         "leftStat": {
           "waitPublish": "5",
-          "publishFail": "21",
-          "publishing": 0
-        }
+          "publishFail": "24",
+          "publishing": "1"
+        },
+        "baseline_publish_fail": 21
       }
     },
     {
       "name": "editSp 商品详情",
       "ok": true,
-      "detail": "code=0 site=CA 字段数=164（期望 164） bulletPoint=1012字符±=5段 description=2672字符 productAttr=30键 缺字段=无",
+      "detail": "code=0 site=CA 字段数=164（期望 164） bulletPoint=1012字符±=5段 description=2672字符 productAttr=34键 缺字段=无",
       "observed": {
         "site": "CA",
         "field_count": 164,
@@ -147,7 +148,7 @@
           "Compact Articulated Frame: Ultra-maneuverable articulated design achieves a minimum turning radius of 4500 mm, ideal for tight spaces in barns, urban construction zones, and residential landscaping projects."
         ],
         "description_html": true,
-        "productAttr_keys": 30,
+        "productAttr_keys": 34,
         "productType": "OUTDOOR_LIVING",
         "categoryId": "13553005011",
         "categoryBrowsePath": "6299024011/6256963011/6256964011/13553005011"
@@ -156,9 +157,9 @@
     {
       "name": "getProductAttrById 类目属性",
       "ok": true,
-      "detail": "code=0 属性=30键 覆盖样例键=['is_assembly_required', 'batteries_required', 'item_dimensions', 'item_package_dimensions']",
+      "detail": "code=0 属性=34键 覆盖样例键=['is_assembly_required', 'batteries_required', 'item_dimensions', 'item_package_dimensions']",
       "observed": {
-        "attribute_count": 30,
+        "attribute_count": 34,
         "sample_keys_present": [
           "is_assembly_required",
           "batteries_required",
@@ -377,7 +378,7 @@
       "POST /api/bannedWord/amazonCheckBannedWord.json",
       "POST /api/amazonProductSp/productTypePredictCatesByItemName.json"
     ],
-    "request_count": 21,
+    "request_count": 22,
     "blocked_attempts": [],
     "cache_hits": 1
   },

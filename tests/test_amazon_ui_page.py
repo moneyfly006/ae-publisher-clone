@@ -31,6 +31,18 @@ SITE_CODE = "CA"
 CATEGORY_ID = "13553005011"
 CATEGORY_PATH = "6299024011/6256963011/6256964011/13553005011"
 
+# task-8/9：真实发布失败 errMsg 样例（缺必填属性）与自动补齐结果
+PUBLISH_ERR = ("发布失败:code:90220,“型号” 为必填项，但缺失。,"
+               "属性:model_number;属性:part_number;属性:model_name;"
+               "属性:manufacturer_contact_information")
+EXTRA_ERR = ("发布失败:code:90220,缺少必填项,属性:item_depth_width_height;"
+             "属性:country_of_origin;属性:list_price")
+PUBLISH_REQUIRED = ["model_number", "part_number", "model_name",
+                    "manufacturer_contact_information"]
+AUTOFILL = {"model_number": "HW20-28", "model_name": "Backhoe 2.5T",
+            "part_number": "HW20-28-01",
+            "manufacturer_contact_information": "Generic, CN"}
+
 
 # ---------- mock 后端（契约 §3 签名） ----------
 class FakeClient:
@@ -49,17 +61,30 @@ class FakeClient:
                  "currency": "CAD", "language": "en", "language_name": "英语"}]
 
     def list_products(self, state="draft", page=1, page_size=20, shop_id="-1", keyword=""):
+        err = PUBLISH_ERR if state == "publishFail" else ""
+        asin = "B0TEST12345" if state == "online" else ""
         return {
             "items": [{
                 "id": PRODUCT_ID, "title": "Fake Backhoe Title", "sku": "WY-QHCA-LTM-1",
                 "marketPlaceId": MARKETPLACE, "standardPrice": 12.5,
                 "standardPriceCurrency": "CAD", "quantity": 0,
-                "errMsg": "", "warningMsg": "需补图片",
+                "errMsg": "", "err_msg": err, "warningMsg": "需补图片",
+                "asin": asin,
             }],
             "total": 1, "page_no": 1, "total_page": 1,
             "drafts": 16, "wait_publish": 5, "publish_fail": 21,
             "markets": {MARKETPLACE: "加拿大"},
         }
+
+    def publish_state(self, product_id, shop_id="-1"):
+        return {"state": "publishFail", "err_msg": PUBLISH_ERR, "asin": "",
+                "title": "Fake Backhoe Title", "counts": {},
+                "required_attrs": list(PUBLISH_REQUIRED),
+                "attribute_notes": dict(AUTOFILL)}
+
+    def parse_required_attrs(self, err_msg):
+        from aeclone.integrations.amazon import parse_required_attrs
+        return parse_required_attrs(err_msg)
 
     def product_detail(self, product_id):
         return {
@@ -132,7 +157,9 @@ class FakeClient:
 
 
 class FakeResult:
-    def __init__(self, *, saved=False, preview=False, ok=True, error="", issues=None):
+    def __init__(self, *, saved=False, preview=False, ok=True, error="", issues=None,
+                 publish_state="", publish_error="", publish_asin="",
+                 publish_detail=None, required_attrs=None, attribute_notes=None):
         self.product_id = PRODUCT_ID
         self.ok = ok
         self.error = error
@@ -155,6 +182,13 @@ class FakeResult:
         self.banned_words = []
         self.save_result = {"code": 0}
         self.ai_used = False
+        # task-8 新字段
+        self.publish_state = publish_state
+        self.publish_error = publish_error
+        self.publish_asin = publish_asin
+        self.publish_detail = publish_detail or {}
+        self.required_attrs = list(required_attrs or [])
+        self.attribute_notes = dict(attribute_notes or {})
 
     @property
     def completion_label(self):
@@ -167,7 +201,21 @@ class FakeResult:
 def make_backend():
     """返回 (make_client, payload, pipeline) 三个契约对象，并记录调用。"""
     client = FakeClient()
-    calls = {"prepare": [], "run": [], "ai": [], "ai_all": []}
+    calls = {"prepare": [], "run": [], "ai": [], "ai_all": [], "verify": [],
+             "autofill": []}
+    behavior = {
+        "run_publish_state": "publishFail",
+        "run_publish_error": PUBLISH_ERR,
+        "run_publish_asin": "",
+        "run_required_attrs": list(PUBLISH_REQUIRED),
+        "run_attribute_notes": dict(AUTOFILL),
+        "run_saved": True,
+        "verify": {"state": "publishFail", "err_msg": PUBLISH_ERR, "asin": "",
+                   "title": "Fake Backhoe Title", "counts": {},
+                   "required_attrs": list(PUBLISH_REQUIRED),
+                   "attribute_notes": dict(AUTOFILL)},
+        "autofill": dict(AUTOFILL),
+    }
 
     def prepare_save(pid, cfg, overrides=None):
         calls["prepare"].append({"pid": pid, "overrides": overrides})
@@ -178,7 +226,26 @@ def make_backend():
         calls["run"].append({"pid": pid, "overrides": overrides, "dry_run": dry_run,
                              "use_ai": use_ai, "op": op,
                              "confirm_write": confirm_write})
-        return FakeResult(saved=not dry_run, preview=dry_run)
+        pub = {}
+        if not dry_run and str(op) == "2":
+            pub = dict(publish_state=behavior["run_publish_state"],
+                       publish_error=behavior["run_publish_error"],
+                       publish_asin=behavior["run_publish_asin"],
+                       required_attrs=list(behavior["run_required_attrs"]),
+                       attribute_notes=dict(behavior["run_attribute_notes"]))
+        return FakeResult(saved=bool(behavior["run_saved"]) if not dry_run else False,
+                          preview=dry_run, **pub)
+
+    def verify_publish(pid, cfg, *, client=None, wait_seconds=0, interval=10):
+        calls["verify"].append({"pid": pid, "wait_seconds": wait_seconds})
+        return dict(behavior["verify"])
+
+    def autofill_attributes(product, cfg, marketplace_id="", overrides=None,
+                            required=None, template=None):
+        calls["autofill"].append({"product_id": (product or {}).get("id"),
+                                  "marketplace_id": marketplace_id,
+                                  "required": list(required or [])})
+        return dict(behavior["autofill"])
 
     def ai_generate_field(product, cfg, field, marketplace_id="", count=5):
         calls["ai"].append({"field": field, "count": count})
@@ -204,21 +271,25 @@ def make_backend():
     pipeline = SimpleNamespace(
         prepare_save=prepare_save,
         run_amazon_product=run_amazon_product,
+        verify_publish=verify_publish,
+        autofill_attributes=autofill_attributes,
         ai_generate_field=ai_generate_field,
         ai_generate_all=ai_generate_all,
         forced_preview=lambda: bool(os.environ.get("AURORA_NO_SAVE")
                                     or os.environ.get("AURORA_TEST")),
     )
-    return (lambda cfg: client), payload, pipeline, client, calls
+    return (lambda cfg: client), payload, pipeline, client, calls, behavior
 
 
 @contextmanager
-def fake_backend():
-    make_client, payload, pipeline, client, calls = make_backend()
+def fake_backend(behavior=None):
+    make_client, payload, pipeline, client, calls, beh = make_backend()
+    if behavior:
+        beh.update(behavior)
     with patch.object(ui.App, "_amazon_backend",
                       lambda self: (make_client, payload, pipeline)):
         yield SimpleNamespace(client=client, calls=calls, payload=payload,
-                              pipeline=pipeline)
+                              pipeline=pipeline, behavior=beh)
 
 
 @contextmanager
@@ -323,7 +394,7 @@ class AmazonPageTests(unittest.TestCase):
                 # 主题切换后关键文案仍在（颜色走主题变量，不写死深色）
                 self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
                 self.assertTrue(any(isinstance(c, ft.Text) and c.value
-                                    and "⑥ 预演与保存" in c.value for c in rendered))
+                                    and "⑥ 发布前检查与保存" in c.value for c in rendered))
         ui.apply_theme("dark")
 
     def test_page_13_renders_with_all_six_cards_and_key_controls(self):
@@ -334,7 +405,7 @@ class AmazonPageTests(unittest.TestCase):
         all_text = texts(self.app)
         for title in ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
                       "④ 标题与卖点（AI）", "⑤ 价格 / 库存 / 物流 / 品牌 / SKU",
-                      "⑥ 预演与保存"):
+                      "⑥ 发布前检查与保存"):
             self.assertIn(title, all_text)
         # 关键控件（契约 §4.3）
         self.assertIn("店铺", labels(self.app))
@@ -346,27 +417,44 @@ class AmazonPageTests(unittest.TestCase):
         self.assertIn("标题", labels(self.app))
         self.assertIn("标准价", labels(self.app))
         self.assertIn("Search Terms（≤250 字节）", labels(self.app))
-        for btn in ("读取本机 Cookie", "测试连接", "刷新", "上一页", "下一页",
+        # 发布必填属性输入框（task-9）
+        for attr_label in ("型号（model_number）", "型号名称（model_name）",
+                           "零件编号（part_number）",
+                           "制造商联系信息（manufacturer_contact_information）"):
+            self.assertIn(attr_label, labels(self.app))
+        for btn in ("读取本机 Cookie", "检测连接", "刷新", "上一页", "下一页",
                     "加载类目", "校验路径", "AI/平台推荐产品类型",
                     "AI 生成标题", "AI 生成五点", "＋添加卖点", "AI 生成描述",
                     "AI 生成关键词",
                     "AI 一键生成全部（付费）", "刷新运费模板", "查看 productAttr（只读）",
-                    "预演（不保存）"):
+                    "发布前检查（不保存）", "查询发布结果", "自动补齐并重试发布",
+                    "自动补齐必填属性"):
             find_button(self.app, btn)
-        # 预演模式（AURORA_TEST=1）下保存按钮明示
-        self.assertTrue(any("预演模式" in str(b.text) for b in buttons(self.app)))
-        # 三种状态按钮
-        for label in ("采集箱", "待发布", "在线"):
+        # 检查模式（AURORA_TEST=1）下保存按钮明示
+        self.assertTrue(any("检查模式" in str(b.text) for b in buttons(self.app)))
+        # 状态按钮：采集箱/待发布/发布中/发布失败/在线
+        for label in ("采集箱", "待发布", "发布中", "发布失败", "在线"):
             self.assertTrue(any(str(getattr(b, "text", "")).startswith(label)
                                 for b in buttons(self.app)), label)
+
+    def test_amazon_page_has_no_dev_wording(self):
+        """正式版：Amazon 13 页可见文本不得出现测试/开发措辞。"""
+        self.app._switch(13)
+        page_texts = " ".join(str(t) for t in texts(self.app))
+        page_texts += " " + " ".join(str(getattr(b, "text", "")) for b in buttons(self.app))
+        for banned in ("AURORA_", "预演", "测试连接", "本地验收", "AURORA_TEST",
+                       "AURORA_NO_SAVE"):
+            self.assertNotIn(banned, page_texts, f"Amazon 页仍含开发措辞：{banned}")
+        for kept in ("检测连接", "发布前检查", "检查模式", "发布前检查与保存"):
+            self.assertIn(kept, page_texts, f"正式版文案缺失：{kept}")
 
     # ---------- ① 连接 / ② 列表 / ③ 类目 / 载入详情 ----------
     def test_connect_list_load_detail_and_category(self):
         self.app._switch(13)
         with fake_backend(), sync_threads():
-            click(find_button(self.app, "测试连接"))
+            click(find_button(self.app, "检测连接"))
         conn = find_control(self.app, ft.Text,
-                            lambda c: c.value and c.value.startswith("连接成功"))
+                            lambda c: c.value and c.value.startswith("检测连接正常"))
         self.assertIsNotNone(conn, f"连接状态未更新；文本：{texts(self.app)}")
         self.assertIn("采集箱 16", conn.value)
         self.assertIn("待发布 5", conn.value)
@@ -438,7 +526,7 @@ class AmazonPageTests(unittest.TestCase):
         self.assertIn("开关", snack(self.app))
         # 载入商品
         with fake_backend(), sync_threads():
-            click(find_button(self.app, "测试连接"))
+            click(find_button(self.app, "检测连接"))
             click(next(b for b in buttons(self.app)
                        if str(getattr(b, "text", "")).startswith("采集箱")))
         with fake_backend(), sync_threads():
@@ -501,9 +589,9 @@ class AmazonPageTests(unittest.TestCase):
                             and c.color == ui.DANGER_C for c in controls(self.app)))
         bullet_fields[0].value = "FEATURE one"
         change(bullet_fields[0])
-        # 预演 overrides 必须带全部 10 条（保存使用同一份 overrides 组装逻辑）
+        # 发布前检查 overrides 必须带全部 10 条（保存使用同一份 overrides 组装逻辑）
         with fake_backend() as env, sync_threads():
-            click(find_button(self.app, "预演（不保存）"))
+            click(find_button(self.app, "发布前检查（不保存）"))
         overrides = env.calls["run"][-1]["overrides"]
         self.assertEqual(len(overrides["bullets"]), 10, overrides["bullets"])
         self.assertEqual(overrides["bullets"][0], "FEATURE one")
@@ -515,7 +603,7 @@ class AmazonPageTests(unittest.TestCase):
     # ---------- ⑥ 预演 / 保存 ----------
     def _load_product(self):
         with fake_backend(), sync_threads():
-            click(find_button(self.app, "测试连接"))
+            click(find_button(self.app, "检测连接"))
             click(next(b for b in buttons(self.app)
                        if str(getattr(b, "text", "")).startswith("采集箱")))
             click([b for b in buttons(self.app)
@@ -525,18 +613,19 @@ class AmazonPageTests(unittest.TestCase):
         self.app._switch(13)
         self._load_product()
         with fake_backend() as env, sync_threads():
-            click(find_button(self.app, "预演（不保存）"))
-        self.assertTrue(env.calls["run"], "预演未调用 run_amazon_product")
-        self.assertTrue(env.calls["run"][-1]["dry_run"], "预演必须 dry_run=True")
+            click(find_button(self.app, "发布前检查（不保存）"))
+        self.assertTrue(env.calls["run"], "发布前检查未调用 run_amazon_product")
+        self.assertTrue(env.calls["run"][-1]["dry_run"], "发布前检查必须 dry_run=True")
         self.assertEqual(env.calls["run"][-1]["op"], "1")
         self.assertTrue(any(isinstance(c, ft.Text) and c.value
-                            and "预演" in c.value for c in controls(self.app)))
+                            and "发布前检查" in c.value for c in controls(self.app)))
         # AURORA_TEST/AURORA_NO_SAVE 下保存按钮拒绝，且不产生 dry_run=False 调用
         with fake_backend() as env2, sync_threads():
-            save_btn = find_button(self.app, "保存（预演模式）")
+            # 检查模式（AURORA_TEST）下按钮文案是「保存（检查模式）」；正式环境是「保存到 Amazon」
+            save_btn = find_button(self.app, "保存（检查模式）")
             click(save_btn)
-        self.assertEqual(snack(self.app), "预演模式：已拒绝真实保存，请用「预演」校验")
-        self.assertEqual(env2.calls["run"], [], "预演模式下不能有任何真实保存调用")
+        self.assertEqual(snack(self.app), "检查模式：已拒绝真实保存，请用「发布前检查」校验")
+        self.assertEqual(env2.calls["run"], [], "检查模式下不能有任何真实保存调用")
         self.assertEqual(env2.calls["prepare"], [])
 
     def test_real_save_flow_uses_confirm_and_backend(self):
@@ -567,7 +656,8 @@ class AmazonPageTests(unittest.TestCase):
             allowed = {"title", "bullets", "description", "search_terms", "brand",
                        "manufacturer", "sku", "standard_price", "sale_price", "quantity",
                        "category_id", "category_path", "marketplace_id", "currency",
-                       "fulfillment", "handling_time", "shipping_template"}
+                       "fulfillment", "handling_time", "shipping_template",
+                       "attributes"}
             self.assertTrue(set(overrides).issubset(allowed),
                             f"出现契约外 overrides 键：{set(overrides) - allowed}")
             # 后端已就绪时再对齐一次：UI 发的键必须被 amazon_payload 接受
@@ -582,6 +672,179 @@ class AmazonPageTests(unittest.TestCase):
             self.assertEqual(overrides["category_id"], CATEGORY_ID)
             self.assertEqual(overrides["marketplace_id"], MARKETPLACE)
             self.assertEqual(overrides["bullets"][0], "FEATURE one")
+
+    # ---------- 发布结果 / 必填属性 (task-9) ----------
+    def _set_op2(self):
+        op_dd = find_control(self.app, ft.Dropdown,
+                             lambda c: getattr(c, "label", "") == "保存动作")
+        self.assertIsNotNone(op_dd)
+        op_dd.value = "2"
+        change(op_dd)
+
+    def test_publish_failure_shows_full_reason_and_missing_attrs(self):
+        """op=2 发布失败：展示完整 errMsg + parse_required_attrs 的缺失属性。"""
+        with patch.dict(os.environ, {"AURORA_TEST": "", "AURORA_NO_SAVE": ""}):
+            self.app._preview_mode = False
+            self.app._switch(0)
+            self.app._switch(13)
+            self._load_product()
+            self._set_op2()
+            with fake_backend(), sync_threads():
+                click(find_button(self.app, "保存到 Amazon"))
+                self.assertIsNotNone(self.app.page.dialog, "保存没有二次确认")
+                click(self.app.page.dialog.actions[1])
+        joined = " ".join(texts(self.app)) + " " + " ".join(
+            str(getattr(c, "value", "")) for c in controls(self.app)
+            if isinstance(c, ft.TextField))
+        self.assertIn("发布失败", joined, "缺少发布失败徽标")
+        self.assertIn("90220", joined, "缺少完整失败原因 errMsg")
+        for attr in PUBLISH_REQUIRED:
+            self.assertIn(attr, joined, f"缺少解析出的必填属性：{attr}")
+        # 徽标颜色：发布失败=红
+        self.assertTrue(any(isinstance(c, ft.Text) and c.value == "发布失败"
+                            and c.color == ui.DANGER_C for c in controls(self.app)))
+
+    def test_publish_success_badge_shows_asin(self):
+        with patch.dict(os.environ, {"AURORA_TEST": "", "AURORA_NO_SAVE": ""}):
+            self.app._preview_mode = False
+            self.app._switch(0)
+            self.app._switch(13)
+            self._load_product()
+            self._set_op2()
+            behavior = {"run_publish_state": "online", "run_publish_error": "",
+                        "run_publish_asin": "B0TEST12345", "run_required_attrs": []}
+            with fake_backend(behavior), sync_threads():
+                click(find_button(self.app, "保存到 Amazon"))
+                click(self.app.page.dialog.actions[1])
+        joined = " ".join(texts(self.app))
+        self.assertIn("发布成功", joined)
+        self.assertIn("B0TEST12345", joined)
+
+    def test_review_pending_is_not_reported_as_failure(self):
+        """publishFail + 100521/审核中 → 平台审核中（黄，非软件失败）。"""
+        with patch.dict(os.environ, {"AURORA_TEST": "", "AURORA_NO_SAVE": ""}):
+            self.app._preview_mode = False
+            self.app._switch(0)
+            self.app._switch(13)
+            self._load_product()
+            self._set_op2()
+            behavior = {"run_publish_state": "publishFail",
+                        "run_publish_error": "发布失败:code:100521,商品正在审核中",
+                        "run_required_attrs": []}
+            with fake_backend(behavior), sync_threads():
+                click(find_button(self.app, "保存到 Amazon"))
+                click(self.app.page.dialog.actions[1])
+        joined = " ".join(texts(self.app))
+        self.assertIn("平台审核中", joined)
+        self.assertIn("非软件失败", joined)
+
+    def test_query_publish_result_and_dynamic_extra_attributes(self):
+        """查询发布结果：展示状态/原因，并把 errMsg 里的其它必填属性动态追加输入框。"""
+        self.app._switch(13)
+        self._load_product()
+        verify_state = {"state": "publishFail", "err_msg": EXTRA_ERR, "asin": "",
+                        "title": "Fake Backhoe Title", "counts": {},
+                        "required_attrs": ["item_depth_width_height",
+                                           "country_of_origin", "list_price"],
+                        "attribute_notes": {"item_depth_width_height": "30x20x15",
+                                            "country_of_origin": "CN"}}
+        with fake_backend({"verify": verify_state}), sync_threads():
+            click(find_button(self.app, "查询发布结果"))
+        joined = " ".join(texts(self.app))
+        self.assertIn("发布失败", joined)
+        self.assertIn("item_depth_width_height", joined)
+        self.assertIn("country_of_origin", joined)
+        # 动态属性输入框已追加，且预填后端 autofill/notes 值
+        now_labels = labels(self.app)
+        for attr in ("item_depth_width_height", "country_of_origin", "list_price"):
+            self.assertIn(attr, now_labels, f"缺少动态属性输入框：{attr}")
+        dyn = find_control(self.app, ft.TextField,
+                           lambda c: getattr(c, "label", "") == "item_depth_width_height")
+        self.assertEqual(dyn.value, "30x20x15")
+        coo = find_control(self.app, ft.TextField,
+                           lambda c: getattr(c, "label", "") == "country_of_origin")
+        self.assertEqual(coo.value, "CN")
+        # 手工修正后保存 → overrides["attributes"] 带动态属性
+        dyn.value = "31x21x16"
+        change(dyn)
+        # 「自动补齐必填属性」按 errMsg 解析出的缺失属性向后端请求补齐
+        with fake_backend() as afenv, sync_threads():
+            click(find_button(self.app, "自动补齐必填属性"))
+        self.assertEqual(sorted(afenv.calls["autofill"][-1]["required"]),
+                         sorted(["item_depth_width_height", "country_of_origin",
+                                 "list_price"]))
+        with fake_backend() as env, sync_threads():
+            click(find_button(self.app, "发布前检查（不保存）"))
+        attrs = env.calls["run"][-1]["overrides"]["attributes"]
+        self.assertEqual(attrs.get("item_depth_width_height"), "31x21x16")
+        self.assertEqual(attrs.get("country_of_origin"), "CN")
+
+    def test_autofill_attributes_prefills_and_goes_into_overrides(self):
+        self.app._switch(13)
+        with fake_backend() as env, sync_threads():
+            click(find_button(self.app, "检测连接"))
+            click(next(b for b in buttons(self.app)
+                       if str(getattr(b, "text", "")).startswith("采集箱")))
+            click([b for b in buttons(self.app)
+                   if str(getattr(b, "text", "")) == "编辑"][0])
+        self.assertTrue(env.calls["autofill"], "载入商品应调用 autofill_attributes")
+        for key, value in AUTOFILL.items():
+            tf = find_control(self.app, ft.TextField,
+                              lambda c, _k=key: _k in str(getattr(c, "label", "")))
+            self.assertIsNotNone(tf, f"缺少属性输入框：{key}")
+            self.assertEqual(tf.value, value, f"属性 {key} 未预填 autofill 值")
+        with fake_backend() as env2, sync_threads():
+            click(find_button(self.app, "发布前检查（不保存）"))
+        attrs = env2.calls["run"][-1]["overrides"]["attributes"]
+        for key, value in AUTOFILL.items():
+            self.assertEqual(attrs.get(key), value)
+
+    def test_list_publish_states_show_err_msg_summary(self):
+        self.app._switch(13)
+        # 新增状态按钮：发布中 / 发布失败
+        for label in ("发布中", "发布失败"):
+            self.assertTrue(any(str(getattr(b, "text", "")).startswith(label)
+                                for b in buttons(self.app)), label)
+        with fake_backend(), sync_threads():
+            click(next(b for b in buttons(self.app)
+                       if str(getattr(b, "text", "")).startswith("发布失败")))
+        joined = " ".join(texts(self.app))
+        self.assertIn("90220", joined, "发布失败行未显示 err_msg 摘要")
+        with fake_backend(), sync_threads():
+            click(next(b for b in buttons(self.app)
+                       if str(getattr(b, "text", "")).startswith("发布中")))
+        # 不崩溃且状态可切换
+        self.assertTrue(any(str(getattr(b, "text", "")).startswith("发布中")
+                            for b in buttons(self.app)))
+
+    def test_auto_retry_publish_uses_op2_and_attributes(self):
+        with patch.dict(os.environ, {"AURORA_TEST": "", "AURORA_NO_SAVE": ""}):
+            self.app._preview_mode = False
+            self.app._switch(0)
+            self.app._switch(13)
+            self._load_product()
+            with fake_backend() as env, sync_threads():
+                click(find_button(self.app, "自动补齐并重试发布"))
+                self.assertIsNotNone(self.app.page.dialog, "重试发布缺少二次确认")
+                self.assertIn("重试发布", str(self.app.page.dialog.title.value))
+                click(self.app.page.dialog.actions[1])
+            self.assertTrue(env.calls["autofill"], "重试发布前应调用 autofill_attributes")
+            self.assertTrue(env.calls["run"], "重试发布未调用 run_amazon_product")
+            self.assertEqual(env.calls["run"][-1]["op"], "2")
+            self.assertFalse(env.calls["run"][-1]["dry_run"])
+            self.assertTrue(env.calls["run"][-1]["confirm_write"])
+            self.assertIn("attributes", env.calls["run"][-1]["overrides"])
+        joined = " ".join(texts(self.app))
+        self.assertIn("重试发布结果", joined)
+
+    def test_auto_retry_publish_rejected_in_check_mode(self):
+        self.app._switch(13)
+        self._load_product()
+        with fake_backend() as env, sync_threads():
+            click(find_button(self.app, "自动补齐并重试发布"))
+        self.assertIsNone(self.app.page.dialog, "检查模式不应弹真实发布确认")
+        self.assertIn("检查模式", snack(self.app))
+        self.assertEqual(env.calls["run"], [], "检查模式不能真实发布")
 
     # ---------- 守卫 ----------
     def test_overview_uses_amazon_counts_and_jumps_to_13(self):
@@ -649,10 +912,10 @@ class AmazonPageTests(unittest.TestCase):
         with patch.object(ui.App, "_amazon_backend",
                           side_effect=ImportError("no amazon modules")):
             with sync_threads():
-                click(find_button(self.app, "测试连接"))
+                click(find_button(self.app, "检测连接"))
             conn = [c.value for c in controls(self.app)
                     if isinstance(c, ft.Text) and c.value
-                    and c.value.startswith("连接失败")]
+                    and c.value.startswith("检测连接失败")]
             self.assertTrue(conn and "后端未就绪" in conn[0],
                             f"缺少后端未就绪提示：{conn}")
             # 所有按钮/输入回调逐个触发，不得抛出异常（回调内部必须 try/except）
@@ -676,7 +939,7 @@ class AmazonPageTests(unittest.TestCase):
     def test_empty_product_list_has_actionable_empty_state(self):
         """采集箱空列表必须有空状态提示（不是空白/无反馈）。"""
         self.app._switch(13)
-        make_client, payload, pipeline, _client, _calls = make_backend()
+        make_client, payload, pipeline, _client, _calls, _beh = make_backend()
 
         class EmptyClient(FakeClient):
             def list_products(self, state="draft", page=1, page_size=20,

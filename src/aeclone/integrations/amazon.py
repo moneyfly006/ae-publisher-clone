@@ -40,6 +40,23 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 SAVE_NAME = "amazonSave.txt"
 
+# 列表状态：draft/offline/online 走 pageList.json；待发布三态走 offline.json
+_OFFLINE_SUBSTATES = {
+    "waitpublish": "waitPublish",
+    "publishing": "publishing",
+    "publishfail": "publishFail",
+}
+_LIST_STATE_ALIASES = {
+    "draft": ("pageList", "draft", None),
+    "offline": ("pageList", "offline", None),
+    "online": ("pageList", "online", None),
+    "waitpublish": ("offline", "offline", "waitPublish"),
+    "publishing": ("offline", "offline", "publishing"),
+    "publishfail": ("offline", "offline", "publishFail"),
+}
+# errMsg「…,属性:model_number;…」提取必填属性名
+_REQUIRED_ATTR_RE = re.compile(r"(?:属性|attribute)\s*[:：]\s*([A-Za-z0-9_]+)", re.I)
+
 _LANG_NAMES = {
     "en": "英语", "es": "西班牙语", "pt": "葡萄牙语", "de": "德语", "fr": "法语",
     "it": "意大利语", "ja": "日语", "nl": "荷兰语", "sv": "瑞典语", "pl": "波兰语",
@@ -73,6 +90,20 @@ def parse_cookie(text: str) -> dict:
     return out
 
 
+def parse_required_attrs(err_msg) -> list[str]:
+    """从发布失败 errMsg 提取 ``属性:xxx`` 的必填属性名（去重保序）。
+
+    实测样例：``发布失败:code:90220,“型号” 为必填项，但缺失。,属性:model_number;...``
+    """
+    text = str(err_msg or "")
+    out: list[str] = []
+    for match in _REQUIRED_ATTR_RE.finditer(text):
+        name = str(match.group(1) or "").strip()
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
 class AmazonError(RuntimeError):
     """Amazon/店小秘接口错误（中文可读消息）。"""
 
@@ -101,6 +132,7 @@ class AmazonClient:
             cookies = {}
         self.timeout = timeout
         self.base = str(base or BASE).rstrip("/")
+        self._attr_template_cache: dict = {}
         self.s = requests.Session()
         for key, value in dict(cookies or {}).items():
             try:
@@ -269,17 +301,31 @@ class AmazonClient:
     # ---------------- 商品 ----------------
     def list_products(self, state="draft", page=1, page_size=20,
                       shop_id="-1", keyword="") -> dict:
-        """分页列表；state ∈ draft/offline/online。"""
-        state = str(state or "draft").strip().lower()
-        if state not in ("draft", "offline", "online"):
-            raise AmazonError(f"未知列表状态：{state}（可选 draft/offline/online）")
-        d = self._post("/api/amazonProduct/pageList.json", {
+        """分页列表。
+
+        state ∈ ``draft`` / ``offline`` / ``online``（pageList.json）或
+        ``waitPublish`` / ``publishing`` / ``publishFail``（offline.json，
+        ``dxmState=offline`` + ``dxmOfflineState=<state>``）。
+        """
+        raw_state = str(state or "draft").strip().lower().replace("_", "").replace("-", "")
+        parsed = _LIST_STATE_ALIASES.get(raw_state)
+        if parsed is None:
+            raise AmazonError(
+                f"未知列表状态：{state}（可选 draft/offline/online/"
+                f"waitPublish/publishing/publishFail）")
+        api, dxm_state, offline_state = parsed
+        payload = {
             "pageNo": int(page or 1),
             "pageSize": int(page_size or 20),
             "shopId": str(shop_id if shop_id is not None else "-1") or "-1",
-            "dxmState": state,
+            "dxmState": dxm_state,
             "searchValue": str(keyword or ""),
-        })
+        }
+        if offline_state:
+            payload["dxmOfflineState"] = offline_state
+            d = self._post("/api/amazonProduct/offline.json", payload)
+        else:
+            d = self._post("/api/amazonProduct/pageList.json", payload)
         data = d.get("data") or {}
         if not isinstance(data, dict):
             data = {}
@@ -301,6 +347,7 @@ class AmazonClient:
             "drafts": _num(data.get("draftNum"), 0),
             "wait_publish": _num(left.get("waitPublish"), 0),
             "publish_fail": _num(left.get("publishFail"), 0),
+            "publishing": _num(left.get("publishing"), 0),
             "markets": {str(k): str(v) for k, v in markets.items()},
         }
 
@@ -315,6 +362,161 @@ class AmazonClient:
         if isinstance(data, dict):
             data["products"] = extract_list(data)
         return data if isinstance(data, dict) else {}
+
+    def publish_state(self, product_id: str, shop_id: str = "-1") -> dict:
+        """只读核实商品当前所在列表状态（draft/online/待发布三态）。
+
+        返回 ``{"state","err_msg","asin","title","counts"}``；``state`` 取值：
+        ``draft|online|waitPublish|publishing|publishFail|unknown``。
+        找不到/接口失败返回 ``unknown``（``counts`` 尽量填、``error`` 记原因）。
+        """
+        pid = str(product_id or "").strip()
+        counts = {"draft": 0, "online": 0, "waitPublish": 0, "publishing": 0,
+                  "publishFail": 0}
+        errors: list[str] = []
+
+        def _find(items):
+            for row in items or []:
+                if str(row.get("id") or "") == pid:
+                    return row
+            return None
+
+        def _left(data: dict) -> None:
+            for key in ("waitPublish", "publishFail", "publishing"):
+                if data.get(key) is not None:
+                    counts[key] = _num(data.get(key), counts.get(key, 0))
+
+        def _hit(state: str, row: dict) -> dict:
+            return {
+                "state": state,
+                "err_msg": str(row.get("err_msg") or ""),
+                "asin": str(row.get("asin") or ""),
+                "title": str(row.get("title") or ""),
+                "counts": dict(counts),
+            }
+
+        for state in ("draft", "online"):
+            try:
+                data = self.list_products(state, page=1, page_size=200,
+                                          shop_id=shop_id)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{state}: {str(exc)[:120]}")
+                continue
+            counts[state] = _num(data.get("total"), 0)
+            _left({"waitPublish": data.get("wait_publish"),
+                   "publishFail": data.get("publish_fail"),
+                   "publishing": data.get("publishing")})
+            row = _find(data.get("items"))
+            if row:
+                return _hit(state, row)
+
+        for state in ("waitPublish", "publishing", "publishFail"):
+            try:
+                data = self.list_products(state, page=1, page_size=200,
+                                          shop_id=shop_id)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{state}: {str(exc)[:120]}")
+                continue
+            counts[state] = _num(data.get("total"), 0)
+            _left({"waitPublish": data.get("wait_publish"),
+                   "publishFail": data.get("publish_fail"),
+                   "publishing": data.get("publishing")})
+            row = _find(data.get("items"))
+            if row:
+                return _hit(state, row)
+
+        out = {"state": "unknown", "err_msg": "", "asin": "", "title": "",
+               "counts": dict(counts)}
+        if errors:
+            out["error"] = "；".join(errors)[:400]
+        return out
+
+    def online_rows(self, shop_id: str = "-1", max_pages: int = 5,
+                    page_size: int = 200) -> list[dict]:
+        """只读：拉在线商品列表（默认最多 5 页 ×200，够覆盖常见店铺）。"""
+        rows: list[dict] = []
+        for page in range(1, max(1, int(max_pages)) + 1):
+            data = self.list_products("online", page=page, page_size=page_size,
+                                      shop_id=shop_id)
+            items = data.get("items") or []
+            rows.extend(items)
+            total_page = _num(data.get("total_page"), 1)
+            if not items or page >= total_page:
+                break
+        return rows
+
+    def attribute_template(self, category_id: str, marketplace_id: str,
+                           shop_id: str = "-1") -> dict:
+        """取「同站点、同类目」在线商品的 productAttr 作为属性模板（只读）。
+
+        找不到返回 {}；同 (shop, site, category) 进程内只查一次（命中/未命中都缓存）。
+        """
+        key = (str(shop_id), str(marketplace_id), str(category_id))
+        cache = self._attr_template_cache
+        if key in cache:
+            return dict(cache[key])
+        result: dict = {}
+        try:
+            for row in self.online_rows(shop_id):
+                if str(row.get("category_id") or "") != str(category_id):
+                    continue
+                row_mp = str(row.get("marketplace_id") or "")
+                if marketplace_id and row_mp and row_mp != str(marketplace_id):
+                    continue
+                try:
+                    detail = self.product_detail(str(row.get("id") or ""))
+                except Exception:
+                    continue
+                product = detail.get("product") if isinstance(detail.get("product"), dict) else detail
+                raw_attr = (product or {}).get("productAttr")
+                data = raw_attr
+                if isinstance(raw_attr, str):
+                    try:
+                        data = json.loads(raw_attr)
+                    except Exception:
+                        data = None
+                if isinstance(data, dict) and data:
+                    result = data
+                    break
+        except Exception:
+            result = {}
+        cache[key] = dict(result)
+        return dict(result)
+
+    def attr_js_url(self, site_code: str, product_type: str,
+                    category_id: str) -> str:
+        """只读：getAttrJsUrl（类目内部 id + productType + 站点代码）→ schema JS URL。"""
+        d = self._post("/api/amazonProductSp/getAttrJsUrl.json", {
+            "site": str(site_code), "productType": str(product_type),
+            "id": str(category_id)})
+        data = d.get("data")
+        return data if isinstance(data, str) else ""
+
+    def required_attributes_from_schema(self, category_id: str, product_type: str,
+                                        site_code: str) -> list[str]:
+        """best-effort：下载类目 schema JS，正则提取 ``required:!0`` 的顶层属性名。
+
+        失败（接口/下载/正则）一律返回 []，不阻断保存/发布。
+        """
+        try:
+            url = self.attr_js_url(site_code, product_type, category_id)
+            if not url:
+                return []
+            r = requests.get(url, timeout=self.timeout)
+            if r.status_code >= 400:
+                return []
+            text = r.text or ""
+        except Exception:
+            return []
+        out: list[str] = []
+        pattern = re.compile(
+            r'name\s*:\s*["\']([a-zA-Z0-9_]+)["\'][\s\S]{0,300}?'
+            r'required\s*:\s*(!0|!1|true|false)')
+        for match in pattern.finditer(text):
+            name, flag = match.group(1), match.group(2)
+            if flag in ("!0", "true") and name not in out:
+                out.append(name)
+        return out[:200]
 
     def product_detail(self, product_id: str) -> dict:
         """editSp 的 data 原样（含 site/product/marketPids/...）；失败抛 AmazonError。"""
@@ -561,5 +763,5 @@ def extract_list(data: dict) -> list[dict]:
 
 __all__ = [
     "AmazonClient", "AmazonError", "AmazonNotReady", "BASE", "UA", "SAVE_NAME",
-    "parse_cookie", "normalize_product", "extract_list",
+    "parse_cookie", "normalize_product", "extract_list", "parse_required_attrs",
 ]

@@ -34,12 +34,15 @@ def _cases():
     ali = get_platform("alibaba")
     exp = get_platform("aliexpress")
     amz = get_platform("amazon")
+    ttk = get_platform("tiktok")
     ali_ids = sorted({p.index for p in ali.pages})
     exp_only = sorted({p.index for p in exp.pages} - set(ali_ids))
     cases = [(idx, False, "alibaba") for idx in ali_ids]
     cases += [(idx, False, "aliexpress") for idx in exp_only]
     # Amazon 平台 13 号刊登页 + 概览/日志/设置（task-4 端到端验收要求）。
     cases += [(idx, False, "amazon") for idx in (0, 13, 10, 11) if amz.page(idx)]
+    # TikTok 平台 14 号刊登页 + 概览/日志/设置（task-5 端到端验收要求）。
+    cases += [(idx, False, "tiktok") for idx in (0, 14, 10, 11) if ttk.page(idx)]
     cases += [(5, True, "alibaba"), (10, True, "alibaba")]
     return cases
 

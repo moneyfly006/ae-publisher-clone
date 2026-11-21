@@ -364,25 +364,27 @@ DEFAULTS: dict = {
     "start_page": 0,
     # ---------------- Alibaba（国际站）刊登预设 ----------------
     "alibaba_cookies": "",
-    "alibaba_shop_id": "",
+    "alibaba_shop_id": "9466975",   # 预置：ICBU 店铺（可在「Alibaba 连接」页切换）
+    "alibaba_shop_name": "zzyugong",
+    "alibaba_recommended_seeded": False,
     "alibaba_test_product_id": "",
     "alibaba_last_category_required": "",
-    "alibaba_ai_preset": "container_pool",   # 上次使用的 Alibaba 行业提示词预设
+    "alibaba_ai_preset": "machinery_industrial",   # 上次使用的 Alibaba 行业提示词预设
     "alibaba_keyword_prompt": "",            # 空=用 TextPipeline 内置英文关键词提示词
     "alibaba_group_id": "",
     "alibaba_group_name": "",
-    "alibaba_category_id": "",
-    "alibaba_full_cid": "",
-    "alibaba_category_name": "",
+    "alibaba_category_id": "127726092",
+    "alibaba_category_name": "其他混凝土机械 / Other Concrete Machinery",
+    "alibaba_full_cid": "201943703,1326,100010658,127726092",
     "alibaba_keywords": "",
     "alibaba_company_name": "",
-    "alibaba_company_desc": "",
-    "alibaba_company_faq": "",
+    "alibaba_company_desc": "We are a professional machinery manufacturer with 15 years of experience. Our factory supports OEM/ODM orders and provides installation and after-sales service.",
+    "alibaba_company_faq": "Q: What is the MOQ? A: One set. Q: How long is the delivery time? A: 15-30 days.",
     "alibaba_company_website": "",
     "alibaba_min_order_quantity": 1,
     "alibaba_unit_type": "Piece",
     "alibaba_price_tiers": "",
-    "alibaba_price_type": "ladder_price",
+    "alibaba_price_type": "",
     # 用户在 UI 显式选过定价方式才置 1；否则保存时保留商品原有 priceType
     # （避免默认 ladder_price 把 sku_price/fob_price 商品静默改成阶梯价）。
     "alibaba_price_type_explicit": "",
@@ -391,20 +393,21 @@ DEFAULTS: dict = {
     "alibaba_fob_currency": "USD",
     "alibaba_fob_min_price": "",
     "alibaba_fob_max_price": "",
-    "alibaba_freight_template_id": "",   # 运费模板 ID（发布时与重量/尺寸一起校验）
+    "alibaba_freight_template_id": "2055583029",   # 运费模板 ID（发布时与重量/尺寸一起校验）
     "alibaba_logistics_property": "general_cargo_0",  # 物流属性；实测 online 商品用 general_cargo_0
     "alibaba_op": 1,
-    "alibaba_package_size": "",
-    "alibaba_weight": "",
-    "alibaba_hs_code": "",
-    "alibaba_stock": 0,
+    "alibaba_package_size": "300X200X200",
+    "alibaba_weight": "500",
+    "alibaba_hs_code": "84791000",
+    "alibaba_stock": "5",
     "alibaba_payment_terms": "T/T",
     "alibaba_trade_terms": "FOB",
     "alibaba_port": "Shanghai",
     "alibaba_lead_time": 30,          # 发货期天数（写入 deliver_periods.process_period）
     "alibaba_deliver_quantity": "1",  # 发货期起订量（deliver_periods.quantity）
-    "alibaba_process_period": "",     # 空=用 alibaba_lead_time
-    "alibaba_attr_presets": "",
+    "alibaba_process_period": "15",
+    "alibaba_schedule_time": "",      # op=5 定时发布时间（本地 YYYY-MM-DD HH:MM）
+    "alibaba_attr_presets": "{\"Core Components\":\"Motor\",\"Warranty\":\"1 Year\",\"Place of Origin\":\"China\",\"Model Number\":\"LS-600\",\"Weight (kg)\":\"600\",\"Unique Selling Point\":\"Fully hydraulic system\"}",
     # ---------------- Amazon（亚马逊）刊登预设 ----------------
     "amazon_cookies": "",
     "amazon_shop_id": "",
@@ -436,6 +439,51 @@ DEFAULTS: dict = {
     "amazon_description_prompt": "",
     "amazon_search_terms_prompt": "",
     "amazon_last_status": "",
+    "amazon_manufacturer_contact": "",   # 发布必填 manufacturer_contact_information；空=自动 "品牌, CN"
+    "amazon_publish_wait": 60,           # op=2 发布后轮询发布状态的最长秒数（0=只查一次）
+    "amazon_autofill_attrs": True,       # 保存/发布前自动补齐缺失的必填属性（只补缺失，不覆盖已有）
+    # ---------------- TikTok Shop 刊登预设（契约 §3.7） ----------------
+    "tiktok_cookies": "",
+    "tiktok_shop_id": "",
+    "tiktok_shop_name": "",
+    "tiktok_site": "",               # GB/US/…（L7 站点代码）
+    "tiktok_site_name": "",
+    "tiktok_list_state": "draft",
+    "tiktok_test_product_id": "",
+    "tiktok_category_id": "",
+    "tiktok_category_name": "",
+    "tiktok_category_path": "",      # nodePathId a/b/c
+    "tiktok_category_list": "[]",    # JSON
+    "tiktok_title": "",
+    "tiktok_description": "",
+    "tiktok_key_features": "[]",     # JSON（US/4Seller）
+    "tiktok_search_terms": "[]",     # JSON（US/4Seller）
+    "tiktok_images": "[]",           # JSON：主图 URL 列表（第 1 张=主图）
+    "tiktok_video_id": "",
+    "tiktok_source_url": "",
+    "tiktok_product_type": 1,        # 0 单品 / 1 多变种
+    "tiktok_price": "",
+    "tiktok_stock": 0,
+    "tiktok_sku": "",
+    "tiktok_weight": "",
+    "tiktok_length": "",
+    "tiktok_width": "",
+    "tiktok_height": "",
+    "tiktok_dimension_unit": "CENTIMETER",
+    "tiktok_warehouse_id": "",
+    "tiktok_brand_id": "",
+    "tiktok_manufacturer_id": "",
+    "tiktok_responsible_person_id": "",
+    "tiktok_product_attributes": "",
+    "tiktok_op": 1,
+    "tiktok_save_mode": "",
+    "tiktok_use_ai": False,
+    "tiktok_key_feature_count": 5,
+    "tiktok_title_prompt": "",
+    "tiktok_description_prompt": "",
+    "tiktok_key_features_prompt": "",
+    "tiktok_search_terms_prompt": "",
+    "tiktok_last_status": "",
     "window_size": "1280x800",
     "ui_theme": "dark",             # dark | light
     "image_retry_times": 1,         # 图片接口 5xx 自动重试次数（0=不重试）      # 启动窗口大小（小 1100x760 / 中 1280x800 / 大 1512x945）

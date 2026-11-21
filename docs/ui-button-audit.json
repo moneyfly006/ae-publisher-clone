@@ -1,9 +1,9 @@
 {
   "counts": {
-    "OK": 300,
-    "DEFERRED": 137,
+    "OK": 382,
+    "DEFERRED": 192,
     "NATIVE": 8,
-    "EXTERNAL": 12,
+    "EXTERNAL": 15,
     "ERROR": 0
   },
   "results": [
@@ -12,9 +12,9 @@
       "platform": "alibaba",
       "label": "01  商品准备",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "load_shops"
     },
     {
       "page": 0,
@@ -30,9 +30,9 @@
       "platform": "alibaba",
       "label": "03  Alibaba 刊登",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "load_collect, <lambda>"
     },
     {
       "page": 0,
@@ -48,18 +48,18 @@
       "platform": "alibaba",
       "label": "点一下去处理",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "load_collect, <lambda>"
     },
     {
       "page": 0,
       "platform": "alibaba",
       "label": "去 Alibaba 刊登",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "load_collect, <lambda>"
     },
     {
       "page": 0,
@@ -84,9 +84,9 @@
       "platform": "alibaba",
       "label": "选择商品",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "load_collect, <lambda>"
     },
     {
       "page": 0,
@@ -120,18 +120,18 @@
       "platform": "alibaba",
       "label": "前往店铺与模板",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "load_shops"
     },
     {
       "page": 0,
       "platform": "alibaba",
       "label": "前往 Alibaba 刊登",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "load_collect, <lambda>"
     },
     {
       "page": 0,
@@ -181,6 +181,15 @@
     {
       "page": 1,
       "platform": "alibaba",
+      "label": "Alibaba 专用 Cookie（可留空，沿用店小秘登录）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 1,
+      "platform": "alibaba",
       "label": "重新检测 Cookie",
       "event": "on_click",
       "status": "DEFERRED",
@@ -190,7 +199,7 @@
     {
       "page": 1,
       "platform": "alibaba",
-      "label": "粘贴 Cookie",
+      "label": "粘贴店小秘 Cookie",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -199,7 +208,7 @@
     {
       "page": 1,
       "platform": "alibaba",
-      "label": "检测 ICBU 连接",
+      "label": "检测 Alibaba 连接",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -208,7 +217,7 @@
     {
       "page": 1,
       "platform": "alibaba",
-      "label": "ICBU 店铺 ID（可选）",
+      "label": "Alibaba 店铺",
       "event": "on_change",
       "status": "OK",
       "scenario": "default",
@@ -217,70 +226,16 @@
     {
       "page": 1,
       "platform": "alibaba",
-      "label": "校验商品 ID（可选）",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 1,
-      "platform": "alibaba",
-      "label": "去 Alibaba 刊登",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 1,
-      "platform": "alibaba",
-      "label": "查看发布队列（只读）",
+      "label": "刷新店铺",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
       "detail": "go"
-    },
-    {
-      "page": 2,
-      "platform": "alibaba",
-      "label": "去选类目 / 读取必填",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 2,
-      "platform": "alibaba",
-      "label": "去属性预设",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
     },
     {
       "page": 3,
       "platform": "alibaba",
       "label": "恢复默认",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "Dropdown",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "套用预设",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -1038,36 +993,9 @@
       "platform": "alibaba",
       "label": "去 Alibaba 刊登",
       "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
-      "platform": "alibaba",
-      "label": "重新检测 Cookie",
-      "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
-      "detail": "go"
-    },
-    {
-      "page": 9,
-      "platform": "alibaba",
-      "label": "粘贴 Cookie",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 9,
-      "platform": "alibaba",
-      "label": "打开店小秘",
-      "event": "on_click",
-      "status": "EXTERNAL",
-      "scenario": "default",
-      "detail": "https://www.dianxiaomi.com/web/smt/smtProductList/offline"
+      "detail": "load_collect, <lambda>"
     },
     {
       "page": 9,
@@ -1540,34 +1468,25 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "Cookie（可留空自动沿用）",
-      "event": "on_change",
-      "status": "OK",
+      "label": "刷新采集箱",
+      "event": "on_click",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "店铺 ID（可选）",
-      "event": "on_change",
-      "status": "OK",
+      "label": "处理全部（保存草稿）",
+      "event": "on_click",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "当前商品 ID",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 12,
-      "platform": "alibaba",
-      "label": "检测连接",
+      "label": "处理全部（发布）",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -1612,25 +1531,25 @@
     {
       "page": 12,
       "platform": "alibaba",
+      "label": "连接/Cookie 设置",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "load_shops"
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
       "label": "搜索",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
       "platform": "alibaba",
       "label": "读取必填属性",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 12,
-      "platform": "alibaba",
-      "label": "生成属性预设模板",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -1650,9 +1569,9 @@
       "platform": "alibaba",
       "label": "展开子类目",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
@@ -1711,7 +1630,7 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "公司介绍（英文）",
+      "label": "公司介绍（英文，会提交 companyDesc）",
       "event": "on_change",
       "status": "OK",
       "scenario": "default",
@@ -1720,7 +1639,7 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "公司 FAQ（英文，可空，本地）",
+      "label": "公司 FAQ（英文，会提交 companyFaqDesc）",
       "event": "on_change",
       "status": "OK",
       "scenario": "default",
@@ -1729,8 +1648,17 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "属性预设 JSON（如 {\"Place of Origin\":\"China\",\"Certification\":\"CE\"}）",
-      "event": "on_change",
+      "label": "编辑属性预设（可视化）",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "刷新预览",
+      "event": "on_click",
       "status": "OK",
       "scenario": "default",
       "detail": ""
@@ -1765,7 +1693,7 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "运费模板 ID",
+      "label": "运费模板",
       "event": "on_change",
       "status": "OK",
       "scenario": "default",
@@ -1774,29 +1702,11 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "FOB 币种",
-      "event": "on_change",
-      "status": "OK",
+      "label": "读取运费模板",
+      "event": "on_click",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 12,
-      "platform": "alibaba",
-      "label": "FOB 最低价",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 12,
-      "platform": "alibaba",
-      "label": "FOB 最高价",
-      "event": "on_change",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 12,
@@ -1855,7 +1765,70 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）",
+      "label": "起订量",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "单价",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "删除",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "＋ 添加档位",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "清空阶梯价",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "FOB 币种",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "FOB 最低价",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "FOB 最高价",
       "event": "on_change",
       "status": "OK",
       "scenario": "default",
@@ -1936,24 +1909,6 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "预演（不保存）",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 12,
-      "platform": "alibaba",
-      "label": "保存到 Alibaba",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 12,
-      "platform": "alibaba",
       "label": "Dropdown",
       "event": "on_change",
       "status": "OK",
@@ -1965,14 +1920,23 @@
       "platform": "alibaba",
       "label": "套用预设",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "load_collect, <lambda>"
     },
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "AI 预演（不保存）",
+      "label": "填入推荐发布信息",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "load_collect, <lambda>"
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "保存草稿",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -1981,8 +1945,215 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "AI 生成并保存",
+      "label": "提交审核 / 发布",
       "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "移入待发布",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "定时发布",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "去店铺设置切换",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_sync_shops"
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "是否原箱",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "重量(kg)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "长(cm)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "宽(cm)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "高(cm)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "货值默认值",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "高关注化学品",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "是否带电",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "搜索",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_search_attr_templates"
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "清空已应用",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "强制删除的自定义属性（逗号分隔）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "+ brand",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "+ type",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "+ model",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "+ condition",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "是否提交欧盟资质",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "欧盟责任人名称",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "责任人地址",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "电子邮箱",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 2,
+      "platform": "aliexpress",
+      "label": "联系电话",
+      "event": "on_change",
       "status": "OK",
       "scenario": "default",
       "detail": ""
@@ -2548,7 +2719,7 @@
     {
       "page": 13,
       "platform": "amazon",
-      "label": "测试连接",
+      "label": "检测连接",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -2585,6 +2756,24 @@
       "page": 13,
       "platform": "amazon",
       "label": "待发布",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "发布中",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "发布失败",
       "event": "on_click",
       "status": "DEFERRED",
       "scenario": "default",
@@ -2962,6 +3151,51 @@
     {
       "page": 13,
       "platform": "amazon",
+      "label": "型号（model_number）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "型号名称（model_name）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "零件编号（part_number）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "制造商联系信息（manufacturer_contact_information）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动补齐必填属性",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
       "label": "查看 productAttr（只读）",
       "event": "on_click",
       "status": "OK",
@@ -2980,7 +3214,7 @@
     {
       "page": 13,
       "platform": "amazon",
-      "label": "预演（不保存）",
+      "label": "发布前检查（不保存）",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -2989,7 +3223,25 @@
     {
       "page": 13,
       "platform": "amazon",
-      "label": "保存（预演模式）",
+      "label": "保存到 Amazon",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "查询发布结果",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动补齐并重试发布",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",
@@ -3286,6 +3538,1014 @@
     {
       "page": 11,
       "platform": "amazon",
+      "label": "全部恢复推荐值",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "01  连接与店铺/站点",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "02  类目与文案",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "03  TikTok 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "04  运行记录",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "点一下去处理",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "点一下去处理",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "点一下去处理",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "去 TikTok 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "商品标题关键词（留空处理全部）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "商品标题关键词（留空处理全部）",
+      "event": "on_submit",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "选择商品",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "清空",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "搜索全部商品",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "刷新数量",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "前往 TikTok 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "前往 TikTok 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "前往 TikTok 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "前往 TikTok 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "前往账号与连接",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "前往账号与连接",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "去设置",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 0,
+      "platform": "tiktok",
+      "label": "重新检测",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "店小秘 Cookie（可粘贴 a=1; b=2；留空自动用本机登录态）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "读取本机 Cookie",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "测试连接",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "店铺（TikTok Shop）",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work, work, work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "采集箱",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "待发布",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "在线",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "刷新",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "上一页",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "下一页",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "顶级类目",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "加载类目",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "最近使用类目",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "搜索类目",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "编辑属性 JSON",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "品牌 ID（可空）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "制造商 ID（可空）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "欧盟责任人 ID（可空）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "标题（25–255 字符）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "AI 生成标题",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "AI 生成五点",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "描述 HTML（≤10000 字符）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "AI 生成描述",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "AI 生成关键词",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "使用 AI（会调用付费 API，默认关闭）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "AI 一键生成全部（付费）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "AI 一键翻译（站点语言）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "主图 URL（每行一个，1–9 张，第 1 张为主图）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "应用图片",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "从商品详情恢复图片",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "清空图片",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "视频 ID / URL（可空）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "打开视频地址",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "价格",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "库存（0–99999）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "SKU（可空，自动生成）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "重量 (kg)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "长 (cm)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "宽 (cm)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "高 (cm)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "尺寸单位",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "刊登类型",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "仓库（可空）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "刷新仓库",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "来源 URL（可空）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "保存动作",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "预演（不保存）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "保存到 TikTok",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "查看保存包（预演）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "运行诊断",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "停止任务",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "上报运行日志",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_run"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "导出日志",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "打开日志文件",
+      "event": "on_click",
+      "status": "EXTERNAL",
+      "scenario": "default",
+      "detail": "external process"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "清空",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "复制全部日志",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "导出筛选结果",
+      "event": "on_click",
+      "status": "EXTERNAL",
+      "scenario": "default",
+      "detail": "external process"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "导出 CSV",
+      "event": "on_click",
+      "status": "EXTERNAL",
+      "scenario": "default",
+      "detail": "external process"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "清空日志",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "Dropdown",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "TextField",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "清空筛选",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "跟随最新",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "API Key",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "并发数（同时处理几个产品）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "超时（秒）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "保存",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "检测连接",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "go"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "检测余额",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "购买 / 充值 API",
+      "event": "on_click",
+      "status": "EXTERNAL",
+      "scenario": "default",
+      "detail": "https://api.moneyfly.club"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "复制机器码",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "重新检测",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "旧版授权 ID（可选）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "保存并刷新授权",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "清理旧图",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "go"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "保存",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "检测上传",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "go"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "恢复推荐图床",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "刷新价格",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "窗口大小",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "创建实例",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "创建并启动",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "检查更新",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_check_update"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "开始诊断",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_run_diag"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "下载并安装 ffmpeg（约 70MB）",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_download_ffmpeg"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "恢复图床",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "恢复 API 地址",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
       "label": "全部恢复推荐值",
       "event": "on_click",
       "status": "DEFERRED",

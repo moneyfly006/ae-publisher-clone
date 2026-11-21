@@ -6,12 +6,15 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from aeclone.services.amazon_payload import (
-    BULLET_MAX_CHARS, BULLET_MAX_ITEMS, DESCRIPTION_MAX_BYTES, SAVE_KEYS,
-    SEARCH_TERMS_MAX_CHARS, TITLE_MAX, apply_site, build_amazon_payload,
-    build_warnings, join_bullets, split_bullets, validate_amazon_payload,
+    BULLET_MAX_CHARS, BULLET_MAX_ITEMS, DESCRIPTION_MAX_BYTES, REQUIRED_COMMON,
+    SAVE_KEYS, SEARCH_TERMS_MAX_CHARS, TITLE_MAX, apply_site, attribute_present,
+    build_amazon_payload, build_warnings, format_attribute_value, join_bullets,
+    language_tag_for, merge_attributes, missing_common_attributes,
+    parse_product_attr, split_bullets, validate_amazon_payload,
 )
 from aeclone.services.amazon_prompts import site_meta
 
@@ -77,6 +80,109 @@ def make_product(**over):
 
 def make_payload(**over):
     return build_amazon_payload(make_product(**over), None, {}, currency="CAD")
+
+
+class RequiredAttributeTests(unittest.TestCase):
+    """task-8：必填属性常量/格式/合并/提醒。"""
+
+    def test_required_common_constant(self):
+        self.assertEqual(set(REQUIRED_COMMON),
+                         {"model_number", "part_number", "model_name",
+                          "manufacturer_contact_information"})
+
+    def test_format_attribute_value(self):
+        mp = "A2EUQ1WTGCTBG2"
+        self.assertEqual(language_tag_for(mp), "en_CA")
+        self.assertEqual(language_tag_for("ATVPDKIKX0DER"), "en_US")
+        self.assertEqual(language_tag_for("A1AM78C64UM0Y8"), "es_MX")
+
+        str_item = format_attribute_value("HW20-28", mp)
+        self.assertEqual(str_item, [{"value": "HW20-28", "language_tag": "en_CA",
+                                     "marketplace_id": mp}])
+        bool_item = format_attribute_value(False, mp)
+        self.assertEqual(bool_item, [{"value": False, "marketplace_id": mp}])
+        self.assertNotIn("language_tag", bool_item[0])
+        dict_item = format_attribute_value({"currency": "CAD", "amount": 8900.0}, mp)
+        self.assertEqual(dict_item, [{"value": {"currency": "CAD", "amount": 8900.0},
+                                      "marketplace_id": mp}])
+        self.assertEqual(format_attribute_value("", mp), [])
+        self.assertEqual(format_attribute_value(None, mp), [])
+
+    def test_format_raw_item_list_and_present(self):
+        mp = "A2EUQ1WTGCTBG2"
+        items = [{"length": {"value": "196", "unit": "inches"},
+                  "width": {"value": "63", "unit": "inches"},
+                  "height": {"value": "98", "unit": "inches"},
+                  "marketplace_id": mp}]
+        self.assertEqual(format_attribute_value(items, mp), items)
+        # item_dimensions 这类原始 item 列表（无 value 键）也算「已填写」
+        self.assertTrue(attribute_present({"item_dimensions": items}, "item_dimensions"))
+        self.assertEqual(format_attribute_value([{"currency": "CAD",
+                                                  "value": "8900.00",
+                                                  "marketplace_id": mp}], mp),
+                         [{"currency": "CAD", "value": "8900.00",
+                           "marketplace_id": mp}])
+
+    def test_merge_attributes_preserves_existing_and_override_wins(self):
+        base = {"is_assembly_required": [{"value": False, "marketplace_id": "A2EUQ1WTGCTBG2"}],
+                "model_number": [{"value": "OLD", "language_tag": "en_CA",
+                                  "marketplace_id": "A2EUQ1WTGCTBG2"}]}
+        merged = merge_attributes(base, {"model_number": "NEW",
+                                         "power_source_type": "diesel",
+                                         "empty": ""},
+                                  "A2EUQ1WTGCTBG2")
+        self.assertEqual(merged["model_number"][0]["value"], "NEW")
+        self.assertEqual(merged["power_source_type"][0]["value"], "diesel")
+        self.assertNotIn("empty", merged)
+        self.assertEqual(merged["is_assembly_required"][0]["value"], False)
+
+    def test_build_payload_merges_attributes_override(self):
+        payload = build_amazon_payload(
+            make_product(), None,
+            {"attributes": {"model_number": "HW20-28",
+                            "power_source_type": "diesel",
+                            "is_assembly_required": True}})
+        attr = json.loads(payload["productAttr"])
+        self.assertEqual(attr["model_number"][0]["value"], "HW20-28")
+        self.assertEqual(attr["model_number"][0]["language_tag"], "en_CA")
+        self.assertEqual(attr["model_number"][0]["marketplace_id"], "A2EUQ1WTGCTBG2")
+        self.assertEqual(attr["power_source_type"][0]["value"], "diesel")
+        self.assertEqual(attr["is_assembly_required"][0]["value"], True)
+        self.assertNotIn("language_tag", attr["is_assembly_required"][0])
+
+    def test_build_payload_site_switch_attributes(self):
+        payload = build_amazon_payload(
+            make_product(), None,
+            {"marketplace_id": "ATVPDKIKX0DER",
+             "attributes": {"model_number": "HW20-28"}})
+        attr = json.loads(payload["productAttr"])
+        self.assertEqual(attr["model_number"][0]["marketplace_id"], "ATVPDKIKX0DER")
+        self.assertEqual(attr["model_number"][0]["language_tag"], "en_US")
+        self.assertEqual(attr["is_assembly_required"][0]["marketplace_id"],
+                         "ATVPDKIKX0DER")
+
+    def test_missing_common_attributes_and_present(self):
+        self.assertEqual(set(missing_common_attributes("{}")), set(REQUIRED_COMMON))
+        self.assertEqual(missing_common_attributes(None), list(REQUIRED_COMMON))
+        product = make_product()
+        ok_payload = build_amazon_payload(product, None, {"attributes": {
+            "model_number": "HW20-28", "part_number": "WY-QHCA-LTM-1",
+            "model_name": "HW20-28",
+            "manufacturer_contact_information": "Generic, CN"}})
+        self.assertEqual(missing_common_attributes(ok_payload["productAttr"]), [])
+        self.assertFalse(attribute_present({"x": []}, "x"))
+        self.assertTrue(attribute_present({"x": [{"value": False}]}, "x"))
+
+    def test_build_warnings_reports_missing_required(self):
+        # 默认开启保存包级必填属性自动补齐：payload 里应已补齐，不再有「缺失」提醒
+        payload = make_payload()
+        self.assertEqual(missing_common_attributes(payload["productAttr"]), [])
+        self.assertFalse(any("发布必填属性缺失" in w for w in build_warnings(payload)))
+        # 关闭自动补齐时才提示缺失（cfg.amazon_autofill_attrs=False）
+        no_fill_cfg = SimpleNamespace(amazon_autofill_attrs=False)
+        payload2 = build_amazon_payload(make_product(), no_fill_cfg, {}, currency="CAD")
+        warns = build_warnings(payload2)
+        self.assertTrue(any("发布必填属性缺失" in w for w in warns), warns)
 
 
 class KeysAndBulletsTests(unittest.TestCase):
@@ -375,9 +481,36 @@ class WarningsTests(unittest.TestCase):
         self.assertTrue(any("站点已从" in w for w in warns))
 
     def test_empty_product_attr_warning(self):
-        payload = make_payload(productAttr="{}")
+        # 自动补齐开启时 productAttr 会被补齐（空属性提醒消失）；关闭后保留提醒
+        no_fill_cfg = SimpleNamespace(amazon_autofill_attrs=False)
+        payload = build_amazon_payload(make_product(productAttr="{}"), no_fill_cfg, {},
+                                       currency="CAD")
         warns = build_warnings(payload)
-        self.assertTrue(any("productAttr" in w for w in warns))
+        self.assertTrue(any("productAttr" in w for w in warns), warns)
+
+
+
+
+class TitleRepetitionTests(unittest.TestCase):
+    """Amazon 标题同一单词最多 2 次（平台实测 code:100470）。"""
+
+    def _payload(self, title):
+        return {"title": title, "bulletPoint": "A±B±C", "description": "<p>x</p>",
+                "searchTerms": "", "sku": "S1", "brand": "B", "manufacturer": "M",
+                "mainImage": "https://x/y.jpg", "categoryId": "123",
+                "categoryBrowsePath": "1/123", "marketPlaceId": "A2EUQ1WTGCTBG2"}
+
+    def test_repeated_word_blocked(self):
+        from aeclone.services.amazon_payload import validate_amazon_payload
+        issues = validate_amazon_payload(
+            self._payload("Mini Backhoe Loader 4x4 Backhoe Loader Farm Backhoe Loader"))
+        self.assertTrue(any("超过 2 次" in x for x in issues), issues)
+
+    def test_two_occurrences_allowed(self):
+        from aeclone.services.amazon_payload import validate_amazon_payload
+        issues = validate_amazon_payload(
+            self._payload("CE EPA Mini Backhoe Loader 4x4 WD Agricultural Farm Machine"))
+        self.assertFalse(any("超过 2 次" in x for x in issues), issues)
 
 
 if __name__ == "__main__":

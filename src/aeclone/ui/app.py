@@ -709,7 +709,8 @@ class App:
         page.title = f"AuroraList · 极光上架 v{VERSION}"
         self._preview_mode = bool(os.environ.get("AURORA_NO_SAVE") or os.environ.get("AURORA_TEST"))
         if self._preview_mode:
-            page.title += " · 本地验收（预演）"
+            # 预览模式只写日志/内部状态，不改窗口标题，正式版界面不出现任何测试标记。
+            pass
         # 窗口/任务栏图标：Windows 用 .ico（任务栏识别更好），其它平台用 PNG
         try:
             _icon = "icon.ico" if sys.platform == "win32" else "icon_1024.png"
@@ -748,13 +749,17 @@ class App:
         page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
         self.entitlements = load_entitlements(self.cfg)
         self.active_platform = get_platform(getattr(self.cfg, "active_platform", "") or "alibaba")
+        try:
+            self._seed_alibaba_defaults()
+        except Exception:
+            pass
         self._build_shell()
         self._switch(self._start_page_index())
         try:
             self._maybe_license_login()
         except Exception:
             pass
-        self._log("运行实例：" + ("本地验收预演，不保存商品" if self._preview_mode else "日常运行")
+        self._log("运行实例：" + ("预览模式（不保存商品）" if self._preview_mode else "日常运行")
                   + f" · 配置目录：{config_dir()} · 程序：{sys.executable}")
         # 无论从哪一页启动，都拉一次各状态数量（概览/发布队列都要用）
         try:
@@ -1197,7 +1202,7 @@ class App:
             self._page_idx = idx
             self._render_locked(item)
             return
-        self.store_shortcut.text = self.cfg.store_name or "选择店铺"
+        self.store_shortcut.text = self._store_shortcut_label()
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
                  self._p_image, self._p_price, self._p_variant, self._p_publish,
@@ -1753,7 +1758,7 @@ class App:
                 c.tooltip = "点一下去处理"
             return c
         if is_alibaba:
-            # Alibaba 商品只在 ICBU 接口里；SMT 的采集箱/待发布/审核数字对它没有意义。
+            # Alibaba 商品只在 Alibaba 接口里；SMT 的采集箱/待发布/审核数字对它没有意义。
             tile_specs = [("draft", "草稿", "可编辑/刊登", TEXT, 12),
                           ("onSelling", "在线", "已上架", ACCENT_2, None)]
         elif is_amazon:
@@ -1948,7 +1953,7 @@ class App:
                     sub=(str(getattr(self.cfg, "image_host_url", "")
                              or "image.moneyfly.club")
                          .replace("https://", "").replace("http://", ""))))
-        _ov_subtitle = ("Amazon 采集箱 → 站点/类目 → 五点与 AI 文案 → 预演 → 保存。"
+        _ov_subtitle = ("Amazon 采集箱 → 站点/类目 → 五点与 AI 文案 → 发布前检查 → 保存。"
                         if is_amazon else
                         ("TikTok 采集箱 → 店铺/站点 → 类目/属性 → AI 文案 → 图片/价格/库存"
                          " → 预演 → 保存。" if is_tiktok else
@@ -2508,6 +2513,13 @@ class App:
                 _is_alibaba = _pid_now == "alibaba"
                 _is_amazon = _pid_now == "amazon"
                 _is_tiktok = _pid_now == "tiktok"
+                try:
+                    self.btn_run.tooltip = ("打开 Alibaba 刊登页" if _is_alibaba else
+                                            "打开 TikTok 刊登页" if _is_tiktok else
+                                            "打开 Amazon 刊登页" if _is_amazon else
+                                            "启动 / 停止本次任务（⌘R / Ctrl+R）")
+                except Exception:
+                    pass
                 if _is_tiktok:
                     self.btn_run_icon.name = ft.Icons.PUBLISH
                     self.btn_run_icon.color = ON_ACCENT
@@ -2536,6 +2548,11 @@ class App:
         running = bool(getattr(self, "_running", False))
         if not bool(getattr(getattr(self, "active_platform", None), "implemented", True)):
             self._unsupported_guard("启动任务")
+            (getattr(self, '_sync_run_button', None) or (lambda: None))()
+            return
+        if (str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba"
+                and not running and not bool(getattr(self, "_stop_requested", False))):
+            self._alibaba_guard("启动任务")
             (getattr(self, '_sync_run_button', None) or (lambda: None))()
             return
         if self._is_tiktok() and not running and not bool(getattr(self, "_stop_requested", False)):
@@ -2746,12 +2763,7 @@ class App:
         # Alibaba 平台不能用 SMT/速卖通批量管线（端点与商品都不通），
         # 无论从侧栏「启动任务」、⌘R 还是定时器进来都统一重定向。
         if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
-            self.toast("Alibaba 商品请在「Alibaba 刊登」页选择并保存（批量管线仅用于速卖通）", False)
-            self._log("已阻止在 Alibaba 平台启动速卖通批量管线，请使用「Alibaba 刊登」页", "WARN")
-            try:
-                self._switch(12)
-            except Exception:
-                pass
+            self._alibaba_guard("启动任务")
             return
         # TikTok 平台同样不能走速卖通管线（商品/端点都在 TikTok 自己的接口）。
         if self._is_tiktok():
@@ -2851,7 +2863,7 @@ class App:
                 pass
             return
         if os.environ.get("AURORA_NO_SAVE") or os.environ.get("AURORA_TEST"):
-            raise RuntimeError("本地验收预演：未执行真实定时发布")
+            raise RuntimeError("预览模式：未执行真实定时发布")
         self._log(f"定时发布触发：{job.product_id}（{job.title[:30]}）", "INFO")
         try:
             from ..integrations.dianxiaomi import DianxiaomiClient
@@ -3396,10 +3408,10 @@ class App:
             self.toast(f"打开商品失败：{str(ex)[:100]}", False)
 
     def _alibaba_products_dialog(self, state: str = "draft"):
-        """只读查看 Alibaba ICBU 商品列表（草稿/在线）。
+        """只读查看 Alibaba 商品列表（草稿/在线）。
 
         Alibaba 平台不能复用 SMT 的 _publish_list_dialog（端点/字段都不同），
-        这里单独走 ICBU list.json；不提供任何写操作。
+        这里单独走 Alibaba 列表接口；不提供任何写操作。
         """
         label = "草稿" if state == "draft" else "在线"
         col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
@@ -3606,8 +3618,8 @@ class App:
     def _batch_publish(self, offline_state: str, label: str):
         """批量发布：按 dxmOfflineState 取商品 -> batchPublish -> 汇总。"""
         if os.environ.get("AURORA_NO_SAVE") or os.environ.get("AURORA_TEST"):
-            self._log("本地验收预演：未提交" + label, "WARN")
-            self.toast("本地验收预演：未提交真实批量发布", False)
+            self._log("预览模式：未提交" + label, "WARN")
+            self.toast("预览模式：未提交真实批量发布", False)
             return
         try:
             ck = self._cookies()
@@ -4053,31 +4065,86 @@ class App:
             hb_stop.set()
 
     def _p_store_alibaba(self):
-        """Alibaba 平台连接页：店小秘 Cookie + ICBU 店铺/校验商品。
+        """Alibaba 平台连接页：Cookie + Alibaba 店铺，只负责“能否连上”。
 
-        Alibaba 直连保存不需要「模板商品」，所以这里不展示 SMT 店铺选择与模板卡。
+        商品选择/保存统一在「Alibaba 刊登」页，避免两处都选商品造成误会。
         """
         ck_ok, ck_text = self._cookie_status_text()
         self.cookie_status = ft.Text(f"Cookie：{ck_text}", size=12.5,
                                      color=ACCENT_2 if ck_ok else WARN_C, selectable=True)
-        self.store_status = ft.Text("点「检测 ICBU 连接」检查 Cookie 与商品读取",
+        self.store_status = ft.Text("点「检测 Alibaba 连接」检查登录状态（Cookie）与店铺读取",
                                     size=13.5, color=MUTED)
 
-        def _save_field(key):
-            def on(e):
-                self.cfg.set(key, str(e.control.value or "").strip())
-                save_config(self.cfg)
-            return on
+        # ICBU 店铺：从店小秘店铺列表里选择（平台=alibaba），不再手填 ID。
+        shop_sel = ft.Dropdown(
+            label="Alibaba 店铺", width=300, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "alibaba_shop_id", "") or ""),
+            options=[ft.dropdown.Option("", "（正在读取店铺…）")])
+        shop_hint = ft.Text("", size=12, color=MUTED)
 
-        shop_tf = ft.TextField(label="ICBU 店铺 ID（可选）", width=240, bgcolor=CARD_2,
-                               border_color=CARD_2, color=TEXT,
-                               value=str(getattr(self.cfg, "alibaba_shop_id", "") or ""),
-                               on_change=_save_field("alibaba_shop_id"),
-                               hint_text="如 9466975")
-        prod_tf = ft.TextField(label="校验商品 ID（可选）", width=280, bgcolor=CARD_2,
-                               border_color=CARD_2, color=TEXT,
-                               value=str(getattr(self.cfg, "alibaba_test_product_id", "") or ""),
-                               on_change=_save_field("alibaba_test_product_id"))
+        def _apply_shop(sid: str, name: str = ""):
+            sid = str(sid or "").strip()
+            if not sid:
+                return
+            self.cfg.set("alibaba_shop_id", sid)
+            if name:
+                self.cfg.set("alibaba_shop_name", name)
+            save_config(self.cfg)
+            try:
+                self.store_shortcut.text = (str(getattr(self.cfg, "alibaba_shop_name", "") or sid)
+                                            or "选择 Alibaba 店铺")
+            except Exception:
+                pass
+
+        def _on_shop_change(e):
+            opt = next((o for o in shop_sel.options if o.key == str(shop_sel.value or "")), None)
+            _apply_shop(str(shop_sel.value or ""), opt.text if opt else "")
+            shop_hint.value = "已选择：" + (opt.text if opt else str(shop_sel.value or ""))
+            shop_hint.color = ACCENT_2
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+        shop_sel.on_change = _on_shop_change
+
+        def load_shops(e=None):
+            shop_hint.value = "正在读取 Alibaba 店铺…"
+            shop_hint.color = MUTED
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def go():
+                try:
+                    from ..integrations.dianxiaomi import DianxiaomiClient
+                    dxm = DianxiaomiClient(getattr(self.cfg, "manual_cookies", None) or {},
+                                           overrides=getattr(self.cfg, "endpoint_overrides", None) or {})
+                    shops = [x for x in (dxm.shops() or [])
+                             if str(x.get("platform") or "") == "alibaba"]
+                    opts = [ft.dropdown.Option(str(x.get("id")), str(x.get("name") or x.get("id")))
+                            for x in shops]
+                    cur = str(getattr(self.cfg, "alibaba_shop_id", "") or "")
+                    if cur and not any(o.key == cur for o in opts):
+                        opts.append(ft.dropdown.Option(
+                            cur, str(getattr(self.cfg, "alibaba_shop_name", "") or cur)))
+                    shop_sel.options = opts or [ft.dropdown.Option("", "（没有 Alibaba 店铺，请先登录店小秘）")]
+                    if cur:
+                        shop_sel.value = cur
+                    elif shops:
+                        shop_sel.value = str(shops[0].get("id"))
+                        _apply_shop(str(shops[0].get("id")), str(shops[0].get("name") or ""))
+                    shop_hint.value = (f"已读取 {len(shops)} 个 Alibaba 店铺" if shops
+                                       else "没有读取到 Alibaba 店铺：请先在「店铺与登录」登录店小秘")
+                    shop_hint.color = ACCENT_2 if shops else WARN_C
+                except Exception as ex:  # noqa: BLE001
+                    shop_hint.value = f"读取店铺失败：{str(ex)[:100]}"
+                    shop_hint.color = DANGER_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+            threading.Thread(target=go, daemon=True).start()
 
         def refresh_cookie(e=None):
             def go():
@@ -4092,7 +4159,7 @@ class App:
             threading.Thread(target=go, daemon=True).start()
 
         def test_icbu(e=None):
-            self.store_status.value = "正在连接 ICBU…"
+            self.store_status.value = "正在连接 Alibaba…"
             self.store_status.color = MUTED
             try:
                 self._safe_update()
@@ -4103,18 +4170,16 @@ class App:
                 try:
                     from ..services.alibaba_publish import make_client
                     c = make_client(self.cfg)
+                    d = c.list_products(1, 1, "draft")
+                    total = ((d.get("data") or {}).get("page") or {}).get("totalSize")
                     pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+                    extra = ""
                     if pid:
                         p = c.product_detail(pid)
-                        if not p:
-                            raise RuntimeError(f"读不到商品 {pid}")
-                        self.store_status.value = (
-                            f"连接成功：{p.get('id')} · {str(p.get('subject') or '')[:36]}"
-                            f" · 类目 {p.get('categoryId')}")
-                    else:
-                        d = c.list_products(1, 1, "draft")
-                        total = ((d.get("data") or {}).get("page") or {}).get("totalSize")
-                        self.store_status.value = f"连接成功：ICBU 草稿共 {total} 个（填校验商品 ID 可读详情）"
+                        if p:
+                            extra = (f"；当前商品 {pid} · {str(p.get('subject') or '')[:30]}"
+                                     f" · 类目 {p.get('categoryId')}")
+                    self.store_status.value = f"连接成功：Alibaba 草稿共 {total} 个{extra}"
                     self.store_status.color = ACCENT_2
                 except Exception as ex:  # noqa: BLE001
                     self.store_status.value = f"连接失败：{str(ex)[:120]}"
@@ -4125,48 +4190,51 @@ class App:
                     pass
             threading.Thread(target=go, daemon=True).start()
 
-        def open_listing(e=None):
-            self._switch(12)
-
         conn_card = card(ft.Column([
-            h1("1 · 连接店小秘 ICBU", 15),
+            h1("店小秘 Alibaba 连接", 15),
             muted("Alibaba 直连使用「店铺与登录」里已配置的店小秘 Cookie；"
                   "不经过 SMT 店铺/模板，也不需要模板商品。"),
             self.cookie_status,
+            ft.TextField(
+                label="Alibaba 专用 Cookie（可留空，沿用店小秘登录）",
+                value=str(getattr(self.cfg, "alibaba_cookies", "") or ""),
+                width=720, multiline=True, min_lines=3,
+                bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                hint_text="粘贴 Alibaba/店小秘登录 Cookie；只用于 Alibaba 平台，不影响其他平台",
+                on_change=lambda e: (self.cfg.set("alibaba_cookies", str(e.control.value or "").strip()),
+                                     save_config(self.cfg))),
+            muted("每个平台的 Cookie 独立保存：Alibaba 用本页；速卖通在「店铺与登录」；"
+                  "Amazon/TikTok 在各自刊登页。"),
             ft.Row([ft.OutlinedButton("重新检测 Cookie", icon=ft.Icons.REFRESH,
                                       on_click=refresh_cookie),
-                    ft.OutlinedButton("粘贴 Cookie", icon=ft.Icons.CONTENT_PASTE,
+                    ft.OutlinedButton("粘贴店小秘 Cookie", icon=ft.Icons.CONTENT_PASTE,
                                       on_click=lambda e: self._paste_cookie()),
-                    ft.ElevatedButton("检测 ICBU 连接", icon=ft.Icons.WIFI_TETHERING,
+                    ft.ElevatedButton("检测 Alibaba 连接", icon=ft.Icons.WIFI_TETHERING,
                                       bgcolor=ACCENT, color=ON_ACCENT, on_click=test_icbu)],
                    spacing=10, wrap=True),
+            ft.Row([shop_sel, ft.OutlinedButton("刷新店铺", icon=ft.Icons.REFRESH,
+                                                on_click=load_shops)], spacing=10, wrap=True),
+            shop_hint,
             self.store_status,
-        ], spacing=10))
-
-        info_card = card(ft.Column([
-            h1("2 · ICBU 店铺与商品", 15),
-            muted("店铺 ID 只用于本页校验与店铺级接口；刊登、类目、保存都在「Alibaba 刊登」页完成。"),
-            ft.Row([shop_tf, prod_tf], spacing=12, wrap=True),
-            ft.Row([ft.ElevatedButton("去 Alibaba 刊登", icon=ft.Icons.PUBLISH,
-                                      bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=open_listing),
-                    ft.OutlinedButton("查看发布队列（只读）", icon=ft.Icons.LIST_ALT,
-                                      on_click=lambda e: self._switch(8))],
-                   spacing=10, wrap=True),
         ], spacing=10))
 
         note_card = card(ft.Column([
             h1("说明", 15),
+            muted("· 商品选择、类目、属性、价格/贸易、保存都在「Alibaba 刊登」页完成。"),
+            muted("· 发布队列只读查看 Alibaba 草稿/在线数量与发布失败原因。"),
             muted("· 模板商品、SMT 店铺切换、类目模板只对速卖通链路有效，Alibaba 平台已隐藏。"),
-            muted("· Alibaba 刊登：选商品 → 选末级类目 → 补齐必填属性 → 校验 → 确认保存（op=1/2/3）。"),
-            muted("· 发布/审核状态在「发布队列」只读查看，提交审核动作请在「Alibaba 刊登」页确认后执行。"),
         ], spacing=8))
 
-        return [page_header("Alibaba 连接", "连接 ICBU、选择校验商品，然后去「Alibaba 刊登」"),
-                conn_card, info_card, note_card]
+        try:
+            threading.Thread(target=load_shops, daemon=True).start()
+        except Exception:
+            pass
+        return [page_header("Alibaba 连接", "只维护 Cookie/店铺连接；商品与保存去「Alibaba 刊登」"),
+                conn_card, note_card]
 
     def _p_store(self):
         self._current = 1
-        # Alibaba 直连 ICBU：不使用店小秘 SMT 店铺/模板，改用 ICBU 连接页。
+        # Alibaba 直连：不使用店小秘 SMT 店铺/模板，改用 Alibaba 连接页。
         if str(getattr(self.active_platform, "id", "")) == "alibaba":
             return self._p_store_alibaba()
         ck_ok, ck_text = self._cookie_status_text()
@@ -4352,7 +4420,7 @@ class App:
 
         def go():
             try:
-                # Alibaba 平台的商品在 ICBU 接口里，SMT 商品数对它没有意义；
+                # Alibaba 平台的商品在 Alibaba 接口里，SMT 商品数对它没有意义；
                 # 继续用 SMT 会把 2500+ 在线显示成 0（用户会以为商品丢了）。
                 if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
                     self._refresh_alibaba_counts()
@@ -4390,7 +4458,7 @@ class App:
         threading.Thread(target=go, daemon=True).start()
 
     def _refresh_alibaba_counts(self):
-        """Alibaba 平台概览用 ICBU 商品数（草稿/在线）；读失败要明确提示。"""
+        """Alibaba 平台概览用 Alibaba 商品数（草稿/在线）；读失败要明确提示。"""
         def done(msg, ok=True):
             ts = getattr(self, "ov_tiles_ts", None)
             try:
@@ -4427,7 +4495,7 @@ class App:
                     self.chip_audit.value = "—"
                 except Exception:
                     pass
-                done(f"Alibaba ICBU：草稿 {cnt['draft']} · 在线 {cnt['onSelling']}"
+                done(f"Alibaba：草稿 {cnt['draft']} · 在线 {cnt['onSelling']}"
                      f" · 更新于 {time.strftime('%H:%M:%S')}")
             except Exception as ex:  # noqa: BLE001
                 try:
@@ -4462,7 +4530,7 @@ class App:
         name = next((o.text for o in self.shop_dd.options if o.key == sid), "")
         self.cfg.store_id = str(sid or "")
         self.cfg.store_name = name or self.cfg.store_name
-        self.store_shortcut.text = self.cfg.store_name or "选择店铺"
+        self.store_shortcut.text = self._store_shortcut_label()
         save_config(self.cfg)
         threading.Thread(target=self._sync_shops, daemon=True).start()
 
@@ -4897,7 +4965,7 @@ class App:
             self.tpl_snapshot_text.value = "模板参数：未读取（已切换店铺，请重新选择模板）"
         except Exception:
             pass
-        self.store_shortcut.text = self.cfg.store_name or "选择店铺"
+        self.store_shortcut.text = self._store_shortcut_label()
         self._log(f"切换店铺：{target['name']}（草稿 {target['draft']}）", "INFO")
         self.toast(f"已切换到「{target['name']}」，正在同步商品数量…", True)
         threading.Thread(target=self._sync_shops, daemon=True).start()
@@ -6862,16 +6930,17 @@ class App:
                 rows.append(ft.Row([ft.Text(f"{label}预设", size=FS_BASE, color=TEXT, width=70),
                                     dd,
                                     ft.OutlinedButton("套用", on_click=apply)], spacing=10))
-            ali = self._alibaba_preset_control()
-            _blocks = [
-                h1("Alibaba 行业预设（推荐先用这个）", FS_MD),
-                muted("按品类一键写入标题/详情/SKU/审查/关键词提示词；套用后仍可在下方微调"),
-                *([ali] if ali else []),
-            ]
-            # 速卖通/通用提示词库只对 SMT 链路保留；Alibaba 用行业预设即可。
+            if self._cap("icbu_listing", False):
+                # Alibaba 行业预设已统一放到「Alibaba 刊登 → 保存与发布」，这里不再重复。
+                return card(ft.Column([
+                    h1("Alibaba 行业预设已移至刊登页", FS_MD),
+                    muted("在「Alibaba 刊登 → 保存与发布」套用行业预设；"
+                          "本页只调整具体提示词内容。"),
+                ], spacing=8))
+            # 非 Alibaba 平台不展示 Alibaba 行业预设（避免跨平台混淆）。
+            _blocks = []
             if self._cap("smt_prompt_library"):
-                _blocks += [ft.Divider(color=BORDER, height=16),
-                            h1("提示词预设库（速卖通/通用）", FS_MD),
+                _blocks += [h1("提示词预设库（速卖通/通用）", FS_MD),
                             muted("选一个行业/风格，一键替换对应提示词；仍可在下方继续微调"),
                             *rows]
             return card(ft.Column(_blocks, spacing=10))
@@ -6880,7 +6949,7 @@ class App:
         # 详情内容增强是 SMT 详情组装（自定义文字/本地图/删除文本），Alibaba 不用。
         if self._cap("smt_detail_assembly"):
             _ai_tabs.append(("详情内容增强", [_build_detail_extra(), self._card_detail()]))
-        _ai_desc = ("配置 Alibaba 标题/详情提示词与行业预设"
+        _ai_desc = ("配置 Alibaba 标题/详情提示词（行业预设在「Alibaba 刊登」页套用）"
                     if not self._cap("smt_extra_ai") else destination(3).description)
         return [self._settings_header("AI 文案", _ai_desc),
                 workspace_tabs(_ai_tabs)]
@@ -7745,7 +7814,7 @@ class App:
                 ])]
 
     def _p_publish(self):
-        """发布队列：SMT 平台用店小秘 SMT 队列；Alibaba 平台只读 ICBU 商品数。
+        """发布队列：SMT 平台用店小秘 SMT 队列；Alibaba 平台只读 Alibaba 商品数。
 
         Alibaba 的商品不在 SMT 接口里，且 SMT 的批量发布/重试会写错端点，
         所以 Alibaba 平台不显示这些 SMT 写操作，引导去「Alibaba 刊登」页。
@@ -7773,7 +7842,7 @@ class App:
             def go():
                 try:
                     if is_alibaba:
-                        # Alibaba 商品在 ICBU：读草稿/在线总数（只读，不走 SMT 计数）
+                        # Alibaba 商品：读草稿/在线总数（只读，不走 SMT 计数）
                         from ..services.alibaba_publish import make_client
                         c = make_client(self.cfg)
                         totals = {}
@@ -7791,7 +7860,7 @@ class App:
                         self.pub_publishing_txt.value = str(fail_total)
                         if getattr(self, "pub_counts_status", None) is not None:
                             self.pub_counts_status.value = (
-                                f"Alibaba ICBU · 草稿 {totals['draft']} · 在线 {totals['online']}"
+                                f"Alibaba · 草稿 {totals['draft']} · 在线 {totals['online']}"
                                 f" · 更新于 {time.strftime('%H:%M:%S')}")
                             self.pub_counts_status.color = MUTED
                         self._safe_update()
@@ -7838,7 +7907,7 @@ class App:
                                   bgcolor=ACCENT, color=ON_ACCENT,
                                   on_click=lambda e: self._switch(12)),
             ], spacing=10, wrap=True)
-            queue_intro = muted("Alibaba 商品在 ICBU 接口里；这里只读展示数量与「发布失败」原因。"
+            queue_intro = muted("Alibaba 商品数据是只读的；这里展示数量与「发布失败」原因。"
                                 "审核中商品在详情 errMsg 显示「正在审核中」；"
                                 "保存/提交走「Alibaba 刊登」页的 op=1/2/3（会二次确认）。")
             queue_title = "Alibaba 商品队列（只读）"
@@ -8170,7 +8239,8 @@ class App:
                                          ft.OutlinedButton("重试失败", icon=ft.Icons.REPLAY,
                                                            on_click=lambda e: self._retry_failed_queue())],
                                         spacing=10, wrap=True)], spacing=8))
-        _wb_tabs = [("商品与取图", [conn_card, prod_card]),
+        # Alibaba 的图片工作台只处理 URL/本地图片，不需要再放一份 Cookie 连接卡。
+        _wb_tabs = [("商品与取图", [prod_card] if is_alibaba else [conn_card, prod_card]),
                     ("图片处理与输出", [img_card])]
         # 任务队列走 SMT Publisher（会写速卖通），Alibaba 平台不展示。
         if self._cap("smt_queue"):
@@ -8441,7 +8511,7 @@ class App:
         _q_dxm = None
         try:
             if preview:
-                raise RuntimeError("验收预演不连接商品保存服务")
+                raise RuntimeError("预览模式不连接商品保存服务")
             from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
             _q_dxm = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
         except Exception as _ex:
@@ -10059,7 +10129,7 @@ class App:
                     if missing:
                         required_box.controls.append(ft.Text(
                             f"⚠ 还缺 {len(missing)} 项必填属性：{', '.join(missing[:8])}"
-                            "；可用下方「生成属性预设模板」或「AI 建议缺失属性」补齐后复核",
+                            "；可用「编辑属性预设（可视化）」或「AI 建议缺失属性」补齐后复核",
                             size=12, color=WARN_C))
                     self.cfg.set("alibaba_last_category_required", _json.dumps(
                         {"attrs": [a.get("nameEn") for a in attrs],
@@ -10082,7 +10152,7 @@ class App:
             if not cid:
                 raise RuntimeError("先搜索并选择一个类目")
             if not pid:
-                raise RuntimeError("先选择一个商品（连接与商品页）")
+                raise RuntimeError("先选择一个商品（商品页）")
             c = client()
             attrs = c.required_attributes(cid)
             p = c.product_detail(pid)
@@ -10396,14 +10466,6 @@ class App:
             else:
                 self.toast("已经是最后一页", False)
 
-        op_dd = ft.Dropdown(
-            label="保存动作", width=250, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            value="1",
-            options=[ft.dropdown.Option("1", "保存草稿（op=1，不提交）"),
-                     ft.dropdown.Option("3", "保存并移入待发布（op=3）"),
-                     ft.dropdown.Option("2", "提交审核 / 发布（op=2，需评分≥4.5）"),
-                     ft.dropdown.Option("5", "定时发布（op=5，填发布时间）")])
-
         def _close_dlg(dlg):
             try:
                 self.page.close_dialog()
@@ -10422,7 +10484,7 @@ class App:
                 except Exception:
                     pass
 
-        def do_save(e=None):
+        def do_save(e=None, op_override=None):
             pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
             if not pid:
                 status.value = "先选择一个商品（上方「读取商品」或填写商品 ID）"
@@ -10430,7 +10492,8 @@ class App:
                 try:self._safe_update()
                 except Exception: pass
                 return
-            op = str(op_dd.value or "1")
+            op = str(op_override or "1")
+            use_ai = bool(save_ai_use.value)
             op_text = {"1": "保存草稿（只更新这个商品，不提交审核）",
                        "3": "保存并移入待发布（会进入待发布列表）",
                        "2": "提交审核 / 发布（会送平台审核，影响线上状态）",
@@ -10441,7 +10504,7 @@ class App:
                     from ..services.alibaba_publish import prepare_save
                     _product, save, _req, issues = prepare_save(pid, self.cfg)
                     precheck = None
-                    if op == "2":
+                    if op == "2" and not use_ai:
                         from types import SimpleNamespace as _NS
                         try:
                             from ..services.alibaba_payload import (
@@ -10507,7 +10570,7 @@ class App:
                                 # 也会做 is_failure_msg 判定，避免「code=0 但 msg 是失败」被显示成成功。
                                 from ..services.alibaba_pipeline import run_alibaba_product
                                 res = run_alibaba_product(pid, self.cfg, dry_run=False,
-                                                          op=op, use_ai=False)
+                                                          op=op, use_ai=use_ai)
                                 if res.saved:
                                     msg = str(((res.save_result or {}).get("data") or {}).get("msg")
                                               or res.save_result or "")
@@ -10557,6 +10620,8 @@ class App:
                             ft.Text(f"动作：{op_text}", size=13,
                                     color=WARN_C if op in ("2", "3") else TEXT),
                             ft.Text("校验：必填项全部满足", size=12.5, color=SUCCESS_C),
+                            ft.Text("AI 生成：" + ("开启（会调用付费 API）" if use_ai else "关闭"),
+                                    size=12.5, color=WARN_C if use_ai else MUTED),
                             *([ft.Text(f"刊登评分：{precheck.score:.2f}/5（发布线 4.5）",
                                        size=12.5, color=ACCENT_2)] if precheck else []),
                             *([ft.Text("类目经营范围：" + str(precheck.scope.get("detail") or ""),
@@ -10578,133 +10643,134 @@ class App:
                 except Exception: pass
             threading.Thread(target=work, daemon=True).start()
 
-        # ---------- AI 文案 → Alibaba 保存（带付费开关 + 确认） ----------
-        ai_use = ft.Switch(
-            label="使用 AI 生成标题 / 详情（会调用付费 API，默认关闭）",
-            value=False, active_color=ACCENT)
-        ai_box = ft.Column(spacing=2)
+        # ---- 采集箱批量处理（参考速卖通：直接改采集箱商品，不需要逐个手选）----
+        batch_box = ft.Column(spacing=3, height=220, scroll=ft.ScrollMode.AUTO)
+        batch_status = ft.Text("采集箱：未读取", size=12.5, color=MUTED)
+        batch_limit = ft.TextField(label="本次处理数量（0=全部）", width=180, value="10",
+                                   bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        batch_ai = ft.Switch(label="本次使用 AI 生成文案", value=False, active_color=ACCENT)
 
-        def _render_pipeline(res):
-            rows = [h1(res.completion_label, 13)]
-            for s in res.steps:
-                rows.append(ft.Row([
-                    ft.Icon(ft.Icons.CHECK_CIRCLE if s.ok else ft.Icons.ERROR_OUTLINE,
-                            size=14, color=ACCENT_2 if s.ok else DANGER_C),
-                    ft.Text(s.name, size=12.5, color=TEXT, width=120),
-                    ft.Text(s.detail, size=12, color=MUTED, expand=True,
-                            selectable=True)], spacing=6))
-            if getattr(res, "subject", ""):
-                rows.append(ft.Text(f"标题：{res.subject}", size=12.5, color=TEXT,
-                                    selectable=True))
-            if getattr(res, "keywords", None):
-                rows.append(ft.Text("关键词：" + ", ".join(res.keywords), size=12.5,
-                                    color=MUTED, selectable=True))
-            if getattr(res, "issues", None):
-                rows.append(ft.Text("校验问题：" + "；".join(res.issues), size=12.5,
-                                    color=DANGER_C, selectable=True))
-            if getattr(res, "warnings", None):
-                rows.append(ft.Text("提醒 / AI 编造风险：" + "；".join(
-                    str(w) for w in res.warnings[:6]), size=12, color=WARN_C,
-                    selectable=True))
-            if getattr(res, "banned_words", None):
-                rows.append(ft.Text("违禁词：" + ", ".join(res.banned_words), size=12.5,
-                                    color=WARN_C, selectable=True))
-            if getattr(res, "error", ""):
-                rows.append(ft.Text("失败原因：" + res.error, size=12.5, color=DANGER_C,
-                                    selectable=True))
-            ai_box.controls = rows
+        def _batch_limit() -> int:
+            try:
+                return max(0, int(float(str(batch_limit.value or "10"))))
+            except Exception:
+                return 10
 
-        def _pipeline_pid():
-            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
-            if not pid:
-                status.value = "先选择一个商品（「连接与商品」页）"
-                status.color = WARN_C
-                try:self._safe_update()
-                except Exception: pass
-            return pid
-
-        def _confirm_ai_save(dlg, pid, op, use_ai):
-            _close_dlg(dlg)
-            status.value = "AI 生成并保存中…"
-            status.color = MUTED
-            try:self._safe_update()
-            except Exception: pass
+        def load_collect(e=None):
+            batch_status.value = "正在读取采集箱…"
+            batch_status.color = MUTED
+            try:
+                self._safe_update()
+            except Exception:
+                pass
 
             def work():
                 try:
-                    from ..services.alibaba_pipeline import run_alibaba_product
-                    res = run_alibaba_product(pid, self.cfg, dry_run=False, op=op,
-                                              use_ai=use_ai)
-                    _render_pipeline(res)
-                    if res.saved:
-                        status.value = f"已保存（op={op}）"
-                        status.color = SUCCESS_C
-                        self._log(f"Alibaba AI 保存：{pid} op={op} · {res.subject[:60]}", "INFO")
-                    else:
-                        status.value = f"未保存：{res.error or res.completion_label}"
-                        status.color = DANGER_C
+                    from ..services.alibaba_batch import list_collect_products
+                    rows = list_collect_products(client(), page_size=100)
+                    items = []
+                    for r in rows:
+                        pid = str(r.get("id") or "")
+                        items.append(ft.Row([
+                            ft.Text(pid, size=11.5, color=MUTED, width=140),
+                            ft.Text(str(r.get("subject") or "")[:58], size=12, color=TEXT, expand=True),
+                            ft.Text(f"类目 {r.get('categoryId') or '-'}", size=11, color=MUTED),
+                        ], spacing=8))
+                    batch_box.controls = items or [muted("采集箱没有商品（先去采集商品）")]
+                    batch_status.value = f"采集箱：{len(rows)} 个商品（批量处理不需要手动选择）"
+                    batch_status.color = ACCENT_2
+                    # 自动选中第一个，兼容下方「高级：单独处理」
+                    if rows and not str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip():
+                        first = rows[0]
+                        set_product(str(first.get("id")), str(first.get("subject") or ""),
+                                    str(first.get("categoryId") or ""))
                 except Exception as ex:  # noqa: BLE001
-                    status.value = f"保存失败：{str(ex)[:180]}"
-                    status.color = DANGER_C
-                try:self._safe_update()
-                except Exception: pass
+                    batch_status.value = f"读取采集箱失败：{str(ex)[:120]}"
+                    batch_status.color = DANGER_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
             threading.Thread(target=work, daemon=True).start()
 
-        def ai_save(e=None):
-            pid = _pipeline_pid()
-            if not pid:
+        def run_batch(e=None, op="1", confirmed=False):
+            if op == "2" and not confirmed:
+                def _go(ev):
+                    _close_dlg(dlg)
+                    run_batch(None, "2", True)
+                dlg = ft.AlertDialog(
+                    modal=True, title=ft.Text("确认批量发布采集箱商品"),
+                    content=ft.Column([
+                        ft.Text("会对采集箱前 N 个商品执行真实「提交审核 / 发布」。", size=13),
+                        muted("评分未达 4.5 或类目/视频受限的商品会被逐条阻止并显示原因。"),
+                    ], spacing=6, width=420),
+                    actions=[ft.TextButton("取消", on_click=lambda ev: _close_dlg(dlg)),
+                             ft.ElevatedButton("确认发布", bgcolor=WARN_C, color=ON_ACCENT,
+                                               on_click=_go)])
+                _show_dlg(dlg)
                 return
-            op = str(op_dd.value or "1")
-            use_ai = bool(ai_use.value)
-            op_text = {"1": "保存草稿（不提交）", "3": "保存并移入待发布",
-                       "2": "提交审核 / 发布"}.get(op, op)
-            dlg = ft.AlertDialog(
-                modal=True, title=ft.Text("确认 AI 生成并保存"),
-                content=ft.Column([
-                    ft.Text(f"商品：{pid}", size=13, color=TEXT),
-                    ft.Text(f"动作：{op_text}（op={op}）", size=13,
-                            color=WARN_C if op in ("2", "3") else TEXT),
-                    muted("会写入店小秘/平台。请确认。" + (
-                        " 本次使用 AI 会调用付费 API。" if use_ai else "")),
-                ], spacing=6, width=400),
-                actions=[ft.TextButton("取消", on_click=lambda ev: _close_dlg(dlg)),
-                         ft.ElevatedButton("确认", bgcolor=SUCCESS_C, color=ON_ACCENT,
-                                           on_click=lambda ev: _confirm_ai_save(
-                                               dlg, pid, op, use_ai))])
-            _show_dlg(dlg)
-            status.value = "等待确认…"
-            status.color = MUTED
-            try:self._safe_update()
-            except Exception: pass
+            batch_status.value = "批量处理中…"
+            batch_status.color = MUTED
+            batch_box.controls = []
+            try:
+                self._safe_update()
+            except Exception:
+                pass
 
-        _ai_preset_ctl = self._alibaba_preset_control()
-        ai_card = card(ft.Column([
-            h1("AI 文案 → 保存（新链路）", FS_MD),
-            muted("AI 生成英文标题（≤128）与关键词/纯文本详情（平台 textDesc 上限 2000 字符），"
-                  "再按类目必填校验与评分门禁后保存；保存前有二次确认。"),
-            ai_use,
-            *([_ai_preset_ctl] if _ai_preset_ctl else []),
-            ft.Row([ft.ElevatedButton("AI 生成并保存", icon=ft.Icons.CLOUD_UPLOAD,
-                                      bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=ai_save)],
+            def work():
+                try:
+                    from ..services.alibaba_batch import run_collect_batch
+                    def progress(i, total, rec):
+                        ok = "✓" if rec.get("ok") else "✗"
+                        color = ACCENT_2 if rec.get("ok") else DANGER_C
+                        batch_box.controls.append(ft.Text(
+                            f"{ok} {i}/{total} {rec.get('id')} · {str(rec.get('subject') or '')[:40]}"
+                            f"  {('评分 %.2f' % rec['score']) if rec.get('score') else ''}"
+                            f"{(' · ' + rec['error'][:70]) if rec.get('error') else ''}",
+                            size=11.5, color=color, selectable=True))
+                        batch_status.value = f"批量处理：{i}/{total}"
+                        try:
+                            self._safe_update()
+                        except Exception:
+                            pass
+                    results = run_collect_batch(
+                        self.cfg, op=str(op), limit=_batch_limit(),
+                        use_ai=bool(batch_ai.value), client=client(), progress=progress)
+                    ok_n = sum(1 for x in results if x.get("ok"))
+                    batch_status.value = f"批量完成：成功 {ok_n} / {len(results)}"
+                    batch_status.color = ACCENT_2 if ok_n == len(results) else WARN_C
+                    self.toast(f"采集箱批量完成：成功 {ok_n}/{len(results)}", ok_n == len(results))
+                except Exception as ex:  # noqa: BLE001
+                    batch_status.value = f"批量处理失败：{str(ex)[:150]}"
+                    batch_status.color = DANGER_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+            threading.Thread(target=work, daemon=True).start()
+
+        batch_card = card(ft.Column([
+            h1("采集箱批量处理（不用手动选商品）", FS_MD),
+            muted("参考速卖通流程：读取采集箱商品 → 按下方预设资料批量修改 → 保存草稿/发布；"
+                  "不需要逐个手选。失败的会逐条显示原因。"),
+            ft.Row([batch_limit, batch_ai,
+                    ft.ElevatedButton("刷新采集箱", icon=ft.Icons.REFRESH, bgcolor=CARD_2,
+                                      color=TEXT, on_click=load_collect),
+                    ft.ElevatedButton("处理全部（保存草稿）", icon=ft.Icons.SAVE,
+                                      bgcolor=SUCCESS_C, color=ON_ACCENT,
+                                      on_click=lambda e: run_batch(e, "1")),
+                    ft.ElevatedButton("处理全部（发布）", icon=ft.Icons.CLOUD_UPLOAD,
+                                      bgcolor=WARN_C, color=ON_ACCENT,
+                                      on_click=lambda e: run_batch(e, "2"))],
                    spacing=10, wrap=True),
-            ai_box,
-        ], spacing=8))
-
-        conn = card(ft.Column([
-            h1("Alibaba 连接（店小秘 ICBU）", FS_MD),
-            muted("Cookie 自动沿用「店铺与登录」里已配置的店小秘 Cookie；也可在本页粘贴覆盖。"
-                  "留空时尝试读取本机 Chrome 登录态。"),
-            tf("alibaba_cookies", "Cookie（可留空自动沿用）", 720, True),
-            ft.Row([tf("alibaba_shop_id", "店铺 ID（可选）", 200),
-                    tf("alibaba_test_product_id", "当前商品 ID", 260),
-                    ft.ElevatedButton("检测连接", icon=ft.Icons.WIFI_TETHERING, bgcolor=ACCENT,
-                                      color=ON_ACCENT, on_click=test_connect)], spacing=10, wrap=True),
+            batch_status,
+            batch_box,
         ], spacing=8))
 
         prod_card = card(ft.Column([
-            h1("选择商品（草稿 / 在线）", FS_MD),
-            muted("直接从店小秘 Alibaba 商品列表选择；可按标题/ID 搜索并翻页，"
-                  "选中的商品 ID 会用于下面的保存"),
+            h1("采集箱商品列表（查看 / 高级单独处理）", FS_MD),
+            muted("连接/Cookie 在「Alibaba 连接」页维护；这里从店小秘 Alibaba 商品列表"
+                  "按标题/ID 搜索并选择，选中的商品用于下面的保存。"),
             prod_now,
             ft.Row([prod_state, prod_kw,
                     ft.ElevatedButton("读取商品", icon=ft.Icons.REFRESH, bgcolor=ACCENT,
@@ -10714,7 +10780,9 @@ class App:
                     prod_page_info], spacing=10, wrap=True),
             ft.Row([prod_id_tf,
                     ft.OutlinedButton("按 ID 打开", icon=ft.Icons.OPEN_IN_NEW,
-                                      on_click=open_by_id)], spacing=10, wrap=True),
+                                      on_click=open_by_id),
+                    ft.TextButton("连接/Cookie 设置", icon=ft.Icons.SETTINGS_ETHERNET,
+                                  on_click=lambda e: self._switch(1))], spacing=10, wrap=True),
             prod_box,
         ], spacing=8))
 
@@ -10749,9 +10817,6 @@ class App:
             ft.Row([search_kw, ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, bgcolor=ACCENT,
                                                  color=ON_ACCENT, on_click=do_search),
                     ft.OutlinedButton("读取必填属性", icon=ft.Icons.CHECKLIST, on_click=load_required),
-                    ft.OutlinedButton("生成属性预设模板", icon=ft.Icons.EDIT_NOTE,
-                                      tooltip="把缺失的必填属性写成空值预设，填好后保存",
-                                      on_click=gen_attr_template),
                     ft.OutlinedButton("AI 建议缺失属性", icon=ft.Icons.AUTO_FIX_HIGH,
                                       tooltip="AI 按标题/详情从类目候选值里建议（会产生文本 API 费用，需复核）",
                                       on_click=ai_suggest_attrs),
@@ -10865,14 +10930,14 @@ class App:
 
         preset_card = card(ft.Column([
             h1("预设资料（必填自动填写）", FS_MD),
-            muted("分组 / 关键词 / 属性预设会写入保存包；公司名称、网站、FAQ 目前仅本地保存"
-                  "（companyDesc 属于类目 schema 字段，暂未自动提交）"),
+            muted("分组 / 关键词 / 属性预设 / 公司介绍 / FAQ 都会写入保存包；"
+                  "公司名称、网站、贸易条款等仅本地保存。"),
             ft.Row([tf("alibaba_group_id", "产品分组 ID", 200), tf("alibaba_group_name", "分组名称（本地）", 220),
                     tf("alibaba_keywords", "默认关键词（逗号分隔）", 360)], spacing=10, wrap=True),
             ft.Row([tf("alibaba_company_name", "公司名称（本地）", 260),
                     tf("alibaba_company_website", "公司网站（本地）", 260)], spacing=10, wrap=True),
-            tf("alibaba_company_desc", "公司介绍（英文）", 720, True),
-            tf("alibaba_company_faq", "公司 FAQ（英文，可空，本地）", 720, True),
+            tf("alibaba_company_desc", "公司介绍（英文，会提交 companyDesc）", 720, True),
+            tf("alibaba_company_faq", "公司 FAQ（英文，会提交 companyFaqDesc）", 720, True),
             preset_summary,
             ft.Row([ft.ElevatedButton("编辑属性预设（可视化）", icon=ft.Icons.RULE,
                                       bgcolor=ACCENT, color=ON_ACCENT,
@@ -10882,6 +10947,55 @@ class App:
                    spacing=10, wrap=True),
         ], spacing=8))
 
+        # 运费模板：下拉选择 + 刷新（不再手填 ID）
+        freight_dd = ft.Dropdown(label="运费模板", width=260, bgcolor=CARD_2,
+                                 border_color=CARD_2, color=TEXT,
+                                 value=str(getattr(self.cfg, "alibaba_freight_template_id", "") or ""),
+                                 options=[ft.dropdown.Option("", "（打开页面自动加载）")])
+        freight_status = ft.Text("", size=11.5, color=MUTED)
+
+        def _load_freight(e=None):
+            freight_status.value = "正在读取运费模板…"
+            freight_status.color = MUTED
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def work():
+                try:
+                    c = client()
+                    sid = str(getattr(self.cfg, "alibaba_shop_id", "") or "").strip()
+                    if not sid:
+                        shops = c.shops()
+                        sid = str((shops[0] or {}).get("shopId") or (shops[0] or {}).get("id") or "") if shops else ""
+                    fts = c.freight_templates(sid) if sid else []
+                    opts = ([ft.dropdown.Option("", "（请选择运费模板）")]
+                            if fts else [ft.dropdown.Option("", "（没有可用模板）")])
+                    opts += [ft.dropdown.Option(str(t.get("templateId")), str(t.get("templateName") or t.get("templateId")))
+                             for t in fts]
+                    cur = str(getattr(self.cfg, "alibaba_freight_template_id", "") or "")
+                    if cur and not any(o.key == cur for o in opts):
+                        opts.append(ft.dropdown.Option(cur, f"{cur}（已保存）"))
+                    freight_dd.options = opts
+                    freight_dd.value = cur
+                    freight_status.value = (f"已读取 {len(fts)} 个运费模板" if fts
+                                            else "没有运费模板：请先在店小秘/平台创建")
+                    freight_status.color = ACCENT_2 if fts else WARN_C
+                except Exception as ex:  # noqa: BLE001
+                    freight_status.value = f"读取运费模板失败：{str(ex)[:100]}"
+                    freight_status.color = DANGER_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def _on_freight(e):
+            self.cfg.set("alibaba_freight_template_id", str(e.control.value or ""))
+            save_config(self.cfg)
+        freight_dd.on_change = _on_freight
+
         price_type_dd = dd("alibaba_price_type", "定价方式",
                            [("", "保留商品原定价（推荐）"),
                             ("ladder_price", "按数量阶梯价"),
@@ -10889,12 +11003,26 @@ class App:
                             ("fob_price", "单一区间 FOB")], 230,
                            hint="不选则沿用商品原有 priceType；选 FOB 需填下面币种/最低/最高价")
 
-        def _on_price_type(e):
-            val = str(e.control.value or "").strip()
+        price_note = ft.Text("", size=12, color=MUTED)
+
+        def _on_price_type(e=None):
+            val = str((getattr(e, "control", None) and e.control.value) or
+                      price_type_dd.value or "").strip()
             self.cfg.set("alibaba_price_type", val)
             # 只有用户显式选择过，保存时才覆盖商品原有定价模型
             self.cfg.set("alibaba_price_type_explicit", "1" if val else "")
             save_config(self.cfg)
+            try:
+                fob_row.visible = (val == "fob_price")
+                ladder_block.visible = (val == "ladder_price")
+                price_note.value = {
+                    "": "保留商品原定价：不修改 priceType / 阶梯价",
+                    "ladder_price": "按数量阶梯价：填写下方档位（至少 1 档）",
+                    "sku_price": "按规格 SKU 价：沿用商品已有 SKU 价格",
+                    "fob_price": "单一区间 FOB：填写币种、最低价、最高价",
+                }.get(val, "")
+            except Exception:
+                pass
         price_type_dd.on_change = _on_price_type
 
         # ---- 阶梯价：表格化编辑（不再手写 JSON）----
@@ -10970,25 +11098,7 @@ class App:
         else:
             _add_tier("1", "", save=False)
 
-        trade_card = card(ft.Column([
-            h1("价格与贸易条款", FS_MD),
-            muted("这些值会写进 alibabaSave：priceType / bulkDiscountPrices / "
-                  "sourcingTrade / wholesaleTrade"),
-            ft.Row([
-                price_type_dd,
-                dd("alibaba_sale_type", "销售方式",
-                   [("normal", "按件（normal）"), ("batch", "批发（batch）")], 190),
-                tf("alibaba_batch_number", "批发起批量", 150),
-                tf("alibaba_freight_template_id", "运费模板 ID", 190),
-            ], spacing=10, wrap=True),
-            ft.Row([tf("alibaba_fob_currency", "FOB 币种", 120),
-                    tf("alibaba_fob_min_price", "FOB 最低价", 140),
-                    tf("alibaba_fob_max_price", "FOB 最高价", 140),
-                    tf("alibaba_min_order_quantity", "MOQ", 120),
-                    tf("alibaba_unit_type", "单位", 120)], spacing=10, wrap=True),
-            ft.Row([tf("alibaba_package_size", "包装尺寸 LxWxH(cm)", 220),
-                    tf("alibaba_weight", "重量 kg", 140), tf("alibaba_stock", "库存", 120),
-                    tf("alibaba_hs_code", "HS 编码", 160)], spacing=10, wrap=True),
+        ladder_block = ft.Column([
             ft.Column([
                 h1("阶梯价（表格填写，自动保存）", 13),
                 muted("按数量定价时填写：起订量 + 单价；可添加多档。", 11),
@@ -10999,6 +11109,36 @@ class App:
                     ft.TextButton("清空阶梯价", icon=ft.Icons.CLEAR,
                                   on_click=lambda e: _clear_tiers())],
                    spacing=10, wrap=True),
+        ], spacing=6)
+
+        fob_row = ft.Row([
+            tf("alibaba_fob_currency", "FOB 币种", 120),
+            tf("alibaba_fob_min_price", "FOB 最低价", 140),
+            tf("alibaba_fob_max_price", "FOB 最高价", 140),
+        ], spacing=10, wrap=True)
+
+        trade_card = card(ft.Column([
+            h1("价格与贸易条款", FS_MD),
+            muted("这些值会写进 alibabaSave：priceType / bulkDiscountPrices / "
+                  "sourcingTrade / wholesaleTrade"),
+            ft.Row([
+                price_type_dd,
+                dd("alibaba_sale_type", "销售方式",
+                   [("normal", "按件（normal）"), ("batch", "批发（batch）")], 190),
+                tf("alibaba_batch_number", "批发起批量", 150),
+            ], spacing=10, wrap=True),
+            price_note,
+            ft.Row([freight_dd,
+                    ft.OutlinedButton("读取运费模板", icon=ft.Icons.REFRESH,
+                                      on_click=_load_freight),
+                    tf("alibaba_min_order_quantity", "MOQ", 120),
+                    tf("alibaba_unit_type", "单位", 120)], spacing=10, wrap=True),
+            freight_status,
+            ft.Row([tf("alibaba_package_size", "包装尺寸 LxWxH(cm)", 220),
+                    tf("alibaba_weight", "重量 kg", 140), tf("alibaba_stock", "库存", 120),
+                    tf("alibaba_hs_code", "HS 编码", 160)], spacing=10, wrap=True),
+            ladder_block,
+            fob_row,
             ft.Row([tf("alibaba_schedule_time", "定时发布时间（如 2030-01-01 09:00）", 280,
                         hint="op=5 定时发布用；空=平台默认排期"),
                     tf("alibaba_process_period", "发货期(天)", 130,
@@ -11014,6 +11154,10 @@ class App:
                     tf("alibaba_port", "港口（本地）", 160),
                     tf("alibaba_payment_terms", "付款方式（本地）", 160)], spacing=10, wrap=True),
         ], spacing=8))
+        try:
+            _on_price_type(None)
+        except Exception:
+            pass
 
         score_total = ft.Text("未评分（发布要求 ≥4.5）", size=20, color=MUTED,
                               weight=ft.FontWeight.BOLD)
@@ -11088,23 +11232,66 @@ class App:
             score_total, score_items, score_fixes,
         ], spacing=6))
 
+        def _fill_recommended(e=None):
+            """一键填入已验证的机械类发布信息（店铺/类目/属性/贸易/公司资料）。"""
+            _vals = self._recommended_alibaba_values()
+            for k, v in _vals.items():
+                self.cfg.set(k, v)
+            save_config(self.cfg)
+            self.toast("已填入推荐发布信息（机械类）；请选择商品后运行/发布", True)
+            try:
+                self._switch(12)
+            except Exception:
+                pass
+
+        save_ai_use = ft.Switch(
+            label="本次保存使用 AI 生成标题 / 详情（调用付费 API；不修改全局 AI 开关）",
+            value=False, active_color=ACCENT)
+        _save_ai_preset = self._alibaba_preset_control()
+
         check_card = card(ft.Column([
-            h1("校验并保存", FS_MD),
-            muted("选择保存动作后点「保存到 Alibaba」：会先做必填/评分/类目校验，"
-                  "通过后用确认弹窗写入店小秘/平台。"),
-            ft.Row([op_dd,
-                    ft.ElevatedButton("保存到 Alibaba", icon=ft.Icons.CLOUD_UPLOAD,
-                                      bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=do_save)],
-                   spacing=10, wrap=True),
+            h1("保存 / 发布（真实写入）", FS_MD),
+            muted("四个动作都会真实写入店小秘/平台（不是预演）："
+                  "保存草稿不提交；发布/定时会先校验必填/评分/类目，再弹确认框。"),
+            save_ai_use,
+            *([_save_ai_preset] if _save_ai_preset else []),
+            ft.Row([
+                ft.TextButton("填入推荐发布信息", icon=ft.Icons.AUTO_FIX_HIGH,
+                              tooltip="填入已验证的机械类店铺/类目/属性/贸易/公司资料",
+                              on_click=_fill_recommended),
+            ], spacing=8),
+            ft.Row([
+                ft.ElevatedButton("保存草稿", icon=ft.Icons.SAVE,
+                                  bgcolor=SUCCESS_C, color=ON_ACCENT,
+                                  on_click=lambda e: do_save(e, "1")),
+                ft.ElevatedButton("提交审核 / 发布", icon=ft.Icons.CLOUD_UPLOAD,
+                                  bgcolor=WARN_C, color=ON_ACCENT,
+                                  on_click=lambda e: do_save(e, "2")),
+                ft.OutlinedButton("移入待发布", icon=ft.Icons.INVENTORY_2,
+                                  on_click=lambda e: do_save(e, "3")),
+                ft.OutlinedButton("定时发布", icon=ft.Icons.SCHEDULE,
+                                  on_click=lambda e: do_save(e, "5")),
+            ], spacing=10, wrap=True),
             required_box, status,
         ], spacing=8))
 
+        # 打开页面即自动读取采集箱与运费模板。
+        try:
+            threading.Thread(target=load_collect, daemon=True).start()
+        except Exception:
+            pass
+        # 打开页面即自动读取运费模板，避免下拉框一直空白、用户以为“无法选择”。
+        try:
+            threading.Thread(target=lambda: _load_freight(None), daemon=True).start()
+        except Exception:
+            pass
+
         return [workspace_tabs([
-                    ("连接与商品", [conn, prod_card]),
+                    ("商品", [batch_card, prod_card]),
                     ("类目", [cat_card]),
                     ("预设资料", [preset_card]),
                     ("价格与贸易", [trade_card]),
-                    ("保存与发布", [score_card, check_card, ai_card]),
+                    ("保存与发布", [score_card, check_card]),
                 ])]
 
     def _p_alibaba_listing(self):
@@ -11134,7 +11321,15 @@ class App:
     # ---------- Amazon 刊登（13 号页，契约 §4.3） ----------
     AMAZON_STATES = (("draft", "采集箱", "待编辑/待刊登"),
                      ("offline", "待发布", "可直接发布"),
+                     ("publishing", "发布中", "已提交平台，处理中"),
+                     ("publishFail", "发布失败", "查看失败原因，补齐必填属性后重发"),
                      ("online", "在线", "已上架"))
+    # ⑤ 发布必填属性（Amazon 类目 schema 的 common required）
+    AMAZON_ATTR_KEYS = (("model_number", "型号（model_number）"),
+                        ("model_name", "型号名称（model_name）"),
+                        ("part_number", "零件编号（part_number）"),
+                        ("manufacturer_contact_information",
+                         "制造商联系信息（manufacturer_contact_information）"))
 
     def _amazon_backend(self):
         """Amazon 后端延迟导入：后端未就绪时页面照常打开，回调提示「后端未就绪」。"""
@@ -11146,6 +11341,70 @@ class App:
         """按契约 §0 Cookie 优先级构造 Amazon 客户端（UI 不直接发 HTTP）。"""
         make_client, _payload, _pipeline = self._amazon_backend()
         return make_client(self.cfg)
+
+    @staticmethod
+    def _recommended_alibaba_values() -> dict:
+        import json as _j2
+        return {
+            "alibaba_shop_id": "9466975",
+            "alibaba_shop_name": "zzyugong",
+            "alibaba_category_id": "127726092",
+            "alibaba_category_name": "其他混凝土机械 / Other Concrete Machinery",
+            "alibaba_full_cid": "201943703,1326,100010658,127726092",
+            "alibaba_ai_preset": "machinery_industrial",
+            "alibaba_price_type": "",
+            "alibaba_price_type_explicit": "",
+            "alibaba_sale_type": "normal",
+            "alibaba_min_order_quantity": 1,
+            "alibaba_unit_type": "Piece",
+            "alibaba_package_size": "300X200X200",
+            "alibaba_weight": "500",
+            "alibaba_stock": "5",
+            "alibaba_freight_template_id": "2055583029",
+            "alibaba_hs_code": "84791000",
+            "alibaba_process_period": "15",
+            "alibaba_deliver_quantity": "1",
+            "alibaba_logistics_property": "general_cargo_0",
+            "alibaba_keywords": "machinery, construction equipment, laser screed, drilling rig, concrete leveling",
+            "alibaba_attr_presets": _j2.dumps({
+                "Core Components": "Motor", "Warranty": "1 Year",
+                "Place of Origin": "China", "Model Number": "LS-600",
+                "Weight (kg)": "600", "Unique Selling Point": "Fully hydraulic system",
+            }, ensure_ascii=False),
+            "alibaba_company_desc": ("We are a professional machinery manufacturer with 15 years "
+                                     "of experience. Our factory supports OEM/ODM orders and provides "
+                                     "installation and after-sales service."),
+            "alibaba_company_faq": ("Q: What is the MOQ? A: One set. "
+                                    "Q: How long is the delivery time? A: 15-30 days."),
+        }
+
+    def _seed_alibaba_defaults(self) -> None:
+        """首次启动且 Alibaba 配置明显为空时，填入机械类推荐发布信息。"""
+        cfg = self.cfg
+        if bool(getattr(cfg, "alibaba_recommended_seeded", False)):
+            return
+        if str(getattr(cfg, "alibaba_category_id", "") or "").strip():
+            return
+        if str(getattr(cfg, "alibaba_attr_presets", "") or "").strip():
+            return
+        for k, v in self._recommended_alibaba_values().items():
+            cfg.set(k, v)
+        cfg.set("alibaba_recommended_seeded", True)
+        try:
+            save_config(cfg)
+        except Exception:
+            pass
+
+    def _store_shortcut_label(self) -> str:
+        """顶栏店铺按钮文案：Alibaba 显示 Alibaba 店铺，其他平台显示 SMT 店铺。"""
+        try:
+            if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
+                return (str(getattr(self.cfg, "alibaba_shop_name", "") or "").strip()
+                        or str(getattr(self.cfg, "alibaba_shop_id", "") or "").strip()
+                        or "选择 Alibaba 店铺")
+        except Exception:
+            pass
+        return str(getattr(self.cfg, "store_name", "") or "选择店铺")
 
     def _is_amazon(self) -> bool:
         return str(getattr(getattr(self, "active_platform", None), "id", "")) == "amazon"
@@ -11225,18 +11484,18 @@ class App:
             pass
 
     def _p_amazon_listing(self):
-        """Amazon 刊登工作台（13 号页）：采集箱商品 → 站点/类目 → 文案 → 预演 → 保存。"""
+        """Amazon 刊登工作台（13 号页）：采集箱商品 → 站点/类目 → 文案 → 发布前检查 → 保存。"""
         self._current = 13
         steps = ft.Container(
             padding=ft.padding.symmetric(horizontal=14, vertical=8),
             bgcolor=CARD_2, border_radius=8,
             content=ft.Text(
                 "① 连接店铺/站点  →  ② 选采集箱商品  →  ③ 选类目  →  "
-                "④ 标题/五点/描述 + AI  →  ⑤ 价格/库存/物流  →  ⑥ 预演 → 确认保存",
+                "④ 标题/五点/描述 + AI  →  ⑤ 价格/库存/物流  →  ⑥ 发布前检查 → 确认保存",
                 size=12, color=MUTED, selectable=False))
         return [
             page_header("Amazon 刊登",
-                        "采集箱商品 → 站点/类目 → 五点描述与 AI 文案 → 预演 → 保存"),
+                        "采集箱商品 → 站点/类目 → 五点描述与 AI 文案 → 发布前检查 → 保存"),
             steps,
             *self._amazon_cards(),
         ]
@@ -11255,7 +11514,9 @@ class App:
         shops = getattr(self, "_amz_shops", None) or {}
         cat_nodes = {}
         self._amz_cat_nodes = cat_nodes
-        state_labels = {"draft": "采集箱", "offline": "待发布", "online": "在线"}
+        state_labels = {"draft": "采集箱", "offline": "待发布", "online": "在线",
+                        "waitPublish": "处理中", "publishing": "发布中",
+                        "publishFail": "发布失败"}
         op_labels = {"1": "保存草稿", "3": "保存并移入待发布", "2": "保存并发布"}
         field_labels = {"title": "标题", "bullets": "五点描述",
                         "description": "产品描述", "search_terms": "Search Terms"}
@@ -11370,6 +11631,199 @@ class App:
                 except Exception:
                     pass
 
+        # ---------- 发布状态 / 必填属性 helpers（task-8/9） ----------
+        def _attr_values():
+            vals = {}
+            for _ak, _tf in attr_tfs.items():
+                _v = str(getattr(_tf, "value", "") or "").strip()
+                if _v:
+                    vals[_ak] = _v
+            form["attributes"] = dict(vals)
+            form["attributes_extra"] = [k for k in attr_tfs
+                                        if k not in dict(self.AMAZON_ATTR_KEYS)]
+            return vals
+
+        def _ensure_attr_fields(names, values=None):
+            """把 errMsg/autofill 里出现的额外必填属性动态追加为输入框（可滚动）。"""
+            values = values if isinstance(values, dict) else {}
+            names = [str(n).strip() for n in (names or []) if str(n or "").strip()]
+            added = False
+            for _name in names:
+                _tf = attr_tfs.get(_name)
+                if _tf is not None:
+                    if (values.get(_name) not in (None, "")
+                            and not str(_tf.value or "").strip()):
+                        _v = values.get(_name)
+                        _tf.value = ("true" if _v else "false") if isinstance(_v, bool) \
+                            else str(_v)
+                    continue
+                _tf = ft.TextField(label=_name, width=300, bgcolor=CARD_2,
+                                   border_color=CARD_2, color=TEXT,
+                                   value=str(values.get(_name, "") or ""))
+
+                def _on_extra(e, _key=_name):
+                    attrs = form.get("attributes")
+                    if not isinstance(attrs, dict):
+                        attrs = {}
+                    attrs[_key] = str(e.control.value or "").strip()
+                    form["attributes"] = attrs
+                _tf.on_change = _on_extra
+                attr_tfs[_name] = _tf
+                attr_extra_box.controls.append(_tf)
+                added = True
+            if added:
+                try:
+                    attr_extra_scroll.visible = True
+                    attr_extra_scroll.height = 210
+                except Exception:
+                    pass
+            return list(attr_tfs.keys())
+
+        def _apply_attr_values(values, only_empty=True):
+            """把后端 autofill/属性值填进⑤；已有内容默认不覆盖（尊重手填）。"""
+            values = values if isinstance(values, dict) else {}
+            if not values:
+                return
+            _ensure_attr_fields(list(values.keys()), values)
+            for _ak, _v in values.items():
+                if _v in (None, ""):
+                    continue
+                if isinstance(_v, bool):
+                    _v = "true" if _v else "false"
+                _v = str(_v)
+                _tf = attr_tfs.get(_ak)
+                if _tf is None:
+                    continue
+                if only_empty and str(_tf.value or "").strip():
+                    continue
+                _tf.value = _v
+            _attr_values()
+
+        def _refresh_missing_hint(missing=None):
+            if missing is None:
+                missing = list(getattr(self, "_amz_missing_attrs", None) or [])
+            missing = [str(x) for x in (missing or []) if str(x or "").strip()]
+            self._amz_missing_attrs = missing
+            if missing:
+                # 随类目变化的必填属性：动态追加输入框供用户补齐
+                _ensure_attr_fields(missing)
+            try:
+                if missing:
+                    attrs_missing_text.value = (
+                        "缺少发布必填属性：" + "、".join(missing)
+                        + "（请在⑤补充后重新保存/发布）")
+                    attrs_missing_text.color = DANGER_C
+                else:
+                    attrs_missing_text.value = ""
+            except Exception:
+                pass
+            try:
+                for _ak, _tf in attr_tfs.items():
+                    if _ak in missing and not str(_tf.value or "").strip():
+                        _tf.border_color = DANGER_C
+                    else:
+                        _tf.border_color = CARD_2
+            except Exception:
+                pass
+
+        def _missing_attrs(err_text):
+            """从平台 errMsg 提取缺失属性：优先后端 parse_required_attrs，回退本地正则。"""
+            err = str(err_text or "")
+            if not err:
+                return []
+            # 后端实现：模块级 parse_required_attrs(err)（task-8）
+            try:
+                from ..integrations.amazon import parse_required_attrs as _pra
+                vals = _pra(err)
+                if vals:
+                    return [str(x) for x in vals]
+            except Exception:
+                pass
+            # 兼容：client.parse_required_attrs
+            try:
+                c = _client()
+                fn = getattr(c, "parse_required_attrs", None)
+                if callable(fn):
+                    vals = fn(err)
+                    if vals:
+                        return [str(x) for x in vals]
+            except Exception:
+                pass
+            out = []
+            for chunk in re.findall(r"(?:属性|attribute)[:：]\s*([A-Za-z0-9_,;\s]+)", err):
+                for x in re.split(r"[;,，；\s]+", chunk):
+                    x = x.strip()
+                    if x and x not in out:
+                        out.append(x)
+            return out
+
+        def _publish_badge(state, err="", detail=""):
+            """发布状态 → (文案, 颜色, 图标, 是否成功)。"""
+            st = str(state or "").strip()
+            low = st.lower().replace("_", "")
+            err_l = (str(err or "") + " " + str(detail or "")).lower()
+            review = any(k in err_l for k in ("100521", "审核", "审查", "review"))
+            if low == "online":
+                return ("发布成功", ACCENT_2, ft.Icons.CHECK_CIRCLE, True)
+            if low in ("publishing", "waitpublish"):
+                return ("处理中（平台处理中，稍后点「查询发布结果」）", INFO_C,
+                        ft.Icons.HOURGLASS_TOP, False)
+            if low == "publishfail" and review:
+                return ("平台审核中（非软件失败，等待平台审核结果）", WARN_C,
+                        ft.Icons.SHIELD_OUTLINED, False)
+            if low == "publishfail":
+                return ("发布失败", DANGER_C, ft.Icons.ERROR_OUTLINE, False)
+            if low == "draft":
+                return ("未提交（商品仍在草稿）", DANGER_C,
+                        ft.Icons.ERROR_OUTLINE, False)
+            return ("状态未知（点「查询发布结果」核实）", MUTED,
+                    ft.Icons.HELP_OUTLINE, False)
+
+        def _publish_info_rows(state, err="", asin="", detail=None, notes=None,
+                               required=None):
+            """⑥ 结果区的发布状态块：徽标 + ASIN + 完整失败原因 + 缺失属性 + 自动补齐建议。"""
+            rows = []
+            label, color, icon, ok = _publish_badge(state, err, detail)
+            head = [ft.Icon(icon, size=15, color=color),
+                    ft.Container(content=ft.Text(label, size=12.5, color=color,
+                                                 weight=ft.FontWeight.BOLD),
+                                 border=ft.border.all(1, color), border_radius=999,
+                                 padding=ft.padding.symmetric(horizontal=10, vertical=3))]
+            if asin:
+                head.append(ft.Text(f"ASIN：{asin}", size=12.5, color=ACCENT_2,
+                                    selectable=True))
+            rows.append(ft.Row(head, spacing=10, wrap=True))
+            if err:
+                rows.append(ft.Text("发布失败原因（完整）：", size=12, color=DANGER_C,
+                                    weight=ft.FontWeight.BOLD))
+                rows.append(ft.TextField(
+                    value=str(err), multiline=True, min_lines=2, max_lines=8,
+                    read_only=True, width=760, text_size=11.5, bgcolor=CARD_2,
+                    border_color=CARD_2, color=TEXT))
+            missing = [str(x) for x in (required or []) if str(x or "").strip()]
+            if not missing:
+                missing = _missing_attrs(err)
+            if missing:
+                rows.append(ft.Text("缺少必填属性：" + "、".join(missing),
+                                    size=12, color=WARN_C, selectable=True))
+                _refresh_missing_hint(missing)
+            if isinstance(notes, dict) and notes:
+                # 后端 attribute_notes/autofill：把建议值预填到动态输入框（不覆盖手填）
+                _apply_attr_values(notes)
+            if notes:
+                if isinstance(notes, dict):
+                    shown = [f"{k}={v}" for k, v in list(notes.items())[:10]]
+                else:
+                    shown = [str(x) for x in list(notes)[:8]]
+                rows.append(ft.Text("自动补齐建议：" + "；".join(shown),
+                                    size=11.5, color=INFO_C, selectable=True))
+            if detail not in (None, "", {}, []):
+                try:
+                    rows.append(muted("发布详情：" + str(detail)[:300], 11))
+                except Exception:
+                    pass
+            return rows
+
         def _desc_html():
             raw = str(desc_tf.value or "").strip()
             if not raw:
@@ -11393,11 +11847,11 @@ class App:
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT, value=_cookie0)
         shop_dd = ft.Dropdown(
             label="店铺", width=260, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            value="", options=[], tooltip="点「测试连接」读取店铺列表")
+            value="", options=[], tooltip="点「检测连接」读取店铺列表")
         site_dd = ft.Dropdown(
             label="站点", width=320, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value="", options=[], tooltip="站点决定语言/币种/类目；切换后需重选类目")
-        conn_status = ft.Text("未连接：点「测试连接」登录并读取店铺/站点/计数", size=12.5,
+        conn_status = ft.Text("未检测：点「检测连接」登录并读取店铺/站点/计数", size=12.5,
                               color=MUTED, selectable=True)
 
         # ---------- ② 采集箱商品 ----------
@@ -11507,15 +11961,70 @@ class App:
         img_text = ft.Text("图片：主图 0 张 + 附加图 0 张", size=12.5, color=MUTED)
         img_box = ft.Row(spacing=8)
         attr_text = ft.Text("产品属性：未载入商品", size=12, color=MUTED, selectable=True)
+        # ---------- ⑤ 发布必填属性（Amazon 类目 common required，缺失会发布失败） ----------
+        attr_fill_hint = ft.Text(
+            "发布必填属性（常用 4 项）：model_number / model_name / part_number / "
+            "manufacturer_contact_information。发布失败时会把 errMsg 里解析出的其它必填属性"
+            "动态追加到下面，保存时统一提交。",
+            size=11.5, color=MUTED, selectable=True)
+        attrs_missing_text = ft.Text("", size=11.5, color=DANGER_C, selectable=True)
+        attr_status = ft.Text("", size=11.5, color=MUTED, selectable=True)
+        attr_tfs = {}
+        attr_extra_box = ft.Column(spacing=4)
+        attr_extra_scroll = ft.Container(content=attr_extra_box, height=0, visible=False)
+        _attrs0 = form.get("attributes") if isinstance(form.get("attributes"), dict) else {}
+        for _ak, _alabel in self.AMAZON_ATTR_KEYS:
+            _atf = ft.TextField(label=_alabel, width=300, bgcolor=CARD_2,
+                                border_color=CARD_2, color=TEXT,
+                                value=str(_attrs0.get(_ak, "") or ""))
 
-        # ---------- ⑥ 预演与保存 ----------
+            def _on_attr(e, _key=_ak):
+                attrs = form.get("attributes")
+                if not isinstance(attrs, dict):
+                    attrs = {}
+                attrs[_key] = str(e.control.value or "").strip()
+                form["attributes"] = attrs
+                try:
+                    if attrs_missing_text.value:
+                        _refresh_missing_hint()
+                except Exception:
+                    pass
+            _atf.on_change = _on_attr
+            attr_tfs[_ak] = _atf
+        # 失败原因里解析出的额外必填属性（随类目变化，动态追加为输入框）
+        _attrs_extra_saved = form.get("attributes_extra")
+        if isinstance(_attrs_extra_saved, list):
+            for _xname in _attrs_extra_saved:
+                if str(_xname or "").strip() in attr_tfs:
+                    continue
+                _xtf = ft.TextField(label=str(_xname), width=300, bgcolor=CARD_2,
+                                    border_color=CARD_2, color=TEXT,
+                                    value=str(_attrs0.get(str(_xname), "") or ""))
+
+                def _on_extra_attr(e, _key=str(_xname)):
+                    attrs = form.get("attributes")
+                    if not isinstance(attrs, dict):
+                        attrs = {}
+                    attrs[_key] = str(e.control.value or "").strip()
+                    form["attributes"] = attrs
+                _xtf.on_change = _on_extra_attr
+                attr_tfs[str(_xname)] = _xtf
+                attr_extra_box.controls.append(_xtf)
+        if attr_extra_box.controls:
+            attr_extra_scroll.visible = True
+            attr_extra_scroll.height = 210
+        self._amz_attr_tfs = attr_tfs
+        self._amz_attr_extra_box = attr_extra_box
+        self._amz_attr_extra_scroll = attr_extra_scroll
+
+        # ---------- ⑥ 发布前检查与保存 ----------
         op_dd = ft.Dropdown(
             label="保存动作", width=300, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value=str(_cget("amazon_op", 1) or 1),
             options=[ft.dropdown.Option("1", "保存草稿（op=1，留在采集箱）"),
                      ft.dropdown.Option("3", "保存并移入待发布（op=3）"),
                      ft.dropdown.Option("2", "保存并发布（op=2，提交平台）")])
-        save_status = ft.Text("尚未预演", size=12.5, color=MUTED, selectable=True)
+        save_status = ft.Text("尚未检查", size=12.5, color=MUTED, selectable=True)
         result_box = ft.Column(spacing=2)
         _preview_mode = bool(getattr(self, "_preview_mode", False)) or bool(
             os.environ.get("AURORA_NO_SAVE") or os.environ.get("AURORA_TEST"))
@@ -11776,7 +12285,7 @@ class App:
                     _cset("amazon_cookies", raw)
                     cookie_src_text.value = "Cookie 来源：" + str(desc)
                     _status(conn_status,
-                            f"已读取 Cookie（{len(src.cookies)} 项），可以点「测试连接」",
+                            f"已读取 Cookie（{len(src.cookies)} 项），可以点「检测连接」",
                             SUCCESS_C)
                     _toast("已读取本机 Cookie", True)
                 except Exception as ex:
@@ -11787,7 +12296,7 @@ class App:
             threading.Thread(target=work, daemon=True).start()
 
         def test_connect(e=None):
-            _status(conn_status, "正在连接店小秘 Amazon…", MUTED)
+            _status(conn_status, "正在检测连接店小秘 Amazon…", MUTED)
 
             def work():
                 nonlocal shops, sites
@@ -11828,12 +12337,12 @@ class App:
                         counts["online"] = _as_int(on.get("total"))
                     except Exception as _ce:
                         _status(conn_status,
-                                f"连接成功，但读取计数失败：{str(_ce)[:80]}", WARN_C)
+                                f"检测连接正常，但读取计数失败：{str(_ce)[:80]}", WARN_C)
                     self.amazon_counts = counts
                     self._amz_counts_ts = time.time()
                     _sync_state_buttons()
                     _status(conn_status,
-                            f"连接成功：店铺 {len(shops)} 个 · 站点 {len(sites)} 个 · "
+                            f"检测连接正常：店铺 {len(shops)} 个 · 站点 {len(sites)} 个 · "
                             f"采集箱 {counts['draft']} / 待发布 {counts['offline']} / "
                             f"在线 {counts['online']}（发布失败 {counts['publishFail']}）",
                             SUCCESS_C)
@@ -11844,11 +12353,11 @@ class App:
                             f"在线 {counts['online']}", "INFO")
                     except Exception:
                         pass
-                    _toast("Amazon 连接成功", True)
+                    _toast("Amazon 检测连接正常", True)
                     load_history()
                 except Exception as ex:
-                    _status(conn_status, f"连接失败：{str(ex)[:160]}", DANGER_C)
-                    _toast(f"连接失败：{str(ex)[:70]}", False)
+                    _status(conn_status, f"检测连接失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"检测连接失败：{str(ex)[:70]}", False)
                 finally:
                     _ui()
             threading.Thread(target=work, daemon=True).start()
@@ -11914,14 +12423,21 @@ class App:
                 price = _pick(it, "standardPrice", "price", "saleSalePrice", default="")
                 ccy = str(_pick(it, "standardPriceCurrency", "currency", "currencyCode"))
                 qty = _pick(it, "quantity", "stock", default="")
-                err = str(_pick(it, "errMsg", "errorMsg"))
-                warn = str(_pick(it, "warningMsg", "importWarningMsg"))
+                # 发布失败原因（task-8：list_products 新状态行带 err_msg）
+                err = str(_pick(it, "errMsg", "err_msg", "errorMsg"))
+                warn = str(_pick(it, "warningMsg", "importWarningMsg", "warning_msg"))
+                asin = str(_pick(it, "asin", "ASIN"))
                 sel = bool(selected_id) and pid == str(selected_id)
                 badges = []
                 if err:
-                    badges.append(ft.Text("✗ " + err[:24], size=10.5, color=DANGER_C))
+                    badges.append(ft.Text("✗ " + err[:48], size=10.5, color=DANGER_C,
+                                          tooltip=err))
                 if warn:
-                    badges.append(ft.Text("⚠ " + warn[:24], size=10.5, color=WARN_C))
+                    badges.append(ft.Text("⚠ " + warn[:24], size=10.5, color=WARN_C,
+                                          tooltip=warn))
+                if asin:
+                    badges.append(ft.Text("ASIN " + asin, size=10.5, color=INFO_C,
+                                          tooltip=asin))
 
                 def _edit(ev, _pid=pid):
                     load_detail(_pid)
@@ -12154,6 +12670,26 @@ class App:
                 pass
             _render_images()
             _sync_counts()
+            # 发布必填属性：优先恢复已保存值；无则调后端 autofill 推导（只本地推导/不联网）
+            try:
+                saved_attrs = form.get("attributes")
+                if isinstance(saved_attrs, dict) and saved_attrs:
+                    _apply_attr_values(saved_attrs, only_empty=False)
+                else:
+                    pipeline = _backend()[2]
+                    _af = getattr(pipeline, "autofill_attributes", None)
+                    if callable(_af):
+                        _auto = _af(p, self.cfg, mid, overrides=None) or {}
+                        _apply_attr_values(_auto)
+                        if _auto:
+                            try:
+                                attr_status.value = (f"已按标题/SKU/品牌预填 {len(_auto)} 项"
+                                                     "必填属性，可修改")
+                                attr_status.color = MUTED
+                            except Exception:
+                                pass
+            except Exception:
+                pass
 
         # ---------- ③ 回调 ----------
         def load_categories(e=None):
@@ -12514,7 +13050,7 @@ class App:
                                 _apply_ai(_f, data.get(_f))
                         notes = [str(n) for n in (notes or []) if str(n or "").strip()]
                         _status(ai_status,
-                                "AI 一键生成完成；请逐项人工复核后再预演/保存" +
+                                "AI 一键生成完成；请逐项人工复核后再检查/保存" +
                                 (f"（提示：{'；'.join(notes[:3])}）" if notes else ""),
                                 WARN_C if notes else SUCCESS_C)
                         _toast("AI 已生成全部文案，请复核", True)
@@ -12610,6 +13146,8 @@ class App:
                 "handling_time": _as_int(handling_tf.value, 2),
                 "shipping_template": str(ship_dd.value or
                                          _cget("amazon_shipping_template", "") or ""),
+                # 发布必填属性：只传用户填写/后端自动补齐的值（contract：overrides["attributes"]）
+                "attributes": _attr_values(),
             }
 
         def _pid():
@@ -12661,8 +13199,20 @@ class App:
             if err:
                 rows.append(ft.Text("失败原因：" + err, size=12, color=DANGER_C,
                                     selectable=True))
+            # 发布结果（task-8 新字段；旧后端没有这些字段时不显示，不报错）
+            p_state = str(getattr(res, "publish_state", "") or "")
+            p_err = str(getattr(res, "publish_error", "") or "")
+            p_asin = str(getattr(res, "publish_asin", "") or "")
+            if p_state or p_err:
+                rows.append(ft.Divider(color=BORDER, height=10))
+                rows += _publish_info_rows(
+                    p_state, p_err, p_asin,
+                    detail=getattr(res, "publish_detail", None),
+                    notes=getattr(res, "attribute_notes", None),
+                    required=getattr(res, "required_attrs", None))
+                form["publish_state"] = p_state
             if preview:
-                rows.append(muted("预演不写任何数据（saved=false）。", 11))
+                rows.append(muted("发布前检查不写任何数据（saved=false）。", 11))
             result_box.controls = rows
 
         def _refresh_after_save():
@@ -12675,8 +13225,186 @@ class App:
             except Exception:
                 pass
 
+        def _render_direct_publish_state(st):
+            """把 verify_publish/publish_state 的 dict 渲染到⑥结果区。"""
+            st = st if isinstance(st, dict) else {}
+            state = str(st.get("state") or "")
+            err = str(st.get("err_msg") or st.get("errMsg") or "")
+            asin = str(st.get("asin") or "")
+            rows = [h1("发布结果（查询）", 13)]
+            rows += _publish_info_rows(
+                state, err, asin, detail=st.get("detail") or st.get("counts"),
+                notes=st.get("attribute_notes"),
+                required=st.get("required_attrs"))
+            result_box.controls = rows
+            form["publish_state"] = state
+            return state, err
+
+        def autofill_attrs(e=None):
+            if not product:
+                _status(attr_status, "先载入一个采集箱商品，再自动补齐必填属性", WARN_C)
+                _toast("请先选择或载入采集箱商品", False)
+                return
+            _status(attr_status, "正在从标题/SKU/品牌推导必填属性…", MUTED)
+
+            def work():
+                try:
+                    _make, _payload, pipeline = _backend()
+                    fn = getattr(pipeline, "autofill_attributes", None)
+                    if not callable(fn):
+                        raise RuntimeError("后端未提供 autofill_attributes（请更新后端）")
+                    mid = str(_cget("amazon_site", "") or _pick(product, "marketPlaceId"))
+                    missing = list(getattr(self, "_amz_missing_attrs", None) or [])
+                    try:
+                        vals = fn(product, self.cfg, mid, overrides=_overrides(),
+                                  required=missing or None) or {}
+                    except TypeError:
+                        vals = fn(product, self.cfg, mid, overrides=_overrides()) or {}
+                    _apply_attr_values(vals)
+                    _status(attr_status,
+                            f"已自动补齐 {len(vals)} 项必填属性，可手工修改"
+                            if vals else "没有可自动补齐的属性，请手工填写",
+                            SUCCESS_C if vals else WARN_C)
+                except Exception as ex:
+                    _status(attr_status, f"自动补齐失败：{str(ex)[:150]}", WARN_C)
+                finally:
+                    _ui()
+            threading.Thread(target=work, daemon=True).start()
+
+        def query_publish(e=None):
+            pid = _pid()
+            if not pid:
+                _status(save_status, "先选择/载入一个采集箱商品，再查询发布结果", WARN_C)
+                _toast("请先选择或载入采集箱商品", False)
+                return
+            _status(save_status, "正在查询发布结果（只读）…", MUTED)
+            result_box.controls = [muted("查询中…", 11)]
+            _ui()
+
+            def work():
+                try:
+                    _make, _payload, pipeline = _backend()
+                    fn = getattr(pipeline, "verify_publish", None)
+                    st = {}
+                    if callable(fn):
+                        st = fn(pid, self.cfg, wait_seconds=0) or {}
+                    else:
+                        # 兼容后端未提供 verify_publish：用 client.publish_state 只读核实
+                        c = _client()
+                        st = c.publish_state(pid) or {}
+                    state, perr = _render_direct_publish_state(st)
+                    label, color, _icon, ok = _publish_badge(
+                        state, perr, str(st.get("detail") or ""))
+                    missing = _missing_attrs(perr)
+                    if missing:
+                        _refresh_missing_hint(missing)
+                    _status(save_status, f"发布状态：{label}", color)
+                    try:
+                        self._log(f"Amazon 发布结果查询：{pid} · {label}"
+                                  + (f" · 缺少属性：{','.join(missing)}" if missing else ""),
+                                  "INFO" if ok else "WARN")
+                    except Exception:
+                        pass
+                    _toast(f"发布状态：{label}", ok)
+                except Exception as ex:
+                    _status(save_status, f"查询发布结果失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"查询发布结果失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+            threading.Thread(target=work, daemon=True).start()
+
+        def _retry_run(pid):
+            _status(save_status, "正在自动补齐必填属性并重试发布（op=2）…", MUTED)
+
+            def work():
+                try:
+                    _make, _payload, pipeline = _backend()
+                    mid = str(_cget("amazon_site", "") or
+                              _pick(product, "marketPlaceId"))
+                    af = getattr(pipeline, "autofill_attributes", None)
+                    if callable(af):
+                        try:
+                            _missing = list(getattr(self, "_amz_missing_attrs", None) or [])
+                            try:
+                                _afv = af(product, self.cfg, mid,
+                                          overrides=_overrides(),
+                                          required=_missing or None) or {}
+                            except TypeError:
+                                _afv = af(product, self.cfg, mid,
+                                          overrides=_overrides()) or {}
+                            _apply_attr_values(_afv)
+                        except Exception as _afe:
+                            try:
+                                self._log(f"Amazon 重试发布：自动补齐跳过（{_afe}）", "WARN")
+                            except Exception:
+                                pass
+                    fn = getattr(pipeline, "run_amazon_product", None)
+                    if not callable(fn):
+                        raise RuntimeError("后端未提供 run_amazon_product")
+                    ov = _overrides()
+                    ov["attributes"] = _attr_values()
+                    res = fn(pid, self.cfg, overrides=ov, dry_run=False,
+                             use_ai=False, op="2", confirm_write=True)
+                    _render_result(res, "重试发布结果", preview=False)
+                    state = str(getattr(res, "publish_state", "") or "")
+                    label, color, _icon, ok = _publish_badge(
+                        state, str(getattr(res, "publish_error", "") or ""),
+                        str(getattr(res, "publish_detail", "") or ""))
+                    if bool(getattr(res, "saved", False)):
+                        _status(save_status, f"重试发布完成：{label}", color)
+                        _toast(f"重试发布完成：{label}", ok)
+                        try:
+                            self._log(f"Amazon 重试发布：{pid} · {label}",
+                                      "INFO" if ok else "WARN")
+                        except Exception:
+                            pass
+                        _refresh_after_save()
+                    else:
+                        err = str(getattr(res, "error", "") or "见下方结果")
+                        _status(save_status, f"重试发布未成功：{err[:140]}", DANGER_C)
+                        _toast(f"重试发布未成功：{err[:70]}", False)
+                except Exception as ex:
+                    _status(save_status, f"重试发布失败：{str(ex)[:180]}", DANGER_C)
+                    _toast(f"重试发布失败：{str(ex)[:70]}", False)
+                finally:
+                    _ui()
+            threading.Thread(target=work, daemon=True).start()
+
+        def retry_publish(e=None):
+            pid = _pid()
+            if not pid:
+                _status(save_status, "先选择/载入一个采集箱商品，再自动补齐并重试发布",
+                        WARN_C)
+                _toast("请先选择或载入采集箱商品", False)
+                return
+            if _preview_mode:
+                _status(save_status, "当前是检查模式：不会真实发布，请用「发布前检查」校验",
+                        WARN_C)
+                _toast("检查模式：已拒绝真实发布，请用「发布前检查」校验", False)
+                return
+            missing = list(getattr(self, "_amz_missing_attrs", None) or [])
+            dlg = ft.AlertDialog(
+                modal=True, title=ft.Text("确认自动补齐并重试发布"),
+                content=ft.Column([
+                    ft.Text(f"商品：{pid}", size=12.5, color=TEXT, selectable=True),
+                    ft.Text("动作：自动补齐必填属性后以「保存并发布（op=2）」重试",
+                            size=12.5, color=WARN_C),
+                    muted("缺少属性：" + ("、".join(missing) if missing
+                                         else "（按后端规则自动推导）"), 11),
+                    muted("这会真实提交平台并可能改变发布状态（不是检查）。", 11),
+                ], spacing=6, width=460),
+                actions=[ft.TextButton("取消", on_click=lambda ev: _close(dlg)),
+                         ft.ElevatedButton("确认重试发布", bgcolor=WARN_C,
+                                           color=ON_ACCENT,
+                                           on_click=lambda ev: (_close(dlg),
+                                                                _retry_run(pid)))])
+            self._show_dlg(dlg)
+            _status(save_status, "等待确认重试发布…", MUTED)
+
         def _save_run(pid, op, op_text):
-            _status(save_status, f"正在保存（op={op} · {op_text}）…", MUTED)
+            _status(save_status,
+                    (f"正在保存并核实发布结果（op={op} · {op_text}，可能需要约 60 秒）…"
+                     if str(op) == "2" else f"正在保存（op={op} · {op_text}）…"), MUTED)
 
             def work():
                 try:
@@ -12686,11 +13414,24 @@ class App:
                         use_ai=False, op=op, confirm_write=True)
                     _render_result(res, "保存结果", preview=False)
                     if bool(getattr(res, "saved", False)):
-                        _status(save_status, f"保存成功（op={op} · {op_text}）", SUCCESS_C)
-                        _toast(f"已保存到 Amazon（op={op}）", True)
+                        p_state = str(getattr(res, "publish_state", "") or "")
+                        p_err = str(getattr(res, "publish_error", "") or "")
+                        if p_state:
+                            label, color, _icon, ok2 = _publish_badge(
+                                p_state, p_err,
+                                str(getattr(res, "publish_detail", "") or ""))
+                            _status(save_status,
+                                    f"保存完成（op={op}）· 发布状态：{label}", color)
+                            _toast(f"保存完成（op={op}）：{label}", ok2)
+                        else:
+                            _status(save_status,
+                                    f"保存成功（op={op} · {op_text}）", SUCCESS_C)
+                            _toast(f"已保存到 Amazon（op={op}）", True)
                         try:
                             self._log(f"Amazon 保存成功：{pid} op={op} · "
-                                      f"{str(getattr(res, 'title', ''))[:50]}", "INFO")
+                                      f"{str(getattr(res, 'title', ''))[:50]}"
+                                      + (f" · 发布状态 {p_state}" if p_state else ""),
+                                      "INFO")
                         except Exception:
                             pass
                         _refresh_after_save()
@@ -12717,11 +13458,11 @@ class App:
         def do_preview(e=None):
             pid = _pid()
             if not pid:
-                _status(save_status, "先选择/载入一个采集箱商品，再预演", WARN_C)
+                _status(save_status, "先选择/载入一个采集箱商品，再发布前检查", WARN_C)
                 _toast("请先选择或载入采集箱商品", False)
                 return
             _status(save_status,
-                    "预演中（读取详情、校验；不发写请求、不花 AI 费用）…", MUTED)
+                    "发布前检查中（读取详情、校验；不写平台、不花 AI 费用）…", MUTED)
             result_box.controls = [muted("运行中…", 11)]
             _ui()
 
@@ -12731,28 +13472,28 @@ class App:
                     res = pipeline.run_amazon_product(
                         pid, self.cfg, overrides=_overrides(), dry_run=True,
                         use_ai=False, op=str(op_dd.value or "1"))
-                    _render_result(res, "预演结果（未保存）", preview=True)
+                    _render_result(res, "检查结果（未保存）", preview=True)
                     ok = bool(getattr(res, "ok", False))
                     _status(save_status,
-                            ("预演通过，未保存、未花钱；确认无误后可点「保存」" if ok else
-                             "预演发现问题：" +
+                            ("检查通过，未保存、未调用 AI；确认无误后可点「保存」" if ok else
+                             "发布前检查发现问题：" +
                              str(getattr(res, "error", "") or "见下方阻断项")[:120]),
                             SUCCESS_C if ok else DANGER_C)
-                    _toast("预演完成（未保存）", ok)
+                    _toast("发布前检查完成（未保存）", ok)
                 except Exception as ex:
-                    _status(save_status, f"预演失败：{str(ex)[:160]}", DANGER_C)
-                    _toast(f"预演失败：{str(ex)[:70]}", False)
+                    _status(save_status, f"发布前检查失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"发布前检查失败：{str(ex)[:70]}", False)
                 finally:
                     _ui()
             threading.Thread(target=work, daemon=True).start()
 
         def do_save(e=None):
             if _preview_mode:
-                # 契约 §7/D：AURORA_NO_SAVE/AURORA_TEST 下保存按钮直接拒绝（只允许预演）。
+                # 检查模式（AURORA_NO_SAVE/AURORA_TEST）下保存按钮直接拒绝。
                 _status(save_status,
-                        "当前是预演模式（AURORA_NO_SAVE/AURORA_TEST）：保存已拒绝，"
-                        "请用「预演」校验；真实保存需在正式环境操作", WARN_C)
-                _toast("预演模式：已拒绝真实保存，请用「预演」校验", False)
+                        "当前是检查模式：保存已拒绝，"
+                        "请用「发布前检查」校验；真实保存需在正式环境操作", WARN_C)
+                _toast("检查模式：已拒绝真实保存，请用「发布前检查」校验", False)
                 return
             pid = _pid()
             if not pid:
@@ -12775,7 +13516,7 @@ class App:
                                 ft.Text(f"商品：{pid}", size=12.5, color=TEXT),
                                 *[ft.Text("✗ " + str(x), size=12, color=DANGER_C,
                                           selectable=True) for x in issues[:12]],
-                                muted("修正后再预演/保存；UI 不会在阻断项存在时写平台。", 11),
+                                muted("修正后再检查/保存；UI 不会在阻断项存在时写平台。", 11),
                             ], spacing=4, width=480, height=260,
                                 scroll=ft.ScrollMode.AUTO),
                             actions=[ft.TextButton("关闭", on_click=lambda ev: _close(dlg))])
@@ -12799,7 +13540,7 @@ class App:
                             *([ft.Text("提醒：" + "；".join([str(w) for w in warnings[:4]]),
                                        size=11, color=WARN_C, selectable=True)]
                               if warnings else []),
-                            muted("这会真实写入店小秘/平台（不是预演）。", 11),
+                            muted("这会真实写入店小秘/平台（不是发布前检查）。", 11),
                         ], spacing=6, width=460),
                         actions=[ft.TextButton("取消", on_click=lambda ev: _close(dlg)),
                                  ft.ElevatedButton(
@@ -12821,12 +13562,12 @@ class App:
         conn_card = card(ft.Column([
             h1i(ft.Icons.STORE_OUTLINED, "① 连接与店铺", FS_MD),
             muted("Cookie 优先级：本页填写 → 店铺与登录手动 Cookie → 本机浏览器登录态。"
-                  "测试连接会显示登录/店铺/站点/三个计数（只读）。"),
+                  "检测连接会显示登录/店铺/站点/计数（只读）。"),
             cookie_src_text,
             ft.Row([cookie_tf, ft.Column([
                 ft.ElevatedButton("读取本机 Cookie", icon=ft.Icons.COOKIE_OUTLINED,
                                   bgcolor=CARD_2, color=TEXT, on_click=read_local_cookie),
-                ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING,
+                ft.ElevatedButton("检测连接", icon=ft.Icons.WIFI_TETHERING,
                                   bgcolor=ACCENT, color=ON_ACCENT,
                                   on_click=test_connect)], spacing=8, width=180)],
                 spacing=12, vertical_alignment=ft.CrossAxisAlignment.START),
@@ -12920,6 +13661,18 @@ class App:
                     ft.OutlinedButton("刷新运费模板", icon=ft.Icons.REFRESH,
                                       on_click=load_logistics)], spacing=10, wrap=True),
             ft.Row([brand_tf, maker_tf, sku_tf], spacing=10, wrap=True),
+            # ---------- 发布必填属性（task-8/9）：常用 4 项 + 失败原因动态追加 ----------
+            ft.Divider(color=BORDER, height=12),
+            h1i(ft.Icons.RULE, "发布必填属性（缺失会导致发布失败）", 14),
+            attr_fill_hint,
+            ft.Row([attr_tfs[_k] for _k, _l in self.AMAZON_ATTR_KEYS],
+                   spacing=10, wrap=True),
+            attr_extra_scroll,
+            ft.Row([ft.OutlinedButton("自动补齐必填属性", icon=ft.Icons.AUTO_FIX_HIGH,
+                                      on_click=autofill_attrs),
+                    attrs_missing_text], spacing=10, wrap=True),
+            attr_status,
+            ft.Divider(color=BORDER, height=12),
             img_text, img_box,
             ft.Row([attr_text,
                     ft.TextButton("查看 productAttr（只读）", icon=ft.Icons.DATA_OBJECT,
@@ -12927,17 +13680,23 @@ class App:
         ], spacing=8))
 
         save_card = card(ft.Column([
-            h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "⑥ 预演与保存", FS_MD),
-            muted("先「预演（不保存、不花钱）」；真实保存会二次确认并列出商品/标题/站点/op/"
-                  "校验问题。AURORA_NO_SAVE/AURORA_TEST 下只允许预演。"),
+            h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "⑥ 发布前检查与保存", FS_MD),
+            muted("先「发布前检查（不保存）」；真实保存会二次确认并列出商品/标题/站点/op/"
+                  "校验问题。检查模式不会写入平台数据。"),
             ft.Row([op_dd,
-                    ft.ElevatedButton("预演（不保存）", icon=ft.Icons.FACT_CHECK,
+                    ft.ElevatedButton("发布前检查（不保存）", icon=ft.Icons.FACT_CHECK,
                                       bgcolor=ACCENT, color=ON_ACCENT,
                                       on_click=do_preview),
-                    ft.ElevatedButton("保存（预演模式）" if _preview_mode else "保存到 Amazon",
+                    ft.ElevatedButton("保存（检查模式）" if _preview_mode else "保存到 Amazon",
                                       icon=ft.Icons.CLOUD_UPLOAD,
                                       bgcolor=SUCCESS_C, color=ON_ACCENT,
-                                      on_click=do_save)], spacing=10, wrap=True),
+                                      on_click=do_save),
+                    ft.TextButton("查询发布结果", icon=ft.Icons.REFRESH,
+                                  on_click=query_publish),
+                    ft.OutlinedButton("自动补齐并重试发布",
+                                      icon=ft.Icons.AUTO_FIX_HIGH,
+                                      tooltip="补齐必填属性后以 op=2 重新发布（需二次确认）",
+                                      on_click=retry_publish)], spacing=10, wrap=True),
             save_status,
             result_box,
         ], spacing=8))
@@ -12982,6 +13741,27 @@ class App:
 
     def _is_tiktok(self) -> bool:
         return str(getattr(getattr(self, "active_platform", None), "id", "")) == "tiktok"
+
+    def _alibaba_guard(self, action: str = "启动任务") -> bool:
+        """Alibaba 平台不使用速卖通批量管线：点击运行 = 打开 Alibaba 刊登页。
+
+        以前这里弹红色错误 toast，客户会以为软件出故障；改成正常跳转提示。
+        """
+        if str(getattr(getattr(self, "active_platform", None), "id", "")) != "alibaba":
+            return False
+        try:
+            self._log("已打开「Alibaba 刊登」页（Alibaba 平台不走速卖通批量管线）", "INFO")
+        except Exception:
+            pass
+        try:
+            self.toast("已打开「Alibaba 刊登」页：请选择商品后保存/发布", True)
+        except Exception:
+            pass
+        try:
+            self._switch(12)
+        except Exception:
+            pass
+        return True
 
     def _unsupported_guard(self, action: str = "操作") -> bool:
         """implemented=False 的平台：拦截并回到该平台首页（不产生任何写操作）。"""
@@ -13787,7 +14567,7 @@ class App:
                     _cset("tiktok_cookies", raw)
                     cookie_src_text.value = "Cookie 来源：" + str(desc)
                     _status(conn_status,
-                            f"已读取 Cookie（{len(src.cookies)} 项），可以点「测试连接」",
+                            f"已读取 Cookie（{len(src.cookies)} 项），可以点「检测连接」",
                             SUCCESS_C)
                     _toast("已读取本机 Cookie", True)
                 except Exception as ex:
@@ -13886,8 +14666,8 @@ class App:
                     load_history()
                     load_warehouses()
                 except Exception as ex:
-                    _status(conn_status, f"连接失败：{str(ex)[:160]}", DANGER_C)
-                    _toast(f"连接失败：{str(ex)[:70]}", False)
+                    _status(conn_status, f"检测连接失败：{str(ex)[:160]}", DANGER_C)
+                    _toast(f"检测连接失败：{str(ex)[:70]}", False)
                 finally:
                     _ui()
 
@@ -14695,7 +15475,7 @@ class App:
                                 _apply_ai(_f, data.get(_f))
                         notes = [str(n) for n in (notes or []) if str(n or "").strip()]
                         _status(ai_status,
-                                "AI 一键生成完成；请逐项人工复核后再预演/保存" +
+                                "AI 一键生成完成；请逐项人工复核后再检查/保存" +
                                 (f"（提示：{'；'.join(notes[:3])}）" if notes else ""),
                                 WARN_C if notes else SUCCESS_C)
                         _toast("AI 已生成文案，请复核", True)
@@ -15076,7 +15856,7 @@ class App:
                                 ft.Text(f"商品：{pid}", size=12.5, color=TEXT),
                                 *[ft.Text("✗ " + str(x), size=12, color=DANGER_C,
                                           selectable=True) for x in issues[:12]],
-                                muted("修正后再预演/保存；UI 不会在阻断项存在时写平台。", 11),
+                                muted("修正后再检查/保存；UI 不会在阻断项存在时写平台。", 11),
                             ], spacing=4, width=480, height=260,
                                 scroll=ft.ScrollMode.AUTO),
                             actions=[ft.TextButton("关闭",

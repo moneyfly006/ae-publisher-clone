@@ -17,8 +17,12 @@ from aeclone.services import amazon_pipeline as PL
 from aeclone.services.amazon_payload import SAVE_KEYS, join_bullets
 from aeclone.services.amazon_pipeline import (
     OP_LABELS, OP_MOVE_PENDING, OP_PUBLISH, OP_SAVE, AmazonRunResult, AmazonStep,
-    ai_generate_all, ai_generate_field, forced_preview, prepare_save,
-    run_amazon_product,
+    _autofill_attributes_with_notes, ai_generate_all, ai_generate_field,
+    autofill_attributes, forced_preview, prepare_save, required_attributes_from_schema,
+    run_amazon_product, verify_publish,
+)
+from aeclone.services.amazon_payload import (
+    REQUIRED_COMMON, missing_common_attributes, parse_product_attr,
 )
 
 ENV_KEYS = ("AURORA_NO_SAVE", "AURORA_TEST", "AURORA_SKIP_LICENSE")
@@ -88,10 +92,14 @@ def make_detail(**over):
 class FakeClient:
     """离线替身：读接口返回固定详情；save_product 只记录不联网。"""
 
-    def __init__(self, detail=None):
+    def __init__(self, detail=None, template=None, publish_results=None):
         self.detail = detail if detail is not None else make_detail()
         self.saved = []
         self.category_queries = []
+        self.template = template if isinstance(template, dict) else {}
+        self.template_queries = []
+        self.publish_results = publish_results
+        self.publish_queries = []
 
     def product_detail(self, pid):
         return self.detail
@@ -111,6 +119,28 @@ class FakeClient:
     def save_product(self, payload, op="1"):
         self.saved.append((dict(payload), str(op)))
         return {"code": 0, "msg": "Successful", "data": {"id": payload.get("id")}}
+
+    def attribute_template(self, category_id, marketplace_id, shop_id="-1"):
+        self.template_queries.append((str(category_id), str(marketplace_id),
+                                      str(shop_id)))
+        return dict(self.template)
+
+    def publish_state(self, product_id, shop_id="-1"):
+        self.publish_queries.append((str(product_id), str(shop_id)))
+        seq = self.publish_results
+        if isinstance(seq, list):
+            if not seq:
+                return {"state": "online", "err_msg": "", "asin": "", "title": "",
+                        "counts": {}}
+            idx = min(len(self.publish_queries) - 1, len(seq) - 1)
+            return dict(seq[idx])
+        if isinstance(seq, dict):
+            return dict(seq)
+        return {"state": "online", "err_msg": "", "asin": "B0TESTASIN",
+                "title": "Backhoe", "counts": {"draft": 14}}
+
+    def required_attributes_from_schema(self, category_id, product_type, site_code):
+        return list((self.template or {}).get("_schema_required") or [])
 
 
 class EnvIsolatedCase(unittest.TestCase):
@@ -138,6 +168,7 @@ class ConstantsTests(unittest.TestCase):
             "amazon_use_ai", "amazon_ai_preset", "amazon_title_prompt",
             "amazon_bullet_prompt", "amazon_description_prompt",
             "amazon_search_terms_prompt", "amazon_last_status",
+            "amazon_manufacturer_contact", "amazon_publish_wait",
         ]
         cfg = AppConfig()
         for key in keys:
@@ -454,8 +485,18 @@ class RealSavePathTests(EnvIsolatedCase):
         self.assertEqual(sent["searchTerms"], ai_over["search_terms"])
         self.assertEqual(sent["marketPlaceId"], "A2EUQ1WTGCTBG2")
         self.assertEqual(sent["currency"], "CAD")
-        # productAttr 原样回写（未切站点）
-        self.assertEqual(sent["productAttr"], make_product()["productAttr"])
+        # productAttr：原有属性原样保留 + 缺失的发布必填属性已自动补齐
+        sent_attr = parse_product_attr(sent["productAttr"])
+        raw_attr = parse_product_attr(make_product()["productAttr"])
+        for key, value in raw_attr.items():
+            self.assertEqual(sent_attr[key], value)
+        self.assertEqual(sent_attr["model_number"][0]["value"], "WY-QHCA-LTM-1")
+        self.assertEqual(sent_attr["part_number"][0]["value"], "WY-QHCA-LTM-1")
+        self.assertEqual(sent_attr["model_name"][0]["value"], "WY-QHCA-LTM-1")
+        self.assertEqual(sent_attr["manufacturer_contact_information"][0]["value"],
+                         "Generic, CN")
+        self.assertEqual(
+            missing_common_attributes(sent["productAttr"]), [])
 
     def test_real_save_failure_message(self):
         class SaveFail(FakeClient):
@@ -468,6 +509,435 @@ class RealSavePathTests(EnvIsolatedCase):
         self.assertFalse(res.ok)
         self.assertFalse(res.saved)
         self.assertIn("类目不可用", res.error)
+
+
+def _hw_detail(**over):
+    return make_detail(title="5 Ton Diesel Wheeled Backhoe Loader 4x4 HW20-28 "
+                             "Heavy Duty Construction Machine",
+                       description="<p>Heavy duty backhoe loader, made in China.</p>",
+                       **over)
+
+
+class AutofillAttributesTests(unittest.TestCase):
+    """task-8：必填属性自动补齐（错误驱动 + 同类在线商品模板）。"""
+
+    def test_derive_from_title_and_sku(self):
+        filled = autofill_attributes(_hw_detail()["product"], AppConfig(),
+                                     "A2EUQ1WTGCTBG2")
+        self.assertEqual(filled["model_number"], "HW20-28")
+        self.assertEqual(filled["model_name"], "HW20-28")
+        self.assertEqual(filled["part_number"], "WY-QHCA-LTM-1")
+        self.assertEqual(filled["manufacturer_contact_information"], "Generic, CN")
+
+    def test_existing_and_override_not_overwritten(self):
+        product = _hw_detail()["product"]
+        product["productAttr"] = json.dumps({
+            "model_number": [{"value": "EXISTING", "language_tag": "en_CA",
+                              "marketplace_id": "A2EUQ1WTGCTBG2"}]})
+        filled = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2")
+        self.assertNotIn("model_number", filled)      # 已有非空 → 不补
+        self.assertIn("part_number", filled)
+        # overrides 显式 attributes 优先
+        filled2 = autofill_attributes(
+            product, AppConfig(), "A2EUQ1WTGCTBG2",
+            overrides={"attributes": {"part_number": "OVERRIDE-PN"}})
+        self.assertNotIn("part_number", filled2)
+
+    def test_required_subset_only(self):
+        filled = autofill_attributes(_hw_detail()["product"], AppConfig(),
+                                     "A2EUQ1WTGCTBG2",
+                                     required=["part_number"])
+        self.assertEqual(list(filled), ["part_number"])
+
+    def test_cfg_manufacturer_contact(self):
+        cfg = AppConfig()
+        cfg.set("amazon_manufacturer_contact", "ACME Ltd, Shenzhen, CN")
+        filled = autofill_attributes(_hw_detail()["product"], cfg,
+                                     "A2EUQ1WTGCTBG2",
+                                     required=["manufacturer_contact_information"])
+        self.assertEqual(filled["manufacturer_contact_information"],
+                         "ACME Ltd, Shenzhen, CN")
+
+    def test_template_used_for_enum_and_dims_and_list_price(self):
+        template = {
+            "power_source_type": [{"value": "diesel",
+                                   "marketplace_id": "A2EUQ1WTGCTBG2"}],
+            "item_depth_width_height": [{
+                "length": {"value": "102", "unit": "inches"},
+                "width": {"value": "77", "unit": "inches"},
+                "height": {"value": "110", "unit": "inches"},
+                "marketplace_id": "A2EUQ1WTGCTBG2"}],
+            "supplier_declared_dg_hz_regulation": [{
+                "value": "not_applicable", "marketplace_id": "A2EUQ1WTGCTBG2"}],
+            "list_price": [{"value": {"currency": "CAD", "amount": 8900.0},
+                            "marketplace_id": "A2EUQ1WTGCTBG2"}],
+        }
+        filled = autofill_attributes(
+            _hw_detail()["product"], AppConfig(), "A2EUQ1WTGCTBG2",
+            required=["power_source_type", "item_depth_width_height",
+                      "supplier_declared_dg_hz_regulation", "list_price"],
+            template=template)
+        self.assertEqual(filled["power_source_type"], "diesel")
+        self.assertEqual(filled["item_depth_width_height"][0]["length"]["value"], "102")
+        self.assertEqual(filled["supplier_declared_dg_hz_regulation"],
+                         "not_applicable")
+        # list_price 以模板结构为准，amount=商品库存标准价，currency=站点币种
+        self.assertEqual(filled["list_price"][0]["value"],
+                         {"currency": "CAD", "amount": 15999.0})
+
+    def test_nine_missing_attributes_scenario(self):
+        required = ["item_depth_width_height", "model_number", "part_number",
+                    "model_name", "country_of_origin",
+                    "supplier_declared_dg_hz_regulation", "list_price",
+                    "power_source_type", "manufacturer_contact_information"]
+        template = {
+            "item_depth_width_height": [{
+                "length": {"value": "102", "unit": "inches"},
+                "width": {"value": "77", "unit": "inches"},
+                "height": {"value": "110", "unit": "inches"},
+                "marketplace_id": "A2EUQ1WTGCTBG2"}],
+            "supplier_declared_dg_hz_regulation": [{
+                "value": "not_applicable", "marketplace_id": "A2EUQ1WTGCTBG2"}],
+            "list_price": [{"value": {"currency": "CAD", "amount": 8900.0},
+                            "marketplace_id": "A2EUQ1WTGCTBG2"}],
+            "power_source_type": [{"value": "diesel",
+                                   "marketplace_id": "A2EUQ1WTGCTBG2"}],
+        }
+        filled = autofill_attributes(_hw_detail()["product"], AppConfig(),
+                                     "A2EUQ1WTGCTBG2", required=required,
+                                     template=template)
+        self.assertEqual(set(filled), set(required))
+        self.assertEqual(filled["country_of_origin"], "CN")
+        self.assertEqual(filled["model_number"], "HW20-28")
+
+    def test_unknown_attribute_goes_to_notes(self):
+        filled, notes = _autofill_attributes_with_notes(
+            _hw_detail()["product"], AppConfig(), "A2EUQ1WTGCTBG2",
+            required=["some_unknown_attribute"], template={})
+        self.assertEqual(filled, {})
+        self.assertTrue(any("some_unknown_attribute" in n and "无法自动补齐" in n
+                            for n in notes))
+
+
+class DeterministicAttributeMappingTests(unittest.TestCase):
+    """task-8 收尾：错误驱动第二轮确定性映射（无 template 也能补）。"""
+
+    def test_boolean_defaults(self):
+        product = _hw_detail()["product"]
+        product["productAttr"] = "{}"
+        filled = autofill_attributes(
+            product, AppConfig(), "A2EUQ1WTGCTBG2",
+            required=["contains_liquid_contents", "batteries_required",
+                      "is_expiration_dated_product", "is_assembly_required"])
+        self.assertIs(filled["contains_liquid_contents"], False)
+        self.assertIs(filled["batteries_required"], False)
+        self.assertIs(filled["is_expiration_dated_product"], False)
+        self.assertIs(filled["is_assembly_required"], False)
+
+    def test_is_assembly_required_true_when_title_mentions_assembly(self):
+        product = _hw_detail()["product"]
+        product["productAttr"] = "{}"
+        product["title"] = product["title"] + " assembly required"
+        filled = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
+                                     required=["is_assembly_required"])
+        self.assertIs(filled["is_assembly_required"], True)
+
+    def test_power_source_enum_mapping(self):
+        cases = {
+            "5 Ton Diesel Wheeled Backhoe Loader": "diesel_powered",
+            "Hydraulic Concrete Breaker": "hydraulic_powered",
+            "Gasoline Engine Water Pump": "gasoline_powered",
+            "Battery Powered Garden Tool": "Battery Powered",
+            "Electric Lawn Mower": "electric",
+        }
+        for title, expected in cases.items():
+            product = _hw_detail()["product"]
+            product["title"] = title
+            filled = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
+                                         required=["power_source_type"])
+            self.assertEqual(filled["power_source_type"], expected, title)
+
+    def test_power_source_fallback_notes_default(self):
+        product = _hw_detail()["product"]
+        product["title"] = "Heavy Duty Construction Machine"
+        filled, notes = _autofill_attributes_with_notes(
+            product, AppConfig(), "A2EUQ1WTGCTBG2",
+            required=["power_source_type"], template={})
+        self.assertEqual(filled["power_source_type"], "diesel_powered")
+        self.assertTrue(any("安全默认 diesel_powered" in n for n in notes))
+
+    def test_supplier_default_not_applicable(self):
+        filled = autofill_attributes(_hw_detail()["product"], AppConfig(),
+                                     "A2EUQ1WTGCTBG2",
+                                     required=["supplier_declared_dg_hz_regulation"])
+        self.assertEqual(filled["supplier_declared_dg_hz_regulation"],
+                         "not_applicable")
+
+    def test_country_default_cn_with_note(self):
+        product = _hw_detail()["product"]
+        product["description"] = "<p>Heavy duty backhoe loader.</p>"
+        product["title"] = "5 Ton Diesel Wheeled Backhoe Loader HW20-28"
+        filled, notes = _autofill_attributes_with_notes(
+            product, AppConfig(), "A2EUQ1WTGCTBG2",
+            required=["country_of_origin"], template={})
+        self.assertEqual(filled["country_of_origin"], "CN")
+        self.assertTrue(any("默认 CN" in n for n in notes))
+
+    def test_list_price_default_format(self):
+        filled = autofill_attributes(_hw_detail()["product"], AppConfig(),
+                                     "A2EUQ1WTGCTBG2",
+                                     required=["list_price"])
+        self.assertEqual(filled["list_price"], [{
+            "currency": "CAD", "value": "15999.00",
+            "marketplace_id": "A2EUQ1WTGCTBG2"}])
+
+    def test_item_dimensions_reused_from_product_attr(self):
+        product = _hw_detail()["product"]
+        product["productAttr"] = json.dumps({
+            "item_dimensions": [{
+                "length": {"unit": "inches", "value": "196"},
+                "width": {"unit": "inches", "value": "63"},
+                "height": {"unit": "inches", "value": "98"},
+                "marketplace_id": "A2EUQ1WTGCTBG2"}],
+        })
+        # 已存在 item_dimensions → 不重复补
+        self.assertEqual(autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
+                                             required=["item_dimensions"]), {})
+        # item_depth_width_height 复用同一 productAttr item_dimensions（复制改键）
+        filled2 = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
+                                      required=["item_depth_width_height"])
+        self.assertEqual(filled2["item_depth_width_height"][0]["height"]["value"], "98")
+
+    def test_item_dimensions_regex_from_text(self):
+        product = _hw_detail()["product"]
+        product["description"] = ("<p>Backhoe loader. Dimension: "
+                                  "6200*1960*2800mm, weight 5400kg.</p>")
+        filled = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
+                                     required=["item_dimensions"])
+        item = filled["item_dimensions"][0]
+        self.assertEqual(item["length"], {"value": "244", "unit": "inches"})
+        self.assertEqual(item["width"], {"value": "77", "unit": "inches"})
+        self.assertEqual(item["height"], {"value": "110", "unit": "inches"})
+        self.assertEqual(item["marketplace_id"], "A2EUQ1WTGCTBG2")
+
+    def test_item_dimensions_regex_without_unit_defaults_mm(self):
+        product = _hw_detail()["product"]
+        product["description"] = "<p>Dimension: 6200x1960x2800 Make:Hengwang for transport.</p>"
+        filled = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
+                                     required=["item_dimensions"])
+        self.assertEqual(filled["item_dimensions"][0]["length"]["value"], "244")
+
+    def test_item_dimensions_missing_goes_to_notes(self):
+        product = _hw_detail()["product"]
+        product["productAttr"] = "{}"
+        product["description"] = "<p>No dimensions here.</p>"
+        filled, notes = _autofill_attributes_with_notes(
+            product, AppConfig(), "A2EUQ1WTGCTBG2",
+            required=["item_dimensions"], template={})
+        self.assertNotIn("item_dimensions", filled)
+        self.assertTrue(any("item_dimensions" in n and "无法自动补齐" in n
+                            for n in notes))
+
+    def test_required_attributes_from_overrides_second_round(self):
+        """第二轮：required_attributes 透传 → 只补这些（含确定性映射）。"""
+        product = _hw_detail()["product"]
+        ov = {"required_attributes": ["contains_liquid_contents",
+                                      "power_source_type",
+                                      "country_of_origin"]}
+        filled = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
+                                     overrides=ov)
+        self.assertEqual(set(filled), {"contains_liquid_contents",
+                                       "power_source_type", "country_of_origin"})
+        self.assertIs(filled["contains_liquid_contents"], False)
+        self.assertEqual(filled["power_source_type"], "diesel_powered")
+        self.assertEqual(filled["country_of_origin"], "CN")
+
+
+class PublishVerifyTests(EnvIsolatedCase):
+    """task-8：发布状态核实 + op=2 端到端（离线）。"""
+
+    SAMPLE_ERR = ("发布失败:code:90220,“型号” 为必填项，但缺失。,属性:model_number;"
+                  "code:90220,“制造商联系信息” 为必填项，但缺失。,"
+                  "属性:manufacturer_contact_information;"
+                  "code:90220,“零件编号” 为必填项，但缺失。,属性:part_number;"
+                  "code:90220,“型号名称” 为必填项，但缺失。,属性:model_name;")
+
+    def test_verify_publish_single_check_online(self):
+        fake = FakeClient(publish_results={"state": "online", "asin": "B0ABC",
+                                           "title": "T", "err_msg": "",
+                                           "counts": {"online": 143}})
+        out = verify_publish("220114595363182310", AppConfig(), client=fake,
+                             wait_seconds=0)
+        self.assertEqual(out["status"], "online")
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["asin"], "B0ABC")
+        self.assertEqual(out["checks"], 1)
+
+    def test_verify_publish_failed_required_attrs(self):
+        fake = FakeClient(publish_results={"state": "publishFail",
+                                           "err_msg": self.SAMPLE_ERR,
+                                           "asin": "", "title": "T"})
+        out = verify_publish("220114595363182310", AppConfig(), client=fake,
+                             wait_seconds=0)
+        self.assertEqual(out["status"], "failed")
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["required_attrs"],
+                         ["model_number", "manufacturer_contact_information",
+                          "part_number", "model_name"])
+        self.assertIn("缺失必填属性", out["detail"])
+
+    def test_verify_publish_reviewing(self):
+        fake = FakeClient(publish_results={
+            "state": "publishFail", "err_msg": "发布失败:code:100521,商品正在审核中",
+            "asin": "", "title": "T"})
+        out = verify_publish("220114595363182310", AppConfig(), client=fake,
+                             wait_seconds=0)
+        self.assertEqual(out["status"], "reviewing")
+        self.assertTrue(out["ok"])
+        self.assertIn("审核", out["detail"])
+
+    def test_verify_publish_processing_single(self):
+        fake = FakeClient(publish_results={"state": "publishing", "err_msg": "",
+                                           "asin": "", "title": "T"})
+        out = verify_publish("220114595363182310", AppConfig(), client=fake,
+                             wait_seconds=0)
+        self.assertEqual(out["status"], "processing")
+        self.assertTrue(out["ok"])
+        self.assertEqual(out["checks"], 1)
+
+    def test_verify_publish_polls_until_online(self):
+        fake = FakeClient(publish_results=[{"state": "publishing", "err_msg": ""},
+                                           {"state": "online", "asin": "B0X",
+                                            "err_msg": ""}])
+        with patch("aeclone.services.amazon_pipeline.time.sleep") as sleep:
+            out = verify_publish("220114595363182310", AppConfig(), client=fake,
+                                 wait_seconds=5, interval=1)
+        self.assertEqual(out["status"], "online")
+        self.assertEqual(out["asin"], "B0X")
+        self.assertEqual(len(fake.publish_queries), 2)
+        sleep.assert_called()
+
+    def test_run_op2_preview_autofills_without_writing(self):
+        fake = FakeClient(detail=_hw_detail(), template={
+            "power_source_type": [{"value": "diesel",
+                                   "marketplace_id": "A2EUQ1WTGCTBG2"}]})
+        res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
+                                 dry_run=True, op=OP_PUBLISH)
+        self.assertTrue(res.ok, res.error)
+        self.assertIn("必填属性补齐", res.log())
+        self.assertNotIn("发布结果核实", res.log())
+        self.assertEqual(fake.saved, [])
+        self.assertEqual(fake.publish_queries, [])
+        self.assertEqual(len(fake.template_queries), 1)
+
+    def test_run_op2_real_save_online(self):
+        os.environ["AURORA_SKIP_LICENSE"] = "1"
+        cfg = AppConfig()
+        cfg.set("amazon_publish_wait", 0)
+        fake = FakeClient(detail=_hw_detail(), publish_results={
+            "state": "online", "asin": "B0NEW", "title": "T", "err_msg": ""})
+        res = run_amazon_product("220114595363182310", cfg, client=fake,
+                                 dry_run=False, confirm_write=True,
+                                 op=OP_PUBLISH)
+        self.assertTrue(res.ok, res.error)
+        self.assertTrue(res.saved)
+        self.assertEqual(res.publish_state, "online")
+        self.assertEqual(res.publish_asin, "B0NEW")
+        self.assertEqual(res.required_attrs, [])
+        self.assertEqual(len(fake.publish_queries), 1)
+        self.assertIn("发布结果核实", res.log())
+        self.assertEqual(res.completion_label, "保存并发布成功")
+        payload = fake.saved[0][0]
+        attr = parse_product_attr(payload["productAttr"])
+        self.assertEqual(attr["model_number"][0]["value"], "HW20-28")
+        self.assertEqual(attr["model_number"][0]["language_tag"], "en_CA")
+        self.assertEqual(attr["part_number"][0]["value"], "WY-QHCA-LTM-1")
+        self.assertTrue(attr["manufacturer_contact_information"][0]["value"])
+
+    def test_run_op2_publish_failed_records_required_and_notes(self):
+        os.environ["AURORA_SKIP_LICENSE"] = "1"
+        cfg = AppConfig()
+        cfg.set("amazon_publish_wait", 0)
+        fake = FakeClient(detail=_hw_detail(), publish_results={
+            "state": "publishFail", "asin": "", "title": "T",
+            "err_msg": self.SAMPLE_ERR})
+        res = run_amazon_product("220114595363182310", cfg, client=fake,
+                                 dry_run=False, confirm_write=True,
+                                 op=OP_PUBLISH)
+        self.assertTrue(res.saved)
+        self.assertFalse(res.ok)
+        self.assertEqual(res.publish_state, "publishFail")
+        self.assertIn("90220", res.publish_error)
+        self.assertEqual(set(res.required_attrs),
+                         {"model_number", "manufacturer_contact_information",
+                          "part_number", "model_name"})
+        self.assertTrue(any("缺失必填属性" in n for n in res.attribute_notes))
+        self.assertEqual(res.completion_label, "已保存，发布失败")
+        self.assertIn("发布结果核实", res.log())
+
+    def test_run_op2_publish_reviewing_is_not_software_failure(self):
+        os.environ["AURORA_SKIP_LICENSE"] = "1"
+        cfg = AppConfig()
+        cfg.set("amazon_publish_wait", 0)
+        fake = FakeClient(detail=_hw_detail(), publish_results={
+            "state": "publishFail", "asin": "", "title": "T",
+            "err_msg": "发布失败:code:100521,商品正在审核中"})
+        res = run_amazon_product("220114595363182310", cfg, client=fake,
+                                 dry_run=False, confirm_write=True,
+                                 op=OP_PUBLISH)
+        self.assertTrue(res.ok, res.error)
+        self.assertTrue(res.saved)
+        self.assertEqual(res.publish_error, "")
+        self.assertIn("审核", res.publish_detail)
+        self.assertEqual(res.completion_label, "已保存，平台审核中")
+
+    def test_run_op2_required_attributes_from_overrides(self):
+        """调用方把上次失败的 required attrs 传回 overrides → 只补这些。"""
+        fake = FakeClient(detail=_hw_detail(), template={
+            "power_source_type": [{"value": "diesel",
+                                   "marketplace_id": "A2EUQ1WTGCTBG2"}]})
+        res = run_amazon_product(
+            "220114595363182310", AppConfig(), client=fake, dry_run=True,
+            op=OP_PUBLISH,
+            overrides={"required_attributes": ["model_number", "country_of_origin"]})
+        self.assertTrue(res.ok, res.error)
+        self.assertIn("必填属性补齐", res.log())
+        # 预演时 payload 不对外返回，但补齐 step 应只提到这两项
+        step = next(s for s in res.steps if s.name == "必填属性补齐")
+        self.assertIn("model_number", step.detail)
+        self.assertIn("country_of_origin", step.detail)
+        self.assertNotIn("part_number", step.detail)
+
+    def test_run_op1_autofills_without_template_or_verify(self):
+        """op=1 保存草稿也自动补齐必填属性；但不拉同类模板、不做发布核实。"""
+        fake = FakeClient(detail=_hw_detail())
+        res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
+                                 dry_run=True, op=OP_SAVE)
+        self.assertTrue(res.ok, res.error)
+        step = next((s for s in res.steps if s.name == "必填属性补齐"), None)
+        self.assertIsNotNone(step)
+        self.assertIn("model_number", step.detail)
+        self.assertEqual(fake.template_queries, [])   # op=1 不拉同类在线商品模板
+        self.assertEqual(fake.publish_queries, [])
+        self.assertEqual(fake.saved, [])
+
+    def test_run_op1_autofill_can_be_disabled_by_cfg(self):
+        cfg = AppConfig()
+        cfg.set("amazon_autofill_attrs", False)
+        fake = FakeClient(detail=_hw_detail())
+        res = run_amazon_product("220114595363182310", cfg, client=fake,
+                                 dry_run=True, op=OP_SAVE)
+        self.assertTrue(res.ok, res.error)
+        step = next(s for s in res.steps if s.name == "必填属性补齐")
+        self.assertIn("已关闭", step.detail)
+        self.assertTrue(any("未自动补齐（开关已关闭）" in w for w in res.warnings))
+
+    def test_required_attributes_from_schema_helper(self):
+        fake = FakeClient(template={"_schema_required": ["model_number", "part_number"]})
+        self.assertEqual(required_attributes_from_schema("159365", "OUTDOOR_LIVING",
+                                                         "CA", client=fake),
+                         ["model_number", "part_number"])
+        self.assertEqual(required_attributes_from_schema("1", "T", "CA"), [])
 
 
 class AiTests(EnvIsolatedCase):

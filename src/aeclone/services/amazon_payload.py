@@ -39,12 +39,21 @@ SAVE_KEYS: list[str] = [
     "gpsrSafetyAttestation", "switchFulfillmentTo", "merchantShippingGroup", "searchTerms",
 ]
 
-# overrides 唯一键名（docs §3.2.0）；其它键一律忽略
+# overrides 唯一键名（docs §3.2.0 + task-8 属性补齐）；其它键一律忽略
 OVERRIDE_KEYS = (
     "title", "bullets", "description", "search_terms", "brand", "manufacturer", "sku",
     "standard_price", "sale_price", "quantity", "category_id", "category_path",
     "marketplace_id", "currency", "fulfillment", "handling_time", "shipping_template",
+    "attributes", "required_attributes",
 )
+
+# 发布（op=2）实测必填的通用属性（不同类目还会有额外项，见 errMsg/schema）
+REQUIRED_COMMON = ("model_number", "part_number", "model_name",
+                   "manufacturer_contact_information")
+
+# 缺失必填属性自动补齐开关（配置键；config.py 的 DEFAULTS 由 backend 维护，
+# 这里未写入时按默认 True：缺失就补、可在设置里关掉）
+AUTOFILL_CFG_KEY = "amazon_autofill_attrs"
 
 OP_DEFAULT = "1"
 
@@ -206,6 +215,238 @@ def _product_attr_payload(raw, marketplace_id: str = "") -> str:
         return raw if isinstance(raw, str) else ""
 
 
+def parse_product_attr(raw) -> dict:
+    """productAttr（JSON 字符串/字典）→ dict；非法输入返回 {}。"""
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return {}
+        try:
+            data = json.loads(text)
+        except Exception:
+            return {}
+        return data if isinstance(data, dict) else {}
+    return {}
+
+
+def language_tag_for(marketplace_id: str) -> str:
+    """marketPlaceId → Amazon language_tag（如 A2EUQ1WTGCTBG2 → en_CA）。"""
+    mp = str(marketplace_id or "").strip()
+    meta = SITE_META.get(mp) or {}
+    code = str(meta.get("code") or "").strip()
+    lang = str(meta.get("lang") or "en").strip()
+    if code:
+        return f"{lang}_{code}"
+    return "en_US"
+
+
+def _attr_present_value(val) -> bool:
+    if val is None:
+        return False
+    if isinstance(val, list):
+        if not val:
+            return False
+        for first in val:
+            if isinstance(first, dict):
+                if "value" in first:
+                    inner = first.get("value")
+                    if inner is None:
+                        return False
+                    if isinstance(inner, str) and not inner.strip():
+                        return False
+                    return True
+                if first:
+                    # 形如 item_dimensions 的原始 item（length/width/height，无 value 键）
+                    return True
+            elif str(first).strip():
+                return True
+        return False
+    if isinstance(val, str):
+        return bool(val.strip())
+    return True
+
+
+def attribute_present(attr_data, key: str) -> bool:
+    """属性 dict 里该 key 是否有非空值（布尔 false 也算已填写）。"""
+    if not isinstance(attr_data, dict) or key not in attr_data:
+        return False
+    return _attr_present_value(attr_data.get(key))
+
+
+def missing_common_attributes(raw) -> list[str]:
+    """检查 productAttr 里缺失的 REQUIRED_COMMON（发布必填）。"""
+    data = parse_product_attr(raw)
+    return [key for key in REQUIRED_COMMON if not attribute_present(data, key)]
+
+
+# ---------------- 缺失必填属性自动补齐（保存包阶段） ----------------
+def autofill_enabled(cfg) -> bool:
+    """``cfg.amazon_autofill_attrs``（默认 True；False/0/"0"/"false"/"off" 关闭）。"""
+    value = _cfg_value(cfg, AUTOFILL_CFG_KEY, True)
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() not in ("0", "false", "off", "no", "")
+    return bool(value)
+
+
+def required_attribute_names(cfg=None, overrides: dict | None = None) -> list[str]:
+    """本次要补齐的属性名：overrides["required_attributes"] > cfg 记录 > REQUIRED_COMMON。"""
+    raw = (overrides or {}).get("required_attributes") \
+        if isinstance(overrides, dict) else None
+    if not raw:
+        raw = _cfg_value(cfg, "amazon_last_category_required", "") or ""
+    if isinstance(raw, str):
+        parts = re.split(r"[,;，；\s]+", raw)
+    else:
+        try:
+            parts = list(raw)
+        except TypeError:
+            parts = []
+    out: list[str] = []
+    for item in parts:
+        name = str(item or "").strip()
+        if name and name not in out:
+            out.append(name)
+    return out or list(REQUIRED_COMMON)
+
+
+def attribute_value_text(value, limit: int = 60) -> str:
+    """属性值 → 单行摘要（用于 warnings/notes 展示补了什么）。"""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, list):
+        if not value:
+            return ""
+        first = value[0]
+        if isinstance(first, dict):
+            inner = first.get("value", first)
+            return attribute_value_text(inner, limit)
+        return attribute_value_text(first, limit)
+    if isinstance(value, dict):
+        inner = value.get("value")
+        if isinstance(inner, dict) and "amount" in inner:
+            currency = str(inner.get("currency") or "").strip()
+            amount = inner.get("amount")
+            return f"{amount} {currency}".strip()
+        if inner is not None:
+            return attribute_value_text(inner, limit)
+        return str(value)[:limit]
+    text = re.sub(r"\s+", " ", str(value)).strip()
+    return text[:limit] if len(text) > limit else text
+
+
+def format_attribute_summary(filled: dict, limit: int = 6) -> str:
+    """{"model_number": "HW20-28", ...} → ``model_number=HW20-28、part_number=SKU``。"""
+    parts: list[str] = []
+    for key, value in (filled or {}).items():
+        text = attribute_value_text(value)
+        parts.append(f"{key}={text}" if text else str(key))
+        if len(parts) >= limit:
+            break
+    return "、".join(parts)
+
+
+def _attr_json_ok(raw) -> bool:
+    """productAttr 是否是「可安全解析/重写」的 JSON（空值视为可写）。"""
+    if raw is None:
+        return True
+    if isinstance(raw, (dict, list)):
+        return True
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return True
+        try:
+            json.loads(text)
+            return True
+        except Exception:
+            return False
+    return False
+
+
+def _payload_autofill(product: dict, cfg, overrides: dict | None,
+                      marketplace_id: str) -> tuple[dict, list[str]]:
+    """确定性补齐缺失的发布必填属性（只补缺失，不覆盖已有）。
+
+    具体映射在 ``amazon_pipeline._autofill_attributes_with_notes``（SKU/标题/品牌等
+    确定性推导，不发请求、不写平台）；这里延迟 import 避免 amazon_payload ↔
+    amazon_pipeline 的模块级循环依赖。补齐失败/关闭开关一律返回空，不阻断保存。
+    """
+    if not autofill_enabled(cfg):
+        return {}, []
+    try:
+        from .amazon_pipeline import _autofill_attributes_with_notes
+    except Exception:  # pragma: no cover - 理论不可达（延迟 import 防御）
+        return {}, []
+    try:
+        return _autofill_attributes_with_notes(
+            product or {}, cfg, marketplace_id, overrides,
+            required=required_attribute_names(cfg, overrides))
+    except Exception:  # noqa: BLE001 - 属性补齐绝不阻断保存包构造
+        return {}, []
+
+
+def format_attribute_value(value, marketplace_id: str = "",
+                           language_tag: str = "") -> list[dict]:
+    """把 Python 值转成 productAttr 实测格式。
+
+    - 布尔：``[{"value": false, "marketplace_id": mp}]``
+    - 字符串：``[{"value": "x", "language_tag": "en_CA", "marketplace_id": mp}]``
+    - dict（如 list_price {currency, amount}）：``[{"value": {...}, "marketplace_id": mp}]``
+    """
+    mp = str(marketplace_id or "").strip()
+    if value is None:
+        return []
+    if isinstance(value, list):
+        items = [dict(x) for x in value if isinstance(x, dict)]
+        return items
+    if isinstance(value, bool):
+        item: dict = {"value": value}
+        if mp:
+            item["marketplace_id"] = mp
+        return [item]
+    if isinstance(value, dict):
+        if not value:
+            return []
+        item = {"value": dict(value)}
+        if mp:
+            item["marketplace_id"] = mp
+        return [item]
+    text = str(value).strip()
+    if not text:
+        return []
+    item = {"value": text}
+    tag = str(language_tag or "").strip() or language_tag_for(mp)
+    if tag:
+        item["language_tag"] = tag
+    if mp:
+        item["marketplace_id"] = mp
+    return [item]
+
+
+def merge_attributes(attr_data, attributes, marketplace_id: str = "",
+                     language_tag: str = "") -> dict:
+    """把 ``overrides["attributes"]`` 合并进 productAttr dict（override 优先）。"""
+    out = dict(attr_data or {})
+    if not isinstance(attributes, dict):
+        return out
+    for key, value in attributes.items():
+        name = str(key or "").strip()
+        if not name:
+            continue
+        formatted = format_attribute_value(value, marketplace_id, language_tag)
+        if formatted:
+            out[name] = formatted
+    return out
+
+
 def _images(product: dict, main=None) -> tuple[str, str, str]:
     """返回 (mainImage, extraImagesStr, draftImgUrl)。"""
     p = product or {}
@@ -231,12 +472,16 @@ def _images(product: dict, main=None) -> tuple[str, str, str]:
 
 # ---------------- 保存包构造 ----------------
 def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
-                         *, currency: str = "") -> dict:
+                         *, currency: str = "",
+                         notes: list | None = None) -> dict:
     """由 editSp 的 product（或列表行）+ overrides 构造 39 键保存包。
 
     - 只取 ``SAVE_KEYS``（保序），其它字段一律丢弃；
     - overrides 只认 snake_case（docs §3.2.0），空串=不覆盖；
     - 站点切换：同步 currency，并深度重写 productAttr 里的 marketplace 字段；
+    - **缺失的发布必填属性自动补齐进 productAttr**（只补缺失、不覆盖已有；
+      ``cfg.amazon_autofill_attrs=False`` 可关闭，默认开）；
+    - ``notes``（可选）收集「补了什么/哪些补不了」的说明，供 prepare_save/UI 展示；
     - 价格 ≤0 → None；quantity/isVariation/skuTitle → int。
     """
     p = dict(product or {})
@@ -343,9 +588,35 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
         shipping = _text(_cfg_value(cfg, "amazon_shipping_template", ""))
     out["merchantShippingGroup"] = shipping
 
-    # 产品属性（切站点时深度重写 marketplace 字段）
-    out["productAttr"] = _product_attr_payload(
-        p.get("productAttr"), new_mp if new_mp and new_mp != old_mp else "")
+    # 产品属性：切站点时深度重写 marketplace 字段；overrides["attributes"] 合并/覆盖；
+    # 缺失的发布必填属性自动补齐（确定性映射，只补缺失，不覆盖已有）。
+    raw_attr = p.get("productAttr")
+    rewrite_mp = new_mp if new_mp and new_mp != old_mp else ""
+    attrs_ov = _override(ov, "attributes", None)
+    has_attrs_ov = isinstance(attrs_ov, dict) and bool(attrs_ov)
+    attr_data = parse_product_attr(raw_attr)
+    filled: dict = {}
+    attr_notes: list[str] = []
+    if _attr_json_ok(raw_attr):
+        filled, attr_notes = _payload_autofill(p, cfg, ov, new_mp)
+    if has_attrs_ov or rewrite_mp or filled:
+        if rewrite_mp:
+            attr_data = _rewrite_marketplace(attr_data, rewrite_mp)
+        if has_attrs_ov:
+            attr_data = merge_attributes(attr_data, attrs_ov, new_mp,
+                                         language_tag_for(new_mp))
+        if filled:
+            attr_data = merge_attributes(attr_data, filled, new_mp,
+                                         language_tag_for(new_mp))
+        out["productAttr"] = json.dumps(attr_data, ensure_ascii=False)
+    else:
+        # 无需改写时保持原样回写（真实写 #1 的 productAttr 往返一致）
+        out["productAttr"] = _product_attr_payload(raw_attr, "")
+
+    if notes is not None:
+        if filled:
+            notes.append("自动补齐发布必填属性：" + format_attribute_summary(filled))
+        notes.extend(attr_notes)
 
     return out
 
@@ -430,6 +701,19 @@ def validate_amazon_payload(payload: dict, *, product: dict | None = None,
         issues.append("标题为空")
     elif len(title) > TITLE_MAX:
         issues.append(f"标题超过 {TITLE_MAX} 字符（{len(title)}）")
+
+    # 1b) Amazon 标题同一单词最多出现 2 次（实测平台 code:100470 直接拒绝）
+    if title:
+        try:
+            import re as _re
+            from collections import Counter as _Counter
+            words = _re.findall(r"[A-Za-z][A-Za-z0-9-]{2,}", title.lower())
+            repeated = [w for w, n in _Counter(words).items() if n > 2]
+            if repeated:
+                issues.append("标题同一单词出现超过 2 次（Amazon 会拒绝 code:100470）："
+                              + "、".join(repeated[:5]))
+        except Exception:
+            pass
 
     # 2) 非中文站点文案含中文
     if not lang.startswith("zh"):
@@ -581,6 +865,13 @@ def build_warnings(payload: dict, *, product: dict | None = None) -> list[str]:
         if data in ({}, [], "", None):
             warns.append("productAttr 为空对象 {}（类目属性会丢失）")
 
+    missing_required = missing_common_attributes(attr)
+    if missing_required:
+        warns.append(
+            "发布必填属性缺失：" + "、".join(missing_required)
+            + "（自动补齐默认按 SKU/标题/品牌/模板推导；仍缺的需在 productAttr "
+              "手动填写，否则发布会失败）")
+
     if product:
         old_mp = str(product.get("marketPlaceId") or "").strip()
         new_mp = str(p.get("marketPlaceId") or "").strip()
@@ -591,10 +882,15 @@ def build_warnings(payload: dict, *, product: dict | None = None) -> list[str]:
 
 
 __all__ = [
-    "SAVE_KEYS", "OVERRIDE_KEYS", "OP_DEFAULT", "PROMO_WHITELIST",
+    "SAVE_KEYS", "OVERRIDE_KEYS", "OP_DEFAULT", "PROMO_WHITELIST", "REQUIRED_COMMON",
+    "AUTOFILL_CFG_KEY",
     "TITLE_MAX", "BULLET_MAX_ITEMS", "BULLET_MAX_CHARS", "BULLET_SUGGEST_CHARS",
     "DESCRIPTION_MAX_BYTES", "SEARCH_TERMS_MAX_CHARS", "SEARCH_TERMS_MAX_BYTES",
     "is_chinese_site", "remove_emoji",
     "split_bullets", "join_bullets", "build_amazon_payload", "validate_amazon_payload",
     "build_warnings", "apply_site",
+    "parse_product_attr", "language_tag_for", "format_attribute_value",
+    "merge_attributes", "attribute_present", "missing_common_attributes",
+    "autofill_enabled", "required_attribute_names", "attribute_value_text",
+    "format_attribute_summary",
 ]

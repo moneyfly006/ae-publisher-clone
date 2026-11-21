@@ -288,5 +288,50 @@
     "name": "test_amazon_platform_ui_filter",
     "status": "PASS",
     "exit_code": 0
+  },
+  {
+    "name": "test_amazon_publish_ui",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_licensing",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_license_server",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_client",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_payload",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_prompts",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_pipeline",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_contract",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_ui_page",
+    "status": "PASS",
+    "exit_code": 0
   }
 ]

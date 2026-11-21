@@ -12,6 +12,8 @@
 | 项目 | 结论 | 证据 |
 |---|---|---|
 | 真实账号只读核验 | **PASS 18/18** | `docs/amazon-readonly-verification.json`（generated_at `2026-11-22T02:13:07+08:00`） |
+| 发布状态独立核验（task-10/11） | **PASS**：最新实时 25 个发布失败 = **A 23（92.0%）/ B 2（8.0%）/ C 0 / D 0**；发布中 0（瞬态） | `docs/amazon-publish-state.json`（generated_at `2026-11-22T03:33:42+08:00`） |
+| 发布 UI / 全按钮 / 逻辑矩阵（task-11） | **27/27 PASS**；69 个可见按钮 0 异常；9 条逻辑断言全 PASS；正式版文案 prod/test 泄漏 0 | `docs/amazon-publish-ui-verify.json`（generated_at `2026-11-22T03:35:14+08:00`） |
 | Amazon 测试（8 文件 194 用例） | **194/194 OK**（`AURORA_TEST=1`） | `tests/test_amazon_*.py` |
 | 离线契约测试 | **27/27 OK** | `tests/test_amazon_contract.py` |
 | 平台隔离审计（task-6 独立实现） | **79/79 PASS**（含 ⌘F 修复后复验；隐藏过头=0 / 隐藏不足=0） | `docs/amazon-platform-isolation.json` |
@@ -313,6 +315,8 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 | `docs/regression-verification.json` | 全量回归 58 模块结果（原有 list 结构；58/58 PASS） |
 | `docs/ui-button-audit.json` | 17 页 / 457 回调审计（ERROR 0） |
 | `docs/amazon-platform-isolation.json` | 平台隔离独立审计（79/79 PASS；隐藏过头/隐藏不足均为空） |
+| `docs/amazon-publish-state.json` | 发布状态只读核验（最新 25 个发布失败：A23/B2/C0/D0，实时快照） |
+| `docs/amazon-publish-ui-verify.json` | 发布 UI/全按钮/逻辑矩阵/正式版文案扫描（27/27 PASS，69 按钮 0 异常） |
 | `docs/design/amazon-listing-page.png` | 13 页顶部截图（274,162 B） |
 | `docs/design/amazon-listing-page-2-price-preview.png` | 13 页价格/预演截图（263,971 B） |
 | `docs/design/amazon-listing-page-3-save.png` | 13 页底部截图（265,636 B） |
@@ -322,3 +326,182 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 | `tools/amazon_ui_shots.py` | 13 页按钮遍历 + 截图（NOT_READY/控件清单降级） |
 | `tests/test_amazon_contract.py` | 离线契约 + 防回退 + 证据结构测试 |
 | `tools/button_audit.py`、`tools/verify_regressions.py`、`tools/test_offline.py` | 已接入 Amazon 用例/模块 |
+
+
+---
+
+## 10. 发布状态与失败原因核验（task-10 草案）
+
+工具：`tools/verify_amazon_publish_state.py`（**独立 requests 实现，不 import 后端**；只读白名单
+`pageList / offline / userIn`，唯一写入口以拼接常量 + 请求守卫拦截，无任何写开关）。
+证据：`docs/amazon-publish-state.json`（generated_at `2026-11-22T03:09:20+08:00`，status=PASS，
+`read_only=true`、`write_endpoints_never_called=true`，只读请求 6 次 / 拦截 0 次 / 无 Cookie 落盘）。
+
+### 10.1 实时状态（以运行时为准；Lead 测试期间会变化）
+
+| 状态 | 数量 | 读取接口 |
+|---|---|---|
+| 采集箱 draft | **14** | `POST /api/amazonProduct/pageList.json`（dxmState=draft） |
+| 待发布 waitPublish | **5** | `POST /api/amazonProduct/offline.json`（dxmOfflineState=waitPublish） |
+| 发布中 publishing | **0**（瞬态，约 40s，抓取时刻为 0 属正常） | 同上（dxmOfflineState=publishing） |
+| 发布失败 publishFail | **23** | 同上（dxmOfflineState=publishFail，pageSize=200 一次取全） |
+| 在线 online | **142** | `POST /api/amazonProduct/pageList.json`（dxmState=online） |
+
+- `leftStat` 与列表总数**一致**：waitPublish=5、publishFail=23、publishing=0。
+- Lead 提供「22 个发布失败」为测试时快照；本工具运行时为 **23 个**（测试新增），以实时为准，
+  报告中记录了 `generated_at`，便于复跑对比。
+
+### 10.2 失败原因分类（当前 23 个 publishFail）
+
+| 类别 | 数量 | 占比 | 典型 errMsg / 说明 |
+|---|---|---|---|
+| **A 平台审核中** | **20** | **87.0%** | `code:100521,我们正在审查这个商品信息…请等待最多 48 小时…`（非软件失败，可能自动转在线） |
+| **B 类目必填属性缺失** | **3** | **13.0%** | `code:90220,“型号” 为必填项，但缺失。,属性:model_number;…`（需补属性后重存/重发） |
+| **C 软件校验拦截** | **0** | 0.0% | 描述含促销词/联系方式等，通常被本地预检拦在草稿/待发布，**不会出现在平台失败列表**；分类器自检可验证 C 规则 |
+| **D 其它** | **0** | 0.0% | HTTP/权限/数据/未知（需人工看完整 errMsg / Trace_id） |
+
+> 混合样本 `220114595361361938`：同时含 `100521`（审核中）与 `8560`（商品详情不完整/标识码），
+> 按 **A** 归类并记录 `secondary_codes=[8560]`。分类器自检 A/B/C/D 全部 PASS。
+
+### 10.3 必填属性缺失统计
+
+| 商品 id | 缺失属性（`属性:xxx`） |
+|---|---|
+| `220114595363182310` | `model_number`, `manufacturer_contact_information`, `part_number`, `model_name`（4 项） |
+| `220114595363182214` | `item_depth_width_height`, `model_number`, `part_number`, `model_name`, `country_of_origin`, `supplier_declared_dg_hz_regulation`, `list_price`, `power_source_type`, `manufacturer_contact_information`（9 项） |
+| `220114595363180944` | `bullet_point`, `variation_theme`, `product_description` |
+| `220114595361361938` | `externally_assigned_product_identifier`（同时属 A 类混合样本） |
+
+聚合：`model_number / part_number / model_name / manufacturer_contact_information` 各命中 **2** 个商品；
+其余属性各命中 1 个商品。证据 `required_attrs.by_attr` / `by_product`。
+
+### 10.4 发布结果核验清单（给 Lead 的真实发布测试）
+
+| 观察到状态 | 结论 | 下一步 | 需要看的字段 |
+|---|---|---|---|
+| **在线 online** | 发布成功 | 无需处理，核对在线信息 | `asin`/`listingId`/`onlineTime`/价格/库存 |
+| **发布中 publishing** | op=2 已受理，平台处理中（尚无结论） | 约 40s 后重跑本工具复查 | `dxmOfflineState`、`errMsg`（暂空正常）、`updateTime` |
+| **发布失败 publishFail** | 平台返回失败 | 按 errMsg 分类：A 等 48h 复查；B 补属性；C 改文案；D 人工核对 | `errMsg` 中 `code:…`、`属性:…`、末尾 `Trace_id` |
+| **待发布 waitPublish** | 已保存但未提交平台 | 需要发布则用 `op=2`；`op=1/3` 不触发平台发布 | `dxmOfflineState=waitPublish`、实际 op、`errMsg`（通常空） |
+| **采集箱 draft** | op=2 未生效/被拦截/尚未保存成功 | 检查保存结果与校验 issues | `save_result.code/msg`、`issues/warnings`、实际 op |
+| **未找到** | id/店铺/站点不匹配或已被删除 | 确认 product_id / shopId / marketPlaceId | `product_id`、`shopId`、`marketPlaceId` |
+
+工具支持 `--product-id a,b` 生成同样的 checklist；本次运行样例：
+`220114595363182310 → 发布失败 B 类（4 属性）`、
+`220114595363182214 → 发布失败 B 类（9 属性）`、
+`220114595362938158 → 发布失败 A 类（审核中）`。
+
+### 10.5 限制与安全
+
+- `publishing` 是约 40s 的瞬态，抓取时刻可能为 0；需按清单复查，不能单次抓取就断言失败。
+- A 类 100521 需等待平台审核（最多 48h），只读核验无法提前判定最终在线/失败。
+- C 类被软件本地校验拦截，通常不会进入平台失败列表；本工具用分类器自检验证 C 规则（当前平台
+  publishFail 中 C=0 不代表软件无该校验）。
+- 全程只读：6 次请求（userIn + draft/online + 3 状态）、0 拦截、无 Cookie 落盘；
+  唯一写入口被拼接常量 + 请求守卫硬拦截（源码中无完整写路径字面量）。
+- 账号数据在 Lead 测试期间会变化，报告以 `generated_at` 时刻为准；复跑即可刷新。
+
+
+---
+
+## 11. 发布功能终版复核（task-11，覆盖 §10 最新实时数据）
+
+> 本节基于 **2026-11-22T03:33:42 +08:00** 的实时只读数据 + Lead 的真实发布证据
+> `docs/amazon-publish-verification.json`（generated_at `2026-11-22T03:22:13`，runs=9，
+> product_writes=5）。工具：`tools/verify_amazon_publish_state.py`（只读）、
+> `tools/verify_amazon_ui.py`（沙箱 mock）。证据：`docs/amazon-publish-ui-verify.json`。
+
+### 11.1 Lead 真实发布 4 个商品时间线（证据摘要）
+
+| 商品 | Lead 证据 | 最新实时（03:33） | 结论/处置 |
+|---|---|---|---|
+| `220114595363182310` | 发布 #1：B 类缺 4 属性 → 自动补齐 → 重发 → after `publishFail/reviewing` | `publishFail`，分类 **A**（100521 审核中） | 已提交平台审核，等最多 48h；无需再改数据 |
+| `220114595363182214` | 发布 #2：类目 LAWN_MOWER→Backhoes + 两轮属性补齐 → after `publishFail/reviewing` | `publishFail`，分类 **A** | 类目错配已修，已进入平台审核 |
+| `220114595363182036` | 发布 #3：C 类促销词被本地拦截 → AI 重写描述 → 发布 → after `publishing` | **`publishFail`，分类 B（缺 `item_name`）**（时序漂移） | 平台处理中转失败：需补 `item_name` 后重发（新处置项） |
+| `220114595363181922` | 发布 #4：C 类拦截 → AI 重写描述 → 发布 → after `publishFail/reviewing` | `publishFail`，分类 **A** | 已提交平台审核，等最多 48h |
+
+- **状态映射**：`online`=发布成功；`publishing`/`waitPublish`=已提交处理中（非失败，需复查）；
+  `publishFail` + `100521/审查/审核`=**平台审核中（A 类，非软件失败）**；
+  `publishFail` + `90220/属性:xxx`=**B 类真实校验失败（需补属性）**；
+  `draft`=未提交/未保存成功；`unknown`=未能确认。
+- **重要判定规则**：**「发布失败列表」里包含平台审核中的商品**（A 类）。读 `errMsg` 时
+  必须先判 `100521/审查/审核`，不能把列表名 `publishFail` 直接当软件失败；B 类才是需补数据。
+- **时序漂移**：Lead 证据快照 036 为 `publishing`，实时已转 `publishFail`（缺 `item_name`）；
+  工具允许并显式标记 `needs_attention`，不掩盖为成功。
+
+### 11.2 当前发布失败分类（25 个，03:33 实时）
+
+| 类别 | 数量 | 占比 | 说明 |
+|---|---|---|---|
+| A 平台审核中（100521） | **23** | **92.0%** | 非软件失败，等 48h/复查在线；含 310/214/922 |
+| B 类目必填属性缺失（90220） | **2** | **8.0%** | `220114595363182036` 缺 `item_name`；`220114595363180944` 缺 bullet/变体/描述 |
+| C 软件校验拦截 | 0 | 0% | 本地预检拦截，通常不进平台失败列表（分类器自检可验证） |
+| D 其它 | 0 | 0% | — |
+
+> 分状态计数：采集箱 12 · 待发布 5 · 发布中 0（瞬态）· 发布失败 25 · 在线 142；
+> `leftStat` 与列表一致。数值随 Lead 测试实时变化，以 `generated_at` 为准。
+
+### 11.3 发布 UI / 全按钮 / 逻辑矩阵（`docs/amazon-publish-ui-verify.json`，27/27 PASS）
+
+- **全按钮矩阵**：Amazon 0/13/10/11 共 **69 个可见按钮逐一点击**（mock 网络、沙箱隔离），
+  **ERROR 0**；覆盖检测连接、刷新/分页/状态切换、编辑载入、类目/历史/路径、AI 各按钮、
+  编辑/添加/清空卖点、发布前检查、保存（检查模式）、查询发布结果、自动补齐并重试发布、
+  发布中/发布失败列表、设置/日志交互。
+- **逻辑矩阵（9 条，全部 PASS）**：op=1/2/3 语义；发布状态 6 种映射；A/B/C/D 失败分类
+  （含 100521→A、90220→B、促销词→C、其它→D 自检）；**属性自动补齐只补缺失、不覆盖用户值**；
+  **confirm_write 门禁**（dry_run=False 未显式确认 → 拒绝且不调用保存）；
+  UI 重试发布走 `confirm_write=True`、查询发布结果只读；5 状态列表映射；
+  **发布失败列表内 100521 判定为 A 类**；`AURORA_TEST/AURORA_NO_SAVE` 拒绝真实写。
+- **UI 发布状态渲染（mock）**：检测连接显示采集箱/发布中/发布失败/在线数量；
+  发布结果徽标 `平台审核中 / 发布失败 / 处理中 / 发布成功` 正确；
+  B 类完整失败原因 + 缺失属性（`model_number`/`part_number`）渲染；
+  检查模式「自动补齐并重试发布」被拒绝（不真实写）。
+- **正式版 UI 扫描**：Amazon 全页面可见文本（prod 与 AURORA_TEST 两种模式）
+  **无 AURORA_ / 预演模式 / 本地验收 / 测试连接 / 沙箱 / mock / 验收预演**；
+  App 级测试模式标题已清理（当前 `AuroraList · 极光上架 v1.0.6`，无测试标记）。
+  5 个平台所有页面渲染无崩溃。
+
+### 11.4 回归与 P0/P1/P2
+
+- `tools/verify_amazon.py`：**18/18 PASS**（基线计数漂移记录，不误判）。
+- `tools/verify_amazon_ui.py`：**27/27 PASS**。
+- `button_audit`：**21 页 / 593 回调，ERROR 0**。
+- `compileall -q src`：**exit 0**。
+- Amazon 测试 9 文件 **263 用例 / 260 PASS / 3 FAIL**（见 P1）；
+  `tools/verify_regressions.py` 67 模块 65 PASS / 2 FAIL（同一批 Amazon 测试期望漂移）；
+  `tools/test_offline.py` 686 tests / 3 FAIL（同上）。
+- **P0：无。**
+- **P1**：
+  1. `tests/test_amazon_payload.py`（2 个断言：发布必填属性缺失 warning 文案 / empty productAttr
+     warning）与 `tests/test_amazon_pipeline.py`（1 个断言：真实写 #2 的 productAttr 现在会
+     自动写入 REQUIRED_COMMON 属性）**落后于 task-8 新后端行为**，需 backend 测试 owner 更新
+     断言（本 verifier 不改 src/tests 归属外文件）。
+  2. **036 商品**由 `publishing` 转为 `publishFail B`（缺 `item_name`），需补属性后重发；
+     Lead 证据文件对应 run 仍是 `publishing` 快照，建议补一条最新核验记录。
+- **P2**：
+  1. 按钮审计 DEFERRED/EXTERNAL 为沙箱语义（线程不执行/打开系统外链），非错误。
+  2. 发布状态为实时快照（publishing 约 40s 瞬态），复查需按 `generated_at` 重跑。
+  3. C 类被本地预检拦截，通常不出现在平台发布失败列表；分类器自检已覆盖规则。
+
+### 11.5 Lead 最终复核（2026-11-22 03:40，真实发布测试收口）
+
+**4 个测试商品全部从失败修复到「已提交（平台审核中）」：**
+
+| 商品 | 首次失败原因（分类） | 修复动作 | 最终状态 |
+|---|---|---|---|
+| 220114595363182310 | B 类：缺 model_number / part_number / model_name / manufacturer_contact_information | 自动补齐必填属性 → 重发 | publishFail（**A 类审核中 100521**） |
+| 220114595363182214 | 类目错配（LAWN_MOWER）+ 9 项属性缺失 → 改类目后又缺 5 项 | 改类目 Backhoes + 两轮错误驱动属性补齐 | publishFail（**A 类审核中**） |
+| 220114595363181922 | C 类：描述含 sale/guaranteed/100%/电话（本地校验拦截） | AI 重写描述 → 发布 | publishFail（**A 类审核中**） |
+| 220114595363182036 | D 类：标题 backhoe 重复 3 次（platform code:100470） | 标题去重（backhoe/loader ≤2 次）→ 重发 | publishFail（**A 类审核中**） |
+
+- 最终实时计数：采集箱 **12** · 待发布 **5** · 发布中 **0** · 发布失败 **25** · 在线 **142**；
+  25 个发布失败 = **A 类 24（平台审核中，非软件失败）+ B 类 1**（`220114595363180944` 为测试前历史数据，
+  缺 bullet_point/variation_theme/product_description，非本次测试对象）。
+- 新增软件校验（本轮）：**标题同一单词出现 >2 次直接阻断**（Amazon 实测 code:100470）；
+  保存包级必填属性自动补齐（默认开启，`cfg.amazon_autofill_attrs=False` 可关闭）；
+  错误驱动第二轮属性补齐（布尔/power_source/country/item_dimensions/list_price 等确定性映射）。
+- P1 已闭环：payload/pipeline 测试断言已按新行为更新，**9 个 Amazon 测试文件全绿**；
+  真实发布证据 `docs/amazon-publish-verification.json` 已含 4 商品最终 run。
+- 结论：**软件发布链路（op=2）真实可用**；「发布失败」列表需先看 errMsg——100521 是平台审核中，
+  不是软件失败；B 类按缺失属性补齐、C 类改文案、D 类按平台规则改标题后均可重发成功。
+

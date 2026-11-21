@@ -15,7 +15,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from aeclone.integrations.amazon import (
     AmazonClient, AmazonError, AmazonNotReady, SAVE_NAME, extract_list,
-    normalize_product, parse_cookie,
+    normalize_product, parse_cookie, parse_required_attrs,
 )
 
 BASE = "https://www.dianxiaomi.com"
@@ -362,6 +362,139 @@ class RetryTests(unittest.TestCase):
                 c.category_roots("CA")
         self.assertEqual(len(calls), 1)
         sleep.assert_not_called()
+
+
+class OfflineStateAndPublishTests(unittest.TestCase):
+    """offline.json 三态列表 + publish_state + 同类目属性模板 + schema 提取。"""
+
+    @staticmethod
+    def _page(rows, total=None):
+        return {
+            "page": {"list": rows, "pageNo": 1, "pageSize": 200,
+                     "totalSize": len(rows) if total is None else total,
+                     "totalPage": 1},
+            "draftNum": 14,
+            "leftStat": {"waitPublish": "5", "publishFail": "23", "publishing": 0},
+            "marketPids": {"A2EUQ1WTGCTBG2": "加拿大"},
+        }
+
+    @staticmethod
+    def _row(**over):
+        row = {"id": "220114595363182310", "title": "Backhoe HW20-28",
+               "categoryId": "13553005011", "marketPlaceId": "A2EUQ1WTGCTBG2",
+               "sku": "WY-QHCA-LTM-1", "asin": None, "quantity": 0,
+               "standardPrice": 8900.0, "saleSalePrice": 0.0,
+               "standardPriceCurrency": "CAD", "dxmState": "offline",
+               "dxmOfflineState": "publishFail", "updateTime": 1795287749308,
+               "mainImage": "https://x/a.png",
+               "errMsg": "发布失败:code:90220,属性:model_number;code:90220,属性:part_number;"}
+        row.update(over)
+        return row
+
+    def test_list_products_offline_states_hit_offline_json(self):
+        for state, api_state in (("waitPublish", "waitPublish"),
+                                 ("publishing", "publishing"),
+                                 ("publishFail", "publishFail"),
+                                 ("wait_publish", "waitPublish")):
+            c = AmazonClient("a=1")
+            calls = install_responses(self, [ok(self._page([self._row()], total=23))])
+            data = c.list_products(state, page=1, page_size=200, shop_id="-1")
+            call = calls[0]
+            self.assertTrue(call["url"].endswith("/api/amazonProduct/offline.json"),
+                            call["url"])
+            self.assertEqual(call["data"]["dxmState"], "offline")
+            self.assertEqual(call["data"]["dxmOfflineState"], api_state)
+            self.assertEqual(call["data"]["pageSize"], 200)
+            self.assertEqual(data["items"][0]["err_msg"][:4], "发布失败")
+            self.assertEqual(data["publish_fail"], 23)
+            self.assertEqual(data["wait_publish"], 5)
+
+    def test_publish_state_found_in_publish_fail(self):
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [
+            ok(self._page([], total=0)),
+            ok(self._page([], total=0)),
+            ok(self._page([], total=5)),
+            ok(self._page([], total=0)),
+            ok(self._page([self._row()], total=23)),
+        ])
+        state = c.publish_state("220114595363182310")
+        self.assertEqual(state["state"], "publishFail")
+        self.assertIn("90220", state["err_msg"])
+        self.assertEqual(state["title"], "Backhoe HW20-28")
+        self.assertEqual(state["counts"]["waitPublish"], 5)
+        self.assertEqual(state["counts"]["publishFail"], 23)
+        self.assertEqual(len(calls), 5)
+        self.assertTrue(calls[4]["url"].endswith("/api/amazonProduct/offline.json"))
+
+    def test_publish_state_found_in_draft_stops_early(self):
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [ok(self._page([self._row(dxmState="draft")]))])
+        state = c.publish_state("220114595363182310")
+        self.assertEqual(state["state"], "draft")
+        self.assertEqual(len(calls), 1)
+
+    def test_publish_state_unknown(self):
+        c = AmazonClient("a=1")
+        rows = [ok(self._page([], total=0))] * 5
+        calls = install_responses(self, rows)
+        state = c.publish_state("999")
+        self.assertEqual(state["state"], "unknown")
+        self.assertEqual(len(calls), 5)
+        self.assertIn("counts", state)
+
+    def test_parse_required_attrs(self):
+        err = ("发布失败:code:90220,“型号” 为必填项，但缺失。,属性:model_number;"
+               "code:90220,“制造商联系信息” 为必填项，但缺失。,属性:manufacturer_contact_information;"
+               "code:90220,“零件编号” 为必填项，但缺失。,属性:part_number;"
+               "code:90220,“型号名称” 为必填项，但缺失。,属性:model_name;")
+        self.assertEqual(parse_required_attrs(err),
+                         ["model_number", "manufacturer_contact_information",
+                          "part_number", "model_name"])
+        self.assertEqual(parse_required_attrs(""), [])
+        self.assertEqual(parse_required_attrs(None), [])
+        self.assertEqual(parse_required_attrs("属性:a;属性:a;属性:b"), ["a", "b"])
+
+    def test_attribute_template_uses_same_category_online_product_and_caches(self):
+        c = AmazonClient("a=1")
+        attr = json.dumps({"model_number": [{"value": "HW20-28",
+                                             "language_tag": "en_CA",
+                                             "marketplace_id": "A2EUQ1WTGCTBG2"}],
+                           "power_source_type": [{"value": "diesel",
+                                                  "marketplace_id": "A2EUQ1WTGCTBG2"}]})
+        calls = install_responses(self, [
+            ok(self._page([self._row(id="online-1", dxmState="online")], total=1)),
+            ok({"site": "CA", "product": {"id": "online-1", "productAttr": attr}}),
+            # 第二次调用走缓存，不再请求
+        ])
+        first = c.attribute_template("13553005011", "A2EUQ1WTGCTBG2", "9408005")
+        second = c.attribute_template("13553005011", "A2EUQ1WTGCTBG2", "9408005")
+        self.assertEqual(first["model_number"][0]["value"], "HW20-28")
+        self.assertIn("power_source_type", first)
+        self.assertEqual(second, first)
+        self.assertEqual(len(calls), 2)
+
+    def test_attribute_template_missing_returns_empty(self):
+        c = AmazonClient("a=1")
+        install_responses(self, [ok(self._page([], total=0))])
+        self.assertEqual(c.attribute_template("13553005011", "A2EUQ1WTGCTBG2", "9408005"), {})
+
+    def test_required_attributes_from_schema(self):
+        c = AmazonClient("a=1")
+        install_responses(self, [ok("https://schema.example/x.js")])
+        js = ('a({name:"model_number",required:!0,type:"string"}),'
+              'a({name:"not_required",required:!1}),'
+              'a({name:"batteries_required",required:!0})')
+        with patch.object(requests, "get",
+                          return_value=FakeResponse(None, text=js)):
+            names = c.required_attributes_from_schema("159365", "OUTDOOR_LIVING", "CA")
+        self.assertEqual(names, ["model_number", "batteries_required"])
+
+    def test_required_attributes_from_schema_failure_returns_empty(self):
+        c = AmazonClient("a=1")
+        install_responses(self, [FakeResponse({"code": -1, "msg": "err"},
+                                              text='{"code":-1}')])
+        self.assertEqual(c.required_attributes_from_schema("1", "T", "CA"), [])
 
 
 class SaveProductTests(unittest.TestCase):

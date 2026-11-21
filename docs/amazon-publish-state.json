@@ -1,0 +1,1047 @@
+{
+  "generated_at": "2026-11-22T03:38:36+08:00",
+  "mode": "read-only",
+  "status": "PASS",
+  "base": "https://www.dianxiaomi.com",
+  "read_only": true,
+  "write_endpoints_never_called": true,
+  "account": {
+    "code": "0",
+    "account": "QINGHEMAOYI",
+    "puid": 2728813,
+    "shop_id": "9408005",
+    "shop_name": "QingHe",
+    "merchant_id": "A26OV9RTCAYJMS",
+    "default_marketplace": "ATVPDKIKX0DER"
+  },
+  "cookie": {
+    "source": "cookies.txt",
+    "source_kind": "default .tmp-probe/cookies.txt",
+    "count": 9,
+    "content_logged": false
+  },
+  "counts": {
+    "draft": 12,
+    "online": 142,
+    "waitPublish": 5,
+    "publishing": 0,
+    "publishFail": 25,
+    "publishFail_rows_returned": 25,
+    "publishing_rows_returned": 0,
+    "leftStat": {
+      "waitPublish": "5",
+      "publishFail": "25",
+      "publishing": 0
+    },
+    "leftStat_consistency": {
+      "waitPublish": true,
+      "publishing": true,
+      "publishFail": true
+    }
+  },
+  "classification": {
+    "total_publish_fail": 25,
+    "classes": {
+      "A": {
+        "label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "count": 24,
+        "percent": 96.0,
+        "ids": [
+          "220114595363182036",
+          "220114595363182214",
+          "220114595363181922",
+          "220114595363182310",
+          "220114595362938158",
+          "220114595362938268",
+          "220114595361361938",
+          "220114595359795498",
+          "220114595355052146",
+          "220114595355052228",
+          "220114595355034372",
+          "220114595355024174",
+          "220114595355017424",
+          "220114595350137532",
+          "220114595350138360",
+          "220114595350138732",
+          "220114595350138708",
+          "220114595350139262",
+          "220114595350139324",
+          "220114595350139436",
+          "220114595343496030",
+          "220114595343496038",
+          "220114595343496056",
+          "220114595343496068"
+        ],
+        "sample_errMsg": "code:100470,您在 标题 中使用了两次以上：[backhoe]。 要修复，请重新提交正确的数据。,属性:item_name;code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;code:发布失败"
+      },
+      "B": {
+        "label": "B 类 · 类目必填属性缺失（90220，需补属性）",
+        "count": 1,
+        "percent": 4.0,
+        "ids": [
+          "220114595363180944"
+        ],
+        "sample_errMsg": "发布失败:code:90220,“要点” 为必填项，但缺失。,属性:bullet_point;code:90220,“变体主题名称” 为必填项，但缺失。,属性:variation_theme;code:90220,“产品描述” 为必填项，但缺失。,属性:product_description; Trace_id: be68ca4ac006ffc545ced4fdd95f8fdb"
+      },
+      "C": {
+        "label": "C 类 · 软件校验拦截（促销词/联系方式等，不属于平台失败）",
+        "count": 0,
+        "percent": 0.0,
+        "ids": [],
+        "sample_errMsg": ""
+      },
+      "D": {
+        "label": "D 类 · 其它（HTTP/权限/数据/未知）",
+        "count": 0,
+        "percent": 0.0,
+        "ids": [],
+        "sample_errMsg": ""
+      }
+    },
+    "a_share": 96.0,
+    "real_actionable_failures": 1,
+    "note": "A 类为平台审核中（非软件失败）；B/D 类需修数据或人工排查；C 类通常被软件预检拦截、不会出现在 publishFail 列表。"
+  },
+  "required_attrs": {
+    "by_attr": {
+      "bullet_point": 1,
+      "externally_assigned_product_identifier": 1,
+      "item_name": 1,
+      "product_description": 1,
+      "variation_theme": 1
+    },
+    "by_product": {
+      "220114595363182036": [
+        "item_name"
+      ],
+      "220114595363180944": [
+        "bullet_point",
+        "variation_theme",
+        "product_description"
+      ],
+      "220114595361361938": [
+        "externally_assigned_product_identifier"
+      ]
+    },
+    "products_with_missing_attrs": 3,
+    "total_attr_mentions": 5
+  },
+  "items": {
+    "publishFail": [
+      {
+        "id": "220114595363182036",
+        "title": "CE EPA Mini Backhoe Loader 4x4 WD Agricultural Farm Machine for All Terrain Operation",
+        "sku": "WY-QHCA-LTM-3",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13553005011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 165,
+        "codes": [
+          "100470",
+          "100521"
+        ],
+        "required_attrs": [
+          "item_name"
+        ],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100470,您在 标题 中使用了两次以上：[backhoe]。 要修复，请重新提交正确的数据。,属性:item_name;code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;code:发布失败"
+      },
+      {
+        "id": "220114595363182214",
+        "title": "6 Ton Wheeled Backhoe Loader 4x4 Multi-Purpose Excavator Loader with High Power Engine Gear Rural Construction Trenching…",
+        "sku": "WY-QHCA-LTM-2",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13553005011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595363181922",
+        "title": "4WD Backhoe Loader 75 kW HW15-26 Wheel Loader Excavator for Agriculture Municipal Construction CE",
+        "sku": "WY-QHCA-LTM-5",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13553005011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595363182310",
+        "title": "5 Ton Diesel Wheeled Backhoe Loader 4x4 HW20-28 with 75 kW Engine, 1 m³ Bucket, 2600 mm Digging Depth, High Load Moment …",
+        "sku": "WY-QHCA-LTM-1",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13553005011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595362938158",
+        "title": "Compact Small Water Well Drilling Machine Durable Powerful Drilling Tool",
+        "sku": "YX02-QH-XLZ-2",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7205686011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595362938268",
+        "title": "Compact Hydraulic Water Well Drill Rig, Portable Borehole Drilling Machine",
+        "sku": "YX02-QH-XLZ-1",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7205686011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595363180944",
+        "title": "Hot Sale 4x4 Wheel Loader With Backhoe and Backhoe Loader Excavator",
+        "sku": "WY-QHCA-LTM-11",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13553005011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 190,
+        "codes": [
+          "90220"
+        ],
+        "required_attrs": [
+          "bullet_point",
+          "variation_theme",
+          "product_description"
+        ],
+        "class": "B",
+        "class_label": "B 类 · 类目必填属性缺失（90220，需补属性）",
+        "reason": "类目必填属性缺失（需补属性后重新保存/发布）",
+        "errMsg": "发布失败:code:90220,“要点” 为必填项，但缺失。,属性:bullet_point;code:90220,“变体主题名称” 为必填项，但缺失。,属性:variation_theme;code:90220,“产品描述” 为必填项，但缺失。,属性:product_description; Trace_id: be68ca4ac006ffc545ced4fdd95f8fdb"
+      },
+      {
+        "id": "220114595361361938",
+        "title": "Hydraulic Concrete Block Forming Machine for Bricks and Pavers",
+        "sku": "WY-HQ-CAbrick-10",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "9709494011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 289,
+        "codes": [
+          "100521",
+          "8560"
+        ],
+        "required_attrs": [
+          "externally_assigned_product_identifier"
+        ],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;code:发布失败code:8560,您的商品详情不够完整，无法找到匹配的 ASIN 或创建新的 ASIN。 要解决此问题，请验证您的商品标识码（UPC 应为 12 位数，EAN 应为 13 位数，ISBN 应为 10 位…"
+      },
+      {
+        "id": "220114595359795498",
+        "title": "Multi Function Embroidery Machine, Industrial Computerized Apparel System",
+        "sku": "WY-CA-cixiu-15",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13333837011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595355052146",
+        "title": "Small Dry Ice Blasting Machine for Rubber Alloy Die Cast Mold Cleaning",
+        "sku": "YX02-WK-GBQXJ-5",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7420967011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595355052228",
+        "title": "Commercial Grade Dry Ice Blasting Machine for Home Business",
+        "sku": "YX02-WK-GBQXJ-4",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7420967011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595355034372",
+        "title": "Crawler Skid Loader, Compact Utility Loader for Landscaping Projects",
+        "sku": "WY-CA-mini skid-12",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595355024174",
+        "title": "Mini Skid Steer Loader, Hydraulic Stand-on Loader Skidsteer for Farm Work",
+        "sku": "WY-CA-mini skid-11",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595355017424",
+        "title": "Compact Track Loader, Mini Skid Steer Front End Loader for Outdoor Projects",
+        "sku": "WY-CA-mini skid-10",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595350137532",
+        "title": "Mini Skid Steer, Front End Skid Loader for Farm and Construction Work",
+        "sku": "WY-CA-mini skid-7",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595350138360",
+        "title": "Mini Skid Steer Loader, Compact Track Loader for Landscaping and Farm Use",
+        "sku": "WY-CA-mini skid-6",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595350138732",
+        "title": "Stand On Skid Steer Loader, Tracked Skidsteer Loader for Agricultural Work",
+        "sku": "WY-CA-mini skid-4",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595350138708",
+        "title": "Mini Skid Steer Loader, Front End Loader for Construction and Farm Work",
+        "sku": "WY-CA-mini skid-5",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595350139262",
+        "title": "Crawler Mini Skid Steer Loader, Compact  Front End Loader for Snow Removal",
+        "sku": "WY-CA-mini skid-3",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595350139324",
+        "title": "Tracked Skid Loader, Hydraulic Mini Skid Steer for Material Handling Tasks",
+        "sku": "WY-CA-mini skid-2",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595350139436",
+        "title": "Compact Skid Steer Loader, Front End Loader Earth-Moving Machine for Farm",
+        "sku": "WY-CA-mini skid-1",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595343496030",
+        "title": "Portable Water Well Drilling Rig, 100M Depth Wheeled Hydraulic Machine",
+        "sku": "WY-CA-XLZ7",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7205686011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595343496038",
+        "title": "150M Portable Borehole Drilling Rig, Wheeled Hydraulic Water Well Machine",
+        "sku": "WY-CA-XLZ6",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7205686011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595343496056",
+        "title": "Small Borehole Drilling Machine, 120M Portable Water Well Drill Equipment",
+        "sku": "WY-CA-XLZ5",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7205686011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595343496068",
+        "title": "Wheeled Water Well Drilling Machine, Portable Hydraulic Rig for Farm",
+        "sku": "WY-CA-XLZ4",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7205686011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      }
+    ],
+    "publishing": [],
+    "waitPublish": [
+      {
+        "id": "220114595362000806",
+        "title": "Semi Automatic Hollow Block Making",
+        "sku": "WY-CAHQ-brick-16",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "9709494011",
+        "dxmState": "offline",
+        "dxmOfflineState": "waitPublish",
+        "errMsg_present": false,
+        "errMsg_len": 0,
+        "codes": [],
+        "required_attrs": [],
+        "class": "",
+        "class_label": "—",
+        "reason": "非发布失败状态，不分类"
+      },
+      {
+        "id": "220114595360100042",
+        "title": "Multi Function Embroidery Machin",
+        "sku": "WY-CA-cixiu-16",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13333837011",
+        "dxmState": "offline",
+        "dxmOfflineState": "waitPublish",
+        "errMsg_present": false,
+        "errMsg_len": 0,
+        "codes": [],
+        "required_attrs": [],
+        "class": "",
+        "class_label": "—",
+        "reason": "非发布失败状态，不分类"
+      },
+      {
+        "id": "220114595357814950",
+        "title": "Private Office Boot",
+        "sku": "WY-CA-jingyinc-16",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7239740011",
+        "dxmState": "offline",
+        "dxmOfflineState": "waitPublish",
+        "errMsg_present": false,
+        "errMsg_len": 0,
+        "codes": [],
+        "required_attrs": [],
+        "class": "",
+        "class_label": "—",
+        "reason": "非发布失败状态，不分类"
+      },
+      {
+        "id": "220114595355453530",
+        "title": "Small Skid Steer Loader,",
+        "sku": "WY-CA-mini skid-16",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "6256970011",
+        "dxmState": "offline",
+        "dxmOfflineState": "waitPublish",
+        "errMsg_present": false,
+        "errMsg_len": 0,
+        "codes": [],
+        "required_attrs": [],
+        "class": "",
+        "class_label": "—",
+        "reason": "非发布失败状态，不分类"
+      },
+      {
+        "id": "220114595345768282",
+        "title": "150M Portable Borehole Drilling Rig, Wheeled Hydraulic Water Well Machine",
+        "sku": "WY-CA-XLZ8",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "7205686011",
+        "dxmState": "offline",
+        "dxmOfflineState": "waitPublish",
+        "errMsg_present": false,
+        "errMsg_len": 0,
+        "codes": [],
+        "required_attrs": [],
+        "class": "",
+        "class_label": "—",
+        "reason": "非发布失败状态，不分类"
+      }
+    ],
+    "draft": [
+      {
+        "id": "220114595363181982",
+        "title": "Heavy Duty 4WD Articulated Backhoe Loader Hydraulic Wheel Excavator with Reinforced Chassis for Road…",
+        "sku": "WY-QHCA-LTM-4",
+        "categoryId": "6257559011"
+      },
+      {
+        "id": "220114595363181900",
+        "title": "4X4 Wheel Loader Backhoe Loader 85KW Diesel Engine Hydraulic Excavator 1.5m Bucket CE Certified Cons…",
+        "sku": "WY-QHCA-LTM-6",
+        "categoryId": "13553005011"
+      },
+      {
+        "id": "220114595363181652",
+        "title": "New Epa Farm Backhoe Excavator Mini Retroexcavadora 4x4 Front End Diesel Backhoe Loader",
+        "sku": "WY-QHCA-LTM-7",
+        "categoryId": "13553005011"
+      },
+      {
+        "id": "220114595363181578",
+        "title": "Construction 4x4 Articulated Backhoe Loader Wheeled Digger for Land Leveling, Earthmoving and Storm …",
+        "sku": "WY-QHCA-LTM-8",
+        "categoryId": "13553005011"
+      },
+      {
+        "id": "220114595363181530",
+        "title": "VIFT Brand Earth-moving Machinery Mini Tractor 4WD Backhoe Loader Excavator for Sale",
+        "sku": "WY-QHCA-LTM-9",
+        "categoryId": "13553005011"
+      },
+      {
+        "id": "220114595363181466",
+        "title": "Hydraulic Backhoe Loader 2870kg 1500mm Dig Depth 0.08m³ Excavator Bucket Wheel Loader Backhoe for Ga…",
+        "sku": "WY-QHCA-LTM-10",
+        "categoryId": "6257315011"
+      },
+      {
+        "id": "220114595363180938",
+        "title": "100% Original Super Value Used JCB 3CX 4x4 Backhoe Loader Reliable Engine Backhoe Loader for Constru…",
+        "sku": "WY-QHCA-LTM-12",
+        "categoryId": "13553005011"
+      },
+      {
+        "id": "220114595363180882",
+        "title": "Versatile 4x4 Backhoe Loader Wheeled Digger with Hydraulic Auger and Snow Blade for Fence Post Drill…",
+        "sku": "WY-QHCA-LTM-13",
+        "categoryId": "13553005011"
+      },
+      {
+        "id": "220114595362938114",
+        "title": "Versatile High-Torque Water Well Drill Rig for Household Water Intake",
+        "sku": "YX02-QH-XLZ-3",
+        "categoryId": "7205686011"
+      },
+      {
+        "id": "220114595362938072",
+        "title": "Lightweight Compact Small Water Well Drill Rig for Geothermal Drilling",
+        "sku": "YX02-QH-XLZ-4",
+        "categoryId": "7205676011"
+      },
+      {
+        "id": "220114595362938074",
+        "title": "Lightweight Compact Small Water Well Drill Rig for Geothermal Drilling",
+        "sku": "105430344183",
+        "categoryId": ""
+      },
+      {
+        "id": "220114595362937990",
+        "title": "Efficient Portable Water Well Drill Rig, Hydraulic Drilling Machine",
+        "sku": "YX02-QH-XLZ-5",
+        "categoryId": ""
+      },
+      {
+        "id": "220114595362937994",
+        "title": "Efficient Portable Water Well Drill Rig, Hydraulic Drilling Machine",
+        "sku": "107465057539",
+        "categoryId": ""
+      },
+      {
+        "id": "220114595350136294",
+        "title": "Mini Crawler Mobile Jaw Crusher Small Track Rock Crushing Equipment Portable Jaw Breaker for Limesto…",
+        "sku": "WY-QHCA-PSJ1",
+        "categoryId": "3111937011"
+      }
+    ],
+    "online_sample": [
+      {
+        "id": "220114595361999004",
+        "title": "Semi Automatic Hollow Block Making Machine for Concrete Block Production",
+        "sku": "WY-CAHQ-brick-15"
+      },
+      {
+        "id": "220114595361980756",
+        "title": "Hydraulic Paving Block Making Machine for Outdoor Projects",
+        "sku": "WY-CAHQ-brick-14"
+      },
+      {
+        "id": "220114595361966572",
+        "title": "Multi Mold Concrete Block Making Machine, Semi Auto Cement Brick Machine",
+        "sku": "WY-CAHQ-brick-13"
+      },
+      {
+        "id": "220114595361937254",
+        "title": "Hydraulic Concrete Brick Press Machine for Hollow and Solid Blocks",
+        "sku": "WY-CAHQ-brick-12"
+      },
+      {
+        "id": "220114595361668236",
+        "title": "Semi Automatic Cement Brick Machine for Paver Block Production",
+        "sku": "WY-HQ-CAbrick-11"
+      },
+      {
+        "id": "220114595361331910",
+        "title": "Concrete Paver Block Making Machine, Hydraulic Brick Press Machine for Sale",
+        "sku": "WY-HQ-CAbrick-9"
+      },
+      {
+        "id": "220114595361301356",
+        "title": "Hydraulic Interlocking Brick Making Machine Cement Brick Machine for Paving",
+        "sku": "WY-HQ-CAbrick-8"
+      },
+      {
+        "id": "220114595361246716",
+        "title": "Semi Automatic Block Making Machine for Concrete Pavers",
+        "sku": "WY-HQ-CAbrick-7"
+      },
+      {
+        "id": "220114595361145000",
+        "title": "Concrete Brick Making Machine with Hydraulic Forming System",
+        "sku": "WY-HQ-CAbrick-6"
+      },
+      {
+        "id": "220114595361087784",
+        "title": "Hydraulic Hollow Block Making Machine for Building Projects",
+        "sku": "WY-HQ-CAbrick-5"
+      }
+    ]
+  },
+  "checklist": [
+    {
+      "product_id": "220114595363182310",
+      "state": "publishFail",
+      "state_label": "发布失败",
+      "source": "offline.json/publishFail",
+      "title": "5 Ton Diesel Wheeled Backhoe Loader 4x4 HW20-28 with 75 kW Engine, 1 m³ Bucket, 2600 mm Digging Dept…",
+      "sku": "WY-QHCA-LTM-1",
+      "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;",
+      "conclusion": "发布失败 · A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+      "failure_class": "A",
+      "required_attrs": [],
+      "codes": [
+        "100521"
+      ],
+      "action": "平台审核中：无需改数据，等待最多 48h 后复查（可能自动转在线）",
+      "fields_to_check": [
+        "errMsg 中的 code（100521/90220/8560…）",
+        "errMsg 中的 属性:xxx（缺失属性名）",
+        "errMsg 末尾 Trace_id"
+      ]
+    },
+    {
+      "product_id": "220114595363182214",
+      "state": "publishFail",
+      "state_label": "发布失败",
+      "source": "offline.json/publishFail",
+      "title": "6 Ton Wheeled Backhoe Loader 4x4 Multi-Purpose Excavator Loader with High Power Engine Gear Rural Co…",
+      "sku": "WY-QHCA-LTM-2",
+      "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;",
+      "conclusion": "发布失败 · A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+      "failure_class": "A",
+      "required_attrs": [],
+      "codes": [
+        "100521"
+      ],
+      "action": "平台审核中：无需改数据，等待最多 48h 后复查（可能自动转在线）",
+      "fields_to_check": [
+        "errMsg 中的 code（100521/90220/8560…）",
+        "errMsg 中的 属性:xxx（缺失属性名）",
+        "errMsg 末尾 Trace_id"
+      ]
+    },
+    {
+      "product_id": "220114595363182036",
+      "state": "publishFail",
+      "state_label": "发布失败",
+      "source": "offline.json/publishFail",
+      "title": "CE EPA Mini Backhoe Loader 4x4 WD Agricultural Farm Machine for All Terrain Operation",
+      "sku": "WY-QHCA-LTM-3",
+      "errMsg": "code:100470,您在 标题 中使用了两次以上：[backhoe]。 要修复，请重新提交正确的数据。,属性:item_name;code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;code:发布失败",
+      "conclusion": "发布失败 · A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+      "failure_class": "A",
+      "required_attrs": [
+        "item_name"
+      ],
+      "codes": [
+        "100470",
+        "100521"
+      ],
+      "action": "平台审核中：无需改数据，等待最多 48h 后复查（可能自动转在线）",
+      "fields_to_check": [
+        "errMsg 中的 code（100521/90220/8560…）",
+        "errMsg 中的 属性:xxx（缺失属性名）",
+        "errMsg 末尾 Trace_id"
+      ]
+    },
+    {
+      "product_id": "220114595363181922",
+      "state": "publishFail",
+      "state_label": "发布失败",
+      "source": "offline.json/publishFail",
+      "title": "4WD Backhoe Loader 75 kW HW15-26 Wheel Loader Excavator for Agriculture Municipal Construction CE",
+      "sku": "WY-QHCA-LTM-5",
+      "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;",
+      "conclusion": "发布失败 · A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+      "failure_class": "A",
+      "required_attrs": [],
+      "codes": [
+        "100521"
+      ],
+      "action": "平台审核中：无需改数据，等待最多 48h 后复查（可能自动转在线）",
+      "fields_to_check": [
+        "errMsg 中的 code（100521/90220/8560…）",
+        "errMsg 中的 属性:xxx（缺失属性名）",
+        "errMsg 末尾 Trace_id"
+      ]
+    }
+  ],
+  "safety": {
+    "allowed_readonly_endpoints": [
+      "GET /api/userIn.json",
+      "POST /api/amazonProduct/pageList.json",
+      "POST /api/amazonProduct/offline.json"
+    ],
+    "request_count": 6,
+    "cache_hits": 0,
+    "blocked_attempts": [],
+    "write_endpoints_never_called": true
+  },
+  "notes": [
+    "独立实现：不 import 后端 aeclone 模块，全走 requests + 只读白名单。",
+    "唯一写入口以拼接常量 + 请求守卫断言拦截；脚本无任何写开关。",
+    "Cookie 内容不写入报告，控制台仅打印前 6 位脱敏片段。",
+    "publishFail/publishing 数量与 errMsg 以运行时实时数据为准（Lead 测试期间会变化）。"
+  ],
+  "limitations": [
+    "publishing 是瞬态（约 40s），抓取时刻可能为 0；需按清单复查。",
+    "C 类（软件校验拦截）不会出现在平台 publishFail 列表，通常停在草稿/待发布；本报告对 publishFail 的 C 计数可能为 0，不代表软件无该校验。",
+    "A 类 100521 需等待平台审核，只读核验无法提前判定最终在线/失败。"
+  ],
+  "checks": [
+    {
+      "name": "userIn code=0",
+      "ok": true
+    },
+    {
+      "name": "pageList/draft code=0",
+      "ok": true
+    },
+    {
+      "name": "pageList/online code=0",
+      "ok": true
+    },
+    {
+      "name": "offline.json/publishFail code=0",
+      "ok": true
+    },
+    {
+      "name": "offline.json/publishing code=0",
+      "ok": true
+    },
+    {
+      "name": "offline.json/waitPublish code=0",
+      "ok": true
+    },
+    {
+      "name": "publishFail 全部分类（A+B+C+D == total）",
+      "ok": true
+    },
+    {
+      "name": "leftStat 与各状态总数一致",
+      "ok": true
+    },
+    {
+      "name": "分类器自检 A/B/C/D",
+      "ok": true
+    },
+    {
+      "name": "只读：无写入口调用",
+      "ok": true
+    }
+  ],
+  "classifier_selftest": {
+    "ok": true,
+    "rows": [
+      {
+        "expected": "A",
+        "actual": "A",
+        "ok": true,
+        "sample": "发布失败:code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。请等待最多 48 小时才能完成此流程。",
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": []
+      },
+      {
+        "expected": "B",
+        "actual": "B",
+        "ok": true,
+        "sample": "发布失败:code:90220,“型号” 为必填项，但缺失。,属性:model_number;code:90220,“零件编号” 为必填项，但缺失。,属性:part_number;",
+        "codes": [
+          "90220"
+        ],
+        "required_attrs": [
+          "model_number",
+          "part_number"
+        ]
+      },
+      {
+        "expected": "C",
+        "actual": "C",
+        "ok": true,
+        "sample": "保存校验未通过：描述含促销词 sale / guaranteed / 100% / 电话",
+        "codes": [],
+        "required_attrs": []
+      },
+      {
+        "expected": "D",
+        "actual": "D",
+        "ok": true,
+        "sample": "HTTP 502 Bad Gateway（网关错误）",
+        "codes": [],
+        "required_attrs": []
+      },
+      {
+        "expected": "A",
+        "actual": "A",
+        "ok": true,
+        "sample": "code:100521,我们正在审查这个商品信息。;code:发布失败code:8560,您的商品详情不够完整",
+        "codes": [
+          "100521",
+          "8560"
+        ],
+        "required_attrs": []
+      }
+    ]
+  }
+}
