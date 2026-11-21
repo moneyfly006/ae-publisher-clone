@@ -7,3 +7,6 @@ dist/
 .DS_Store
 .playwright-cli/
 output/playwright/
+
+# 本地逆向抓包临时目录（含 Cookie，禁止提交）
+.tmp-probe/
