@@ -82,10 +82,13 @@ def _require_license(cfg) -> None:
 
 
 def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False,
-                   op=OP_SAVE) -> dict:
+                   op=OP_SAVE, client=None) -> dict:
     """执行 Amazon 保存；返回 ``{"result","issues","warnings","payload","product_id"}``。
 
     这是所有真实写入的唯一收口：预演/验收环境、授权不通过、校验 issues 都会在这里拦住。
+
+    ``client`` 非空时**必须使用传入的客户端**（测试/脚本注入桩），不得再调 ``make_client``；
+    这样 pipeline 把步骤①创建的 client 传下来后，不会再新建真实客户端。
     """
     if _forced_preview():
         raise RuntimeError("当前是预演/验收模式（AURORA_NO_SAVE/AURORA_TEST），已拒绝真实保存")
@@ -97,7 +100,7 @@ def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False,
     if op not in OP_HANDLED:
         raise ValueError(f"未知操作 op={op}（v1 仅支持 1/2/3）")
 
-    c = make_client(cfg)
+    c = client if client is not None else make_client(cfg)
     # 延迟 import：避免 amazon_pipeline ↔ amazon_publish 模块级循环依赖
     from .amazon_pipeline import prepare_save
     detail, payload, issues, warnings = prepare_save(pid, cfg, overrides, client=c)

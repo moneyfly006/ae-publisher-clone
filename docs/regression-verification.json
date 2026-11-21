@@ -26,8 +26,8 @@
   },
   {
     "name": "test_image_plan_conflicts",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_image_edit_modes",
@@ -181,8 +181,8 @@
   },
   {
     "name": "test_schedule_destination",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_frozen_localcheck",
@@ -206,8 +206,8 @@
   },
   {
     "name": "test_publish_repair",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_alibaba_payload",
@@ -236,6 +236,16 @@
   },
   {
     "name": "test_platform_ui_filter",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_scope",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_score",
     "status": "PASS",
     "exit_code": 0
   },

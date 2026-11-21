@@ -14,13 +14,13 @@
 | 真实账号只读核验 | **PASS 18/18** | `docs/amazon-readonly-verification.json`（generated_at `2026-11-22T02:13:07+08:00`） |
 | Amazon 测试（7 文件 171 用例） | **171/171 OK**（`AURORA_TEST=1`） | `tests/test_amazon_{adapter,client,contract,payload,pipeline,prompts,ui_page}.py` |
 | 离线契约测试 | **27/27 OK** | `tests/test_amazon_contract.py` |
-| 全量回归（verify_regressions） | **55/55 模块 PASS**（含 Amazon 7 模块） | `docs/regression-verification.json` |
+| 全量回归（verify_regressions） | task-4 时 **55/55 PASS**；最终复跑 Amazon **7/7 PASS**，另有 3 个 Alibaba 侧模块因外部并发改动失败（§6 单列） | `docs/regression-verification.json` |
 | 离线回归（test_offline） | **234 tests OK** | `tools/test_offline.py`（已接入 7 个 Amazon 模块） |
 | 编译 | `compileall -q src` **exit 0** | — |
 | 全平台按钮审计 | **17 页 / 460 回调，ERROR 0**；Amazon 4 页 114 回调 0 错 | `docs/ui-button-audit.json` |
 | UI/后端交叉审计 | **9/9 PASS** | `tools/verify_amazon_ui.py`（9 项断言） |
 | 13 页按钮遍历 + 截图 | **27/27 按钮无异常**；截图已更新 | `docs/design/amazon-listing-page.png`（275,673 B） |
-| 真实写入（Lead 执行） | **writes=2**，两次 `code=0` | `docs/amazon-write-verification.json`（runs=5） |
+| 真实写入（Lead 执行） | 证据记录 **writes=3**（#1 往返 / #2 AI 编辑 / #3 恢复），均 `code=0`；另有 1 次未授权 teammate 误写（见 §3.3） | `docs/amazon-write-verification.json`（runs=6） |
 | 写后店铺计数 | 采集箱 **16** / 待发布 **5** / 在线 **142** 不变 | Lead 复核 + 只读核验一致 |
 
 ---
@@ -105,6 +105,21 @@
 > `tools/verify_amazon_ui.py` 不含写开关，前者由契约测试静态防回退；
 > `AURORA_TEST` / `AURORA_NO_SAVE` 下 `save_to_amazon` 实测直接拒绝（见 §4.3）。
 
+### 3.3 写 #3：恢复（2026-11-22T02:25，Lead 执行）
+
+- 事故：02:07:28 出现一次**未经 Lead 授权**的真实 op=1 写入（执行者 teammate `amazon-core`
+  的仓库外一次性脚本；根因是脚本在 `patch(make_client)` 作用域之外调用
+  `run_amazon_product(dry_run=False, client=fake)`，pipeline 内部又新建了真实客户端）。
+  它用测试 fixture 文案覆盖了写 #2 的 AI 文案（title 67 字符 / 5 条占位式卖点 / desc 88 字符）。
+- 处置：Lead 用写 #2 的同一份 AI 文案重新 op=1 保存恢复，回读 title 152 字符 / 5 卖点 /
+  Search Terms 235 B / description 2672 字符全部一致；采集箱仍 16、待发布 5、在线 142。
+  证据同文件 `runs=6 writes=3`，本 run `note=restore after unauthorized fixture overwrite ...`。
+- 加固（已落实）：`save_to_amazon(..., client=...)` 必须复用注入客户端；
+  `run_amazon_product(dry_run=False)` 必须显式 `confirm_write=True`，否则直接返回失败且不调用保存；
+  UI 保存路径传入 `confirm_write=True`，单测覆盖「缺 confirm_write 不写」。
+- 结论：**平台真实写入共 4 次**（写 #1 往返、写 #2 AI 编辑、1 次未授权 teammate 写入、写 #3 恢复）；
+  Lead 授权的写入为 3 次。商品最终内容为 AI 文案（已恢复），采集箱/待发布/在线计数不变。
+
 ---
 
 ## 4. UI 与交叉审计
@@ -114,9 +129,14 @@
 - `src/aeclone/platforms.py`：`PageItem(13, "Amazon 刊登", "刊登", ...)`；`_switch` 落点 `_page_idx=13`。
 - `tools/amazon_ui_shots.py`（`AURORA_TEST=1` + `ui_sandbox`）：网络 mock、线程/文件选择器禁用；
   **27/27 按钮 on_click 无异常**；NOT_READY 分支保留（页面未实现/分发表未接时打印 NOT_READY 退出 0）。
-- 截图：`docs/design/amazon-listing-page.png`（1560×2200，275,673 B，
-  sha256 `d8f62036978749141371fadc01510bd19bd86e2776702f780515ba630d6cdedf`）；
-  最新 UI 已包含「＋添加卖点」「当前 5/10 行」「卖点 n/700」计数。
+- 截图（2026-11-22 02:30 最新代码重拍）：
+  `docs/design/amazon-listing-page.png`（页面顶部：连接/采集箱/类目/标题与五点/AI）、
+  `docs/design/amazon-listing-page-2-price-preview.png`（价格/库存/物流/品牌/SKU + 预演/保存）、
+  `docs/design/amazon-listing-page-3-save.png`（页面底部）。
+  最新 UI 已包含「＋添加卖点」「当前 5/10 行」「卖点 n/700」计数、侧栏「去 Amazon 刊登」。
+- 本轮 UI 修复：`_switch_platform` 后同步侧栏启动按钮文案（Amazon/Alibaba → 「去…刊登」）；
+  价格/物流卡片 `wrap=True` Row 内的 `expand` 子控件在 CanvasKit 下会被撑成超大空白块，
+  已改为固定宽度下拉（截图不再有大块空白）。
 
 ### 4.2 全平台按钮审计
 
@@ -176,6 +196,7 @@ Amazon 13 页 52 回调 = 45 OK / 7 DEFERRED / 0 ERROR
 ## 5. 限制（如实列出）
 
 1. 只读核验不覆盖写链路；写证据由 Lead 单独产出（`docs/amazon-write-verification.json`）。
+   期间发生过 1 次 teammate 未授权真实写（已恢复并加固确认门，见 §3.3），如实记录。
 2. 违禁词接口本轮 `data=null`：只证明端点可调用，**不能证明词库命中规则**。
 3. 产品类型预测 best-effort：长标题返回 `code=-1`，本轮用短词验证可用路径。
 4. 品牌列表为空（未做品牌备案），空数组视为端点正常。
@@ -196,6 +217,7 @@ Amazon 13 页 52 回调 = 45 OK / 7 DEFERRED / 0 ERROR
 |---|---|---|
 | `tests/test_platforms.py::test_alibaba_has_trade_and_no_aliexpress_pages` 失败（Alibaba 导航中无 "FOB"） | 外部进程把 Alibaba 价格页从导航移除 | 非 Amazon（未改 Alibaba） |
 | `tests/test_ui_pages.py` AI 文案页 `PermissionError: .../AuroraList/config.tmp` | 沙箱禁止写真实用户配置目录（环境限制） | 环境/沙箱 |
+| `tests/test_image_plan_conflicts.py` / `tests/test_schedule_destination.py` / `tests/test_publish_repair.py` 在最终复跑时失败 | 外部进程并发改 `services/publisher.py`/`alibaba_pipeline.py`/提示词（与 Amazon 无关；task-4 时这些模块还是 PASS） | 外部并发 |
 
 其余全量回归（55 模块）与离线回归（234 tests）均 PASS；`tests/test_ui_redesign.py` 20/20 OK。
 
@@ -218,7 +240,7 @@ Amazon 13 页 52 回调 = 45 OK / 7 DEFERRED / 0 ERROR
 # 1) 真实账号只读核验（需 .tmp-probe/cookies.txt 或 DXM_COOKIE_PATH）
 .venv/bin/python tools/verify_amazon.py                    # 期望 18/18 PASS
 
-# 2) Amazon 测试（7 文件 171 用例，AURORA_TEST=1）
+# 2) Amazon 测试（7 文件，AURORA_TEST=1；写路径必须 confirm_write=True）
 AURORA_TEST=1 .venv/bin/python tests/test_amazon_contract.py
 for f in tests/test_amazon_*.py; do AURORA_TEST=1 .venv/bin/python "$f"; done
 

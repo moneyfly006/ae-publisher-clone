@@ -1,7 +1,7 @@
 {
   "counts": {
-    "OK": 300,
-    "DEFERRED": 140,
+    "OK": 303,
+    "DEFERRED": 141,
     "NATIVE": 8,
     "EXTERNAL": 12,
     "ERROR": 0
@@ -1648,6 +1648,15 @@
     {
       "page": 12,
       "platform": "alibaba",
+      "label": "检查类目经营范围",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
       "label": "产品分组 ID",
       "event": "on_change",
       "status": "OK",
@@ -1846,6 +1855,33 @@
     {
       "page": 12,
       "platform": "alibaba",
+      "label": "发货期(天)",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "发货期起订量",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
+      "label": "物流属性（如 general_cargo_0）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 12,
+      "platform": "alibaba",
       "label": "贸易条款（本地）",
       "event": "on_change",
       "status": "OK",
@@ -1873,8 +1909,8 @@
     {
       "page": 12,
       "platform": "alibaba",
-      "label": "交期(天)（本地）",
-      "event": "on_change",
+      "label": "评分并诊断",
+      "event": "on_click",
       "status": "OK",
       "scenario": "default",
       "detail": ""
@@ -2944,7 +2980,7 @@
     {
       "page": 13,
       "platform": "amazon",
-      "label": "保存（预演模式）",
+      "label": "保存到 Amazon",
       "event": "on_click",
       "status": "OK",
       "scenario": "default",

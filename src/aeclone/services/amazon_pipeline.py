@@ -343,12 +343,14 @@ def prepare_save(product_id: str, cfg, overrides: dict | None = None,
 # ---------------- 主流程 ----------------
 def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                        *, dry_run: bool = True, use_ai: bool = False,
-                       op: str = OP_SAVE, client=None) -> AmazonRunResult:
+                       op: str = OP_SAVE, client=None,
+                       confirm_write: bool = False) -> AmazonRunResult:
     """读详情 → 站点/币种 → 类目 →（AI）→ 保存包 → 校验 → 违禁词 → 预演/保存。
 
     默认 ``dry_run=True``：只预演，绝不调用保存接口。
-    真实保存：``dry_run=False`` 且非 ``forced_preview()`` 且 ``core.guard.require``
-    通过，才走 ``amazon_publish.save_to_amazon``（唯一写收口）。
+    真实保存需同时满足：``dry_run=False`` + **显式 ``confirm_write=True``**（防脚本误写）
+    + 非 ``forced_preview()`` + ``core.guard.require`` 通过，才走
+    ``amazon_publish.save_to_amazon``（唯一写收口，并复用步骤①的 client，不再新建客户端）。
     """
     pid = str(product_id or "").strip()
     op = str(op or OP_SAVE)
@@ -358,6 +360,16 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
             return _fail(res, "参数校验", "缺少 product_id")
         if op not in OP_LABELS:
             return _fail(res, "参数校验", f"未知操作 op={op}（可选 1/2/3）")
+        # 防脚本误写：dry_run=False 必须显式 confirm_write=True 才允许进入真实保存分支
+        if not dry_run and not confirm_write:
+            msg = ("真实保存需要显式 confirm_write=True（防脚本误写）；"
+                   "预演请用 dry_run=True")
+            res.ok = False
+            res.saved = False
+            res.preview = False
+            res.error = msg
+            _step(res, "写入确认", False, msg)
+            return res
 
         # ① 连接 + 读详情
         try:
@@ -531,7 +543,8 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
         # 唯一写收口：save_to_amazon（内部还会再校验一次 forced_preview/guard/issues）
         try:
             from .amazon_publish import save_to_amazon
-            saved = save_to_amazon(pid, cfg, overrides=ov, op=op)
+            # 复用步骤①创建的 client：注入 fake 时绝不新建真实客户端（防脚本误写事故）
+            saved = save_to_amazon(pid, cfg, overrides=ov, op=op, client=c)
         except ValueError as exc:
             return _fail(res, "保存到 Amazon", f"保存前校验未通过：{_short(exc, 300)}")
         except Exception as exc:  # noqa: BLE001

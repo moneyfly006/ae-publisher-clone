@@ -173,9 +173,11 @@ def make_backend():
         calls["prepare"].append({"pid": pid, "overrides": overrides})
         return ({"site": SITE_CODE}, {"title": "Fake Title"}, [], ["提醒"])
 
-    def run_amazon_product(pid, cfg, overrides=None, dry_run=True, use_ai=False, op="1"):
+    def run_amazon_product(pid, cfg, overrides=None, dry_run=True, use_ai=False,
+                           op="1", confirm_write=False):
         calls["run"].append({"pid": pid, "overrides": overrides, "dry_run": dry_run,
-                             "use_ai": use_ai, "op": op})
+                             "use_ai": use_ai, "op": op,
+                             "confirm_write": confirm_write})
         return FakeResult(saved=not dry_run, preview=dry_run)
 
     def ai_generate_field(product, cfg, field, marketplace_id="", count=5):
@@ -556,6 +558,8 @@ class AmazonPageTests(unittest.TestCase):
             self.assertTrue(env.calls["prepare"], "保存前未调用 prepare_save")
             self.assertTrue(env.calls["run"], "保存未调用 run_amazon_product")
             self.assertFalse(env.calls["run"][-1]["dry_run"], "保存必须 dry_run=False")
+            self.assertTrue(env.calls["run"][-1].get("confirm_write"),
+                            "真实保存必须显式 confirm_write=True")
             self.assertTrue(any(isinstance(c, ft.Text) and c.value
                                 and "保存成功" in c.value for c in controls(self.app)))
             # 覆盖键只允许契约 §3.2.0 的 snake_case

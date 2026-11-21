@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-22T02:07:16",
+ "generated_at": "2026-11-22T02:26:00",
  "runs": [
   {
    "when": "2026-11-22T01:57:04",
@@ -457,11 +457,88 @@
     "description_nonempty": true,
     "description_changed": true
    }
+  },
+  {
+   "when": "2026-11-22T02:25:25",
+   "kind": "ai_edit",
+   "mode": "write",
+   "product_id": "220114595363182310",
+   "op": "1",
+   "note": "restore after unauthorized fixture overwrite (amazon-core script bug at 02:07:28); re-apply AI copy",
+   "write": true,
+   "ok": true,
+   "account": "9408005",
+   "site": "CA",
+   "category_id": "13553005011",
+   "before_title": "5 Ton Diesel Wheeled Backhoe Loader Heavy Duty Construction Machine",
+   "before_bullets": 5,
+   "ai_cache": "/Users/apple/Projects/alibaba-lister/.tmp-probe/amazon_ai_text.json",
+   "ai_title": "5 Ton Diesel Wheeled Backhoe Loader 4x4 HW20-28 with 75 kW Engine, 1 m³ Bucket, 2600 mm Digging Depth, High Load Moment for Construction and Agriculture",
+   "ai_bullets": 5,
+   "overrides_summary": {
+    "title_chars": 152,
+    "bullets": 5,
+    "desc_chars": 2672,
+    "st_bytes": 235
+   },
+   "preview_ok": true,
+   "preview_issues": [],
+   "preview_warnings": [
+    "标题长度 152 字符（建议 30~150）",
+    "产品描述 2473 字符（建议 ≤2000）",
+    "库存为 0（草稿允许，发布前需补库存）",
+    "标准价为 0/空（草稿允许，发布前需设价）",
+    "品牌为 Generic（Amazon 可能要求品牌备案）"
+   ],
+   "saved": true,
+   "save_ok": true,
+   "result_error": "",
+   "save_result": {
+    "code": "0",
+    "msg": "",
+    "msgCode": "None",
+    "data": "220114595363182310"
+   },
+   "readback": {
+    "title": "5 Ton Diesel Wheeled Backhoe Loader 4x4 HW20-28 with 75 kW Engine, 1 m³ Bucket, 2600 mm Digging Depth, High Load Moment for Construction and Agriculture",
+    "bullets": [
+     "5 Ton Capacity Backhoe Loader: Designed for heavy-duty road construction and agricultural tasks, this diesel-powered wheeled backhoe loader delivers robust performance with a 5-ton operating capacity and 75 kW (100.58 hp) Yunnei engine.",
+     "4x4 Wheeled Chassis: All-terrain 4x4 wheel drive system provides enhanced traction and stability on uneven Canadian terrain, including gravel roads, muddy fields, and snow-affected job sites.",
+     "High Load Moment Design: Engineered for superior lifting and digging leverage, supporting maximum digging depth of 2600 mm, digging radius up to 4600 mm, and unloading height of 2300 mm.",
+     "Hydraulic System by Trusted Brands: Features Bosch Rexroth hydraulic cylinders, Kawasaki hydraulic pump, and Hengli hydraulic valves for precise, responsive, and durable hydraulic control.",
+     "Compact Articulated Frame: Ultra-maneuverable articulated design achieves a minimum turning radius of 4500 mm, ideal for tight spaces in barns, urban construction zones, and residential landscaping projects."
+    ],
+    "search_terms": "diesel backhoe loader wheeled 4x4 heavy duty construction machinery road building agriculture excavation digging bucket forks grapple hydraulic powered high load moment compact articulated frame manganese steel chassis quick hitch mini",
+    "description_chars": 2672
+   },
+   "checks": {
+    "title": true,
+    "bullets": true,
+    "bullets_count": 5,
+    "search_terms": true,
+    "description_nonempty": true,
+    "description_changed": true
+   }
   }
  ],
  "summary": {
-  "runs": 5,
-  "writes": 2,
-  "last_ok": true
- }
+  "runs": 6,
+  "writes": 3,
+  "last_ok": true,
+  "actual_platform_writes": 4
+ },
+ "incidents": [
+  {
+   "at": "2026-11-22T02:07:28+08:00",
+   "kind": "unauthorized_write",
+   "actor": "amazon-core (teammate, out-of-repo one-off script)",
+   "product_id": "220114595363182310",
+   "op": "1",
+   "effect": "用测试 fixture 文案覆盖写 #2 的 AI 文案（title 67 字符 / 5 条占位卖点 / desc 88 字符）",
+   "root_cause": "脚本在 patch(make_client) 作用域外调用 run_amazon_product(dry_run=False, client=fake)，pipeline 内部重建真实客户端并真实保存",
+   "detected_by": "Lead 写后只读回读 updateTime=1795284448678",
+   "remediation": "Lead 写 #3 用写 #2 AI 文案 op=1 恢复；新增 save_to_amazon(client=复用) + run_amazon_product(confirm_write=True) 护栏",
+   "restored_at": "2026-11-22T02:25+08:00"
+  }
+ ]
 }

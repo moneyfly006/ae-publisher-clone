@@ -272,7 +272,7 @@ class RunDryRunTests(EnvIsolatedCase):
         os.environ["AURORA_NO_SAVE"] = "1"
         fake = FakeClient()
         res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
-                                 dry_run=False)
+                                 dry_run=False, confirm_write=True)
         # 验收环境必须明确拒绝真实保存：ok=False/saved=False，且不调用 save_product
         self.assertFalse(res.ok)
         self.assertFalse(res.saved)
@@ -289,7 +289,8 @@ class RunDryRunTests(EnvIsolatedCase):
         os.environ["AURORA_NO_SAVE"] = "1"
         os.environ["AURORA_SKIP_LICENSE"] = "1"   # 即便授权放行也必须拒绝真实写
         res = run_amazon_product("220114595363182310", AppConfig(),
-                                 client=NoSaveClient(), dry_run=False)
+                                 client=NoSaveClient(), dry_run=False,
+                                 confirm_write=True)
         self.assertFalse(res.ok)
         self.assertFalse(res.saved)
         self.assertTrue(res.preview)
@@ -299,7 +300,7 @@ class RunDryRunTests(EnvIsolatedCase):
         os.environ["AURORA_TEST"] = "1"
         fake = FakeClient()
         res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
-                                 dry_run=False)
+                                 dry_run=False, confirm_write=True)
         self.assertFalse(res.ok)
         self.assertFalse(res.saved)
         self.assertTrue(res.preview)
@@ -349,6 +350,47 @@ class RunDryRunTests(EnvIsolatedCase):
         self.assertIn("创建客户端失败", res.error)
 
 
+class WriteConfirmationGuardTests(EnvIsolatedCase):
+    """防脚本误写硬护栏：dry_run=False 必须显式 confirm_write=True。"""
+
+    def test_confirm_write_required_blocks_real_save(self):
+        fake = FakeClient()
+        res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
+                                 dry_run=False)   # 故意不传 confirm_write
+        self.assertFalse(res.ok)
+        self.assertFalse(res.saved)
+        self.assertFalse(res.preview)
+        self.assertIn("confirm_write=True", res.error)
+        self.assertIn("写入确认", res.log())
+        self.assertEqual(fake.saved, [])
+        # 连详情都不读：确认护栏在连接/读详情之前就拦住
+        self.assertNotIn("读取商品详情", res.log())
+
+    def test_confirm_write_true_uses_injected_client_only(self):
+        """confirm_write=True + 注入 FakeClient：只调用 FakeClient.save_product，不新建客户端。"""
+        os.environ["AURORA_SKIP_LICENSE"] = "1"
+        fake = FakeClient()
+        with patch.object(PL, "make_client", side_effect=AssertionError(
+                "不许新建真实客户端（pipeline）")), \
+             patch.object(PUB, "make_client", side_effect=AssertionError(
+                 "不许新建真实客户端（publish）")):
+            res = run_amazon_product("220114595363182310", AppConfig(),
+                                     client=fake, dry_run=False,
+                                     confirm_write=True)
+        self.assertTrue(res.ok, res.error)
+        self.assertTrue(res.saved)
+        self.assertEqual(len(fake.saved), 1)
+        self.assertEqual(len(fake.saved[0][0]), 39)
+
+    def test_dry_run_true_ignores_confirm_write(self):
+        fake = FakeClient()
+        res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
+                                 dry_run=True, confirm_write=False)
+        self.assertTrue(res.ok, res.error)
+        self.assertTrue(res.preview)
+        self.assertEqual(fake.saved, [])
+
+
 class RealSavePathTests(EnvIsolatedCase):
     def _fake_save_env(self, fake):
         os.environ["AURORA_SKIP_LICENSE"] = "1"
@@ -357,7 +399,7 @@ class RealSavePathTests(EnvIsolatedCase):
     def test_license_required(self):
         fake = FakeClient()
         res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
-                                 dry_run=False)
+                                 dry_run=False, confirm_write=True)
         self.assertFalse(res.ok)
         self.assertIn("授权校验", res.error)
         self.assertFalse(res.saved)
@@ -367,7 +409,8 @@ class RealSavePathTests(EnvIsolatedCase):
         fake = FakeClient()
         with self._fake_save_env(fake):
             res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
-                                     dry_run=False, op=OP_MOVE_PENDING)
+                                     dry_run=False, op=OP_MOVE_PENDING,
+                                     confirm_write=True)
         self.assertTrue(res.ok, res.error)
         self.assertTrue(res.saved)
         self.assertFalse(res.preview)
@@ -396,7 +439,8 @@ class RealSavePathTests(EnvIsolatedCase):
         with patch.object(PUB, "make_client", return_value=fake):
             res = run_amazon_product("220114595363182310", AppConfig(),
                                      client=fake, dry_run=False,
-                                     overrides=ai_over, op=OP_SAVE)
+                                     overrides=ai_over, op=OP_SAVE,
+                                     confirm_write=True)
         self.assertTrue(res.ok, res.error)
         self.assertTrue(res.saved)
         self.assertEqual(len(fake.saved), 1)
@@ -420,7 +464,7 @@ class RealSavePathTests(EnvIsolatedCase):
         fake = SaveFail()
         with self._fake_save_env(fake):
             res = run_amazon_product("220114595363182310", AppConfig(), client=fake,
-                                     dry_run=False)
+                                     dry_run=False, confirm_write=True)
         self.assertFalse(res.ok)
         self.assertFalse(res.saved)
         self.assertIn("类目不可用", res.error)
@@ -563,6 +607,24 @@ class PublishGuardTests(EnvIsolatedCase):
         self.assertEqual(len(out["payload"]), 39)
         self.assertTrue(out["issues"])
         self.assertEqual(out["product_id"], "220114595363182310")
+
+    def test_save_to_amazon_uses_passed_client(self):
+        os.environ["AURORA_SKIP_LICENSE"] = "1"
+        fake = FakeClient()
+        with patch.object(PUB, "make_client",
+                          side_effect=AssertionError("传了 client 不许再 make_client")):
+            out = PUB.save_to_amazon("220114595363182310", AppConfig(),
+                                     client=fake, op=OP_SAVE)
+        self.assertEqual(out["result"]["code"], 0)
+        self.assertEqual(len(fake.saved), 1)
+        self.assertEqual(len(out["payload"]), 39)
+
+    def test_save_to_amazon_forwards_client_and_keeps_guards(self):
+        # forced_preview 护栏优先于一切（即使传了 client 也拒绝）
+        os.environ["AURORA_NO_SAVE"] = "1"
+        fake = FakeClient()
+        with self.assertRaises(RuntimeError):
+            PUB.save_to_amazon("220114595363182310", AppConfig(), client=fake)
 
     def test_save_to_amazon_success_dict(self):
         os.environ["AURORA_SKIP_LICENSE"] = "1"

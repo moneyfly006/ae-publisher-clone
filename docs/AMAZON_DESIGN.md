@@ -342,11 +342,14 @@ def prepare_save(product_id:str, cfg, overrides:dict|None=None,
 
 def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                        *, dry_run: bool = True, use_ai: bool = False,
-                       op: str = OP_SAVE, client: AmazonClient | None = None) -> AmazonRunResult
+                       op: str = OP_SAVE, client: AmazonClient | None = None,
+                       confirm_write: bool = False) -> AmazonRunResult
     # 步骤：① 连接/读详情 ② 站点+币种 ③ 类目校验 ④ AI 生成（use_ai 时，overrides 已有值不覆盖）
     #      ⑤ 组装保存包 ⑥ 必填/合规校验 ⑦ 违禁词提示 ⑧ 预演 或 保存(op)
     # 任何异常 → ok=False + 失败步骤，不静默吞
-    # 真实保存：dry_run=False 且非 forced_preview 且通过 core.guard.require(cfg) 才调用 save_product
+    # 真实保存：dry_run=False 且 confirm_write=True 且非 forced_preview 且通过
+    # core.guard.require(cfg) 才调用 save_product；save_to_amazon 必须复用传入的 client
+    # （禁止 pipeline 内部另建真实客户端——2026-11-22 曾因此发生一次脚本误写）。
 
 def ai_generate_field(product: dict, cfg, field: str, marketplace_id: str = "",
                       count: int = 5) -> tuple[object, list[str]]
@@ -364,8 +367,10 @@ AI 调用复用 `ApiClient(cfg.api_base, cfg.api_key, cfg.timeout).chat(model_of
 from ..integrations.amazon import AmazonClient, AmazonError
 OP_SAVE="1"; OP_MOVE_PENDING="3"; OP_PUBLISH="2"
 def make_client(cfg) -> AmazonClient          # Cookie 优先级见 §0
-def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False, op=OP_SAVE) -> dict
+def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False,
+                   op=OP_SAVE, client: AmazonClient | None = None) -> dict
     # 唯一真实写收口：forced_preview/授权失败 → RuntimeError；issues 且非 allow_invalid → ValueError
+    # client 非空时必须复用它（测试/脚本注入 fake 时绝不可新建真实客户端）
     # 返回 {"result":..., "issues":[...], "warnings":[...], "payload":{...}, "product_id":...}
 ```
 
@@ -563,7 +568,8 @@ def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False, op=OP_S
 ## 7. 安全与真实验证边界
 
 - 默认一切操作 **dry-run**：预演不调用 `save_product`，不写任何数据。
-- 真实写唯一入口 `services.amazon_publish.save_to_amazon`（UI 与 pipeline 必须都走它）：
+- 真实写唯一入口 `services.amazon_publish.save_to_amazon`（UI 与 pipeline 必须都走它），
+  且 `run_amazon_product(dry_run=False)` 必须同时 `confirm_write=True`（防脚本/测试误写）：
   - `AURORA_NO_SAVE`/`AURORA_TEST` 存在 → 直接拒绝
   - `core.guard.require(cfg)` 授权校验（`AURORA_SKIP_LICENSE=1` 放行，测试用）
   - 校验 issues 非空且 `allow_invalid=False` → 拒绝

@@ -1010,6 +1010,9 @@ class App:
             pass
         first = pf.pages[0].index if pf.pages else 0
         self._switch(first)
+        # 侧栏「启动任务」按钮随平台变化（Alibaba/Amazon 改为「去…刊登」），
+        # 切换平台时必须同步，否则会保留上一平台的文案图标。
+        self._sync_run_button()
         self._log(f"切换平台：{pf.name} · {'已开通' if self.entitlements.has_platform(pf.id) else '未开通'}",
                   "INFO")
 
@@ -10051,7 +10054,7 @@ class App:
             value="1",
             options=[ft.dropdown.Option("1", "保存草稿（op=1，不提交）"),
                      ft.dropdown.Option("3", "保存并移入待发布（op=3）"),
-                     ft.dropdown.Option("2", "提交审核 / 发布（op=2）")])
+                     ft.dropdown.Option("2", "提交审核 / 发布（op=2，需评分≥4.5）")])
 
         def _close_dlg(dlg):
             try:
@@ -10088,6 +10091,28 @@ class App:
                 try:
                     from ..services.alibaba_publish import prepare_save
                     _product, save, _req, issues = prepare_save(pid, self.cfg)
+                    precheck = None
+                    if op == "2":
+                        from ..services.alibaba_pipeline import run_alibaba_product as _run
+                        precheck = _run(pid, self.cfg, dry_run=True, op="2", use_ai=False)
+                        if not precheck.ok:
+                            status.value = "发布预检未通过（评分必须 ≥4.5 才能发布）"
+                            status.color = DANGER_C
+                            required_box.controls = [
+                                h1("发布预检未通过", 13),
+                                ft.Text(f"刊登评分：{precheck.score:.2f}/5（发布线 4.5）",
+                                        size=13, color=DANGER_C),
+                                *[ft.Text("· " + f, size=12, color=WARN_C, selectable=True)
+                                  for f in (precheck.score_fixes or [])[:8]],
+                                *[ft.Text(("✗ " if not st.ok else "· ") + st.name + "：" + st.detail,
+                                          size=12, color=DANGER_C if not st.ok else MUTED,
+                                          selectable=True) for st in precheck.steps],
+                            ]
+                            try:
+                                self._safe_update()
+                            except Exception:
+                                pass
+                            return
                     if issues:
                         required_box.controls = [h1("保存前校验未通过", 13)] + [
                             ft.Text("✗ " + i, size=12.5, color=DANGER_C) for i in issues]
@@ -10111,8 +10136,16 @@ class App:
                                 if res.saved:
                                     msg = str(((res.save_result or {}).get("data") or {}).get("msg")
                                               or res.save_result or "")
-                                    status.value = f"已保存（op={op}）" + (f"：{msg}" if msg else "")
-                                    status.color = SUCCESS_C
+                                    if getattr(res, "auditing", False):
+                                        status.value = (f"已提交审核（op={op}）：平台显示商品正在审核中，"
+                                                        "无需重复提交；审核结果在「发布队列」查看")
+                                    elif res.publish_state and res.publish_state.get("errMsg"):
+                                        status.value = (f"已提交但平台校验未通过（op={op}）："
+                                                        f"{str(res.publish_state.get('errMsg'))[:160]}")
+                                    else:
+                                        status.value = f"已保存（op={op}）" + (f"：{msg}" if msg else "")
+                                    status.color = (WARN_C if getattr(res, "auditing", False)
+                                                    else SUCCESS_C)
                                     required_box.controls = [
                                         h1("保存结果", 13),
                                         ft.Text(f"商品 {pid} · {op_text}", size=12.5, color=TEXT),
@@ -10149,6 +10182,11 @@ class App:
                             ft.Text(f"动作：{op_text}", size=13,
                                     color=WARN_C if op in ("2", "3") else TEXT),
                             ft.Text("预演校验：必填项全部满足", size=12.5, color=SUCCESS_C),
+                            *([ft.Text(f"刊登评分：{precheck.score:.2f}/5（发布线 4.5）",
+                                       size=12.5, color=ACCENT_2)] if precheck else []),
+                            *([ft.Text("类目经营范围：" + str(precheck.scope.get("detail") or ""),
+                                       size=12, color=MUTED, selectable=True)]
+                              if precheck and precheck.scope else []),
                             muted("保存会写入店小秘/平台，不是本地预演。"),
                         ], spacing=6, width=380),
                         actions=[ft.TextButton("取消", on_click=lambda ev: _close_dlg(dlg)),
@@ -10294,7 +10332,8 @@ class App:
         _ai_preset_ctl = self._alibaba_preset_control()
         ai_card = card(ft.Column([
             h1("AI 文案 → 保存（新链路）", FS_MD),
-            muted("AI 生成英文标题（≤128）与关键词/详情 HTML，再按类目必填校验后保存；"
+            muted("AI 生成英文标题（≤128）与关键词/纯文本详情（平台 textDesc 上限 2000 字符），"
+                  "再按类目必填校验与评分门禁后保存；"
                   "默认只预演，保存需二次确认。"),
             ai_use,
             *([_ai_preset_ctl] if _ai_preset_ctl else []),
@@ -10334,8 +10373,33 @@ class App:
             prod_box,
         ], spacing=8))
 
+        cat_scope_text = ft.Text("", size=12, color=MUTED, selectable=True)
+
+        def check_scope(e=None):
+            def work():
+                try:
+                    cid = str(getattr(self.cfg, "alibaba_category_id", "") or "").strip()
+                    if not cid:
+                        cat_scope_text.value = "先选择类目，再检查经营范围"
+                        cat_scope_text.color = WARN_C
+                    else:
+                        from ..services.alibaba_scope import check_category_scope
+                        r = check_category_scope(client(), cid, max_pages=10)
+                        cat_scope_text.value = "类目经营范围预检：" + r.detail
+                        cat_scope_text.color = ACCENT_2 if r.in_scope_guess else WARN_C
+                except Exception as ex:  # noqa: BLE001
+                    cat_scope_text.value = f"预检失败：{str(ex)[:120]}"
+                    cat_scope_text.color = DANGER_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+            threading.Thread(target=work, daemon=True).start()
+
         cat_card = card(ft.Column([
             h1("类目选择（按关键词搜索）", FS_MD),
+            muted("发布前建议先点「检查类目经营范围」：平台会校验类目是否在店铺经营大类里"
+                  "（不通过会报 PUB_BIZCHECK_CAT_PUB_RESTRICT，需要去卖家中心开通）。"),
             cat_now,
             ft.Row([search_kw, ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH, bgcolor=ACCENT,
                                                  color=ON_ACCENT, on_click=do_search),
@@ -10347,8 +10411,12 @@ class App:
                                       tooltip="AI 按标题/详情从类目候选值里建议（会产生文本 API 费用，需复核）",
                                       on_click=ai_suggest_attrs),
                     ft.OutlinedButton("展开子类目", icon=ft.Icons.ACCOUNT_TREE,
-                                      on_click=lambda e: _load_children({"categoryId": str(getattr(self.cfg, "alibaba_category_id", "") or ""), "nameZh": str(getattr(self.cfg, "alibaba_category_name", "") or "")}))],
+                                      on_click=lambda e: _load_children({"categoryId": str(getattr(self.cfg, "alibaba_category_id", "") or ""), "nameZh": str(getattr(self.cfg, "alibaba_category_name", "") or "")})),
+                    ft.OutlinedButton("检查类目经营范围", icon=ft.Icons.VERIFIED_OUTLINED,
+                                      tooltip="扫描在线商品类目做近似预检；最终以卖家中心经营类目为准",
+                                      on_click=check_scope)],
                    spacing=10, wrap=True),
+            cat_scope_text,
             cat_box,
         ], spacing=8))
 
@@ -10400,13 +10468,92 @@ class App:
                     tf("alibaba_weight", "重量 kg", 140), tf("alibaba_stock", "库存", 120),
                     tf("alibaba_hs_code", "HS 编码", 160)], spacing=10, wrap=True),
             tf("alibaba_price_tiers", "阶梯价 JSON（[{\"start_quantity\":1,\"price\":100}]）", 720, True),
+            ft.Row([tf("alibaba_process_period", "发货期(天)", 130,
+                        hint="发布必填 deliver_periods.process_period"),
+                    tf("alibaba_deliver_quantity", "发货期起订量", 150,
+                       hint="deliver_periods.quantity，填 1 即可"),
+                    tf("alibaba_logistics_property", "物流属性（如 general_cargo_0）", 260,
+                       hint="平台要求重量/长宽高/物流属性同时填写；普货填 general_cargo_0")],
+                   spacing=10, wrap=True),
             muted("下面几项目前只保存在本地资料里、暂不写入保存包（Alibaba 保存格式无对应字段）："
-                  "贸易条款 / 港口 / 付款方式 / 交期", 11),
+                  "贸易条款 / 港口 / 付款方式", 11),
             ft.Row([tf("alibaba_trade_terms", "贸易条款（本地）", 140),
                     tf("alibaba_port", "港口（本地）", 160),
-                    tf("alibaba_payment_terms", "付款方式（本地）", 160),
-                    tf("alibaba_lead_time", "交期(天)（本地）", 120)], spacing=10, wrap=True),
+                    tf("alibaba_payment_terms", "付款方式（本地）", 160)], spacing=10, wrap=True),
         ], spacing=8))
+
+        score_total = ft.Text("未评分（发布要求 ≥4.5）", size=20, color=MUTED,
+                              weight=ft.FontWeight.BOLD)
+        score_items = ft.Column(spacing=4)
+        score_fixes = ft.Column(spacing=2)
+        score_hint = ft.Text("评分只做读取+规则判断，不写店铺；发布 op=2 会强制 ≥4.5",
+                             size=12, color=MUTED)
+
+        def do_score(e=None):
+            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            if not pid:
+                status.value = "先选择一个商品再评分"
+                status.color = WARN_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+                return
+
+            def work():
+                try:
+                    c = client()
+                    prod = c.product_detail(pid)
+                    cid = str(getattr(self.cfg, "alibaba_category_id", "") or
+                              prod.get("categoryId") or "")
+                    req = c.required_attributes(cid) if cid else []
+                    from ..services.alibaba_payload import build_alibaba_save
+                    from ..services.alibaba_score import PASS_SCORE, probe_image, score_product
+                    save = build_alibaba_save(prod, self.cfg, {"category_id": cid}, attr_defs=req)
+                    r = score_product(prod, self.cfg, save=save, required_attrs=req,
+                                      image_checker=probe_image)
+                    rows = []
+                    for it in r.items:
+                        color = (ACCENT_2 if it.score >= 4 else
+                                 WARN_C if it.score >= 3 else DANGER_C)
+                        rows.append(ft.Column([
+                            ft.Row([
+                                ft.Text(it.label, size=12.5, color=TEXT, width=150),
+                                ft.ProgressBar(value=max(0.0, min(1.0, it.score / 5)),
+                                               width=170, color=color, bgcolor=CARD_2),
+                                ft.Text(f"{it.score:.1f}/5", size=12.5, color=color, width=54),
+                            ], spacing=8),
+                            *[ft.Text("· " + x, size=11.5, color=MUTED, selectable=True)
+                              for x in it.problems[:3]],
+                        ], spacing=2))
+                    score_total.value = (f"{r.total:.2f} / 5 · "
+                                         + ("达标 ✓ 可以发布" if r.passed
+                                            else f"未达标 ✗ 不能发布（线 {PASS_SCORE}）"))
+                    score_total.color = ACCENT_2 if r.passed else DANGER_C
+                    score_items.controls = rows
+                    score_fixes.controls = (
+                        [ft.Text("修复建议（按顺序处理）", size=12.5, color=TEXT)]
+                        + [ft.Text("· " + f, size=11.5, color=WARN_C, selectable=True)
+                           for f in (r.fixes or ["无"])[:8]])
+                except Exception as ex:  # noqa: BLE001
+                    score_total.value = f"评分失败：{str(ex)[:150]}"
+                    score_total.color = DANGER_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+
+            threading.Thread(target=work, daemon=True).start()
+
+        score_card = card(ft.Column([
+            h1("刊登评分与发布门禁", FS_MD),
+            muted("发布（op=2）要求 ≥4.5/5。评分逐项检查：类目属性 / 标题 / 关键词 / 详情 / "
+                  "图片 / 视频 / 价格贸易 / 合规，不达标会列出缺什么、去哪里补。"),
+            ft.Row([ft.ElevatedButton("评分并诊断", icon=ft.Icons.SPEED, bgcolor=ACCENT,
+                                      color=ON_ACCENT, on_click=do_score), score_hint],
+                   spacing=10, wrap=True),
+            score_total, score_items, score_fixes,
+        ], spacing=6))
 
         check_card = card(ft.Column([
             h1("预演校验 / 保存", FS_MD),
@@ -10425,7 +10572,7 @@ class App:
                     ("类目", [cat_card]),
                     ("预设资料", [preset_card]),
                     ("价格与贸易", [trade_card]),
-                    ("预演 / 保存", [check_card, ai_card]),
+                    ("预演 / 保存", [score_card, check_card, ai_card]),
                 ])]
 
     def _p_alibaba_listing(self):
@@ -12004,7 +12151,7 @@ class App:
                     _make, _payload, pipeline = _backend()
                     res = pipeline.run_amazon_product(
                         pid, self.cfg, overrides=_overrides(), dry_run=False,
-                        use_ai=False, op=op)
+                        use_ai=False, op=op, confirm_write=True)
                     _render_result(res, "保存结果", preview=False)
                     if bool(getattr(res, "saved", False)):
                         _status(save_status, f"保存成功（op={op} · {op_text}）", SUCCESS_C)
@@ -12235,7 +12382,9 @@ class App:
                   "产品属性 v1 原样回写不编辑。"),
             ft.Row([price_tf, currency_text, sale_tf, qty_tf, fulfil_dd,
                     handling_tf], spacing=10, wrap=True),
-            ft.Row([ft.Container(content=ship_dd, expand=True),
+            # 注意：wrap=True 的 Row 里放 expand 子控件在 Flet CanvasKit 下会
+            # 被撑成超大空白块；运费模板行改为固定宽度下拉 + 按钮，不用 expand。
+            ft.Row([ship_dd,
                     ft.OutlinedButton("刷新运费模板", icon=ft.Icons.REFRESH,
                                       on_click=load_logistics)], spacing=10, wrap=True),
             ft.Row([brand_tf, maker_tf, sku_tf], spacing=10, wrap=True),

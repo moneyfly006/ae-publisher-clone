@@ -1,5 +1,8 @@
 """Amazon AI 文案真实编辑核验（Lead 专用，默认只读）。
 
+写入护栏：真实分支必须同时 `--allow-write` 且调用 `run_amazon_product(confirm_write=True)`；
+否则 pipeline 会在连接前拒绝（2026-11-22 事故后加固）。
+
 流程：读采集箱商品 → AI 生成标题/五点/描述/关键词 → 组装 overrides → 预演校验
      →（--allow-write）op=1 真实保存 → 回读 editSp 逐字段对比 → 证据入库。
 
@@ -159,7 +162,7 @@ def main(argv=None) -> int:
         print(f"真实写入：op={args.op}（run_amazon_product → save_to_amazon）…")
         res = amazon_pipeline.run_amazon_product(pid, cfg, overrides=overrides,
                                                  dry_run=False, use_ai=False,
-                                                 op=args.op)
+                                                 op=args.op, confirm_write=True)
         record["saved"] = bool(res.saved)
         record["save_ok"] = bool(res.ok)
         record["result_error"] = str(res.error or "")
