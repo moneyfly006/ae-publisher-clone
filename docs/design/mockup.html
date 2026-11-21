@@ -1,0 +1,160 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+:root{--bg:#0B1217;--card:#152129;--card2:#1A2932;--line:#243640;--text:#E9F2F3;--muted:#93A8B0;--accent:#58C9B7;--warn:#EAC078;--red:#FF9298}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:"PingFang SC","Noto Sans SC",system-ui,sans-serif;padding:28px}
+.mock{width:1544px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#0d161c;margin:0 auto 34px}
+.titlebar{height:38px;display:flex;align-items:center;justify-content:center;color:#c8d6da;font-size:13px;border-bottom:1px solid var(--line);background:#101a20}
+.shell{display:flex;height:900px}
+.rail{width:224px;border-right:1px solid var(--line);background:#0f1a20;display:flex;flex-direction:column}
+.brand{display:flex;align-items:center;gap:10px;padding:16px 16px 12px;font-weight:700;font-size:15px}
+.brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#58C9B7,#0F766E);display:grid;place-items:center;font-size:15px}
+.plat-label{font-size:11px;letter-spacing:.16em;color:var(--muted);padding:10px 18px 6px}
+.plat{display:flex;align-items:center;gap:10px;margin:3px 10px;padding:9px 11px;border-radius:10px;font-size:13px;color:var(--muted);border:1px solid transparent}
+.plat.active{background:rgba(88,201,183,.12);border-color:rgba(88,201,183,.4);color:#fff}
+.plat .dot{width:22px;height:22px;border-radius:7px;background:#24343d;display:grid;place-items:center;font-size:11px}
+.plat.active .dot{background:#58C9B7;color:#062621}
+.plat .lock{margin-left:auto;font-size:11px;color:#6d838c}
+.rail .sep{height:1px;background:var(--line);margin:12px 16px}
+.rail .foot{margin-top:auto;padding:14px 16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.nav{width:250px;border-right:1px solid var(--line);background:#0c151a;padding:14px 10px;overflow:hidden}
+.nav .back{font-size:11px;color:var(--muted);letter-spacing:.14em;padding:4px 10px 10px}
+.nav .grp{font-size:11px;color:#6d838c;letter-spacing:.14em;padding:12px 12px 6px}
+.nav .item{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:8px;font-size:13px;color:#b9c9cf;margin:1px 0}
+.nav .item.on{background:rgba(88,201,183,.1);color:#7fe0d0}
+.nav .item .ic{width:16px;text-align:center;color:#7f97a0}
+.main{flex:1;display:flex;flex-direction:column;background:#0d171d}
+.topbar{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 22px;font-size:12px;color:var(--muted)}
+.topbar .crumb{color:#cfe0e4;font-size:13px}
+.topbar .pill{margin-left:auto;border:1px solid var(--line);padding:4px 10px;border-radius:20px}
+.content{padding:22px 26px;overflow:hidden}
+h1{font-size:26px;font-weight:800;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px;margin:6px 0 18px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi b{display:block;font-size:24px;color:var(--accent)}.kpi span{font-size:12px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:14px}
+.card h3{font-size:15px;margin-bottom:10px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);border-radius:20px;padding:5px 12px;font-size:12px;color:var(--muted)}
+.chip.on{border-color:rgba(88,201,183,.5);color:#7fe0d0;background:rgba(88,201,183,.08)}
+.rows{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.mini{background:var(--card2);border-radius:10px;padding:12px;font-size:12px;color:var(--muted)}
+.mini b{display:block;color:var(--text);font-size:13px;margin-bottom:4px}
+.locked-wrap{position:relative;height:900px}
+.locked-wrap .shell{filter:blur(3px) brightness(.35);pointer-events:none}
+.dialog{position:absolute;inset:0;display:grid;place-items:center}
+.dlg{width:520px;background:#152129;border:1px solid #2b414b;border-radius:18px;padding:28px 30px;box-shadow:0 40px 90px rgba(0,0,0,.6)}
+.dlg .badge{display:inline-block;font-size:11px;color:#062621;background:var(--warn);padding:3px 9px;border-radius:20px;font-weight:700}
+.dlg h2{font-size:22px;margin:14px 0 6px}
+.dlg p{color:var(--muted);font-size:13px;line-height:1.7}
+.dlg ul{margin:14px 0 18px 18px;color:#c2d2d7;font-size:13px;line-height:1.9}
+.dlg .btns{display:flex;gap:10px}
+.btn{background:var(--accent);color:#062621;font-weight:700;padding:10px 18px;border-radius:10px;font-size:13px}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+.tag{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--muted);margin-left:6px}
+</style></head><body>
+
+<!-- 设计图 1：授权 Alibaba 的工作台 -->
+<div class="mock">
+  <div class="titlebar">AuroraList · 平台化工作台（示意：已开通 Alibaba 国际站）</div>
+  <div class="shell">
+    <div class="rail">
+      <div class="brand"><div class="logo">A</div><div>AuroraList<br><span style="font-weight:500;font-size:10px;color:#93A8B0">多平台刊登</span></div></div>
+      <div class="plat-label">平台</div>
+      <div class="plat active"><div class="dot">阿</div>Alibaba 国际站</div>
+      <div class="plat"><div class="dot">速</div>速卖通 AliExpress <span class="lock">🔒</span></div>
+      <div class="plat"><div class="dot">T</div>TikTok Shop <span class="lock">🔒</span></div>
+      <div class="plat"><div class="dot">S</div>Shopee <span class="lock">🔒</span></div>
+      <div class="sep"></div>
+      <div class="plat-label">通用</div>
+      <div class="plat"><div class="dot">◫</div>任务与日志</div>
+      <div class="plat"><div class="dot">⚙</div>设置</div>
+      <div class="foot">授权有效 · 到期 2027-11-17<br>平台：Alibaba + AI 图片包</div>
+    </div>
+    <div class="nav">
+      <div class="back">ALIBABA 国际站</div>
+      <div class="grp">商品准备</div>
+      <div class="item on"><span class="ic">▣</span>概览</div>
+      <div class="item"><span class="ic">◎</span>店铺与登录</div>
+      <div class="item"><span class="ic">◱</span>采集箱</div>
+      <div class="item"><span class="ic">◈</span>类目与属性</div>
+      <div class="item"><span class="ic">▤</span>产品分组</div>
+      <div class="grp">刊登</div>
+      <div class="item"><span class="ic">＋</span>新建 / 编辑商品</div>
+      <div class="item"><span class="ic">▥</span>草稿与待发布</div>
+      <div class="item"><span class="ic">◉</span>在线商品</div>
+      <div class="item"><span class="ic">⇅</span>发布 / 审核状态</div>
+      <div class="grp">内容</div>
+      <div class="item"><span class="ic">✳</span>AI 文案</div>
+      <div class="item"><span class="ic">◐</span>AI 图片</div>
+      <div class="item"><span class="ic">☑</span>内容审查</div>
+      <div class="grp">价格与贸易</div>
+      <div class="item"><span class="ic">¥</span>阶梯价 / FOB 报价</div>
+      <div class="item"><span class="ic">▦</span>MOQ · 包装 · 重量</div>
+      <div class="item"><span class="ic">⇄</span>贸易条款 / 交期 / 样品</div>
+    </div>
+    <div class="main">
+      <div class="topbar"><span class="crumb">Alibaba 国际站 / 概览</span><span class="pill">店铺 9466975</span><span class="pill">任务空闲</span><span class="pill">授权有效</span></div>
+      <div class="content">
+        <h1>概览</h1>
+        <div class="sub">只显示已开通平台与已授权功能；未开通平台在左侧锁定</div>
+        <div class="kpis">
+          <div class="kpi"><b>128</b><span>采集箱</span></div>
+          <div class="kpi"><b>12</b><span>草稿 / 待发布</span></div>
+          <div class="kpi"><b>36</b><span>在线商品</span></div>
+          <div class="kpi"><b>4</b><span>审核失败</span></div>
+          <div class="kpi"><b>¥3.90</b><span>今日 AI 花费</span></div>
+        </div>
+        <div class="card"><h3>快捷操作</h3><div class="chips"><span class="chip on">采集箱 → 生成草稿</span><span class="chip">类目与必填校验</span><span class="chip">阶梯价 / FOB</span><span class="chip">提交审核</span><span class="chip">批量 AI 图片</span></div></div>
+        <div class="card"><h3>平台功能开关（授权驱动）</h3>
+          <div class="rows">
+            <div class="mini"><b>AI 文案</b>标题 / 关键词 / 详情 / 公司介绍（已授权）</div>
+            <div class="mini"><b>AI 图片</b>白底 / 去水印 / 翻译 / 营销图（已授权）</div>
+            <div class="mini"><b>价格与贸易</b>阶梯价 / FOB / MOQ / 交期（已授权）</div>
+          </div>
+        </div>
+        <div class="card"><h3>准备状态</h3><div class="rows">
+          <div class="mini"><b>店小秘登录</b>✓ 已连接</div>
+          <div class="mini"><b>类目</b>100010668 包装机 / 已选叶子</div>
+          <div class="mini"><b>必填属性</b>10 项 · 自动填充 8 项</div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 设计图 2：未开通平台 -->
+<div class="mock">
+  <div class="titlebar">AuroraList · 平台未开通（示意：点击速卖通）</div>
+  <div class="locked-wrap">
+    <div class="shell">
+      <div class="rail">
+        <div class="brand"><div class="logo">A</div><div>AuroraList<br><span style="font-weight:500;font-size:10px;color:#93A8B0">多平台刊登</span></div></div>
+        <div class="plat-label">平台</div>
+        <div class="plat"><div class="dot">阿</div>Alibaba 国际站</div>
+        <div class="plat active"><div class="dot">速</div>速卖通 AliExpress <span class="lock">🔒</span></div>
+        <div class="plat"><div class="dot">T</div>TikTok Shop <span class="lock">🔒</span></div>
+      </div>
+      <div class="nav">
+        <div class="back">ALIEXPRESS（未开通）</div>
+        <div class="grp">商品准备</div><div class="item"><span class="ic">▣</span>概览</div><div class="item"><span class="ic">◈</span>类目与属性</div><div class="item"><span class="ic">¥</span>价格</div>
+        <div class="grp">内容</div><div class="item"><span class="ic">✳</span>AI 文案</div><div class="item"><span class="ic">◐</span>AI 图片</div>
+        <div class="grp">发布</div><div class="item"><span class="ic">⇅</span>发布队列</div>
+      </div>
+      <div class="main"><div class="topbar"><span class="crumb">速卖通 AliExpress</span></div><div class="content"></div></div>
+    </div>
+    <div class="dialog"><div class="dlg">
+      <span class="badge">未开通</span>
+      <h2>速卖通 AliExpress 功能未开通</h2>
+      <p>当前授权只包含 Alibaba 国际站。开通后这里会自动出现速卖通的刊登、价格、类目等页面，无需重装软件。</p>
+      <ul>
+        <li>按平台购买：Alibaba / 速卖通 / TikTok / Shopee</li>
+        <li>可选功能包：AI 图片、批量刊登、审核队列</li>
+        <li>有效期、换机、续期在授权网站管理</li>
+      </ul>
+      <div class="btns"><span class="btn">去授权网站开通</span><span class="btn ghost">查看功能清单</span></div>
+    </div></div>
+  </div>
+</div>
+</body></html>
