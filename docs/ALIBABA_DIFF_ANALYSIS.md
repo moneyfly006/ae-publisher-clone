@@ -143,3 +143,86 @@
 5. 产品类型以 **RTS 现货** 还是 **询盘定制** 为主
 
 拿到 1~3 后，我就能把 `publish` 页的真实请求抓出来，给出精确的字段映射和第一版改造代码。
+
+---
+
+# 附：实测结果（2026-11-21，已跑通）
+
+测试账号：店小秘（shopId 9466975），商品 `220114598434958580`。
+用登录 Cookie 直接调店小秘的 Alibaba(ICBU) 私有接口，**保存已验证成功**：
+`{"msg":"您的产品编辑成功！","code":0,"productId":"220114598434958580"}`
+
+## 1. 接口清单（实测）
+
+| 用途 | 方法 | 路径 |
+|---|---|---|
+| 商品详情 | GET | `/api/alibabaIcbuProduct/edit.json?id=<id>` |
+| 商品列表 | GET | `/api/alibabaIcbuProduct/list.json?page=1&pageSize=20` |
+| 保存/发布 | POST | `/api/alibabaIcbuProduct/add.json`（multipart） |
+| 类目列表 | GET | `/api/alibabaIcbuCategory/list.json` |
+| 类目详情 | GET | `/api/alibabaIcbuCategory/getByCategoryId.json` |
+| 类目属性 | GET | `/api/alibabaIcbuCategory/attributeList.json?categoryId=` |
+| 类目 schema | GET | `/api/alibabaIcbuCategory/schemaList.json?categoryId=` |
+| 变种模板名 | GET | `/api/variationTemplate/com/alibaba/getNameListByCategory.json` |
+| 违禁词 | GET | `/api/bannedWord/alibabaCheckBannedWord` |
+
+列表返回 `data.page.list`，含 `pageNo/pageSize/totalPage`。
+
+## 2. 保存格式（关键）
+
+```
+POST /api/alibabaIcbuProduct/add.json
+Content-Type: multipart/form-data
+  file = ZIP（内含 alibabaSave.txt，UTF-8 JSON）
+  op   = "1"
+```
+
+`alibabaSave.txt` JSON 字段（30 个，字符串形式传递）：
+
+| 字段 | 含义 | 示例 |
+|---|---|---|
+| op | 操作 1=保存 | "1" |
+| id | 店小秘商品 id | "220114598434958580" |
+| shopId | 店铺 | "9466975" |
+| categoryId / fullCid | 类目 | "202107201" / "18,100005657,...,202107201" |
+| subject | 产品名称 | 英文标题 |
+| keywords | 关键词（3~5） | "fiberglass pool,container pool" |
+| attributes | 属性 JSON 字符串 | `[{"attribute_id":"1","attribute_name":"Place of Origin","value_id":"100000458","value_name":"China"}]` |
+| mainImage | 主图，逗号分隔 | 6 张 |
+| draftImgUrl | 图片集合，竖线分隔 | |
+| textDesc | 详情文字（HTML 片段） | |
+| detailImage | 详情图 JSON 数组 | `[{"url":...}]` |
+| priceType | `ladder_price` | |
+| bulkDiscountPrices | **阶梯价** JSON | `[{"start_quantity":1,"price":4001.4}]` |
+| wholesaleTrade | **贸易信息** JSON | `min_order_quantity`、`inventory`、`package_size`、`weight`、`tariffsHsCode`、`deliver_periods` |
+| productSku | SKU JSON | `{"attributes":[],"exclude_skus":[],"special_skus":[]}` |
+| productId/productIdDecrypt | Alibaba 侧 id | 新建为空 |
+| publishType / isSmartEdit / sourceUrl / groupId / motorIds | 其它 | |
+| marketSample / marketSamplingPrice / marketSamplingQuantity | 样品 | 0/空 |
+| salePkgDesc / logisticsProperty / shipmentPlace / warehouseType / overseaCountryRegion | 包装/发货 | |
+
+**重要区别**：速卖通保存是一次 `add.json` 表单；Alibaba 是「zip(alibabaSave.txt) + op」multipart。
+已实现 `integrations/alibaba.py`（详情/列表/类目/属性/保存/违禁词），实测保存成功。
+
+## 3. 与速卖通 payload 对照
+
+| 速卖通字段 | Alibaba 字段 |
+|---|---|
+| subject | subject |
+| detail / mobileDetail | textDesc / detailImage |
+| imageURLs / marketImg1/2 | mainImage / draftImgUrl |
+| aeopAeProductSKUs[].skuPrice | bulkDiscountPrices（按数量区间） |
+| — | wholesaleTrade.min_order_quantity（MOQ） |
+| — | wholesaleTrade.deliver_periods（交期） |
+| — | productType / isRts（RTS vs 询盘） |
+| aeopAeProductPropertys | attributes（attribute_id/name + value_id/name） |
+| freightTemplateId | wholesaleTrade.package_size/weight + logisticsProperty |
+| hsCode | wholesaleTrade.tariffsHsCode |
+| — | keywords（独立字段） |
+
+## 4. 结论
+
+- 抓包已完成，**不需要浏览器自动化即可保存草稿**（店小秘 API 直接可调）。
+- Alibaba 版改造核心 = 把 `api_save.py` 的 payload 换成 `alibabaSave.txt` 结构；
+  现有 AI 文案/图片/队列/日志全部可复用。
+- UI 修改点仍见上文（报价与贸易条款、关键词、审核队列）。
