@@ -88,7 +88,7 @@ REGIONS = [("US", "美国"), ("RU", "俄罗斯"), ("BR", "巴西"), ("ES", "西�
 # 文案提示词预设库（标题 / 详情 / SKU）
 TEXT_PROMPT_PRESETS = {
     "title": {
-        "机械/工业设备（默认 SEO）": "你是资深 AliExpress 机械类目 SEO 运营。优化标题：保留产品英文名、型号、核心规格（功率/容量/尺寸/材质）与主要用途；核心词+长尾词+属性词组合；删除重复与堆砌词；英文 ≤125 字符；只输出一行标题，不要中文、引号或解释。",
+        "机械/工业设备（默认 SEO）": "你是资深跨境电商（AliExpress / Alibaba 国际站）机械类目 SEO 运营。优化标题：保留产品英文名、型号、核心规格（功率/容量/尺寸/材质）与主要用途；核心词+长尾词+属性词组合；删除重复与堆砌词；英文 ≤125 字符；只输出一行标题，不要中文、引号或解释。",
         "工程机械（挖掘/装载/起重）": "你是工程机械外贸运营。标题突出：设备类型（excavator/wheel loader/crane）、吨位或载重、发动机功率、适用工况；英文 ≤125 字符；避免绝对化；只输出一行。",
         "包装机械（灌装/封口/贴标）": "你是包装机械运营。标题突出：机型（filling/capping/labeling/wrapping）、产能（bottles/min）、适用包装规格、自动化程度；英文 ≤125 字符；只输出一行。",
         "食品加工机械": "你是食品机械运营。标题突出：设备用途（清洗/切片/烘焙/杀菌）、产能、材质（304 stainless steel）、适用食品类型；英文 ≤125 字符；不写医疗或功效声称；只输出一行。",
@@ -653,6 +653,7 @@ class App:
         self.field_refs: list[Field] = []
         self.file_picker = ft.FilePicker(on_result=self._on_files)
         self.wm_picker = ft.FilePicker(on_result=self._on_watermark_file)
+        self.video_picker = ft.FilePicker(on_result=self._on_video_file)
         self.api_state: dict = {}
         self.license_state: dict = {}
         self.cookie_src = None
@@ -696,6 +697,7 @@ class App:
             pass
         page.overlay.append(self.file_picker)
         page.overlay.append(self.wm_picker)
+        page.overlay.append(self.video_picker)
         page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
         self.entitlements = load_entitlements(self.cfg)
         self.active_platform = get_platform(getattr(self.cfg, "active_platform", "") or "alibaba")
@@ -935,7 +937,7 @@ class App:
         for group in pf.groups():
             heading = ft.Container(
                 content=ft.Text(group, size=11, color=MUTED, weight=ft.FontWeight.W_600),
-                padding=ft.padding.only(left=12, top=10, bottom=2))
+                padding=ft.padding.only(left=12, top=6, bottom=0))
             indices = []
             nav.controls.append(heading)
             for item in (p for p in pf.pages if p.group == group):
@@ -945,12 +947,12 @@ class App:
                     locks.append(ft.Icon(ft.Icons.LOCK_OUTLINE, size=12, color=MUTED))
                 button = ft.TextButton(
                     content=ft.Row([
-                        ft.Icon(getattr(ft.Icons, item.icon), size=19, color=MUTED),
-                        ft.Text(item.label, size=13, color=MUTED, weight=ft.FontWeight.W_500,
+                        ft.Icon(getattr(ft.Icons, item.icon), size=18, color=MUTED),
+                        ft.Text(item.label, size=12.5, color=MUTED, weight=ft.FontWeight.W_500,
                                 expand=True),
                         *locks,
                     ], spacing=8),
-                    height=38, width=204,
+                    height=34, width=204,
                     style=self._nav_style(False),
                     tooltip=f"{item.label}（{'已开通' if allowed else '未开通 · 点击查看'}）",
                     on_click=lambda e, idx=item.index: self._switch(idx))
@@ -1063,11 +1065,11 @@ class App:
         pages = self.active_platform.pages
         item = self.active_platform.page(int(idx))
         if item is None and pages:
-            # 兼容旧配置/命令行里的越界页面号（旧实现是 12 取模），
-            # 平台化后按当前平台页面顺序取模，避免直接跳回首页。
-            item = pages[int(idx) % len(pages)]
-        if item is None:
+            # 平台化后页面号不再连续（Alibaba 有 12 号「Alibaba 刊登」），
+            # 越界/不存在的页面号统一回到当前平台首页，避免算出一个奇怪页面。
             item = pages[0]
+        if item is None:
+            return
         idx = item.index
         for page_idx, b in self.nav_buttons:
             on = page_idx == idx
@@ -1084,7 +1086,7 @@ class App:
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
                  self._p_image, self._p_price, self._p_variant, self._p_publish,
-                 self._p_workbench, self._p_logs, self._p_settings]
+                 self._p_workbench, self._p_logs, self._p_settings, self._p_alibaba_listing]
         idx = idx % len(pages)
         self._page_idx = idx
         self._building_page = True
@@ -2860,6 +2862,56 @@ class App:
                     pass
         threading.Thread(target=go, daemon=True).start()
 
+    def _alibaba_products_dialog(self, state: str = "draft"):
+        """只读查看 Alibaba ICBU 商品列表（草稿/在线）。
+
+        Alibaba 平台不能复用 SMT 的 _publish_list_dialog（端点/字段都不同），
+        这里单独走 ICBU list.json；不提供任何写操作。
+        """
+        label = "草稿" if state == "draft" else "在线"
+        col = ft.Column(spacing=2, height=420, scroll=ft.ScrollMode.AUTO)
+        status = ft.Text("读取中…", size=12.5, color=MUTED)
+
+        def work():
+            try:
+                from ..services.alibaba_publish import make_client
+                c = make_client(self.cfg)
+                d = c.list_products(1, 100, state)
+                po = (d.get("data") or {}).get("page") or {}
+                rows = po.get("list") or []
+                total = po.get("totalSize")
+                items = []
+                for r in rows:
+                    pid = str(r.get("id") or "")
+                    if not pid:
+                        continue
+                    items.append(ft.ListTile(
+                        title=ft.Text(f"{pid} · {str(r.get('subject') or '')[:70]}",
+                                      size=13, color=TEXT, max_lines=2),
+                        subtitle=ft.Text(
+                            f"类目 {r.get('categoryId')} · 价格模型 {r.get('priceType') or '-'}",
+                            size=12, color=MUTED),
+                        dense=True,
+                        leading=ft.Icon(ft.Icons.INVENTORY_2, size=16, color=MUTED)))
+                col.controls = items or [empty_state(f"没有{label}商品")]
+                status.value = f"{label}：共 {total} 个，显示 {len(rows)} 个（只读）"
+                status.color = SUCCESS_C
+            except Exception as ex:  # noqa: BLE001
+                status.value = f"读取失败：{str(ex)[:120]}"
+                status.color = DANGER_C
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+        threading.Thread(target=work, daemon=True).start()
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"Alibaba {label}商品（只读）"),
+            content=ft.Column([status, ft.Divider(color=BORDER, height=10), col],
+                              spacing=6, width=760),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())])
+        self._show_dlg(dlg)
+
     def _publish_list_dialog(self, offline_state: str, label: str):
         """查看「待发布 / 发布失败」的具体商品（前 100 条）。"""
         col = ft.Column(spacing=2, height=380, scroll=ft.ScrollMode.AUTO)
@@ -3603,18 +3655,57 @@ class App:
         self._safe_update()
 
     def _refresh_store_counts(self):
-        """后台拉一次各状态数量并刷新店铺卡片上的三个数字。"""
+        """后台拉一次各状态数量并刷新店铺卡片上的三个数字。
+
+        失败必须可见：以前 Cookie 过期/店铺为空时这里静默 return，概览页数字
+        永远是「—」，用户不知道是没数据还是读失败。
+        """
+        def fail(msg):
+            msg = str(msg)[:90]
+            try:
+                self._log(f"商品数量读取失败：{msg}", "WARN")
+            except Exception:
+                pass
+            ts = getattr(self, "ov_tiles_ts", None)
+            try:
+                if ts is not None:
+                    ts.value = "数量读取失败，点「刷新数量」重试"
+                    ts.color = DANGER_C
+            except Exception:
+                pass
+            try:
+                pc = getattr(self, "publish_counts_text", None)
+                if pc is not None:
+                    pc.value = f"数量读取失败：{msg}"
+                    pc.color = DANGER_C
+            except Exception:
+                pass
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
         def go():
             try:
-                c = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                # Alibaba 平台的商品在 ICBU 接口里，SMT 商品数对它没有意义；
+                # 继续用 SMT 会把 2500+ 在线显示成 0（用户会以为商品丢了）。
+                if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
+                    self._refresh_alibaba_counts()
+                    return
                 sid = self.cfg.store_id or None
-                cnt = c.counts(sid, ttl=30) if sid else {}
+                if not sid:
+                    fail("还没有选择店铺（去「店铺与模板」读取并选择）")
+                    return
+                c = DianxiaomiClient(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
+                cnt = c.counts(sid, ttl=30)
                 if not cnt:
+                    fail("店铺没有返回数量")
                     return
                 self.store_counts = cnt
                 try:
                     if getattr(self, "ov_tiles_ts", None) is not None:
                         self.ov_tiles_ts.value = "更新于 " + time.strftime("%H:%M:%S")
+                        self.ov_tiles_ts.color = MUTED
                 except Exception:
                     pass
                 for _k, _t in (getattr(self, "ov_tiles", {}) or {}).items():
@@ -3629,8 +3720,56 @@ class App:
                 except Exception:
                     pass
                 self._safe_update()
+            except Exception as ex:  # noqa: BLE001
+                fail(ex)
+        threading.Thread(target=go, daemon=True).start()
+
+    def _refresh_alibaba_counts(self):
+        """Alibaba 平台概览用 ICBU 商品数（草稿/在线）；读失败要明确提示。"""
+        def done(msg, ok=True):
+            ts = getattr(self, "ov_tiles_ts", None)
+            try:
+                if ts is not None:
+                    ts.value = msg
+                    ts.color = MUTED if ok else DANGER_C
             except Exception:
                 pass
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def go():
+            try:
+                from ..services.alibaba_publish import make_client
+                c = make_client(self.cfg)
+                totals = {}
+                for st in ("draft", "online"):
+                    d = c.list_products(1, 1, st)
+                    po = (d.get("data") or {}).get("page") or {}
+                    totals[st] = int(po.get("totalSize") or 0)
+                cnt = {"draft": totals.get("draft", 0),
+                       "onSelling": totals.get("online", 0)}
+                self.alibaba_counts = cnt
+                for _k, _t in (getattr(self, "ov_tiles", {}) or {}).items():
+                    try:
+                        _t.value = str(cnt.get(_k, "—"))
+                    except Exception:
+                        pass
+                try:
+                    self.chip_online.value = str(cnt.get("onSelling", 0))
+                    self.chip_wait.value = "—"
+                    self.chip_audit.value = "—"
+                except Exception:
+                    pass
+                done(f"Alibaba ICBU：草稿 {cnt['draft']} · 在线 {cnt['onSelling']}"
+                     f" · 更新于 {time.strftime('%H:%M:%S')}")
+            except Exception as ex:  # noqa: BLE001
+                try:
+                    self._log(f"Alibaba 商品数量读取失败：{str(ex)[:90]}", "WARN")
+                except Exception:
+                    pass
+                done("Alibaba 数量读取失败，点「刷新数量」重试", ok=False)
         threading.Thread(target=go, daemon=True).start()
 
     def _on_shop_change(self):
@@ -4732,7 +4871,7 @@ class App:
             ], spacing=8, wrap=True),
             ft.Row([
                 self._tf("declared_value", "货值默认值", width=160,
-                   tooltip_text="申报货值（速卖通草稿必填，建议填实际货值），未填则默认 100"),
+                   tooltip_text="申报货值（部分平台草稿必填，建议填实际货值），未填则默认 100"),
             ], spacing=12, wrap=True),
         ], spacing=10))
 
@@ -4808,7 +4947,7 @@ class App:
         # ---------- 欧盟资质 ----------
         eu_card = card(ft.Column([
             h1("欧盟资质（需要时才填）", 15),
-            muted("选「是」时速卖通要求填写，否则保存会被拦截"),
+            muted("选「是」时平台要求填写，否则保存会被拦截"),
             ft.Row([
                 self._dd("eu_qualification", "是否提交欧盟资质",
                    [("否", "否"), ("是", "是")], width=180),
@@ -4995,10 +5134,20 @@ class App:
 
         self.video_path_tf.on_change = _on_video_path
 
+        def _pick_video(e=None):
+            try:
+                self.video_picker.pick_files(
+                    allow_multiple=False,
+                    allowed_extensions=["mp4", "mov", "m4v", "webm"])
+            except Exception as ex:  # noqa: BLE001
+                self.toast(f"打开文件选择器失败：{ex}", False)
+
         return card(ft.Column([
             h1i(ft.Icons.VIDEOCAM_OUTLINED, "商品视频"),
             muted("选择商品视频来源；合成视频使用处理后的主图，不消耗 AI 图片额度"),
-            ft.Row([self.video_src_dd, self.video_path_tf], spacing=12, wrap=True),
+            ft.Row([self.video_src_dd, self.video_path_tf,
+                    ft.OutlinedButton("选择本地视频", icon=ft.Icons.UPLOAD_FILE,
+                                      on_click=_pick_video)], spacing=12, wrap=True),
             h1("轮播合成参数", 14),
             ft.Row([
                 self._tf("video_slot_seconds", "每张停留秒数", width=160),
@@ -5545,7 +5694,7 @@ class App:
 
         render()
 
-        # ---------- 图片尺寸校验（速卖通 ≥800×800）----------
+        # ---------- 图片尺寸校验（平台主图最小边长）----------
         size_on = ft.Checkbox(label="图片尺寸校验", value=bool(_get("img_min_size_enable", True)))
         size_val = ft.TextField(label="最小边长(px)", width=140,
                                 value=str(_get("img_min_size", 800)),
@@ -5640,7 +5789,7 @@ class App:
             body,
             ft.Divider(height=1, color=CARD_2),
             ft.Row([size_on, size_val, audit_btn], spacing=10, wrap=True),
-            muted("AI 产出的图小于最小边长时不采用（保留原图）；速卖通要求主图/SKU图/详情图 ≥800×800"),
+            muted("AI 产出的图小于最小边长时不采用（保留原图）；平台通常要求主图/SKU图/详情图 ≥800×800"),
             size_drop,
             audit_status,
         ], spacing=10))
@@ -6760,40 +6909,104 @@ class App:
                 ])]
 
     def _p_publish(self):
-        """发布队列：待发布 / 发布失败 / 重发动作，以及发布相关设置。"""
+        """发布队列：SMT 平台用店小秘 SMT 队列；Alibaba 平台只读 ICBU 商品数。
+
+        Alibaba 的商品不在 SMT 接口里，且 SMT 的批量发布/重试会写错端点，
+        所以 Alibaba 平台不显示这些 SMT 写操作，引导去「Alibaba 刊登」页。
+        """
         self._current = 8
+        is_alibaba = str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba"
         cnt = getattr(self, "store_counts", {}) or {}
-        self.pub_wait_txt = ft.Text(str(cnt.get("editingRequired", "—")), size=23,
-                                    weight=ft.FontWeight.BOLD, color=INFO_C)
-        self.pub_fail_txt = ft.Text(str(cnt.get("publishFail", "—")), size=23,
-                                    weight=ft.FontWeight.BOLD, color=DANGER_C)
-        self.pub_publishing_txt = ft.Text(str(cnt.get("publishing", "—")), size=23,
-                                          weight=ft.FontWeight.BOLD, color=ACCENT_2)
+        if is_alibaba:
+            self.pub_wait_txt = ft.Text(str(cnt.get("draft", "—")), size=23,
+                                        weight=ft.FontWeight.BOLD, color=INFO_C)
+            self.pub_fail_txt = ft.Text(str(cnt.get("onSelling", "—")), size=23,
+                                        weight=ft.FontWeight.BOLD, color=ACCENT_2)
+            self.pub_publishing_txt = ft.Text("—", size=23,
+                                              weight=ft.FontWeight.BOLD, color=MUTED)
+        else:
+            self.pub_wait_txt = ft.Text(str(cnt.get("editingRequired", "—")), size=23,
+                                        weight=ft.FontWeight.BOLD, color=INFO_C)
+            self.pub_fail_txt = ft.Text(str(cnt.get("publishFail", "—")), size=23,
+                                        weight=ft.FontWeight.BOLD, color=DANGER_C)
+            self.pub_publishing_txt = ft.Text(str(cnt.get("publishing", "—")), size=23,
+                                              weight=ft.FontWeight.BOLD, color=ACCENT_2)
 
 
         def refresh_counts():
             def go():
                 try:
+                    if is_alibaba:
+                        # Alibaba 商品在 ICBU：读草稿/在线总数（只读，不走 SMT 计数）
+                        from ..services.alibaba_publish import make_client
+                        c = make_client(self.cfg)
+                        totals = {}
+                        for st in ("draft", "online"):
+                            d = c.list_products(1, 1, st)
+                            po = (d.get("data") or {}).get("page") or {}
+                            totals[st] = int(po.get("totalSize") or 0)
+                        self.alibaba_counts = {"draft": totals["draft"],
+                                               "onSelling": totals["online"]}
+                        self.pub_wait_txt.value = str(totals["draft"])
+                        self.pub_fail_txt.value = str(totals["online"])
+                        self.pub_publishing_txt.value = "—"
+                        if getattr(self, "pub_counts_status", None) is not None:
+                            self.pub_counts_status.value = (
+                                f"Alibaba ICBU · 草稿 {totals['draft']} · 在线 {totals['online']}"
+                                f" · 更新于 {time.strftime('%H:%M:%S')}")
+                            self.pub_counts_status.color = MUTED
+                        self._safe_update()
+                        return
                     from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
                     c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
                     c2 = c.counts(self.cfg.store_id or None, ttl=30)
+                    if not c2:
+                        raise RuntimeError("店铺没有返回数量")
                     self.store_counts = c2 or {}
                     self.pub_wait_txt.value = str((c2 or {}).get("editingRequired", 0))
                     self.pub_fail_txt.value = str((c2 or {}).get("publishFail", 0))
                     self.pub_publishing_txt.value = str((c2 or {}).get("publishing", 0))
+                    if getattr(self, "pub_counts_status", None) is not None:
+                        self.pub_counts_status.value = "更新于 " + time.strftime("%H:%M:%S")
+                        self.pub_counts_status.color = MUTED
                     self._safe_update()
-                except Exception:
-                    pass
+                except Exception as ex:  # noqa: BLE001
+                    self._log(f"发布数量读取失败：{str(ex)[:90]}", "WARN")
+                    if getattr(self, "pub_counts_status", None) is not None:
+                        self.pub_counts_status.value = f"数量读取失败：{str(ex)[:60]}"
+                        self.pub_counts_status.color = DANGER_C
+                    self._safe_update()
             threading.Thread(target=go, daemon=True).start()
 
-        queue_card = card(ft.Column([
-            h1i(ft.Icons.QUEUE, "队列"),
-            muted("商品保存后会进入「待发布」，提交发布后进入「发布中 → 审核中」"),
-            ft.Row([kpi_tile("待发布", self.pub_wait_txt, "可直接发布", INFO_C),
-                    kpi_tile("发布失败", self.pub_fail_txt, "可重试", DANGER_C),
-                    kpi_tile("发布中", self.pub_publishing_txt, "等待平台审核", ACCENT_2)],
-                   spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            ft.Row([
+        self.pub_counts_status = ft.Text("", size=12, color=MUTED)
+
+        if is_alibaba:
+            tiles = ft.Row([
+                kpi_tile("草稿", self.pub_wait_txt, "可编辑/刊登", INFO_C),
+                kpi_tile("在线", self.pub_fail_txt, "已上架", ACCENT_2),
+                kpi_tile("合计", self.pub_publishing_txt, "草稿+在线", MUTED)],
+                spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+            buttons = ft.Row([
+                ft.ElevatedButton("刷新数量", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
+                                  on_click=lambda e: refresh_counts()),
+                ft.OutlinedButton("查看草稿", icon=ft.Icons.LIST_ALT,
+                                  on_click=lambda e: self._alibaba_products_dialog("draft")),
+                ft.OutlinedButton("查看在线", icon=ft.Icons.LIST_ALT,
+                                  on_click=lambda e: self._alibaba_products_dialog("online")),
+                ft.ElevatedButton("去 Alibaba 刊登", icon=ft.Icons.PUBLISH,
+                                  bgcolor=ACCENT, color=ON_ACCENT,
+                                  on_click=lambda e: self._switch(12)),
+            ], spacing=10, wrap=True)
+            queue_intro = muted("Alibaba 商品在 ICBU 接口里；这里只读展示数量。"
+                                "保存/提交走「Alibaba 刊登」页的 op=1/2/3（会二次确认）。")
+            queue_title = "Alibaba 商品队列（只读）"
+        else:
+            tiles = ft.Row([
+                kpi_tile("待发布", self.pub_wait_txt, "可直接发布", INFO_C),
+                kpi_tile("发布失败", self.pub_fail_txt, "可重试", DANGER_C),
+                kpi_tile("发布中", self.pub_publishing_txt, "等待平台审核", ACCENT_2)],
+                spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+            buttons = ft.Row([
                 ft.ElevatedButton("刷新数量", icon=ft.Icons.REFRESH, bgcolor=CARD_2, color=TEXT,
                                   on_click=lambda e: refresh_counts()),
                 ft.OutlinedButton("看待发布列表", icon=ft.Icons.LIST_ALT,
@@ -6814,15 +7027,26 @@ class App:
                                       "会重新提交店小秘里发布失败的商品；不调用 AI，不产生费用。",
                                       lambda: threading.Thread(
                                           target=self._batch_publish_failed, daemon=True).start())),
-            ], spacing=10, wrap=True),
+            ], spacing=10, wrap=True)
+            queue_intro = muted("商品保存后会进入「待发布」，提交发布后进入「发布中 → 审核中」")
+            queue_title = "队列"
+
+        queue_card = card(ft.Column([
+            h1i(ft.Icons.QUEUE, queue_title),
+            queue_intro,
+            tiles,
+            buttons,
+            self.pub_counts_status,
         ], spacing=10))
 
         refresh_counts()
+        if is_alibaba:
+            tabs = [("商品队列", [queue_card])]
+        else:
+            tabs = [("运行与发布设置", [self._card_run(), self._card_publish()]),
+                    ("商品队列", [queue_card])]
         return [page_header("发布队列", destination(8).description),
-                workspace_tabs([
-                    ("运行与发布设置", [self._card_run(), self._card_publish()]),
-                    ("商品队列", [queue_card]),
-                ])]
+                workspace_tabs(tabs)]
 
     def _p_workbench(self):
         self._current = 9
@@ -6960,7 +7184,11 @@ class App:
                     self.wb_page_info], spacing=8, wrap=True),
             ft.Row([ft.Checkbox(label="全选本页", on_change=select_all), self.wb_sel_text,
                     ft.ElevatedButton("取选中图片", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=ACCENT_2,
-                                      color=ON_ACCENT, on_click=pick_images)], spacing=10, wrap=True),
+                                      color=ON_ACCENT, on_click=pick_images),
+                    ft.OutlinedButton("导入本地图片", icon=ft.Icons.UPLOAD_FILE,
+                                      tooltip="从本机选择图片加入工作台（不联网）",
+                                      on_click=lambda e: self._pick_local_images())],
+                   spacing=10, wrap=True),
             self.wb_prod_box,
             muted("选中产品的图片预览（点图放大）", 10.5),
             self.wb_prod_preview,
@@ -8678,25 +8906,36 @@ class App:
                     ("图片与模型", [host_card, model_card, price_card]),
                     ("界面与实例", [ui_card, inst_card]),
                     ("维护与诊断", [upd, diag_card, rec_card]),
-                    ("Alibaba 刊登", self._alibaba_cards()),
                 ])]
 
     def _alibaba_cards(self):
-        """Alibaba 刊登：连接、类目、预设资料、价格贸易、必填校验。"""
+        """Alibaba 刊登：连接、商品、类目、预设资料、价格贸易、预演/保存。"""
         from ..integrations.alibaba import AlibabaClient
         import json as _json
 
-        def client():
+        def cookie_source():
+            """Cookie 优先级：本页专用 Cookie → 店铺与登录里的店小秘 Cookie → 本机 Chrome。"""
             raw = str(getattr(self.cfg, "alibaba_cookies", "") or "").strip()
-            if not raw:
-                try:
-                    from ..integrations.chrome_cookies import read_chrome_cookies
-                    raw = read_chrome_cookies(["dianxiaomi.com"])
-                except Exception:
-                    raw = ""
-            if not raw:
-                raise RuntimeError("请先在「Alibaba 刊登」填 Cookie（或本机 Chrome 登录店小秘）")
-            return AlibabaClient(raw)
+            if raw:
+                return raw, "Alibaba 刊登 Cookie"
+            manual = getattr(self.cfg, "manual_cookies", None)
+            if manual:
+                return dict(manual), "店铺与登录 · 手动 Cookie"
+            try:
+                # chrome_cookies 里没有 read_chrome_cookies（旧代码笔误导致
+                # Chrome 已登录也报没有 Cookie）；统一走 browser_cookies.resolve。
+                from ..integrations.browser_cookies import resolve
+                src = resolve("dianxiaomi.com")
+                if src.ok and src.cookies:
+                    return dict(src.cookies), "本机浏览器登录态"
+            except Exception:
+                pass
+            raise RuntimeError("没有可用 Cookie：请先在「店铺与登录」读取/粘贴店小秘 Cookie，"
+                               "或在本页填写 Cookie")
+
+        def client():
+            cookies, _src = cookie_source()
+            return AlibabaClient(cookies)
 
         def tf(key, label, width=380, multiline=False, hint=""):
             ctl = ft.TextField(label=label, width=width, bgcolor=CARD_2, border_color=CARD_2,
@@ -8788,6 +9027,61 @@ class App:
         cat_now = ft.Text(f"当前类目：{getattr(self.cfg, 'alibaba_category_name', '') or '未选择'}（{getattr(self.cfg, 'alibaba_category_id', '') or '-'}）",
                           size=12.5, color=MUTED)
 
+        def _pick_category(_x):
+            """统一点选类目：写 cfg（类目/名称/fullCid）并刷新显示。"""
+            self.cfg.set("alibaba_category_id", str(_x.get("categoryId") or ""))
+            self.cfg.set("alibaba_category_name",
+                         f"{_x.get('nameZh') or ''} / {_x.get('nameEn') or ''}".strip(" /"))
+            full = str(_x.get("nodePathId") or _x.get("categoryId") or "")
+            self.cfg.set("alibaba_full_cid", full.replace("/", ","))
+            save_config(self.cfg)
+            cat_now.value = (f"当前类目：{self.cfg.alibaba_category_name}"
+                             f"（{self.cfg.alibaba_category_id}）· 路径 {self.cfg.alibaba_full_cid}")
+            cat_now.color = ACCENT_2
+
+        def _load_children(node):
+            """非叶子类目：展开子类目供继续选择（机械类目常有两层）。
+
+            以前只有「选择商品」对话框里定义过同名函数，刊登页按钮直接引用会
+            NameError；这里在刊登页作用域内真实实现一遍。
+            """
+            cid = str(node.get("categoryId") or "")
+            status.value = f"「{node.get('nameZh') or ''}」不是末级类目，正在加载子类目…"
+            status.color = MUTED
+            try:self._safe_update()
+            except Exception: pass
+
+            def work():
+                try:
+                    ch = client().categories(cid)
+                    cat_box.controls = [h1(f"{node.get('nameZh') or ''} 的子类目", 13)]
+                    for x in ch:
+                        leaf = int(x.get("isleaf") or 0) == 1
+
+                        def pick_child(ev, _x=x):
+                            _pick_category(_x)
+                            status.value = (f"已选类目：{_x.get('nameZh')}（{_x.get('categoryId')}）"
+                                            + ("· 末级类目" if leaf else "· 还有子类目"))
+                            status.color = SUCCESS_C
+                            if not leaf:
+                                _load_children(_x)
+                            try:self._safe_update()
+                            except Exception: pass
+
+                        cat_box.controls.append(ft.Row([
+                            ft.Text(f"{x.get('nameZh')} / {x.get('nameEn')} · "
+                                    f"{'末级' if leaf else 'L' + str(x.get('level'))} · {x.get('categoryId')}",
+                                    size=12.5, color=TEXT, expand=True),
+                            ft.OutlinedButton("选择", on_click=pick_child)], spacing=6))
+                    status.value = f"子类目 {len(ch)} 个；末级类目才能发布"
+                    status.color = SUCCESS_C if ch else WARN_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"加载子类目失败：{ex}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
         def load_required(e=None):
             cid = str(getattr(self.cfg, "alibaba_category_id", "") or "").strip()
             if not cid:
@@ -8863,42 +9157,325 @@ class App:
                 except Exception: pass
             threading.Thread(target=work, daemon=True).start()
 
-        def do_save(e=None):
-            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
-            if not pid:
-                status.value = "填一个商品 ID 再保存"
-                status.color = WARN_C
-                try:self._safe_update()
-                except Exception: pass
-                return
+        # ---------- 商品选择（草稿/在线）与保存动作 ----------
+        prod_now = ft.Text(
+            "当前商品："
+            + (str(getattr(self.cfg, "alibaba_test_product_id", "") or "") or "未选择"),
+            size=12.5, color=ACCENT_2 if getattr(self.cfg, "alibaba_test_product_id", "") else MUTED)
+        prod_box = ft.Column(spacing=2)
+        prod_state = ft.Dropdown(
+            label="商品状态", width=170, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value="draft",
+            options=[ft.dropdown.Option("draft", "草稿"),
+                     ft.dropdown.Option("online", "在线")])
+
+        def set_product(pid, subject="", category=""):
+            self.cfg.set("alibaba_test_product_id", str(pid))
+            if category:
+                self.cfg.set("alibaba_category_id", str(category))
+            save_config(self.cfg)
+            prod_now.value = f"当前商品：{pid} · {str(subject)[:44]}" + (
+                f" · 类目 {category}" if category else "")
+            prod_now.color = ACCENT_2
+
+        def load_products(e=None):
+            st = str(prod_state.value or "draft")
+            label = "草稿" if st == "draft" else "在线"
+            status.value = f"正在读取{label}商品…"
+            status.color = MUTED
+            try:self._safe_update()
+            except Exception: pass
 
             def work():
                 try:
-                    from ..services.alibaba_publish import save_to_alibaba
-                    cfg_snapshot = self.cfg
-                    overrides = {}
-                    res = save_to_alibaba(pid, cfg_snapshot, overrides)
-                    data = (res.get("result") or {}).get("data") or {}
-                    status.value = f"保存成功：{data.get('msg') or data}"
+                    c = client()
+                    d = c.list_products(1, 60, st)
+                    po = ((d.get("data") or {}).get("page") or {})
+                    rows = po.get("list") or []
+                    total = po.get("totalSize")
+                    boxes = [h1(f"商品列表（{label}）· 共 {total} 个，显示 {len(rows)} 个", 13)]
+                    for r in rows:
+                        pid = str(r.get("id") or "")
+                        if not pid:
+                            continue
+                        subj = str(r.get("subject") or "")
+
+                        def pick(ev, _pid=pid, _s=subj, _c=r.get("categoryId")):
+                            set_product(_pid, _s, _c)
+                            status.value = f"已选择商品 {_pid}；接下来可「预演（不保存）」或保存"
+                            status.color = SUCCESS_C
+                            try:self._safe_update()
+                            except Exception: pass
+
+                        boxes.append(ft.Row([
+                            ft.Text(f"{pid} · {subj[:64]}", size=12.5, color=TEXT,
+                                    expand=True, max_lines=2),
+                            ft.OutlinedButton("选择", on_click=pick),
+                        ], spacing=6))
+                    prod_box.controls = boxes
+                    status.value = f"读取到 {len(rows)} 个商品（共 {total}）"
                     status.color = SUCCESS_C
-                    required_box.controls = [h1("保存结果", 13),
-                                             ft.Text(f"商品 {pid} · {data.get('msg')}", size=12.5, color=TEXT),
-                                             ft.Text(f"自动补齐：{', '.join(res.get('autofilled') or []) or '无'}", size=12, color=MUTED)]
                 except Exception as ex:  # noqa: BLE001
-                    status.value = f"保存失败：{ex}"
+                    status.value = f"读取商品失败：{str(ex)[:120]}"
                     status.color = DANGER_C
                 try:self._safe_update()
                 except Exception: pass
             threading.Thread(target=work, daemon=True).start()
 
+        op_dd = ft.Dropdown(
+            label="保存动作", width=250, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value="1",
+            options=[ft.dropdown.Option("1", "保存草稿（op=1，不提交）"),
+                     ft.dropdown.Option("3", "保存并移入待发布（op=3）"),
+                     ft.dropdown.Option("2", "提交审核 / 发布（op=2）")])
+
+        def _close_dlg(dlg):
+            try:
+                self.page.close_dialog()
+            except Exception:
+                try:
+                    dlg.open = False
+                except Exception:
+                    pass
+
+        def _show_dlg(dlg):
+            try:
+                self._show_dlg(dlg)
+            except Exception:
+                try:
+                    self.page.show_dialog(dlg)
+                except Exception:
+                    pass
+
+        def do_save(e=None):
+            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            if not pid:
+                status.value = "先选择一个商品（上方「读取商品」或填写商品 ID）"
+                status.color = WARN_C
+                try:self._safe_update()
+                except Exception: pass
+                return
+            op = str(op_dd.value or "1")
+            op_text = {"1": "保存草稿（只更新这个商品，不提交审核）",
+                       "3": "保存并移入待发布（会进入待发布列表）",
+                       "2": "提交审核 / 发布（会送平台审核，影响线上状态）"}.get(op, "保存")
+
+            def work():
+                try:
+                    from ..services.alibaba_publish import prepare_save
+                    _product, save, _req, issues = prepare_save(pid, self.cfg)
+                    if issues:
+                        required_box.controls = [h1("保存前校验未通过", 13)] + [
+                            ft.Text("✗ " + i, size=12.5, color=DANGER_C) for i in issues]
+                        status.value = f"校验未通过：{len(issues)} 项，未保存"
+                        status.color = DANGER_C
+                        try:self._safe_update()
+                        except Exception: pass
+                        return
+                    dlg_holder = {}
+
+                    def confirm(ev):
+                        _close_dlg(dlg_holder.get("dlg"))
+
+                        def save_work():
+                            try:
+                                from ..services.alibaba_publish import save_to_alibaba
+                                res = save_to_alibaba(pid, self.cfg, allow_invalid=False, op=op)
+                                data = (res.get("result") or {}).get("data") or {}
+                                msg = str(data.get("msg") or data)
+                                status.value = f"已提交（op={op}）：{msg}"
+                                status.color = SUCCESS_C
+                                required_box.controls = [
+                                    h1("保存结果", 13),
+                                    ft.Text(f"商品 {pid} · {op_text}", size=12.5, color=TEXT),
+                                    ft.Text(msg, size=12.5, color=TEXT),
+                                    ft.Text(f"自动补齐：{', '.join(res.get('autofilled') or []) or '无'}",
+                                            size=12, color=MUTED)]
+                                self._log(f"Alibaba 保存：{pid} op={op} · {msg[:80]}", "INFO")
+                            except Exception as ex:  # noqa: BLE001
+                                status.value = f"保存失败：{str(ex)[:200]}"
+                                status.color = DANGER_C
+                            try:self._safe_update()
+                            except Exception: pass
+                        threading.Thread(target=save_work, daemon=True).start()
+
+                    dlg = ft.AlertDialog(
+                        modal=True, title=ft.Text("确认保存到 Alibaba"),
+                        content=ft.Column([
+                            ft.Text(f"商品：{pid}", size=13, color=TEXT),
+                            ft.Text(f"动作：{op_text}", size=13,
+                                    color=WARN_C if op in ("2", "3") else TEXT),
+                            ft.Text("预演校验：必填项全部满足", size=12.5, color=SUCCESS_C),
+                            muted("保存会写入店小秘/平台，不是本地预演。"),
+                        ], spacing=6, width=380),
+                        actions=[ft.TextButton("取消", on_click=lambda ev: _close_dlg(dlg)),
+                                 ft.ElevatedButton("确认保存", bgcolor=SUCCESS_C,
+                                                   color=ON_ACCENT, on_click=confirm)])
+                    dlg_holder["dlg"] = dlg
+                    _show_dlg(dlg)
+                    status.value = "等待确认…"
+                    status.color = MUTED
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"保存前检查失败：{str(ex)[:200]}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        # ---------- AI 文案 → Alibaba 保存（带付费开关 + 预演/确认） ----------
+        ai_use = ft.Switch(
+            label="使用 AI 生成标题 / 详情（会调用付费 API，默认关闭）",
+            value=False, active_color=ACCENT)
+        ai_box = ft.Column(spacing=2)
+
+        def _render_pipeline(res):
+            rows = [h1(res.completion_label, 13)]
+            for s in res.steps:
+                rows.append(ft.Row([
+                    ft.Icon(ft.Icons.CHECK_CIRCLE if s.ok else ft.Icons.ERROR_OUTLINE,
+                            size=14, color=ACCENT_2 if s.ok else DANGER_C),
+                    ft.Text(s.name, size=12.5, color=TEXT, width=120),
+                    ft.Text(s.detail, size=12, color=MUTED, expand=True,
+                            selectable=True)], spacing=6))
+            if getattr(res, "subject", ""):
+                rows.append(ft.Text(f"标题：{res.subject}", size=12.5, color=TEXT,
+                                    selectable=True))
+            if getattr(res, "keywords", None):
+                rows.append(ft.Text("关键词：" + ", ".join(res.keywords), size=12.5,
+                                    color=MUTED, selectable=True))
+            if getattr(res, "issues", None):
+                rows.append(ft.Text("校验问题：" + "；".join(res.issues), size=12.5,
+                                    color=DANGER_C, selectable=True))
+            if getattr(res, "banned_words", None):
+                rows.append(ft.Text("违禁词：" + ", ".join(res.banned_words), size=12.5,
+                                    color=WARN_C, selectable=True))
+            if getattr(res, "error", ""):
+                rows.append(ft.Text("失败原因：" + res.error, size=12.5, color=DANGER_C,
+                                    selectable=True))
+            ai_box.controls = rows
+
+        def _pipeline_pid():
+            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            if not pid:
+                status.value = "先选择一个商品（「连接与商品」页）"
+                status.color = WARN_C
+                try:self._safe_update()
+                except Exception: pass
+            return pid
+
+        def ai_preview(e=None):
+            pid = _pipeline_pid()
+            if not pid:
+                return
+            use_ai = bool(ai_use.value)
+            status.value = "AI 预演中（不保存）…"
+            status.color = MUTED
+            ai_box.controls = [ft.Text("运行中…", size=12.5, color=MUTED)]
+            try:self._safe_update()
+            except Exception: pass
+
+            def work():
+                try:
+                    from ..services.alibaba_pipeline import run_alibaba_product
+                    res = run_alibaba_product(pid, self.cfg, dry_run=True,
+                                              op=str(op_dd.value or "1"), use_ai=use_ai)
+                    _render_pipeline(res)
+                    status.value = res.completion_label + (
+                        f"：{res.error}" if res.error else "")
+                    status.color = SUCCESS_C if res.ok else DANGER_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"AI 预演失败：{str(ex)[:180]}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def _confirm_ai_save(dlg, pid, op, use_ai):
+            _close_dlg(dlg)
+            status.value = "AI 生成并保存中…"
+            status.color = MUTED
+            try:self._safe_update()
+            except Exception: pass
+
+            def work():
+                try:
+                    from ..services.alibaba_pipeline import run_alibaba_product
+                    res = run_alibaba_product(pid, self.cfg, dry_run=False, op=op,
+                                              use_ai=use_ai)
+                    _render_pipeline(res)
+                    if res.saved:
+                        status.value = f"已保存（op={op}）"
+                        status.color = SUCCESS_C
+                        self._log(f"Alibaba AI 保存：{pid} op={op} · {res.subject[:60]}", "INFO")
+                    else:
+                        status.value = f"未保存：{res.error or res.completion_label}"
+                        status.color = DANGER_C
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"保存失败：{str(ex)[:180]}"
+                    status.color = DANGER_C
+                try:self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def ai_save(e=None):
+            pid = _pipeline_pid()
+            if not pid:
+                return
+            op = str(op_dd.value or "1")
+            use_ai = bool(ai_use.value)
+            op_text = {"1": "保存草稿（不提交）", "3": "保存并移入待发布",
+                       "2": "提交审核 / 发布"}.get(op, op)
+            dlg = ft.AlertDialog(
+                modal=True, title=ft.Text("确认 AI 生成并保存"),
+                content=ft.Column([
+                    ft.Text(f"商品：{pid}", size=13, color=TEXT),
+                    ft.Text(f"动作：{op_text}（op={op}）", size=13,
+                            color=WARN_C if op in ("2", "3") else TEXT),
+                    muted("会写入店小秘/平台，不是本地预演。" + (
+                        " 本次使用 AI 会调用付费 API。" if use_ai else "")),
+                ], spacing=6, width=400),
+                actions=[ft.TextButton("取消", on_click=lambda ev: _close_dlg(dlg)),
+                         ft.ElevatedButton("确认", bgcolor=SUCCESS_C, color=ON_ACCENT,
+                                           on_click=lambda ev: _confirm_ai_save(
+                                               dlg, pid, op, use_ai))])
+            _show_dlg(dlg)
+            status.value = "等待确认…"
+            status.color = MUTED
+            try:self._safe_update()
+            except Exception: pass
+
+        ai_card = card(ft.Column([
+            h1("AI 文案 → 保存（新链路）", FS_MD),
+            muted("AI 生成英文标题（≤128）与详情 HTML，再按类目必填校验后保存；"
+                  "默认只预演，保存需二次确认。"),
+            ai_use,
+            ft.Row([ft.ElevatedButton("AI 预演（不保存）", icon=ft.Icons.AUTO_AWESOME,
+                                      bgcolor=ACCENT, color=ON_ACCENT, on_click=ai_preview),
+                    ft.ElevatedButton("AI 生成并保存", icon=ft.Icons.CLOUD_UPLOAD,
+                                      bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=ai_save)],
+                   spacing=10, wrap=True),
+            ai_box,
+        ], spacing=8))
+
         conn = card(ft.Column([
             h1("Alibaba 连接（店小秘 ICBU）", FS_MD),
-            muted("粘贴店小秘 Cookie（含 dxm_* / JSESSIONID）；留空尝试读本机 Chrome 登录态"),
-            tf("alibaba_cookies", "Cookie", 720, True),
+            muted("Cookie 自动沿用「店铺与登录」里已配置的店小秘 Cookie；也可在本页粘贴覆盖。"
+                  "留空时尝试读取本机 Chrome 登录态。"),
+            tf("alibaba_cookies", "Cookie（可留空自动沿用）", 720, True),
             ft.Row([tf("alibaba_shop_id", "店铺 ID（可选）", 200),
-                    tf("alibaba_test_product_id", "测试商品 ID", 260),
+                    tf("alibaba_test_product_id", "当前商品 ID", 260),
                     ft.ElevatedButton("测试连接", icon=ft.Icons.WIFI_TETHERING, bgcolor=ACCENT,
                                       color=ON_ACCENT, on_click=test_connect)], spacing=10, wrap=True),
+        ], spacing=8))
+
+        prod_card = card(ft.Column([
+            h1("选择商品（草稿 / 在线）", FS_MD),
+            muted("直接从店小秘 Alibaba 商品列表选择；选中的商品 ID 会用于下面的预演/保存"),
+            prod_now,
+            ft.Row([prod_state,
+                    ft.ElevatedButton("读取商品", icon=ft.Icons.REFRESH, bgcolor=ACCENT,
+                                      color=ON_ACCENT, on_click=load_products)], spacing=10, wrap=True),
+            prod_box,
         ], spacing=8))
 
         cat_card = card(ft.Column([
@@ -8937,21 +9514,37 @@ class App:
         ], spacing=8))
 
         check_card = card(ft.Column([
-            h1("必填校验 / 保存前检查", FS_MD),
-            muted("读取类目真实 required 标记，自动补齐属性，再逐项校验"),
-            ft.Row([ft.ElevatedButton("构建并校验", icon=ft.Icons.FACT_CHECK, bgcolor=ACCENT,
+            h1("预演校验 / 保存", FS_MD),
+            muted("先「预演（不保存）」确认必填项与类目；保存会用确认弹窗，默认只保存草稿。"),
+            ft.Row([ft.ElevatedButton("预演（不保存）", icon=ft.Icons.FACT_CHECK, bgcolor=ACCENT,
                                       color=ON_ACCENT, on_click=build_and_check),
+                    op_dd,
                     ft.ElevatedButton("保存到 Alibaba", icon=ft.Icons.CLOUD_UPLOAD,
-                                      bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=do_save)], spacing=10),
+                                      bgcolor=SUCCESS_C, color=ON_ACCENT, on_click=do_save)],
+                   spacing=10, wrap=True),
             required_box, status,
         ], spacing=8))
 
         return [workspace_tabs([
-                    ("连接与类目", [conn, cat_card]),
+                    ("连接与商品", [conn, prod_card]),
+                    ("类目", [cat_card]),
                     ("预设资料", [preset_card]),
                     ("价格与贸易", [trade_card]),
-                    ("必填校验", [check_card]),
+                    ("预演 / 保存", [check_card, ai_card]),
                 ])]
+
+    def _p_alibaba_listing(self):
+        """Alibaba 刊登工作台：选商品 → 类目/资料 → 预演 → 确认保存。
+
+        入口从「设置 → Alibaba 刊登」提到导航「刊登」组，避免真正的刊登操作
+        藏在设置里；设置页只保留与其它平台共用的配置。
+        """
+        self._current = 12
+        return [
+            page_header("Alibaba 刊登",
+                        "选择商品 → 确认类目/资料 → 预演校验 → 确认保存（草稿/待发布/审核）"),
+            *self._alibaba_cards(),
+        ]
 
     def _price_of(self, model: str) -> float:
         try:
@@ -9683,11 +10276,60 @@ class App:
         except Exception:
             pass
 
+    def _pick_local_images(self):
+        """打开本机文件选择器，把本地图片加入图片工作台。"""
+        try:
+            self.file_picker.pick_files(
+                allow_multiple=True,
+                allowed_extensions=["png", "jpg", "jpeg", "webp", "bmp"])
+        except Exception as ex:  # noqa: BLE001
+            self.toast(f"打开文件选择器失败：{ex}", False)
+
     def _on_files(self, e):
-        if e.files:
-            self.picked = [Path(f.path) for f in e.files]
-            self.img_status.value = f"已选择 {len(self.picked)} 张图"
-            self._safe_update()
+        """本地图片导入（图片工作台/图片页公用的文件选择器）。"""
+        files = [f for f in (getattr(e, "files", None) or []) if getattr(f, "path", "")]
+        if not files:
+            return
+        self.picked = [Path(f.path) for f in files]
+        self.wb_sel_paths = {str(p) for p in self.picked}
+        txt = f"已选择 {len(self.picked)} 张本地图片"
+        for attr in ("img_status",):
+            ctl = getattr(self, attr, None)
+            if ctl is not None:
+                try:
+                    ctl.value = txt
+                    ctl.color = ACCENT_2
+                except Exception:
+                    pass
+        for attr in ("wb_pick_summary", "wb_sel_text"):
+            ctl = getattr(self, attr, None)
+            if ctl is not None:
+                try:
+                    ctl.value = f"已选 {len(self.picked)} 张（本地导入）"
+                except Exception:
+                    pass
+        try:
+            self._wb_render_wall()
+        except Exception:
+            pass
+        self._log(txt)
+        self._safe_update()
+
+    def _on_video_file(self, e):
+        """选择本地视频：用于商品视频来源覆盖模板视频。"""
+        files = [f for f in (getattr(e, "files", None) or []) if getattr(f, "path", "")]
+        if not files:
+            return
+        path = str(files[0].path)
+        self.cfg.set("template_video_path", path)
+        save_config(self.cfg)
+        try:
+            self.video_path_tf.value = path
+        except Exception:
+            pass
+        self._log(f"本地视频：{path}")
+        self.toast(f"已选择本地视频：{Path(path).name}")
+        self._safe_update()
 
     def _maybe_quota(self, msg: str) -> None:
         if getattr(self, "_dlg", None) is not None:

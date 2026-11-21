@@ -208,5 +208,20 @@
     "name": "test_publish_repair",
     "status": "PASS",
     "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_payload",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_pipeline",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_publish_readiness",
+    "status": "PASS",
+    "exit_code": 0
   }
 ]

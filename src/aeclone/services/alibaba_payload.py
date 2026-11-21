@@ -86,6 +86,31 @@ def clean_keywords(text: str, limit: int = MAX_KEYWORDS) -> list[str]:
     return out
 
 
+def split_keywords(raw, limit: int = MAX_KEYWORDS) -> list[str]:
+    """把 keywords 字符串（逗号/分号/列表）按「短语」拆开并去重。
+
+    与 clean_keywords 不同：这里保留短语原样（"fiberglass pool" 不会被拆成
+    fiberglass/pool），用于保留商品原有语义。
+    """
+    if isinstance(raw, (list, tuple, set)):
+        rows = [str(x).strip() for x in raw]
+    else:
+        s = str(raw or "").strip()
+        if not s:
+            return []
+        sep = ";" if ("," not in s and ";" in s) else ","
+        rows = [x.strip() for x in s.split(sep)]
+    out, seen = [], set()
+    for x in rows:
+        key = x.lower()
+        if x and key not in seen:
+            seen.add(key)
+            out.append(x)
+        if len(out) >= limit:
+            break
+    return out
+
+
 def keywords_for(save: dict, cfg=None, override: list | str | None = None) -> list[str]:
     """关键词：override > 配置 alibaba_keywords > 从标题提取，至少 3 个。"""
     kws = []
@@ -102,6 +127,26 @@ def keywords_for(save: dict, cfg=None, override: list | str | None = None) -> li
             if len(kws) >= MAX_KEYWORDS:
                 break
     return kws[:MAX_KEYWORDS]
+
+
+def keywords_effective(save: dict, cfg=None, override: list | str | None = None) -> list[str]:
+    """关键词优先级：overrides.keywords > cfg.alibaba_keywords > 商品原 keywords > 标题提取。
+
+    之前无配置时直接用标题提取，把商品原有关键词整个覆盖掉（如
+    "fiberglass pool, container pool" → "fiberglass, swimming, pool"）。这里保留
+    商品原有短语，只在完全没有关键词时才从标题生成。
+    """
+    if override:
+        kws = split_keywords(override)
+        if kws:
+            return kws
+    cfg_kws = split_keywords(_cfg_get(cfg, "alibaba_keywords", "") or "")
+    if cfg_kws:
+        return cfg_kws
+    prod_kws = split_keywords(save.get("keywords") or "")
+    if prod_kws:
+        return prod_kws
+    return clean_keywords(save.get("subject", ""), MAX_KEYWORDS)
 
 
 def price_tiers(cfg=None, overrides: dict | None = None) -> list[dict]:
@@ -165,6 +210,46 @@ def merge_attributes(product: dict, cfg=None, overrides: dict | None = None) -> 
     return attrs
 
 
+def resolve_category(product: dict, cfg=None, overrides: dict | None = None) -> tuple[str, str]:
+    """确定本次保存使用的类目：(categoryId, fullCid)。
+
+    优先级：overrides > cfg > 商品原值。只给了 categoryId 时，fullCid 用
+    原 fullCid / cfg.fullCid 的路径前缀 + 新类目末段拼出来，避免「校验用新类目、
+    保存用旧类目」这种 UI 选类目不生效的问题。
+    """
+    ov = dict(overrides or {})
+    product = product or {}
+
+    def _pick(*vals) -> str:
+        for v in vals:
+            if isinstance(v, (list, tuple)):
+                s = ",".join(str(x).strip() for x in v if str(x).strip())
+            else:
+                s = str(v or "").strip()
+            if s:
+                return s
+        return ""
+
+    cid = _pick(ov.get("category_id"), ov.get("categoryId"),
+                _cfg_get(cfg, "alibaba_category_id"), product.get("categoryId"))
+    full = _pick(ov.get("full_cid"), ov.get("fullCid"),
+                 _cfg_get(cfg, "alibaba_full_cid"), product.get("fullCid"))
+    parts = [p.strip() for p in full.split(",") if p.strip()] if full else []
+    if not cid and parts:
+        cid = parts[-1]
+    if cid:
+        if parts and parts[-1] == cid:
+            full = ",".join(parts)
+        else:
+            prefix = parts[:-1] if parts else []
+            if not prefix:
+                prod_full = str(product.get("fullCid") or "").strip()
+                prod_parts = [p.strip() for p in prod_full.split(",") if p.strip()]
+                prefix = prod_parts[:-1] if prod_parts else []
+            full = ",".join(prefix + [cid])
+    return cid, full
+
+
 def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
                        client_cls=None, attr_defs: list | None = None) -> dict:
     """edit.json 商品 + AI 产物 → alibabaSave 字典。"""
@@ -173,10 +258,18 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
     save = cls.build_save_dict(product)
     ov = dict(overrides or {})
 
+    # 类目：overrides > cfg > 商品原值。UI 里选的类目必须真的写进保存包，
+    # 否则会「按新类目校验、按旧类目保存」。
+    cid, full_cid = resolve_category(product, cfg, ov)
+    if cid:
+        save["categoryId"] = cid
+    if full_cid:
+        save["fullCid"] = full_cid
+
     subject = str(ov.get("subject") or save.get("subject") or "").strip()
     save["subject"] = subject[:MAX_SUBJECT]
 
-    kws = keywords_for(save, cfg, ov.get("keywords"))
+    kws = keywords_effective(save, cfg, ov.get("keywords"))
     save["keywords"] = ", ".join(kws)
 
     imgs = main_images_from(product, ov.get("main_images"))
@@ -203,8 +296,23 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
     save["_unresolved"] = unresolved
 
     # 价格类型：sku_price 按规格 / ladder_price 按数量 / fob_price 单一区间
-    ptype = str(ov.get("price_type") or _cfg_get(cfg, "alibaba_price_type", "ladder_price")
-                or "ladder_price")
+    # 没有显式覆盖时不能把商品原本的定价模型静默改掉（尤其 sku_price → ladder_price，
+    # 会让按规格报价的商品变成空阶梯价）。用户显式配置了阶梯价档位才视为要改模型。
+    _VALID_PTYPES = {"sku_price", "ladder_price", "fob_price"}
+    prod_ptype = str(product.get("priceType") or "").strip()
+    cfg_ptype = str(_cfg_get(cfg, "alibaba_price_type", "") or "").strip()
+    ov_ptype = str(ov.get("price_type") or "").strip()
+    cfg_tiers = ov.get("price_tiers") or _cfg_get(cfg, "alibaba_price_tiers", "") or ""
+    if ov_ptype:
+        ptype = ov_ptype
+    elif prod_ptype in _VALID_PTYPES:
+        if prod_ptype == "sku_price" and cfg_ptype == "ladder_price" and not cfg_tiers:
+            # 默认配置就是 ladder_price，不代表用户要改；保留按规格定价。
+            ptype = "sku_price"
+        else:
+            ptype = cfg_ptype or prod_ptype
+    else:
+        ptype = cfg_ptype or "ladder_price"
     tiers = price_tiers(cfg, ov)
     if ptype == "fob_price":
         fob = {
@@ -218,6 +326,12 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         }
         save["priceType"] = "fob_price"
         save["sourcingTrade"] = json.dumps(fob, ensure_ascii=False)
+        # 规则（docs/ALIBABA_RULES.md §4）：FOB 模式不写阶梯价、不写 tariffsHsCode。
+        save["bulkDiscountPrices"] = json.dumps([], ensure_ascii=False)
+    elif ptype == "sku_price":
+        # 按规格定价：保留商品原 productSku，不写阶梯价。
+        save["priceType"] = "sku_price"
+        save["bulkDiscountPrices"] = json.dumps([], ensure_ascii=False)
     elif tiers:
         save["priceType"] = "ladder_price"
         save["bulkDiscountPrices"] = json.dumps(tiers, ensure_ascii=False)
@@ -265,6 +379,9 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         stock = num("alibaba_stock", None)
         if stock and stock > 0:
             trade["inventory"] = [{"warehouseCode": "CN_LOCAL_01", "value": int(stock)}]
+    if ptype == "fob_price":
+        # FOB 下不允许带 HS 关税行（前端逻辑：tariffsHsCodeConfig && !fob && !overseaSpot）
+        trade.pop("tariffsHsCode", None)
     save["wholesaleTrade"] = json.dumps(trade, ensure_ascii=False)
 
     group = str(getattr(cfg, "alibaba_group_id", "") or "").strip() if cfg is not None else ""
@@ -340,11 +457,78 @@ def autofill_required_attributes(product: dict, attr_defs: list | None, cfg=None
     return attrs, filled, unresolved
 
 
+_INVALID_CATEGORY_VALUES = {"none", "null", "nan", "undefined"}
+
+
+def _json_container(v):
+    """把 save 里的 JSON 字符串/对象统一成 dict/list；解析失败返回 None。"""
+    if isinstance(v, (dict, list)):
+        return v
+    if isinstance(v, str):
+        s = v.strip()
+        if not s:
+            return None
+        try:
+            return json.loads(s)
+        except Exception:
+            return None
+    return None
+
+
+def sku_summary(product_sku) -> tuple[bool, int, bool]:
+    """productSku 体检：返回 (是否有数据, 有效 SKU 数, 是否有 SKU 维度属性)。
+
+    真实 edit.json 的 productSku 是 JSON 字符串：
+    {"attributes": [...], "special_skus": [{"price":..., "sku_code":..., "attributes":[...]}]}
+    """
+    obj = _json_container(product_sku)
+    if obj is None:
+        return False, 0, False
+    if isinstance(obj, list):
+        rows, dims = obj, False
+    elif isinstance(obj, dict):
+        rows = obj.get("special_skus") or obj.get("skus") or obj.get("sku_list") or []
+        dims = bool(obj.get("attributes"))
+    else:
+        return False, 0, False
+    if not isinstance(rows, list):
+        rows = []
+    valid = 0
+    for r in rows:
+        if not isinstance(r, dict) or r.get("exclude"):
+            continue
+        try:
+            price = float(r.get("price") or r.get("sku_price") or 0)
+        except Exception:
+            price = 0
+        has_code = bool(str(r.get("sku_code") or r.get("code") or "").strip())
+        attrs = r.get("attributes") or []
+        has_attr = isinstance(attrs, list) and any(
+            isinstance(a, dict) and (a.get("attribute_name") or a.get("value_name")) for a in attrs)
+        if price > 0 and (has_code or has_attr):
+            valid += 1
+    return True, valid, dims
+
+
 def validate_alibaba_save(product: dict, save: dict, cfg=None,
                           required_attrs: list | None = None,
                           schema_fields: list | None = None) -> list[str]:
     """保存前校验：返回问题列表（空 = 通过）。必填项基于类目真实 required 标记。"""
     issues: list[str] = []
+    # 类目合法性与脏值：9466975 有 27 个草稿 categoryId 是空/None，批量保存会把脏值提交。
+    cid = str(save.get("categoryId") or "").strip()
+    if not cid or cid.lower() in _INVALID_CATEGORY_VALUES:
+        issues.append("类目（categoryId）为空或非法值，请先选择末级类目")
+    elif not cid.isdigit() or int(cid) <= 0:
+        issues.append(f"类目（categoryId={cid}）不是有效数字，请重新选择末级类目")
+    else:
+        full = str(save.get("fullCid") or "").strip()
+        parts = [p.strip() for p in full.split(",") if p.strip()]
+        if parts and parts[-1] != cid:
+            issues.append(f"fullCid 末段（{parts[-1]}）与 categoryId（{cid}）不一致，请重新选择类目")
+        if any(p.lower() in _INVALID_CATEGORY_VALUES or not p.isdigit() for p in parts):
+            issues.append(f"fullCid 含非法类目路径段：{full or '空'}")
+
     subject = str(save.get("subject") or "").strip()
     if not subject:
         issues.append("产品名称（subject）为空")
@@ -377,8 +561,17 @@ def validate_alibaba_save(product: dict, save: dict, cfg=None,
         if not fob.get("fob_currency"):
             issues.append("FOB 币种未填写")
     elif ptype == "sku_price":
-        if not _as_list(save.get("productSku")):
-            issues.append("按规格定价时缺少 SKU 数据")
+        has_sku, valid_skus, has_dims = sku_summary(save.get("productSku"))
+        if not has_sku:
+            issues.append("按规格定价（sku_price）但商品缺少 SKU 数据（productSku 为空），"
+                          "请补 SKU 或改用按数量定价")
+        else:
+            if not has_dims:
+                issues.append("按规格定价（sku_price）但 productSku 缺少 SKU 维度属性（attributes）")
+            if valid_skus == 0:
+                issues.append("按规格定价（sku_price）但 productSku 无有效 SKU"
+                              "（special_skus 为空、全部 exclude 或无价格/规格），"
+                              "请补 SKU 或改用按数量定价")
     elif not tiers:
         issues.append("阶梯价为空（按数量定价必须有数量区间）")
     if tiers:

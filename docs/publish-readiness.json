@@ -1,0 +1,817 @@
+{
+  "schema": "alibaba-publish-readiness/1",
+  "generated_at": "2026-11-22T01:16:33+0800",
+  "mode": "live-readonly+dry-run",
+  "read_only": true,
+  "writes_performed": 0,
+  "ai_calls": 0,
+  "secret_policy": "Cookie/api_key 不打印、不落盘；本文件只含状态与计数",
+  "config": {
+    "active_platform": "alibaba",
+    "api_base": "https://api.moneyfly.club",
+    "api_key_set": true,
+    "manual_cookies_set": true,
+    "alibaba_cookies_set": false,
+    "store_id": "9466975",
+    "store_name": "zzyugong",
+    "template_product_id": "",
+    "publish_action": "publish",
+    "alibaba_shop_id": "",
+    "alibaba_test_product_id": "",
+    "alibaba_category_id": "",
+    "alibaba_category_name": "",
+    "alibaba_full_cid": "",
+    "alibaba_price_type": "ladder_price",
+    "alibaba_op": 1,
+    "price_mode": "multiplier",
+    "price_multiplier": "2",
+    "write_price_to_product": true,
+    "endpoint_overrides": [],
+    "combo_enable": false,
+    "template_values_set": true
+  },
+  "repo": {
+    "git_head": "1452f6e",
+    "source_sha256_16": {
+      "src/aeclone/services/alibaba_payload.py": "66124390e270910a",
+      "src/aeclone/services/alibaba_publish.py": "48ce38ea42980e96",
+      "src/aeclone/integrations/alibaba.py": "3d963d23b5a7f0a5"
+    }
+  },
+  "real_save_evidence": {
+    "available": true,
+    "path": "docs/alibaba-real-save-verification.json",
+    "generated_at": "2026-11-22T01:13:13+0800",
+    "product_id": "220114598434958580",
+    "op": "1",
+    "authorized_by_user": "允许对草稿 220114598434958580 做一次 op=1 保存（不提交审核）",
+    "save_returned": {
+      "code": 0,
+      "msg": "Successful",
+      "inner_msg": "您的产品编辑成功！",
+      "productId": "220114598434958580"
+    },
+    "changed_fields_count": 0,
+    "draft_total_before": 28,
+    "draft_total_after": 28,
+    "after_state": "draft",
+    "pipeline_ok": true,
+    "saved": true,
+    "preview": false,
+    "elapsed_sec": 0.6,
+    "steps_ok": 10,
+    "steps_total": 10,
+    "scope": "仅 op=1 保存（不提交审核）；op=2/3/5 仍未验证",
+    "note": "该写入由 Lead 在用户授权下一次执行；本工具只读证据文件，绝不重复提交"
+  },
+  "op_semantics": {
+    "documented": {
+      "1": "保存（编辑/草稿）；返回「您的产品编辑成功！」",
+      "2": "发布（立即）/在线更新",
+      "3": "保存并移入待发布",
+      "5": "定时发布",
+      "source": "docs/ALIBABA_RULES.md §3（前端 JS 逆向 + 历史实测）"
+    },
+    "code": {
+      "OP_SAVE": "1",
+      "OP_PUBLISH": "2",
+      "OP_MOVE_PENDING": "3",
+      "OP_SCHEDULE": "5",
+      "ui_passes_op": true,
+      "ui_op5_exposed": false,
+      "source": "src/aeclone/services/alibaba_publish.py:36-49；src/aeclone/ui/app.py 的 Alibaba 刊登页"
+    },
+    "live_evidence": {
+      "op1": "历史文档记录 2026-11-21 商品 220114598434958580 保存成功；本轮未复验",
+      "op2": "未验证（本轮禁止写入，无真实调用证据）",
+      "op3": "未验证（本轮禁止写入，无真实调用证据）",
+      "op5": "未验证（本轮禁止写入，无真实调用证据）",
+      "note": "店小秘返回的 data.msg 只在真实提交后可取得；不得用推测代替"
+    }
+  },
+  "snapshot_note": "真实店铺数据在变化（在线商品数会波动）；本文件是生成时刻的快照，不构成「此刻实时」保证",
+  "contract": {
+    "op_mapping": {
+      "documented": {
+        "save_only": "1",
+        "publish": "2",
+        "save_to_waiting": "3",
+        "schedule": "5"
+      },
+      "code": {
+        "save_only": "1",
+        "publish": "2",
+        "save_to_waiting": "3",
+        "schedule": "5"
+      },
+      "match": true
+    },
+    "save_transport": {
+      "documented": "POST /api/alibabaIcbuProduct/add.json, file=zip(alibabaSave.txt), op",
+      "code_endpoint": "/alibabaIcbuProduct/add.json",
+      "code_zip_name": "alibabaSave.txt",
+      "match": true
+    },
+    "payload_fields": {
+      "documented_count": 32,
+      "missing": [],
+      "match": true,
+      "op_default": "1"
+    },
+    "ui_exposure": {
+      "ui_alibaba_page_exists": true,
+      "ui_calls_save_to_alibaba": true,
+      "ui_passes_op": true,
+      "ui_op5_exposed": false,
+      "ui_has_preview_before_save": true,
+      "ui_requires_confirm_before_save": true,
+      "ui_has_cookie_fallback_to_manual": true,
+      "save_to_alibaba_default_op": "OP_SAVE",
+      "source": "src/aeclone/ui/app.py 的 Alibaba 刊登页"
+    },
+    "smt_path_separation": {
+      "publisher_save_endpoint": "/api/smtProduct/add.json",
+      "publisher_zip_name": "smtEditSave.txt",
+      "publisher_requires_template": true,
+      "publisher_uses_alibaba_client": false,
+      "note": "publisher.py 是速卖通(SMT)路径；ICBU 直连用 integrations/alibaba.py"
+    },
+    "list_pagination": {
+      "client_param": "pageNo",
+      "api_param": "pageNo",
+      "match": true,
+      "documented_param": "page（docs/ALIBABA_RULES.md §2 已过时，以代码 pageNo 为准）",
+      "source": "src/aeclone/integrations/alibaba.py:list_products"
+    },
+    "cookie_wiring": {
+      "make_client_uses_manual_cookies": true,
+      "make_client_browser_fallback": true,
+      "make_client_broken_import": true,
+      "source": "src/aeclone/services/alibaba_publish.py:make_client"
+    }
+  },
+  "known_gaps": {
+    "category_selection_applied": {
+      "expected": "选中类目应写入 payload.categoryId/fullCid",
+      "actual": {
+        "categoryId": "100010756",
+        "fullCid": "18,100005657,100005663,100010756"
+      },
+      "gap": false,
+      "source": "services/alibaba_payload.py:168-276（build_alibaba_save 不注入 cfg 类目）"
+    },
+    "fob_residual_fields": {
+      "expected": "FOB 模式不应写 tariffsHsCode，也不应保留阶梯价",
+      "actual": {
+        "priceType": "fob_price",
+        "bulkDiscountPrices": "[]",
+        "tariffsHsCode": null
+      },
+      "gap": false,
+      "source": "services/alibaba_payload.py:278-346（FOB 分支应清理继承字段）"
+    },
+    "sku_price_validation": {
+      "expected": "productSku 非有效 SKU 数据时应报「按规格定价时缺少 SKU 数据」",
+      "actual": {
+        "issues": [
+          "按规格定价（sku_price）但商品缺少 SKU 数据（productSku 为空），请补 SKU 或改用按数量定价"
+        ]
+      },
+      "gap": false,
+      "source": "services/alibaba_payload.py:29-45,379-381（_as_list 对对象字符串误判为非空）"
+    },
+    "keywords_overwrite": {
+      "expected": "未配置 alibaba_keywords/overrides 时应保留商品原有 keywords",
+      "actual": {
+        "product_keywords": "fiberglass pool, container pool, above ground pool",
+        "saved_keywords": "fiberglass pool, container pool, above ground pool"
+      },
+      "gap": false,
+      "source": "services/alibaba_payload.py:89-104,179-180"
+    }
+  },
+  "make_client_probe": {
+    "ok": true,
+    "detail": "make_client 可用（未发请求）",
+    "client_type": "AlibabaClient"
+  },
+  "new_pipeline": {
+    "exists": true,
+    "has_run_entry": true,
+    "has_dry_run": true,
+    "refuses_env_save": true,
+    "imports_payload_build": true,
+    "imports_validate": true,
+    "source_sha256_16": "c764909054fbec5b",
+    "importable": true,
+    "entries": [
+      "AlibabaRunResult",
+      "run_alibaba_product"
+    ],
+    "dry_run_probe": {
+      "available": true,
+      "ok": true,
+      "error": "",
+      "preview": true,
+      "saved": false,
+      "save_called": false,
+      "issues": [],
+      "warnings": [],
+      "subject": "Customized Fiberglass Swimming Pool Container",
+      "keyword_count": 3,
+      "category_id": "202107201",
+      "steps": [
+        {
+          "name": "连接 Alibaba",
+          "ok": true,
+          "detail": "Cookie 可用，客户端已创建"
+        },
+        {
+          "name": "读取商品详情",
+          "ok": true,
+          "detail": "Customized Fiberglass Swimming Pool Container · 类目 202107201"
+        },
+        {
+          "name": "读取类目规则",
+          "ok": true,
+          "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+        },
+        {
+          "name": "AI 文案",
+          "ok": true,
+          "detail": "未启用 AI，使用商品原标题/详情"
+        },
+        {
+          "name": "关键词",
+          "ok": true,
+          "detail": "fiberglass pool, container pool, above ground pool"
+        },
+        {
+          "name": "保存前校验",
+          "ok": true,
+          "detail": "必填项全部满足"
+        },
+        {
+          "name": "违禁词检查",
+          "ok": true,
+          "detail": "未命中"
+        },
+        {
+          "name": "预演",
+          "ok": true,
+          "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+        },
+        {
+          "name": "完成",
+          "ok": true,
+          "detail": "预演完成（未保存商品）"
+        }
+      ],
+      "client_calls": [
+        "product_detail",
+        "required_attributes",
+        "category_schema",
+        "check_banned_words"
+      ]
+    }
+  },
+  "cookie_sources": [
+    {
+      "source": "config.alibaba_cookies",
+      "usable": false
+    },
+    {
+      "source": "config.manual_cookies",
+      "usable": true,
+      "cookie_count": 9
+    }
+  ],
+  "live_readonly": {
+    "cookie_source": "config.manual_cookies",
+    "calls": [
+      {
+        "label": "list.all.page1",
+        "ok": true,
+        "elapsed": 0.29
+      },
+      {
+        "label": "list.draft.total",
+        "ok": true,
+        "elapsed": 0.18
+      },
+      {
+        "label": "list.online.total",
+        "ok": true,
+        "elapsed": 0.18
+      },
+      {
+        "label": "list.offline.total",
+        "ok": true,
+        "elapsed": 0.17
+      },
+      {
+        "label": "list.publishFail.total",
+        "ok": true,
+        "elapsed": 0.19
+      },
+      {
+        "label": "list.all.total",
+        "ok": true,
+        "elapsed": 0.18
+      },
+      {
+        "label": "shops",
+        "ok": true,
+        "elapsed": 0.19
+      },
+      {
+        "label": "list.draft.page1",
+        "ok": true,
+        "elapsed": 0.18
+      },
+      {
+        "label": "list.draft.page2.client",
+        "ok": true,
+        "elapsed": 0.29
+      },
+      {
+        "label": "list.draft.page2.pageNo",
+        "ok": true,
+        "elapsed": 0.28
+      },
+      {
+        "label": "list.draft.page1.pageNo",
+        "ok": true,
+        "elapsed": 0.25
+      },
+      {
+        "label": "list.draft.survey.p1",
+        "ok": true,
+        "elapsed": 0.23
+      },
+      {
+        "label": "list.draft.survey.p2",
+        "ok": true,
+        "elapsed": 0.26
+      },
+      {
+        "label": "list.draft.survey.p3",
+        "ok": true,
+        "elapsed": 0.25
+      },
+      {
+        "label": "detail",
+        "ok": true,
+        "elapsed": 0.11
+      },
+      {
+        "label": "category.detail",
+        "ok": true,
+        "elapsed": 0.06
+      },
+      {
+        "label": "category.attributes",
+        "ok": true,
+        "elapsed": 0.07
+      },
+      {
+        "label": "category.schema",
+        "ok": true,
+        "elapsed": 0.06
+      }
+    ],
+    "shop_id": "9466975",
+    "counts": {
+      "draft": {
+        "total": 28,
+        "rows": 1
+      },
+      "online": {
+        "total": 2717,
+        "rows": 1
+      },
+      "offline": {
+        "total": 0,
+        "rows": 0
+      },
+      "publishFail": {
+        "total": 0,
+        "rows": 0
+      }
+    },
+    "all_total": 2725,
+    "shops_endpoint": {
+      "ok": true,
+      "shop_count": 0,
+      "note": "Alibaba ICBU 的 shops 接口实测不返回 shopInfoList；店铺以商品上的 shopId 为准"
+    },
+    "draft_list": {
+      "ok": true,
+      "sample": [
+        {
+          "id": "220114598434958580",
+          "subject": "Customized Fiberglass Swimming Pool Container",
+          "dxmState": "draft",
+          "categoryId": "202107201",
+          "priceType": "ladder_price"
+        },
+        {
+          "id": "220114598434958578",
+          "subject": "20ft Shipping Container Swimming Pool Prefab Above Ground Cu",
+          "dxmState": "draft",
+          "categoryId": "None",
+          "priceType": "sku_price"
+        },
+        {
+          "id": "220114598434958576",
+          "subject": "Customized Large Size Prefabricated Container Swimming Pool ",
+          "dxmState": "draft",
+          "categoryId": "None",
+          "priceType": "ladder_price"
+        }
+      ]
+    },
+    "pagination_probe": {
+      "code_pagination_fixed": true,
+      "api_param": "pageNo",
+      "client_list_products_page2_first_id": "220114598434958560",
+      "raw_pageNo2_first_id": "220114598434958560",
+      "raw_pageNo1_first_id": "220114598434958580",
+      "client_page2_returns_page1": false,
+      "match": true,
+      "note": "旧版 integrations/alibaba.py 用 params['page']，接口要 pageNo；文档 §2 的 page 参数以代码 pageNo 为准"
+    },
+    "draft_survey": {
+      "checked": 28,
+      "category_invalid_ids": [
+        "220114598434958578",
+        "220114598434958576",
+        "220114598434958574",
+        "220114598434958572",
+        "220114598434958570",
+        "220114598434958568",
+        "220114598434958566",
+        "220114598434958564",
+        "220114598434958562",
+        "220114598434958560"
+      ],
+      "category_invalid_count": 27,
+      "no_productSku_count": 13,
+      "price_types": {
+        "ladder_price": 14,
+        "sku_price": 14
+      },
+      "note": "categoryId 为 None/空 的草稿直接保存会提交无效类目"
+    },
+    "picked_product_id": "220114598434958580",
+    "detail": {
+      "ok": true,
+      "field_count": 110,
+      "subject": "Customized Fiberglass Swimming Pool Container",
+      "categoryId": "202107201",
+      "fullCid": "18,100005657,100005663,202107201",
+      "dxmState": "draft",
+      "productStatusType": null,
+      "priceType": "ladder_price",
+      "keywords": "fiberglass pool, container pool, above ground pool",
+      "main_image_count": 6,
+      "detail_image_count": 21,
+      "attribute_count": 11,
+      "required_attribute_names": [],
+      "has_productSku": true,
+      "sku_attr_count": 0,
+      "textDesc_len": 2108,
+      "bulkDiscountPrices": "[{\"start_quantity\": 1, \"price\": 4300.0}]",
+      "wholesaleTrade_keys": [
+        "batch_number",
+        "deliver_periods",
+        "inventory",
+        "marketSamplingPrice",
+        "min_order_quantity",
+        "package_size",
+        "sale_type",
+        "shipping_line_template_id",
+        "tariffsHsCode",
+        "unit_type",
+        "weight"
+      ],
+      "raw_sku_rows": 1
+    },
+    "category": {
+      "ok": true,
+      "categoryId": "202107201",
+      "name": "泳池",
+      "name_en": "Pool",
+      "isleaf": 1,
+      "level": 4,
+      "nodePathId": "18/100005657/100005663/202107201",
+      "attributes_total": 19,
+      "required_count": 5,
+      "required_names": [
+        "Place of Origin",
+        "Color",
+        "Material",
+        "Applicable People",
+        "Type"
+      ],
+      "schema_fields": [
+        "companyDesc",
+        "companyFaqDesc",
+        "companyImage",
+        "detailImage",
+        "saleType",
+        "scPrice",
+        "tariffsHsCode",
+        "textDesc"
+      ],
+      "required_attrs_compact": [
+        {
+          "attrNameId": "1",
+          "nameEn": "Place of Origin",
+          "required": 1,
+          "value_count": 257
+        },
+        {
+          "attrNameId": "210190015",
+          "nameEn": "Color",
+          "required": 1,
+          "value_count": 9
+        },
+        {
+          "attrNameId": "238736366",
+          "nameEn": "Material",
+          "required": 1,
+          "value_count": 28
+        },
+        {
+          "attrNameId": "270605350",
+          "nameEn": "Applicable People",
+          "required": 1,
+          "value_count": 5
+        },
+        {
+          "attrNameId": "191284229",
+          "nameEn": "Type",
+          "required": 1,
+          "value_count": 11
+        }
+      ]
+    },
+    "dry_run": {
+      "product_id": "220114598434958580",
+      "alibaba_dry_run": {
+        "issues": [],
+        "issues_count": 0,
+        "autofilled": [],
+        "unresolved": [],
+        "priceType": "ladder_price",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "shopId": "9466975",
+        "keywords": "fiberglass pool, container pool, above ground pool",
+        "keyword_count": 3,
+        "main_image_count": 6,
+        "detail_image_count": 21,
+        "attribute_count": 11,
+        "textDesc_len": 2108,
+        "trade": {
+          "min_order_quantity": 1,
+          "package_size": "300X200X150",
+          "weight": "300",
+          "sale_type": "normal",
+          "tariffsHsCode": [
+            {
+              "toCountry": "US",
+              "hsCode": ""
+            }
+          ],
+          "inventory": [
+            {
+              "warehouseCode": "CN_LOCAL_01",
+              "value": 10
+            }
+          ]
+        },
+        "payload_op": "1"
+      },
+      "publisher_dry_run": {
+        "ok": true,
+        "error": "",
+        "preview": true,
+        "completion_label": "预演完成（未保存商品）",
+        "steps": [
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "不调用 AI、不下载图片、不连接浏览器、不保存商品"
+          },
+          {
+            "name": "标准化",
+            "ok": true,
+            "detail": "0 个 SKU / 6 张主图"
+          },
+          {
+            "name": "价格计算",
+            "ok": true,
+            "detail": "倍率价格 · ¥8600.0"
+          },
+          {
+            "name": "图片计划",
+            "ok": true,
+            "detail": "精细化编辑·主图 第1"
+          },
+          {
+            "name": "图片方案",
+            "ok": true,
+            "detail": "dry-run 跳过实际调用 · 精细任务 1 条（会执行 1 条）"
+          },
+          {
+            "name": "保存到店小秘",
+            "ok": true,
+            "detail": "dry-run：未写入；点「真实写入」才会保存"
+          }
+        ]
+      }
+    },
+    "category_selection_probe": {
+      "selected_category_id": "100010756",
+      "payload_categoryId": "100010756",
+      "payload_fullCid": "18,100005657,100005663,100010756",
+      "applied": true
+    }
+  },
+  "verification_levels": {
+    "read_only_verified": [
+      "ICBU 商品列表/详情（110 字段）",
+      "类目详情/必填属性/schema",
+      "草稿数据体检（类目/SKU/价格模型分布）"
+    ],
+    "dry_run_verified": [
+      "alibaba_payload：build_alibaba_save + validate_alibaba_save（不保存）",
+      "Publisher.run(dry_run=True)：标准化/价格/图片计划/未保存标记"
+    ],
+    "real_write_verified": [
+      "op=1 保存（用户授权一次）— docs/alibaba-real-save-verification.json"
+    ],
+    "not_verified_real_write": [
+      "publish(op=2) / 移入待发布(op=3) / 定时(op=5) 真实行为",
+      "审核状态拉取与失败原因",
+      "新建 ICBU 商品（当前无代码路径）"
+    ]
+  },
+  "readiness_gate": {
+    "source": "真实商品 220114598434958580",
+    "criteria": [
+      {
+        "key": "cookie_source_usable",
+        "ok": true,
+        "expected": "UI 保存入口能拿到店小秘 Cookie（alibaba_cookies 或 Chrome 兜底）",
+        "evidence": "services/alibaba_publish.py:8-18"
+      },
+      {
+        "key": "ui_save_entry_exists",
+        "ok": true,
+        "expected": "UI 存在 Alibaba 刊登保存入口",
+        "evidence": "src/aeclone/ui/app.py 的 Alibaba 刊登页"
+      },
+      {
+        "key": "op1_real_save_verified",
+        "ok": true,
+        "expected": "op=1 至少有一次用户授权的真实保存证据（只读证据文件）",
+        "evidence": "docs/alibaba-real-save-verification.json"
+      },
+      {
+        "key": "category_valid_leaf",
+        "ok": true,
+        "expected": "商品类目为数字且 isleaf=1",
+        "evidence": "categoryId=202107201 isleaf=1"
+      },
+      {
+        "key": "required_attributes_resolvable",
+        "ok": true,
+        "expected": "required 属性全部存在（或可自动补齐）",
+        "evidence": "issues=[]"
+      },
+      {
+        "key": "payload_validation_ok",
+        "ok": true,
+        "expected": "build_alibaba_save + validate_alibaba_save 0 问题",
+        "evidence": "issues=[]"
+      },
+      {
+        "key": "product_data_complete",
+        "ok": true,
+        "expected": "主图/详情文字齐全；sku_price 必须有真实 SKU 数据",
+        "evidence": "main_images=6 textDesc_len=2108 sku_price_missing=False"
+      },
+      {
+        "key": "op1_save_exposed",
+        "ok": true,
+        "expected": "UI 只能触发 op=1 保存",
+        "evidence": "UI do_save 未传 op"
+      },
+      {
+        "key": "op2_publish_exposed",
+        "ok": false,
+        "expected": "UI 可触发 op=2 提交发布",
+        "evidence": "UI 未暴露 op=2/3/5"
+      }
+    ],
+    "ready_to_attempt_real_save": true,
+    "missing_criteria": [],
+    "hypothetical_correct_config": {
+      "assumptions": [
+        "Cookie 来源可用（make_client 修复或 alibaba_cookies 已配置）",
+        "商品类目为有效叶子类目",
+        "required 属性齐全，build+validate 0 问题",
+        "主图/详情文字/价格模型与 SKU 数据完整"
+      ],
+      "can_enter_real_save_stage": true,
+      "note": "这只代表「具备进入真实保存阶段的条件」，真实 op=1/2/3 提交与平台回读本轮未验证；UI 已暴露 op=1/3/2，未暴露 op=5"
+    }
+  },
+  "verdict": {
+    "chains": {
+      "icbu_direct": {
+        "entry": "integrations/alibaba.py + services/alibaba_payload.py + services/alibaba_publish.py；UI「Alibaba 刊登」页",
+        "cookie_sources": [
+          "config.alibaba_cookies",
+          "config.manual_cookies",
+          "本机 Chrome read_cookies"
+        ],
+        "op_semantics": {
+          "1": "已接入；真实保存已验证（用户授权一次）",
+          "2": "已接入 UI 下拉（提交审核/发布）；真实行为未验证",
+          "3": "已接入 UI 下拉（保存并移入待发布）；真实行为未验证",
+          "5": "未暴露",
+          "real_evidence": "op=1：docs/alibaba-real-save-verification.json；op=2/3/5：未验证"
+        },
+        "gate_ready_for_real_save_stage": true
+      },
+      "smt_publisher": {
+        "entry": "services/publisher.py → integrations/dianxiaomi.py（速卖通 SMT）",
+        "save_endpoint": "/api/smtProduct/add.json",
+        "store_id_in_use": "9466975",
+        "store_empty_in_smt": true,
+        "usable_for_alibaba": false,
+        "risk": "Alibaba 平台复用这 12 页时，发布队列/发布动作走 SMT 接口；若 store 指向有速卖通商品的店铺，存在写错平台/端点的风险"
+      }
+    },
+    "icbu_direct_save_op1": {
+      "status": "已验证（真实写入 op=1，用户授权一次）",
+      "detail": "商品 220114598434958580 走 run_alibaba_product(dry_run=False, op='1', use_ai=False)：平台返回「您的产品编辑成功！」，回读 changed_fields=0，草稿总数 28→28，仍在草稿；证据 docs/alibaba-real-save-verification.json。只证明「编辑已有草稿不破坏数据」，不代表发布/审核通过",
+      "can_publish_now": true
+    },
+    "icbu_publish_op2": {
+      "status": "op=2/3 已进 UI 下拉但真实行为未验证；op=5 未暴露",
+      "detail": "services/alibaba_publish.py 定义 op=1/2/3/5；UI 传 op 参数；真实发布/审核语义无本轮证据",
+      "can_publish_now": false
+    },
+    "icbu_new_listing": {
+      "status": "未实现/未验证",
+      "detail": "save_to_alibaba 需要已有 ICBU 商品 id；AI/图片/变种流水线（Publisher）未接入 alibaba_payload；无新建商品路径",
+      "can_publish_now": false
+    },
+    "smt_publisher_path": {
+      "status": "不可用于 Alibaba；在 Alibaba 平台下有写错端点的风险",
+      "detail": "publisher.py 保存走 DianxiaomiClient → /api/smtProduct/add.json + smtEditSave.txt（速卖通），且 store_id=9466975 在 SMT 列表为空，Alibaba 平台复用这 12 页时发布队列显示空",
+      "can_publish_now": false
+    },
+    "answer": "两条链路分开看：ICBU 直连对「已有商品保存」已具备进入真实保存阶段的条件（配置/类目/必填/载荷本地校验通过）；op=1 保存已在用户授权下真实验证成功（商品 220114598434958580，平台返回「您的产品编辑成功！」，回读 changed_fields=0）；op=2/3/5 发布/待发布/定时本轮未验证；UI 已暴露 op=1/3/2，未暴露 op=5。SMT（publisher.py）链路仍指向速卖通 add.json/smtEditSave.txt，且 store_id=9466975 在 SMT 列表为空，不能用于 Alibaba 刊登。",
+    "blockers": [
+      {
+        "rank": 4,
+        "class": "商品数据",
+        "severity": "P0(该商品)",
+        "title": "草稿数据脏：27/28 个草稿 categoryId 非数字（None/空）",
+        "evidence": "只读列表体检；validate_alibaba_save 目前不阻断无效/非叶子类目",
+        "fix": "保存前按类目接口校验 isleaf + required；脏类目商品先人工选类目"
+      },
+      {
+        "rank": 6,
+        "class": "模板",
+        "severity": "P1(仅 SMT 路径)",
+        "title": "template_product_id 为空：publisher.py 真实保存会直接中止",
+        "evidence": "services/publisher.py:2335-2337 无模板时 _save_via_api 返回 None，run() raise「未选择产品模板」；ICBU 直连链路不依赖模板",
+        "fix": "SMT 路径在商品设置选模板；ICBU 路径无需模板"
+      }
+    ]
+  },
+  "data_blockers": [
+    {
+      "id": "draft-category-invalid",
+      "severity": "P0",
+      "count": 27,
+      "checked": 28,
+      "detail": "草稿 categoryId 不是数字（None/空）。validate 现已能阻断（需代码修复生效），但这些商品必须先人工选类目/修复数据才能保存；真实店铺快照已记录"
+    },
+    {
+      "id": "draft-no-productsku",
+      "severity": "P1",
+      "count": 13,
+      "checked": 28,
+      "detail": "草稿没有 productSku 数据；priceType=sku_price 的商品无法形成有效 SKU 报价"
+    }
+  ],
+  "generated_elapsed_sec": 3.52
+}

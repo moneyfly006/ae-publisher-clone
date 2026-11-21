@@ -21,8 +21,11 @@ class ImageJobTests(unittest.TestCase):
         module.GROUP_LABELS = {"main": "主图"}
         index_module = ModuleType("offline_jobs.image_index")
         index_module.parse_indices = extract("src/aeclone/services/image_index.py", "parse_indices")
+        # _apply_image_jobs 依赖模块级 with_scale_rule（给含人物提示词补比例约束）；
+        # 这里按原样 stub 掉，测试只关心缓存/多输出控制流，不校验提示词文本。
         run = extract("src/aeclone/services/publisher.py", "_apply_image_jobs", method=True,
-                      namespace={"__package__": "offline_jobs", "add_step": lambda *a: None})
+                      namespace={"__package__": "offline_jobs", "add_step": lambda *a: None,
+                                 "with_scale_rule": lambda prompt: prompt})
         calls, reads, writes = [], [], []
         def generate(*args, **kwargs):
             calls.append(1)

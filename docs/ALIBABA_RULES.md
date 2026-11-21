@@ -23,7 +23,7 @@
 |---|---|---|---|---|---|
 | 1 | 商品详情 | GET | `/api/alibabaIcbuProduct/edit.json` | `id` | `data.product`（110 字段） |
 | 2 | 保存/发布 | POST | `/api/alibabaIcbuProduct/add.json` | multipart：`file`=zip(`alibabaSave.txt`)、`op` | `{code,msg,data:{productId,msg}}` |
-| 3 | 列表 | GET | `/api/alibabaIcbuProduct/list.json` | `page/pageSize/dxmState/shopId/searchValue` | `data.page.list` |
+| 3 | 列表 | GET | `/api/alibabaIcbuProduct/list.json` | `pageNo/pageSize/dxmState/shopId/searchValue`（分页参数是 **pageNo**；传 page 会永远返回第 1 页，2026-11-22 实测） | `data.page.list` |
 | 4 | 类目根/子级 | GET | `/api/alibabaIcbuCategory/list.json` | `pcid`（子级） | 类目数组 |
 | 5 | 类目搜索 | POST | `/api/alibabaIcbuCategory/searchCategory.json` | **`category`**（关键词） | 叶子类目数组（含 nodePathId/isleaf） |
 | 6 | 类目详情 | POST | `/api/alibabaIcbuCategory/getByCategoryId.json` | `categoryId,shopId` | 类目（nodePathId/level/isleaf） |

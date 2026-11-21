@@ -81,5 +81,259 @@ class AlibabaRequiredTests(unittest.TestCase):
         self.assertIn("textDesc", text)
 
 
+def _pool_product(**over):
+    product = {
+        "id": "220114598434958580", "shopId": "9466975",
+        "categoryId": "202107201", "fullCid": "18,100005657,100005663,202107201",
+        "subject": "Customized Fiberglass Swimming Pool Container",
+        "keywords": "fiberglass pool, container pool, above ground pool",
+        "attributes": [{"attribute_id": "1", "attribute_name": "Place of Origin",
+                        "value_id": "100000458", "value_name": "China"}],
+        "mainImage": "https://img.example.com/a.jpg",
+        "detailImage": [{"url": "https://img.example.com/d1.jpg"}],
+        "textDesc": "<p>detail</p>",
+        "bulkDiscountPrices": [{"start_quantity": 1, "price": 4001.4}],
+        "wholesaleTrade": {"min_order_quantity": 1, "package_size": "300X200X150",
+                           "weight": "300", "sale_type": "normal", "unit_type": "Piece"},
+        "priceType": "ladder_price",
+        "productSku": {"attributes": [], "exclude_skus": [], "special_skus": []},
+    }
+    product.update(over)
+    return product
+
+
+def _cfg(**over):
+    from aeclone.config import AppConfig
+    data = {"alibaba_category_id": "", "alibaba_full_cid": "", "alibaba_keywords": "",
+            "alibaba_price_type": "ladder_price", "alibaba_attr_presets": "",
+            "alibaba_min_order_quantity": 1, "alibaba_unit_type": "Piece"}
+    data.update(over)
+    return AppConfig(data)
+
+
+class AlibabaCategoryOverrideTests(unittest.TestCase):
+    def test_cfg_category_overrides_product_and_old_value_gone(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        cfg = _cfg(alibaba_category_id="100010756",
+                   alibaba_full_cid="18,100005657,100010658,100010756")
+        save = build_alibaba_save(_pool_product(), cfg)
+        self.assertEqual(save["categoryId"], "100010756")
+        self.assertEqual(save["fullCid"], "18,100005657,100010658,100010756")
+        self.assertNotIn("202107201", save["categoryId"])
+        self.assertNotIn("202107201", save["fullCid"])
+
+    def test_overrides_provide_category(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        save = build_alibaba_save(_pool_product(), _cfg(),
+                                  {"categoryId": "127726092",
+                                   "fullCid": "201943703,1326,100010658,127726092"})
+        self.assertEqual(save["categoryId"], "127726092")
+        self.assertEqual(save["fullCid"], "201943703,1326,100010658,127726092")
+
+    def test_only_category_derives_full_cid_last_segment(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save, resolve_category
+        product = _pool_product()
+        cfg = _cfg(alibaba_category_id="100010756")   # 未配置 fullCid
+        cid, full = resolve_category(product, cfg)
+        self.assertEqual(cid, "100010756")
+        self.assertTrue(full.endswith(",100010756"), full)
+        self.assertNotIn("202107201", full)
+        save = build_alibaba_save(product, cfg)
+        self.assertEqual(save["categoryId"], "100010756")
+        self.assertEqual(save["fullCid"], full)
+
+    def test_product_category_kept_when_nothing_configured(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        save = build_alibaba_save(_pool_product(), _cfg())
+        self.assertEqual(save["categoryId"], "202107201")
+        self.assertEqual(save["fullCid"], "18,100005657,100005663,202107201")
+
+
+class AlibabaFobCleanupTests(unittest.TestCase):
+    def test_fob_clears_tiers_and_tariffs_hs(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        product = _pool_product(
+            wholesaleTrade={"min_order_quantity": 1, "package_size": "300X200X150",
+                            "weight": "300",
+                            "tariffsHsCode": [{"toCountry": "US", "hsCode": ""}]})
+        cfg = _cfg(alibaba_price_type="fob_price", alibaba_fob_currency="USD",
+                   alibaba_fob_min_price="100", alibaba_fob_max_price="200",
+                   alibaba_hs_code="8413709990")
+        save = build_alibaba_save(product, cfg)
+        self.assertEqual(save["priceType"], "fob_price")
+        self.assertEqual(json.loads(save["bulkDiscountPrices"]), [])
+        trade = json.loads(save["wholesaleTrade"])
+        self.assertNotIn("tariffsHsCode", trade)
+        self.assertIn("min_order_quantity", trade)
+        fob = json.loads(save["sourcingTrade"])
+        self.assertEqual(fob["fob_currency"], "USD")
+        self.assertEqual(fob["fob_min_price"], 100.0)
+        self.assertEqual(fob["fob_max_price"], 200.0)
+
+    def test_ladder_keeps_tiers_and_hs(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        product = _pool_product(
+            wholesaleTrade={"min_order_quantity": 1, "package_size": "300X200X150",
+                            "weight": "300",
+                            "tariffsHsCode": [{"toCountry": "US", "hsCode": ""}]})
+        cfg = _cfg(alibaba_hs_code="8413709990")
+        save = build_alibaba_save(product, cfg)
+        self.assertEqual(save["priceType"], "ladder_price")
+        self.assertTrue(json.loads(save["bulkDiscountPrices"]))
+        trade = json.loads(save["wholesaleTrade"])
+        self.assertEqual(trade["tariffsHsCode"][0]["hsCode"], "8413709990")
+
+
+class AlibabaValidateCategoryTests(unittest.TestCase):
+    def _base_save(self, **over):
+        save = {"subject": "Pool", "keywords": "pool, spa", "mainImage": "https://x/a.jpg",
+                "categoryId": "202107201", "fullCid": "18,100005657,100005663,202107201",
+                "priceType": "ladder_price",
+                "bulkDiscountPrices": '[{"start_quantity":1,"price":10}]',
+                "wholesaleTrade": '{"min_order_quantity":1,"package_size":"1X1X1","weight":"2"}',
+                "attributes": "[]", "detailImage": "[]", "textDesc": ""}
+        save.update(over)
+        return save
+
+    def test_missing_or_none_category_is_blocked(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        for cid in (None, "", "None", "null", "undefined"):
+            with self.subTest(cid=cid):
+                issues = validate_alibaba_save({}, self._base_save(categoryId=cid), None, [], [])
+                self.assertTrue(any("类目" in i for i in issues), issues)
+
+    def test_non_numeric_category_is_blocked(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        issues = validate_alibaba_save({}, self._base_save(categoryId="abc"), None, [], [])
+        self.assertTrue(any("不是有效数字" in i for i in issues), issues)
+
+    def test_full_cid_mismatch_is_blocked(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        issues = validate_alibaba_save({}, self._base_save(
+            categoryId="100010756", fullCid="18,100005657,100005663,202107201"), None, [], [])
+        self.assertTrue(any("fullCid 末段" in i for i in issues), issues)
+
+    def test_clean_category_and_full_cid_pass(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        issues = validate_alibaba_save({}, self._base_save(), None, [], [])
+        self.assertFalse(any("类目" in i or "fullCid" in i for i in issues), issues)
+
+
+class AlibabaValidateSkuTests(unittest.TestCase):
+    def _save(self, product_sku, price_type="sku_price"):
+        return {"subject": "Pool", "keywords": "pool, spa", "mainImage": "https://x/a.jpg",
+                "categoryId": "202107201", "fullCid": "18,100005657,100005663,202107201",
+                "priceType": price_type, "productSku": product_sku,
+                "bulkDiscountPrices": "[]",
+                "wholesaleTrade": '{"min_order_quantity":1,"package_size":"1X1X1","weight":"2"}',
+                "attributes": "[]", "detailImage": "[]", "textDesc": ""}
+
+    def test_sku_price_without_product_sku_is_blocked(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        for raw in (None, "", "{}", '{"attributes": [], "special_skus": []}'):
+            with self.subTest(raw=raw):
+                issues = validate_alibaba_save({}, self._save(raw), None, [], [])
+                self.assertTrue(any("sku_price" in i for i in issues), issues)
+
+    def test_sku_price_with_valid_skus_passes(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        raw = json.dumps({
+            "attributes": [{"attribute_id": "-1", "attribute_name": "Color",
+                            "value_id": "-1", "value_name": "Blue"}],
+            "special_skus": [{"exclude": False, "price": 12.5, "sku_code": "SKU-1",
+                              "attributes": [{"attribute_name": "Color",
+                                              "value_name": "Blue"}]}],
+        })
+        issues = validate_alibaba_save({}, self._save(raw), None, [], [])
+        self.assertFalse(any("sku_price" in i for i in issues), issues)
+
+    def test_sku_price_all_excluded_is_blocked_with_reason(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        raw = json.dumps({"attributes": [{"attribute_name": "Color", "value_name": "Blue"}],
+                          "special_skus": [{"exclude": True, "price": 12.5}]})
+        issues = validate_alibaba_save({}, self._save(raw), None, [], [])
+        self.assertTrue(any("无有效 SKU" in i for i in issues), issues)
+
+    def test_ladder_price_ignores_product_sku(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        save = self._save(None, price_type="ladder_price")
+        save["bulkDiscountPrices"] = '[{"start_quantity":1,"price":10}]'
+        issues = validate_alibaba_save({}, save, None, [], [])
+        self.assertFalse(any("Sku" in i or "SKU" in i for i in issues), issues)
+
+
+class AlibabaKeywordsPreserveTests(unittest.TestCase):
+    def test_product_keywords_kept_when_no_config(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        save = build_alibaba_save(_pool_product(), _cfg())
+        self.assertEqual(save["keywords"],
+                         "fiberglass pool, container pool, above ground pool")
+
+    def test_cfg_keywords_win_over_product(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        cfg = _cfg(alibaba_keywords="custom pool, fiberglass pool")
+        save = build_alibaba_save(_pool_product(), cfg)
+        self.assertEqual(save["keywords"], "custom pool, fiberglass pool")
+
+    def test_override_keywords_win_over_cfg(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        cfg = _cfg(alibaba_keywords="custom pool, fiberglass pool")
+        save = build_alibaba_save(_pool_product(), cfg,
+                                  {"keywords": ["override pool", "spa pool"]})
+        self.assertEqual(save["keywords"], "override pool, spa pool")
+
+    def test_keywords_generated_from_title_only_when_absent(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        product = _pool_product(keywords="")
+        save = build_alibaba_save(product, _cfg())
+        # 标题 "Customized Fiberglass Swimming Pool Container" → 英文单词
+        self.assertTrue(save["keywords"])
+        self.assertNotIn("fiberglass pool", save["keywords"])
+
+
+class AlibabaPriceTypePreserveTests(unittest.TestCase):
+    """更新已有商品时不能把定价模型静默改掉（sku_price → 空阶梯价）。"""
+
+    SKU_PRODUCT = None
+
+    def _sku_product(self):
+        return _pool_product(
+            priceType="sku_price",
+            bulkDiscountPrices=[],
+            productSku={
+                "attributes": [{"attribute_name": "Color", "attribute_id": "210190015"}],
+                "exclude_skus": [],
+                "special_skus": [{"price": 12.5, "sku_code": "RED-1",
+                                  "attributes": [{"attribute_name": "Color",
+                                                  "value_name": "Red"}]}],
+            })
+
+    def test_sku_price_not_silently_rewritten_to_ladder(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save, validate_alibaba_save
+        save = build_alibaba_save(self._sku_product(), _cfg())
+        self.assertEqual(save["priceType"], "sku_price")
+        self.assertEqual(json.loads(save["bulkDiscountPrices"]), [])
+        self.assertTrue(save["productSku"])
+        issues = validate_alibaba_save(self._sku_product(), save, _cfg())
+        self.assertEqual(issues, [])
+
+    def test_explicit_price_type_override_still_wins(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        save = build_alibaba_save(self._sku_product(), _cfg(),
+                                  {"price_type": "ladder_price",
+                                   "price_tiers": [{"start_quantity": 1, "price": 99}]})
+        self.assertEqual(save["priceType"], "ladder_price")
+        self.assertEqual(json.loads(save["bulkDiscountPrices"])[0]["price"], 99)
+
+    def test_ladder_product_keeps_model_when_no_tiers_configured(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        save = build_alibaba_save(_pool_product(), _cfg())
+        self.assertEqual(save["priceType"], "ladder_price")
+        # 没有配置阶梯价档位时保留商品原有阶梯价，不清空
+        self.assertEqual(json.loads(save["bulkDiscountPrices"])[0]["price"], 4001.4)
+
+
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    result = unittest.main(verbosity=2, exit=False)
+    sys.exit(0 if result.result.wasSuccessful() else 1)
+

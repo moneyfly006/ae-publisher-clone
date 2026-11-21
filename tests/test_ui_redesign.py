@@ -36,8 +36,26 @@ class RedesignTests(unittest.TestCase):
                     self.assertTrue(list(walk(self.app.content.controls)))
                     self.assertTrue(all(isinstance(b, ft.TextButton) for _, b in self.app.nav_buttons))
         self.app._switch(25)
-        self.assertEqual(self.app._page_idx, 1)
-        self.assertIn(self.app.active_platform.page(1).label, self.app.breadcrumb.value)
+        # 平台化后页面号不再连续，越界页面统一回到当前平台首页。
+        self.assertEqual(self.app._page_idx, self.app.active_platform.pages[0].index)
+        self.assertIn(self.app.active_platform.pages[0].label, self.app.breadcrumb.value)
+
+    def test_alibaba_listing_page_is_in_navigation_not_buried_in_settings(self):
+        """Alibaba 刊登是真正的刊登操作，必须有独立导航页（12 号）。"""
+        page = self.app.active_platform.page(12)
+        self.assertIsNotNone(page, "Alibaba 平台缺少 12 号「Alibaba 刊登」页")
+        self.app._switch(12)
+        self.assertEqual(self.app._page_idx, 12)
+        self.assertIn("Alibaba 刊登", self.app.breadcrumb.value)
+        texts = {c.value for c in walk(self.app.content.controls)
+                 if isinstance(c, ft.Text) and c.value}
+        labels = {getattr(c, "label", "") for c in walk(self.app.content.controls)}
+        self.assertTrue(any("选择商品" in t for t in texts), texts)
+        self.assertIn("保存动作", labels)
+        # 设置页不再重复放 Alibaba 刊登，避免两处入口状态不一致。
+        self.app._switch(11)
+        tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
+        self.assertNotIn("Alibaba 刊登", [t.text for t in tabs.tabs])
 
     def test_navigation_search_alias_empty_state_and_enter(self):
         self.app._filter_navigation("水印")
@@ -110,10 +128,11 @@ class RedesignTests(unittest.TestCase):
             5: ["简单编辑", "精细化编辑", "营销图", "图片输出与水印", "商品视频"],
             6: ["定价与试算", "阶梯与批发", "区域调价", "价格模板库"],
             7: ["编码与库存", "变种属性与图片", "套装 SKU"],
-            8: ["运行与发布设置", "商品队列"],
+            # Alibaba 平台的发布队列只读展示 ICBU 商品，SMT 的批量发布/重试不在此页。
+            8: ["商品队列"],
             9: ["商品与取图", "图片处理与输出", "任务队列"],
             10: ["运行日志", "定时发布"],
-            11: ["账号与连接", "图片与模型", "界面与实例", "维护与诊断", "Alibaba 刊登"],
+            11: ["账号与连接", "图片与模型", "界面与实例", "维护与诊断"],
         }
         for index, titles in expected.items():
             self.app._switch(index)
@@ -121,6 +140,17 @@ class RedesignTests(unittest.TestCase):
             self.assertEqual([t.text for t in tabs.tabs], titles)
             # 控件树必须包含非活动 Tab 的功能，不能仅渲染一页后丢掉其余能力。
             self.assertTrue(all(list(walk([tab.content])) for tab in tabs.tabs))
+            if index == 8:
+                # Alibaba 页禁止出现 SMT 写操作，避免跨平台误写。
+                texts = {c.value for c in walk(self.app.content.controls)
+                         if isinstance(c, ft.Text) and c.value}
+                self.assertFalse(any("批量发布" in t or "重试「发布失败」" in t for t in texts))
+        # SMT 平台仍保留运行设置 + SMT 队列（平台适配不能把老能力弄丢）。
+        self.app._switch_platform("aliexpress")
+        self.app._switch(8)
+        tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
+        self.assertEqual([t.text for t in tabs.tabs], ["运行与发布设置", "商品队列"])
+        self.app._switch_platform("alibaba")
         self.app._switch(7)
         self.assertTrue(any(getattr(c, "text", "") == "打开替换表" for c in walk(self.app.content.controls)))
         self.app._switch(11)
@@ -142,6 +172,8 @@ class RedesignTests(unittest.TestCase):
             stop.assert_called_once()
 
     def test_publish_starts_with_quantity_and_destination_and_video_lives_with_media(self):
+        # 运行设置/SMT 队列属于 SMT 平台；Alibaba 平台只保留只读 ICBU 队列。
+        self.app._switch_platform("aliexpress")
         self.app._switch(8)
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
         self.assertEqual(tabs.selected_index, 0)
@@ -155,6 +187,15 @@ class RedesignTests(unittest.TestCase):
         video = next(t for t in tabs.tabs if t.text == "商品视频")
         labels = {getattr(c, "label", "") for c in walk([video.content])}
         self.assertTrue({"视频来源", "每张停留秒数", "视频尺寸", "首尾淡入淡出"} <= labels)
+        self.app._switch_platform("alibaba")
+        self.app._switch(8)
+        tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
+        self.assertEqual([t.text for t in tabs.tabs], ["商品队列"])
+        texts = {c.value for c in walk(self.app.content.controls)
+                 if isinstance(c, ft.Text) and c.value}
+        self.assertTrue(any("Alibaba 商品队列" in t for t in texts))
+        self.assertTrue(any("去 Alibaba 刊登" in getattr(c, "text", "")
+                            for c in walk(self.app.content.controls)))
 
     def test_documented_unlimited_count_and_local_processing_validation(self):
         from aeclone.services.preflight import ai_active

@@ -80,7 +80,8 @@ class AlibabaClient:
 
     def list_products(self, page: int = 1, page_size: int = 20, dxm_state: str | None = None,
                       shop_id: str | None = None, search: str | None = None) -> dict:
-        params = {"page": page, "pageSize": page_size}
+        # ICBU 列表接口的分页参数是 pageNo（不是 page）：传 page 会一直返回第 1 页。
+        params = {"pageNo": page, "pageSize": page_size}
         if dxm_state:
             params["dxmState"] = dxm_state
         if shop_id:
@@ -271,5 +272,13 @@ class AlibabaClient:
         return [{"label": k, "value": v} for k, v in unit.items()]
 
     # ---------- 违禁词 ----------
-    def check_banned_words(self, text: str) -> dict:
-        return self._get("/bannedWord/alibabaCheckBannedWord", {"text": text})
+    def check_banned_words(self, text: str, shop_id: str | None = None) -> dict:
+        """违禁词检查。
+
+        实测（2026-11-22）：该接口必须 POST 且带 .json 后缀；
+        用 GET /bannedWord/alibabaCheckBannedWord 会 404（旧实现一直失败）。
+        """
+        data = {"text": str(text or "")}
+        if shop_id:
+            data["shopId"] = str(shop_id)
+        return self._post("/bannedWord/alibabaCheckBannedWord.json", data=data)
