@@ -40,6 +40,8 @@ function issue_for_order(int $orderId): ?array {
 }
 
 $action = $_GET['action'] ?? ($_POST['action'] ?? '');
+try { db()->exec("CREATE TABLE IF NOT EXISTS login_attempts2(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT, ip TEXT, ok INTEGER, ts INTEGER)"); } catch (Exception $e) {}
 switch ($action) {
 // ---------------- 用户 ----------------
 case 'register': {
@@ -70,9 +72,17 @@ case 'register': {
 }
 case 'login': {
     $in = body(); $email = trim(strtolower((string)($in['email'] ?? '')));
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $st = db()->prepare('SELECT COUNT(*) FROM login_attempts2 WHERE email=? AND ip=? AND ok=0 AND ts>?');
+    $st->execute([$email, $ip, time() - 600]);
+    if ((int)$st->fetchColumn() >= 5) fail('尝试次数过多，请 10 分钟后再试');
     $st = db()->prepare('SELECT * FROM users WHERE email=?'); $st->execute([$email]);
     $u = $st->fetch(PDO::FETCH_ASSOC);
-    if (!$u || !password_verify((string)($in['password'] ?? ''), $u['pass'])) fail('邮箱或密码错误');
+    if (!$u || !password_verify((string)($in['password'] ?? ''), $u['pass'])) {
+        db()->prepare('INSERT INTO login_attempts2(email,ip,ok,ts) VALUES(?,?,0,?)')->execute([$email, $ip, time()]);
+        fail('邮箱或密码错误');
+    }
+    db()->prepare('DELETE FROM login_attempts2 WHERE email=? AND ip=? AND ok=0')->execute([$email, $ip]);
     if ((int)($u['verified'] ?? 1) === 0 && get_setting('require_verify') === '1') {
         $code = save_code($email, 'verify'); send_code_email($email, $code, 'verify');
         out(['need_verify'=>true, 'email'=>$email], 0, '需要邮箱验证');
@@ -222,6 +232,26 @@ case 'coupon_check': {
     [$c, $err] = coupon_apply((string)($in['code'] ?? ''), (int)($in['amount_cents'] ?? 0));
     if (!$c) fail($err);
     out(['code'=>$c['code'], 'off'=>$c['off']/100, 'final'=>$c['final']/100]);
+}
+case 'order_pay_url': {
+    $u = require_user(); $in = body(); $oid = (int)($in['order_id'] ?? 0);
+    $st = db()->prepare('SELECT * FROM orders WHERE id=? AND user_id=?');
+    $st->execute([$oid, $u['id']]); $o = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$o) fail('订单不存在');
+    if ($o['status'] !== 'pending') fail('订单不是待支付状态');
+    $st = db()->prepare('SELECT * FROM packages WHERE id=?'); $st->execute([$o['package_id']]);
+    $p = $st->fetch(PDO::FETCH_ASSOC);
+    $epay = effective_epay();
+    if (!$epay['pid'] || !$epay['key']) fail('支付未配置');
+    $params = [
+      'pid'=>$epay['pid'], 'type'=>$epay['type'],
+      'out_trade_no'=>$o['trade_no'], 'notify_url'=>$epay['site_url'].'/pay/notify.php',
+      'return_url'=>$epay['site_url'].'/?paid=1',
+      'name'=>$p['name'] ?? 'AuroraList 套餐', 'money'=>number_format(((int)$o['amount_cents'])/100, 2, '.', ''),
+    ];
+    ksort($params);
+    $params['sign'] = md5(urldecode(http_build_query($params)).$epay['key']);
+    out(['pay_url'=>$epay['gateway'].'/submit.php?'.http_build_query($params)]);
 }
 case 'orders': {
     $u = require_user();

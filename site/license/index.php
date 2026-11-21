@@ -159,6 +159,9 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
       </section>
       <section class="panel" id="p-pkgs">
         <h2>套餐购买</h2><div class="sub">购买后自动开通；已有授权会自动续期</div>
+        <div class="row" style="margin-bottom:12px"><span class="muted">支付方式</span>
+          <select id="payMethod" style="width:160px"><option value="alipay">支付宝</option><option value="wxpay">微信支付</option></select>
+          <span class="muted">优惠券可在下单时填写（联系客服获取）</span></div>
         <div class="grid" id="pkgGrid"></div>
       </section>
       <section class="panel" id="p-lic">
@@ -249,7 +252,12 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
   </div>
 </div>
 
-<footer style="border-top:1px solid var(--line);padding:22px 0;color:var(--muted);font-size:12.5px"><div class="wrap">极光上架 AuroraList · 授权中心 · 咨询 QQ 3219904322</div></footer>
+<footer style="border-top:1px solid var(--line);padding:22px 0;color:var(--muted);font-size:12.5px"><div class="wrap">
+  极光上架 AuroraList · 授权中心 · 咨询 QQ 3219904322 ·
+  <a href="/terms" style="color:var(--accent)">服务协议</a> ·
+  <a href="/privacy" style="color:var(--accent)">隐私政策</a> ·
+  <a href="/refund" style="color:var(--accent)">退款政策</a>
+</div></footer>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -384,7 +392,8 @@ function renderPackages(list){
 }
 async function buy(pid){
   if(!ME){ alert('请先登录'); return; }
-  const r=await api('order_create',{package_id:pid});
+  const payType=(document.getElementById('payMethod')||{}).value||'alipay';
+  const r=await api('order_create',{package_id:pid,pay_type:payType});
   if(r.code!==0){ alert(r.msg); return; }
   const d=r.data;
   if(d.pay_url){ location.href=d.pay_url; return; }
@@ -433,11 +442,17 @@ function renderLicense(){
 }
 function renderOrders(){
   const t=$('#orderTable');
-  t.innerHTML='<tr><th>订单号</th><th>套餐</th><th>金额</th><th>状态</th><th>时间</th></tr>'+
+  t.innerHTML='<tr><th>订单号</th><th>套餐</th><th>金额</th><th>状态</th><th>时间</th><th>操作</th></tr>'+
     (ORDERS||[]).map(o=>`<tr><td>${esc(o.trade_no)}</td><td>${esc(o.name||'')}</td>
       <td>¥${(o.amount_cents/100).toFixed(2)}</td>
-      <td><span class="st ${o.status==='paid'?'ok':'bad'}">${o.status==='paid'?'已支付':'待支付'}</span></td>
-      <td>${new Date(o.created_at*1000).toLocaleString()}</td></tr>`).join('');
+      <td><span class="st ${o.status==='paid'?'ok':'bad'}">${o.status==='paid'?'已支付':(o.status==='refunded'?'已退款':'待支付')}</span></td>
+      <td>${new Date(o.created_at*1000).toLocaleString()}</td>
+      <td>${o.status==='pending'?'<a style="color:var(--accent);cursor:pointer" data-pay="'+o.id+'">继续支付</a>':'-'}</td></tr>`).join('');
+  document.querySelectorAll('[data-pay]').forEach(a=>a.onclick=async()=>{
+    const r=await api('order_pay_url',{order_id:+a.dataset.pay});
+    if(r.code!==0){alert(r.msg);return;}
+    location.href=r.data.pay_url;
+  });
 }
 async function loadDevices(){
   const r=await api('devices'); const list=r.data||[];

@@ -1,0 +1,1 @@
+let e=function(e){return e.PublishingTiming=`publishingTiming`,e.Publishing=`publishing`,e.PublishFail=`publishFail`,e}({}),t=function(e){return e.Draft=`draft`,e.Offline=`offline`,e.Online=`online`,e}({});const n={[t.Draft]:`采集箱`,[e.PublishingTiming]:`定时发布`,[e.Publishing]:`发布中`,[e.PublishFail]:`发布失败`,[t.Online]:`在线产品`,[t.Offline]:`待发布产品`};export{t as n,n as r,e as t};

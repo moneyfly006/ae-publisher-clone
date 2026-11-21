@@ -223,5 +223,15 @@
     "name": "test_publish_readiness",
     "status": "PASS",
     "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_prompts",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_ui_alibaba_actions",
+    "status": "PASS",
+    "exit_code": 0
   }
 ]

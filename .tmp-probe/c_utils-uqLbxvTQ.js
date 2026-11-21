@@ -1,0 +1,1 @@
+import{vd as e}from"./index-DXSGi9Ix.js";import{t}from"./ProgressModal-t3r6PUIb.js";const n=(n,r,i)=>e(t,n,i||``,r);export{n as t};

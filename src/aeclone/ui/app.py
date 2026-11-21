@@ -5921,9 +5921,11 @@ class App:
         opts = AP.preset_options()
         if not opts:
             return None
+        _saved_id = str(getattr(self.cfg, "alibaba_ai_preset", "") or "").strip()
+        _ids = [k for k, _v in opts]
         dd = ft.Dropdown(
             width=330, dense=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            value=AP.DEFAULT_PRESET_ID,
+            value=_saved_id if _saved_id in _ids else AP.DEFAULT_PRESET_ID,
             options=[ft.dropdown.Option(k, v) for k, v in opts])
         info = muted("", 11)
 
@@ -5932,6 +5934,13 @@ class App:
                 info.value = AP.describe_preset(AP.resolve_preset(dd.value))
             except Exception:
                 info.value = ""
+            # 记住上次选择（下次打开两个页面的下拉一致）
+            try:
+                if dd.value:
+                    self.cfg.set("alibaba_ai_preset", str(dd.value))
+                    save_config(self.cfg)
+            except Exception:
+                pass
             try:
                 self._safe_update()
             except Exception:
@@ -5944,9 +5953,10 @@ class App:
                 kw_prompt = str(preset.get("keyword_prompt") or "").strip()
                 if kw_prompt:
                     self.cfg.set("alibaba_keyword_prompt", kw_prompt)
+                self.cfg.set("alibaba_ai_preset", str(preset.get("id") or dd.value or ""))
                 save_config(self.cfg)
                 self._log(f"套用 Alibaba 提示词预设：{preset.get('name')}"
-                          f"（{len(written)} 项）", "INFO")
+                          f"（{len(written)} 项，v{AP.PRESET_VERSION}）", "INFO")
                 self.toast(f"已套用 Alibaba 预设：{preset.get('name')}，可继续手工微调")
                 try:
                     self._switch(self._page_idx)
@@ -5958,7 +5968,7 @@ class App:
         dd.on_change = refresh_info
         refresh_info()
         return ft.Column([
-            ft.Row([muted("Alibaba 行业预设", FS_SM), dd,
+            ft.Row([muted(f"Alibaba 行业预设（v{AP.PRESET_VERSION}）", FS_SM), dd,
                     ft.OutlinedButton("套用预设", icon=ft.Icons.AUTO_FIX_HIGH,
                                       on_click=apply)], spacing=8, wrap=True),
             info,
@@ -9727,6 +9737,10 @@ class App:
             if getattr(res, "issues", None):
                 rows.append(ft.Text("校验问题：" + "；".join(res.issues), size=12.5,
                                     color=DANGER_C, selectable=True))
+            if getattr(res, "warnings", None):
+                rows.append(ft.Text("提醒 / AI 编造风险：" + "；".join(
+                    str(w) for w in res.warnings[:6]), size=12, color=WARN_C,
+                    selectable=True))
             if getattr(res, "banned_words", None):
                 rows.append(ft.Text("违禁词：" + ", ".join(res.banned_words), size=12.5,
                                     color=WARN_C, selectable=True))
@@ -9970,29 +9984,15 @@ class App:
         """
         self._current = 12
 
-        def step(n, title, hint, color=ACCENT):
-            return ft.Container(
-                padding=ft.padding.symmetric(horizontal=12, vertical=7),
-                bgcolor=CARD_2, border_radius=999,
-                content=ft.Row([
-                    ft.Container(width=20, height=20, border_radius=10, bgcolor=color,
-                                 alignment=ft.alignment.center,
-                                 content=ft.Text(str(n), size=11.5, color=ON_ACCENT,
-                                                 weight=ft.FontWeight.BOLD)),
-                    ft.Text(title, size=12.5, color=TEXT),
-                    muted(hint, 10.5),
-                ], spacing=6))
-        steps = ft.Row([
-            step(1, "连接", "沿用店小秘 Cookie"),
-            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
-            step(2, "选商品", "草稿/在线，可搜索"),
-            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
-            step(3, "选类目/资料", "必填自动补齐"),
-            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
-            step(4, "预演", "不保存、不花钱"),
-            ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14, color=MUTED),
-            step(5, "确认保存", "默认只存草稿", SUCCESS_C),
-        ], spacing=4, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        # 工作流提示用单行紧凑样式：Chip 换行在窄窗口会变成一列，反而占空间。
+        steps = ft.Container(
+            padding=ft.padding.symmetric(horizontal=14, vertical=8),
+            bgcolor=CARD_2, border_radius=8,
+            content=ft.Text(
+                "① 连接（沿用店小秘 Cookie）  →  ② 选商品（草稿/在线，可搜索）  →  "
+                "③ 选类目/资料（必填自动补齐）  →  ④ 预演（不保存、不花钱）  →  "
+                "⑤ 确认保存（默认只存草稿）",
+                size=12, color=MUTED, selectable=False))
         return [
             page_header("Alibaba 刊登",
                         "选择商品 → 确认类目/资料 → 预演校验 → 确认保存（草稿/待发布/审核）"),

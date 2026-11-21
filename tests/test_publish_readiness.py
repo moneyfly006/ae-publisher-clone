@@ -130,15 +130,26 @@ class BuilderTests(unittest.TestCase):
         self.assertEqual(float(fob["fob_max_price"]), 200.0)
 
     def test_required_attributes_autofilled_from_presets_then_generic(self):
-        c = cfg(alibaba_attr_presets='{"Color": "Blue"}')
+        # 预设值必须命中类目候选（安全策略：不写无效值）；White 在候选里，Blue 不在。
+        c = cfg(alibaba_attr_presets='{"Color": "White"}')
         attrs, filled, unresolved = PAYLOAD.autofill_required_attributes(
             {"attributes": V._json_list(V._synthetic_detail()["attributes"])[:1]},
             V.SYNTHETIC_REQUIRED_ATTRS, c)
         names = {a["attribute_name"]: a.get("value_name") for a in attrs}
-        self.assertEqual(names.get("Color"), "Blue")
+        self.assertEqual(names.get("Color"), "White")
         self.assertEqual(names.get("Material"), "Other")
         self.assertTrue(any(x.startswith("Color=") for x in filled))
-        self.assertEqual(unresolved, [])
+        # Type 只有单一非通用候选值（Container swimming pool），安全策略不猜值，
+        # 标记 unresolved 让 validate 阻断并提示用户填预设。
+        self.assertEqual(unresolved, ["Type"])
+
+    def test_invalid_preset_attribute_is_blocked(self):
+        c = cfg(alibaba_attr_presets='{"Color": "Blue"}')
+        attrs, _filled, unresolved = PAYLOAD.autofill_required_attributes(
+            {"attributes": []}, V.SYNTHETIC_REQUIRED_ATTRS, c)
+        names = {a["attribute_name"]: a.get("value_name") for a in attrs}
+        self.assertNotIn("Color", names)
+        self.assertTrue(any("Color" in str(u) for u in unresolved), unresolved)
 
     def test_validate_rejects_incomplete_payload(self):
         issues = PAYLOAD.validate_alibaba_save(

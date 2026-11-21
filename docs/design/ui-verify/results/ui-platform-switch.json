@@ -1,0 +1,460 @@
+{
+ "total": 90,
+ "fails": 0,
+ "results": {
+  "full_license": [
+   {
+    "check": "默认平台=Alibaba",
+    "ok": true,
+    "detail": "Alibaba 国际站"
+   },
+   {
+    "check": "Alibaba 导航 13 项",
+    "ok": true,
+    "detail": "['概览', '店铺与模板', '类目与属性', '价格 / 阶梯 / 批发', 'SKU · 库存 · 套装', '发布队列', 'Alibaba 刊登', '任务与日志', 'AI 文案', 'AI 图片', '内容审查', '图片工作台', '设置']"
+   },
+   {
+    "check": "平台栏 5 个平台徽标",
+    "ok": true,
+    "detail": "['Alibaba 国际站 · 已开通', '速卖通 AliExpress · 已开通', 'Amazon 亚马逊 · 已开通', 'TikTok Shop · 已开通', 'Shopee · 已开通']"
+   },
+   {
+    "check": "页8 Alibaba=只读ICBU队列",
+    "ok": true,
+    "detail": "['发布队列', '设置本次处理数量与发布去向，查看商品队列和失败重试', 'Alibaba 商品队列（只读）']"
+   },
+   {
+    "check": "页8 Alibaba=草稿/在线/合计",
+    "ok": true,
+    "detail": "['草稿', '在线', '合计']"
+   },
+   {
+    "check": "页8 Alibaba 无批量发布按钮",
+    "ok": true,
+    "detail": "['刷新数量', '查看草稿', '查看在线', '去 Alibaba 刊登']"
+   },
+   {
+    "check": "页12 存在且 5 个 Tab",
+    "ok": true,
+    "detail": "['连接与商品', '类目', '预设资料', '价格与贸易', '预演 / 保存']"
+   },
+   {
+    "check": "页12 控件存在：读取商品",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：按 ID 打开",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：搜索",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：读取必填属性",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：展开子类目",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：预演（不保存）",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：保存到 Alibaba",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：AI 预演（不保存）",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：AI 生成并保存",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "Alibaba 侧栏启动→跳 12 号页",
+    "ok": true,
+    "detail": "_page_idx=12"
+   },
+   {
+    "check": "Alibaba 侧栏启动→toast 明确提示",
+    "ok": true,
+    "detail": "Alibaba 商品请在「Alibaba 刊登」页选择并保存（批量管线仅用于速卖通）"
+   },
+   {
+    "check": "Alibaba 侧栏启动→日志 WARN 提示",
+    "ok": true,
+    "detail": "['01:49:15 [INFO] 运行实例：日常运行 · 配置目录：/var/folders/kq/dz44fm994nz94zw2dfqnz_g00000gn/T/aurora-ui-6ubs379t/config · 程序：/Users/apple/Projects/ae-clone/.venv/bin/python', '01:49:15 [WARN] 已阻止在 Alibaba 平台启动速卖通批量管线，请使用「Alibaba 刊登」页']"
+   },
+   {
+    "check": "Alibaba 侧栏启动→不启动批量任务",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "Alibaba ⌘R→跳 12 号页",
+    "ok": true,
+    "detail": "_page_idx=12"
+   },
+   {
+    "check": "Alibaba ⌘R→toast 明确提示",
+    "ok": true,
+    "detail": "Alibaba 商品请在「Alibaba 刊登」页选择并保存（批量管线仅用于速卖通）"
+   },
+   {
+    "check": "概览页有「去 Alibaba 刊登」入口",
+    "ok": true,
+    "detail": "['去 Alibaba 刊登']"
+   },
+   {
+    "check": "概览「去 Alibaba 刊登」→跳 12",
+    "ok": true,
+    "detail": "_page_idx=12"
+   },
+   {
+    "check": "切换后 active_platform=aliexpress",
+    "ok": true,
+    "detail": "速卖通 AliExpress"
+   },
+   {
+    "check": "AliExpress 导航 12 项且不含 Alibaba 刊登",
+    "ok": true,
+    "detail": "['概览', '店铺与模板', '类目与属性', '价格', '变种与库存', 'AI 文案', 'AI 图片', '内容审查', '发布队列', '任务与日志', '图片工作台', '设置']"
+   },
+   {
+    "check": "AliExpress 导航 label 来自 ALIEXPRESS",
+    "ok": true,
+    "detail": "['概览', '店铺与模板', '类目与属性', '价格', '变种与库存', 'AI 文案', 'AI 图片', '内容审查', '发布队列', '任务与日志', '图片工作台', '设置']"
+   },
+   {
+    "check": "切换后自动落到 AliExpress 首页",
+    "ok": true,
+    "detail": "0"
+   },
+   {
+    "check": "切换后 breadcrumb 刷新",
+    "ok": true,
+    "detail": "速卖通 AliExpress / 工作空间 / 概览"
+   },
+   {
+    "check": "切换后平台栏高亮刷新（tooltip 已开通）",
+    "ok": true,
+    "detail": "['Alibaba 国际站 · 已开通', '速卖通 AliExpress · 已开通', 'Amazon 亚马逊 · 已开通', 'TikTok Shop · 已开通', 'Shopee · 已开通']"
+   },
+   {
+    "check": "页8 AliExpress=发布队列（SMT，非只读）",
+    "ok": true,
+    "detail": "['发布队列', '设置本次处理数量与发布去向，查看商品队列和失败重试', '队列']"
+   },
+   {
+    "check": "页8 AliExpress 有批量发布/重试入口",
+    "ok": true,
+    "detail": "['清空已编辑记录', '重跑上次失败的商品', '只重试发布失败（0 个·不花钱）', '刷新数量', '看待发布列表', '看发布失败列表', '批量发布「待发布」', '重试「发布失败」']"
+   },
+   {
+    "check": "AliExpress 启动任务不被 Alibaba 守卫拦截",
+    "ok": true,
+    "detail": "page=10 toast=配置检查通过，没有冲突"
+   },
+   {
+    "check": "切回 Alibaba 导航 13 项",
+    "ok": true,
+    "detail": "13"
+   },
+   {
+    "check": "切回 Alibaba 12 号页可访问",
+    "ok": true,
+    "detail": "PageItem(index=12, label='Alibaba 刊登', group='刊登', icon='PUBLISH', feature='listing', keywords='')"
+   },
+   {
+    "check": "切回后 12 号页仍渲染",
+    "ok": true,
+    "detail": "['Alibaba 刊登']"
+   },
+   {
+    "check": "未开通功能包：导航出现锁图标",
+    "ok": true,
+    "detail": "locked=[2, 6, 7, 3, 5, 4, 9]"
+   },
+   {
+    "check": "未开通功能包：listing 页仍可用",
+    "ok": true,
+    "detail": "allowed=[0, 1, 8, 10, 11, 12]"
+   },
+   {
+    "check": "点未开通页→功能包锁定页",
+    "ok": true,
+    "detail": "['Alibaba 国际站 · 功能未开通', '当前授权未包含「category」功能包。', '需要：商品准备 / 类目与属性 · 功能包 category']"
+   },
+   {
+    "check": "锁定页给出开通入口",
+    "ok": true,
+    "detail": "['去授权网站开通']"
+   },
+   {
+    "check": "切到未授权平台→平台锁定页",
+    "ok": true,
+    "detail": "['当前授权未包含该平台。']"
+   },
+   {
+    "check": "未授权平台导航全部锁定",
+    "ok": true,
+    "detail": "{0: True, 1: True, 2: True, 6: True, 7: True, 3: True, 5: True, 4: True, 8: True, 10: True, 9: True, 11: True}"
+   },
+   {
+    "check": "平台栏显示未开通",
+    "ok": true,
+    "detail": "['Alibaba 国际站 · 已开通', '速卖通 AliExpress · 未开通', 'Amazon 亚马逊 · 未开通', 'TikTok Shop · 未开通', 'Shopee · 未开通']"
+   },
+   {
+    "check": "切回 Alibaba 后锁定态刷新（listing 解锁）",
+    "ok": true,
+    "detail": "{0: False, 1: False, 2: True, 6: True, 7: True, 8: False, 12: False, 10: False, 3: True, 5: True, 4: True, 9: True, 11: False}"
+   },
+   {
+    "check": "切回 Alibaba 首页正常渲染",
+    "ok": true,
+    "detail": "['概览', '从商品准备到发布，在一个工作空间完成日常运营。', '状态数字 · 缓存 30 秒']"
+   }
+  ],
+  "locked": [
+   {
+    "check": "默认平台=Alibaba",
+    "ok": true,
+    "detail": "Alibaba 国际站"
+   },
+   {
+    "check": "Alibaba 导航 13 项",
+    "ok": true,
+    "detail": "['概览', '店铺与模板', '类目与属性', '价格 / 阶梯 / 批发', 'SKU · 库存 · 套装', '发布队列', 'Alibaba 刊登', '任务与日志', 'AI 文案', 'AI 图片', '内容审查', '图片工作台', '设置']"
+   },
+   {
+    "check": "平台栏 5 个平台徽标",
+    "ok": true,
+    "detail": "['Alibaba 国际站 · 已开通', '速卖通 AliExpress · 已开通', 'Amazon 亚马逊 · 已开通', 'TikTok Shop · 已开通', 'Shopee · 已开通']"
+   },
+   {
+    "check": "页8 Alibaba=只读ICBU队列",
+    "ok": true,
+    "detail": "['发布队列', '设置本次处理数量与发布去向，查看商品队列和失败重试', 'Alibaba 商品队列（只读）']"
+   },
+   {
+    "check": "页8 Alibaba=草稿/在线/合计",
+    "ok": true,
+    "detail": "['草稿', '在线', '合计']"
+   },
+   {
+    "check": "页8 Alibaba 无批量发布按钮",
+    "ok": true,
+    "detail": "['刷新数量', '查看草稿', '查看在线', '去 Alibaba 刊登']"
+   },
+   {
+    "check": "页12 存在且 5 个 Tab",
+    "ok": true,
+    "detail": "['连接与商品', '类目', '预设资料', '价格与贸易', '预演 / 保存']"
+   },
+   {
+    "check": "页12 控件存在：读取商品",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：按 ID 打开",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：搜索",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：读取必填属性",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：展开子类目",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：预演（不保存）",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：保存到 Alibaba",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：AI 预演（不保存）",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "页12 控件存在：AI 生成并保存",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "Alibaba 侧栏启动→跳 12 号页",
+    "ok": true,
+    "detail": "_page_idx=12"
+   },
+   {
+    "check": "Alibaba 侧栏启动→toast 明确提示",
+    "ok": true,
+    "detail": "Alibaba 商品请在「Alibaba 刊登」页选择并保存（批量管线仅用于速卖通）"
+   },
+   {
+    "check": "Alibaba 侧栏启动→日志 WARN 提示",
+    "ok": true,
+    "detail": "['01:49:15 [INFO] 运行实例：日常运行 · 配置目录：/var/folders/kq/dz44fm994nz94zw2dfqnz_g00000gn/T/aurora-ui-6ubs379t/config · 程序：/Users/apple/Projects/ae-clone/.venv/bin/python', '01:49:15 [WARN] 已阻止在 Alibaba 平台启动速卖通批量管线，请使用「Alibaba 刊登」页']"
+   },
+   {
+    "check": "Alibaba 侧栏启动→不启动批量任务",
+    "ok": true,
+    "detail": ""
+   },
+   {
+    "check": "Alibaba ⌘R→跳 12 号页",
+    "ok": true,
+    "detail": "_page_idx=12"
+   },
+   {
+    "check": "Alibaba ⌘R→toast 明确提示",
+    "ok": true,
+    "detail": "Alibaba 商品请在「Alibaba 刊登」页选择并保存（批量管线仅用于速卖通）"
+   },
+   {
+    "check": "概览页有「去 Alibaba 刊登」入口",
+    "ok": true,
+    "detail": "['去 Alibaba 刊登']"
+   },
+   {
+    "check": "概览「去 Alibaba 刊登」→跳 12",
+    "ok": true,
+    "detail": "_page_idx=12"
+   },
+   {
+    "check": "切换后 active_platform=aliexpress",
+    "ok": true,
+    "detail": "速卖通 AliExpress"
+   },
+   {
+    "check": "AliExpress 导航 12 项且不含 Alibaba 刊登",
+    "ok": true,
+    "detail": "['概览', '店铺与模板', '类目与属性', '价格', '变种与库存', 'AI 文案', 'AI 图片', '内容审查', '发布队列', '任务与日志', '图片工作台', '设置']"
+   },
+   {
+    "check": "AliExpress 导航 label 来自 ALIEXPRESS",
+    "ok": true,
+    "detail": "['概览', '店铺与模板', '类目与属性', '价格', '变种与库存', 'AI 文案', 'AI 图片', '内容审查', '发布队列', '任务与日志', '图片工作台', '设置']"
+   },
+   {
+    "check": "切换后自动落到 AliExpress 首页",
+    "ok": true,
+    "detail": "0"
+   },
+   {
+    "check": "切换后 breadcrumb 刷新",
+    "ok": true,
+    "detail": "速卖通 AliExpress / 工作空间 / 概览"
+   },
+   {
+    "check": "切换后平台栏高亮刷新（tooltip 已开通）",
+    "ok": true,
+    "detail": "['Alibaba 国际站 · 已开通', '速卖通 AliExpress · 已开通', 'Amazon 亚马逊 · 已开通', 'TikTok Shop · 已开通', 'Shopee · 已开通']"
+   },
+   {
+    "check": "页8 AliExpress=发布队列（SMT，非只读）",
+    "ok": true,
+    "detail": "['发布队列', '设置本次处理数量与发布去向，查看商品队列和失败重试', '队列']"
+   },
+   {
+    "check": "页8 AliExpress 有批量发布/重试入口",
+    "ok": true,
+    "detail": "['清空已编辑记录', '重跑上次失败的商品', '只重试发布失败（0 个·不花钱）', '刷新数量', '看待发布列表', '看发布失败列表', '批量发布「待发布」', '重试「发布失败」']"
+   },
+   {
+    "check": "AliExpress 启动任务不被 Alibaba 守卫拦截",
+    "ok": true,
+    "detail": "page=10 toast=配置检查通过，没有冲突"
+   },
+   {
+    "check": "切回 Alibaba 导航 13 项",
+    "ok": true,
+    "detail": "13"
+   },
+   {
+    "check": "切回 Alibaba 12 号页可访问",
+    "ok": true,
+    "detail": "PageItem(index=12, label='Alibaba 刊登', group='刊登', icon='PUBLISH', feature='listing', keywords='')"
+   },
+   {
+    "check": "切回后 12 号页仍渲染",
+    "ok": true,
+    "detail": "['Alibaba 刊登']"
+   },
+   {
+    "check": "未开通功能包：导航出现锁图标",
+    "ok": true,
+    "detail": "locked=[2, 6, 7, 3, 5, 4, 9]"
+   },
+   {
+    "check": "未开通功能包：listing 页仍可用",
+    "ok": true,
+    "detail": "allowed=[0, 1, 8, 10, 11, 12]"
+   },
+   {
+    "check": "点未开通页→功能包锁定页",
+    "ok": true,
+    "detail": "['Alibaba 国际站 · 功能未开通', '当前授权未包含「category」功能包。', '需要：商品准备 / 类目与属性 · 功能包 category']"
+   },
+   {
+    "check": "锁定页给出开通入口",
+    "ok": true,
+    "detail": "['去授权网站开通']"
+   },
+   {
+    "check": "切到未授权平台→平台锁定页",
+    "ok": true,
+    "detail": "['当前授权未包含该平台。']"
+   },
+   {
+    "check": "未授权平台导航全部锁定",
+    "ok": true,
+    "detail": "{0: True, 1: True, 2: True, 6: True, 7: True, 3: True, 5: True, 4: True, 8: True, 10: True, 9: True, 11: True}"
+   },
+   {
+    "check": "平台栏显示未开通",
+    "ok": true,
+    "detail": "['Alibaba 国际站 · 已开通', '速卖通 AliExpress · 未开通', 'Amazon 亚马逊 · 未开通', 'TikTok Shop · 未开通', 'Shopee · 未开通']"
+   },
+   {
+    "check": "切回 Alibaba 后锁定态刷新（listing 解锁）",
+    "ok": true,
+    "detail": "{0: False, 1: False, 2: True, 6: True, 7: True, 8: False, 12: False, 10: False, 3: True, 5: True, 4: True, 9: True, 11: False}"
+   },
+   {
+    "check": "切回 Alibaba 首页正常渲染",
+    "ok": true,
+    "detail": "['概览', '从商品准备到发布，在一个工作空间完成日常运营。', '状态数字 · 缓存 30 秒']"
+   }
+  ]
+ }
+}

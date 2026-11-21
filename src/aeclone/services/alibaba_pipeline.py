@@ -367,6 +367,21 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         else:
             _step(res, "AI 文案", True, "未启用 AI，使用商品原标题/详情")
 
+        # AI 编造体检（只提醒不阻断）：原文没有的尺寸/材质/认证/绝对化词。
+        if tp is not None:
+            try:
+                from . import alibaba_prompts as _AP
+                _src_text = f"{source_subject} {plain_source}"
+                _gen_text = f"{subject or ''} {_plain_text(text_desc)}"
+                _fw = _AP.fabrication_warnings(_gen_text, _src_text)
+                for _w in _fw[:5]:
+                    res.warnings.append("AI 编造风险：" + _w)
+                    _step(res, "AI 编造体检", True, _w)
+                if not _fw:
+                    _step(res, "AI 编造体检", True, "未发现明显编造")
+            except Exception:  # noqa: BLE001
+                pass
+
         # AI 关键词：商品原 keywords 常是采集来的小语种（葡语/西语），Alibaba 需要
         # 英文搜索词；只有用户没配置关键词、也没显式给 overrides 时才用 AI 生成。
         ai_kws: list[str] = []

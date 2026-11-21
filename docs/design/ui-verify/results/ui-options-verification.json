@@ -1,0 +1,1907 @@
+{
+  "counts": {
+    "CONFIG_SAVED": 165,
+    "NO_CONFIG_CHANGE": 59
+  },
+  "results": [
+    {
+      "page": 1,
+      "label": "模板来源",
+      "value": "draft",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "template_source"
+      ]
+    },
+    {
+      "page": 1,
+      "label": "模板来源",
+      "value": "online",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "template_source"
+      ]
+    },
+    {
+      "page": 1,
+      "label": "类目来源",
+      "value": "auto",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 1,
+      "label": "类目来源",
+      "value": "template",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "auto_detect_category"
+      ]
+    },
+    {
+      "page": 2,
+      "label": "是否原箱",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "original_box"
+      ]
+    },
+    {
+      "page": 2,
+      "label": "是否原箱",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "original_box"
+      ]
+    },
+    {
+      "page": 2,
+      "label": "高关注化学品",
+      "value": "否",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 2,
+      "label": "高关注化学品",
+      "value": "是",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "high_concerned_chemical"
+      ]
+    },
+    {
+      "page": 2,
+      "label": "是否带电",
+      "value": "否",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 2,
+      "label": "是否带电",
+      "value": "是",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "charge_status"
+      ]
+    },
+    {
+      "page": 2,
+      "label": "是否提交欧盟资质",
+      "value": "否",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 2,
+      "label": "是否提交欧盟资质",
+      "value": "是",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "eu_qualification"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "Dropdown",
+      "value": "container_pool",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "Dropdown",
+      "value": "machinery_industrial",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "Dropdown",
+      "value": "electric_atv",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "Dropdown",
+      "value": "general_industrial",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "Dropdown",
+      "value": "detail_html",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "Dropdown",
+      "value": "sku_naming",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "Dropdown",
+      "value": "content_review",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "启用 AI 标题",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "enable_ai_title"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "启用 AI 标题",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "enable_ai_title"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "启用 AI 详情",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "启用 AI 详情",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "enable_ai_detail"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "启用 AI 优化 SKU",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "启用 AI 优化 SKU",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "enable_ai_sku"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "启用 AI 估重",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "启用 AI 估重",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "enable_ai_weight"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "启用（总开关）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "启用（总开关）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "custom_detail_text_enable"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "详情图合规过滤",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "详情图合规过滤",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "detail_image_compliance"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "文字插入位置",
+      "value": "head",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "文字插入位置",
+      "value": "tail",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "detail_text_position"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "文字插入位置",
+      "value": "both",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "detail_text_position"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "图片插入位置",
+      "value": "head",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "detail_local_image_position"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "图片插入位置",
+      "value": "tail",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "detail_local_image_position"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "图片插入位置",
+      "value": "both",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "detail_local_image_position"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "复制SKU到详情",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "复制SKU到详情",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "copy_sku_to_detail"
+      ]
+    },
+    {
+      "page": 3,
+      "label": "删除详情原有文本",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "label": "删除详情原有文本",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "delete_detail_text"
+      ]
+    },
+    {
+      "page": 4,
+      "label": "启用文本审查",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 4,
+      "label": "启用文本审查",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "review_text_enable"
+      ]
+    },
+    {
+      "page": 4,
+      "label": "违禁词检查",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "check_banned_word"
+      ]
+    },
+    {
+      "page": 4,
+      "label": "违禁词检查",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "check_banned_word"
+      ]
+    },
+    {
+      "page": 4,
+      "label": "主图审查",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 4,
+      "label": "主图审查",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "review_main_img_enable"
+      ]
+    },
+    {
+      "page": 4,
+      "label": "详情图审查",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 4,
+      "label": "详情图审查",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "review_detail_img_enable"
+      ]
+    },
+    {
+      "page": 4,
+      "label": "不合规时拦截发布",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 4,
+      "label": "不合规时拦截发布",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "review_block_on_fail"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "主图白底",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "主图白底",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "white_bg_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "主图去水印/去Logo",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "主图去水印/去Logo",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "watermark_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "主图文字翻译",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "主图文字翻译",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "translate_main_pic_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "描述图白底",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "描述图白底",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_detail_white_bg"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "描述图去水印",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "描述图去水印",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_detail_remove_wm"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "描述图文字翻译",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "描述图文字翻译",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "translate_detail_pic_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "处理 SKU 图",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "处理 SKU 图",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "white_background_sku_pic"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "SKU 图白底",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "SKU 图白底",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_sku_white_bg"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "SKU 图去水印",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "SKU 图去水印",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_sku_remove_wm"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "SKU 图文字翻译",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "SKU 图文字翻译",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "translate_sku_pic"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 判断图片是否需要翻译",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "AI 判断图片是否需要翻译",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "translate_image_understanding"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "SKU 图也做精细编辑",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "SKU 图也做精细编辑",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_sku_edit"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 主图编辑",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_fine_main_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 主图编辑",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_fine_main_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 详情图编辑",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "AI 详情图编辑",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_fine_detail_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "删除原有详情图，仅保留 AI 编辑结果",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "删除原有详情图，仅保留 AI 编辑结果",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_fine_detail_replace"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI SKU 图编辑",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "AI SKU 图编辑",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_fine_sku_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "图片尺寸校验",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "图片尺寸校验",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_min_size_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "连原图里也不合规的一起去掉（默认关，避免误删主图）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "连原图里也不合规的一起去掉（默认关，避免误删主图）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "img_min_size_drop_invalid"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "生成营销图（写进营销图片 1:1 / 3:4）",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_auto_generate"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "生成营销图（写进营销图片 1:1 / 3:4）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_auto_generate"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "营销图来源",
+      "value": "local",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "营销图来源",
+      "value": "ai",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_source"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "工地作业场景",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "白底棚拍",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "展会/交付场景",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "3:4 竖版场景",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "高端暗调",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "多场景合并",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "AI 提示词预设（机械类目）",
+      "value": "户外实拍",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "四合一主图（将主图1-4合成一张）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "四合一主图（将主图1-4合成一张）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "four_in_one"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "四合一位置",
+      "value": "first",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "四合一位置",
+      "value": "append",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "four_in_one_position"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "主图同时作为详情图",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "主图同时作为详情图",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "main_as_detail"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "主图不足时从详情图补齐",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "pad_main_images_from_extra"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "主图不足时从详情图补齐",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "pad_main_images_from_extra"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "保留主图到本地",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "保留主图到本地",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "keep_main_images_local"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "叠加水印到主图（发布时逐张叠加）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "叠加水印到主图（发布时逐张叠加）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "overlay_watermark_enable"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "水印位置",
+      "value": "bottom-right",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "水印位置",
+      "value": "bottom-left",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "overlay_position"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "水印位置",
+      "value": "top-right",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "overlay_position"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "水印位置",
+      "value": "top-left",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "overlay_position"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "水印位置",
+      "value": "center",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "overlay_position"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "视频来源",
+      "value": "collected",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "视频来源",
+      "value": "template",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "video_source"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "视频来源",
+      "value": "generated",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "video_source"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "视频来源",
+      "value": "none",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "video_source"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "铺满裁剪（关闭则留白）",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "video_cover"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "铺满裁剪（关闭则留白）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "video_cover"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "首尾淡入淡出",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "video_fade_edges"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "首尾淡入淡出",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "video_fade_edges"
+      ]
+    },
+    {
+      "page": 5,
+      "label": "覆盖商品已有视频",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "label": "覆盖商品已有视频",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "overwrite_existing_video"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "价格模式",
+      "value": "multiplier",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 6,
+      "label": "价格模式",
+      "value": "free_shipping",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "price_mode"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "价格模式",
+      "value": "commission",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "price_mode"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "价格模式",
+      "value": "fixed",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "price_mode"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "启用阶梯倍率",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 6,
+      "label": "启用阶梯倍率",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tuoguan_price_tiered_enabled"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "启用批发",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 6,
+      "label": "启用批发",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "wholesale_enable"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "启用区域调价",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 6,
+      "label": "启用区域调价",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quote_enable"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "US",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "RU",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "BR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "ES",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "FR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "DE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "GB",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "IT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "PL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "TR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "SA",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "AE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "IL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "KR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "JP",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "MX",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "CA",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "AU",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "NL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "PT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "US",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "RU",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "BR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "ES",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "FR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "DE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "GB",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "IT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "PL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "TR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "SA",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "AE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "IL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "KR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "JP",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "MX",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "CA",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "AU",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "NL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 6,
+      "label": "国家/地区",
+      "value": "PT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "regional_quotes"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "SKU 编码写回商品",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "write_sku_codes_to_product"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "SKU 编码写回商品",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "write_sku_codes_to_product"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "启用自定义前缀",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "custom_sku_prefix_enable"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "启用自定义前缀",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "custom_sku_prefix_enable"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "自动生成编码（前缀-001）",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "auto_generate_sku_code"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "自动生成编码（前缀-001）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "auto_generate_sku_code"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "只用前缀（丢掉原编码）",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "only_sku_prefix_checkbox"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "只用前缀（丢掉原编码）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "only_sku_prefix_checkbox"
+      ]
+    },
+    {
+      "page": 7,
+      "label": "生成套装 SKU",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 7,
+      "label": "生成套装 SKU",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "combo_enable"
+      ]
+    },
+    {
+      "page": 9,
+      "label": "只看有图",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "label": "只看有图",
+      "value": true,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "label": "全选本页",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "label": "全选本页",
+      "value": true,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "label": "Dropdown",
+      "value": "全部",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "label": "Dropdown",
+      "value": "INFO",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "label": "Dropdown",
+      "value": "WARN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "label": "Dropdown",
+      "value": "ERROR",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "label": "跟随最新",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "label": "跟随最新",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "0",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "4",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "5",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "6",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "7",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "8",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "10",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "启动时打开",
+      "value": "11",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "窗口大小",
+      "value": "1100x760",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "窗口大小",
+      "value": "1280x800",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "窗口大小",
+      "value": "1512x945",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "label": "窗口大小",
+      "value": "1680x1050",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "value": "",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_price_type"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "value": "ladder_price",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_price_type",
+        "alibaba_price_type_explicit"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "value": "sku_price",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_price_type"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "定价方式",
+      "value": "fob_price",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_price_type"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "销售方式",
+      "value": "normal",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 12,
+      "label": "销售方式",
+      "value": "batch",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_sale_type"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "Dropdown",
+      "value": "container_pool",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 12,
+      "label": "Dropdown",
+      "value": "machinery_industrial",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "Dropdown",
+      "value": "electric_atv",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "Dropdown",
+      "value": "general_industrial",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "Dropdown",
+      "value": "detail_html",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "Dropdown",
+      "value": "sku_naming",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    },
+    {
+      "page": 12,
+      "label": "Dropdown",
+      "value": "content_review",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_ai_preset"
+      ]
+    }
+  ]
+}

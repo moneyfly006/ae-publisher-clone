@@ -1,0 +1,31 @@
+page  0: buttons=16, toggles=0, dropdowns=0, inputs=1, tabs=0, callbacks=19, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=0, disabled=0
+  invoked so far: 19 (0.2s)
+page  1: buttons=9, toggles=0, dropdowns=3, inputs=0, tabs=0, callbacks=12, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=0, disabled=0
+  invoked so far: 30 (0.4s)
+page  2: buttons=7, toggles=1, dropdowns=3, inputs=11, tabs=1, callbacks=21, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=1, disabled=0
+  invoked so far: 51 (0.5s)
+page  6: buttons=11, toggles=3, dropdowns=4, inputs=16, tabs=1, callbacks=30, empty_buttons=0, empty_toggles=0, empty_dropdowns=1, empty_inputs=3, disabled=4
+  invoked so far: 77 (0.8s)
+page  7: buttons=3, toggles=5, dropdowns=0, inputs=6, tabs=1, callbacks=14, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=0, disabled=0
+  invoked so far: 105 (1.1s)
+page  8: buttons=4, toggles=0, dropdowns=0, inputs=0, tabs=1, callbacks=4, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=0, disabled=0
+  invoked so far: 109 (1.1s)
+page 12: buttons=15, toggles=1, dropdowns=5, inputs=30, tabs=1, callbacks=45, empty_buttons=0, empty_toggles=1, empty_dropdowns=2, empty_inputs=3, disabled=0
+  invoked so far: 154 (1.6s)
+page  3: buttons=11, toggles=8, dropdowns=10, inputs=8, tabs=1, callbacks=30, empty_buttons=0, empty_toggles=0, empty_dropdowns=7, empty_inputs=0, disabled=0
+  invoked so far: 214 (2.3s)
+page  5: buttons=15, toggles=27, dropdowns=5, inputs=17, tabs=1, callbacks=64, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=0, disabled=0
+  invoked so far: 357 (4.0s)
+page  4: buttons=1, toggles=5, dropdowns=0, inputs=5, tabs=0, callbacks=11, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=0, disabled=0
+  invoked so far: 379 (4.3s)
+page 10: buttons=12, toggles=1, dropdowns=1, inputs=1, tabs=1, callbacks=15, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=0, disabled=0
+  invoked so far: 411 (4.5s)
+page  9: buttons=23, toggles=2, dropdowns=2, inputs=4, tabs=1, callbacks=25, empty_buttons=0, empty_toggles=0, empty_dropdowns=2, empty_inputs=4, disabled=0
+  invoked so far: 461 (5.0s)
+page 11: buttons=20, toggles=0, dropdowns=2, inputs=7, tabs=1, callbacks=26, empty_buttons=0, empty_toggles=0, empty_dropdowns=0, empty_inputs=3, disabled=0
+  invoked so far: 486 (5.2s)
+
+status: {'DEFERRED': 153, 'OK': 313, 'NATIVE': 11, 'EXTERNAL': 9} 
+feedback: {'DEFERRED': 137, 'UI': 32, 'TOAST': 90, 'SILENT': 11, 'DIALOG': 29, 'CONFIG': 173, 'NATIVE': 11, 'EXTERNAL': 3} 
+elapsed: 5.2 s
+wrote /tmp/final-ui-audit.json

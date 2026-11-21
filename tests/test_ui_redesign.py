@@ -52,6 +52,13 @@ class RedesignTests(unittest.TestCase):
         labels = {getattr(c, "label", "") for c in walk(self.app.content.controls)}
         self.assertTrue(any("选择商品" in t for t in texts), texts)
         self.assertIn("保存动作", labels)
+        # 新增控件：按 ID 打开、Alibaba 行业预设、AI 建议属性
+        self.assertIn("按商品 ID 打开（可空）", labels)
+        self.assertIn("Alibaba 行业预设", " ".join(
+            getattr(c, "value", "") or "" for c in walk(self.app.content.controls)))
+        buttons = {getattr(c, "text", "") for c in walk(self.app.content.controls)}
+        for expected in ("按 ID 打开", "AI 建议缺失属性", "生成属性预设模板", "套用预设"):
+            self.assertIn(expected, buttons, expected)
         # 设置页不再重复放 Alibaba 刊登，避免两处入口状态不一致。
         self.app._switch(11)
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))

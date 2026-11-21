@@ -367,6 +367,8 @@ DEFAULTS: dict = {
     "alibaba_shop_id": "",
     "alibaba_test_product_id": "",
     "alibaba_last_category_required": "",
+    "alibaba_ai_preset": "container_pool",   # 上次使用的 Alibaba 行业提示词预设
+    "alibaba_keyword_prompt": "",            # 空=用 TextPipeline 内置英文关键词提示词
     "alibaba_group_id": "",
     "alibaba_group_name": "",
     "alibaba_category_id": "",
