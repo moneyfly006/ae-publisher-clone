@@ -26,6 +26,8 @@ from ..services import history
 from ..services.queue import TaskQueue
 from ..services.scheduler import Scheduler
 from .navigation import DESTINATIONS, destination
+from ..licensing import load_entitlements
+from ..platforms import PLATFORMS, get_platform
 
 ACCENT, ACCENT_2 = "#58C9B7", "#58C9B7"
 INFO_C, DANGER_C, WARN_C, SUCCESS_C = "#80BCF4", "#FF9298", "#EAC078", "#58C9B7"
@@ -694,6 +696,8 @@ class App:
         page.overlay.append(self.file_picker)
         page.overlay.append(self.wm_picker)
         page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
+        self.entitlements = load_entitlements(self.cfg)
+        self.active_platform = get_platform(getattr(self.cfg, "active_platform", "") or "alibaba")
         self._build_shell()
         self._switch(self._start_page_index())
         self._log("运行实例：" + ("本地验收预演，不保存商品" if self._preview_mode else "日常运行")
@@ -782,26 +786,8 @@ class App:
         self.nav_buttons = []
         self._nav_groups = []
         nav = ft.Column(spacing=2)
-        for group in dict.fromkeys(item.group for item in DESTINATIONS):
-            heading = ft.Container(
-                content=ft.Text(group, size=11, color=MUTED, weight=ft.FontWeight.W_600),
-                padding=ft.padding.only(left=12, top=10, bottom=2))
-            indices = []
-            nav.controls.append(heading)
-            for item in (d for d in DESTINATIONS if d.group == group):
-                button = ft.TextButton(
-                    content=ft.Row([
-                        ft.Icon(getattr(ft.Icons, item.icon), size=19, color=MUTED),
-                        ft.Text(item.label, size=13, color=MUTED, weight=ft.FontWeight.W_500),
-                    ], spacing=12),
-                    height=38, width=204,
-                    style=self._nav_style(False),
-                    tooltip=item.description,
-                    on_click=lambda e, idx=item.index: self._switch(idx))
-                self.nav_buttons.append((item.index, button))
-                indices.append(item.index)
-                nav.controls.append(button)
-            self._nav_groups.append((heading, indices))
+        self.nav_column = nav
+        self._rebuild_nav()
         self.nav_empty = ft.Container(content=muted("未找到功能，请换个关键词", 12),
                                       padding=12, visible=False)
         nav.controls.append(self.nav_empty)
@@ -877,11 +863,14 @@ class App:
             ], spacing=8))
         self.content = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=16,
                                  horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+        self.content_slot = ft.Container(
+            expand=True, content=self.content,
+            padding=ft.padding.symmetric(horizontal=28, vertical=22))
+        self.platform_rail = self._build_platform_rail()
         self.page.add(ft.Row([
+            self.platform_rail,
             sidebar,
-            ft.Column([topbar, ft.Container(
-                expand=True, content=self.content,
-                padding=ft.padding.symmetric(horizontal=28, vertical=22))],
+            ft.Column([topbar, self.content_slot],
                 spacing=0, expand=True),
         ], expand=True, spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH))
         self._sync_run_button()
@@ -913,6 +902,116 @@ class App:
         except Exception as ex:
             self._log(f"引导弹窗异常：{ex}")
 
+    # ---------- 平台 / 授权 ----------
+    def _page_allowed(self, item) -> bool:
+        return self.entitlements.has_feature(self.active_platform.id, item.feature)
+
+    def _rebuild_nav(self):
+        """按当前平台重建左侧导航；未授权功能显示锁，不隐藏（可引导开通）。"""
+        nav = getattr(self, "nav_column", None)
+        if nav is None:
+            return
+        nav.controls = []
+        self.nav_buttons = []
+        self._nav_groups = []
+        pf = self.active_platform
+        for group in pf.groups():
+            heading = ft.Container(
+                content=ft.Text(group, size=11, color=MUTED, weight=ft.FontWeight.W_600),
+                padding=ft.padding.only(left=12, top=10, bottom=2))
+            indices = []
+            nav.controls.append(heading)
+            for item in (p for p in pf.pages if p.group == group):
+                allowed = self._page_allowed(item)
+                locks = []
+                if not allowed:
+                    locks.append(ft.Icon(ft.Icons.LOCK_OUTLINE, size=12, color=MUTED))
+                button = ft.TextButton(
+                    content=ft.Row([
+                        ft.Icon(getattr(ft.Icons, item.icon), size=19, color=MUTED),
+                        ft.Text(item.label, size=13, color=MUTED, weight=ft.FontWeight.W_500,
+                                expand=True),
+                        *locks,
+                    ], spacing=8),
+                    height=38, width=204,
+                    style=self._nav_style(False),
+                    tooltip=f"{item.label}（{'已开通' if allowed else '未开通 · 点击查看'}）",
+                    on_click=lambda e, idx=item.index: self._switch(idx))
+                self.nav_buttons.append((item.index, button))
+                indices.append(item.index)
+                nav.controls.append(button)
+            self._nav_groups.append((heading, indices))
+        if getattr(self, "nav_empty", None) is not None:
+            nav.controls.append(self.nav_empty)
+
+    def _build_platform_rail(self):
+        col = ft.Column(spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        for pid, pf in PLATFORMS.items():
+            licensed = self.entitlements.has_platform(pid)
+            active = pid == self.active_platform.id
+            badge = ft.Container(
+                width=44, height=44, border_radius=12,
+                bgcolor=CARD_2 if not active else ACCENT,
+                border=ft.border.all(1, BORDER if not active else ACCENT),
+                alignment=ft.alignment.center,
+                tooltip=f"{pf.name} · {'已开通' if licensed else '未开通'}",
+                content=ft.Text(pf.short, size=15, color=ON_ACCENT if active else TEXT,
+                                weight=ft.FontWeight.BOLD),
+                on_click=lambda e, pid=pid: self._switch_platform(pid))
+            lock = ft.Icon(ft.Icons.LOCK_OUTLINE, size=12,
+                           color=MUTED if licensed else WARN_C, visible=not licensed)
+            col.controls.append(ft.Column([badge, lock], spacing=2,
+                                          horizontal_alignment=ft.CrossAxisAlignment.CENTER))
+        return ft.Container(
+            width=66, bgcolor=SIDEBAR,
+            border=ft.border.only(right=ft.BorderSide(1, BORDER)),
+            padding=ft.padding.symmetric(vertical=18, horizontal=8),
+            content=ft.Column([col], spacing=0))
+
+    def _switch_platform(self, pid: str):
+        pf = get_platform(pid)
+        self.active_platform = pf
+        try:
+            self.cfg.set("active_platform", pf.id)
+            save_config(self.cfg)
+        except Exception:
+            pass
+        self.entitlements = load_entitlements(self.cfg)
+        self._rebuild_nav()
+        # 平台栏重绘（锁状态/高亮）
+        try:
+            self.platform_rail.content = self._build_platform_rail().content
+            self._safe_update()
+        except Exception:
+            pass
+        first = pf.pages[0].index if pf.pages else 0
+        self._switch(first)
+        self._log(f"切换平台：{pf.name} · {'已开通' if self.entitlements.has_platform(pf.id) else '未开通'}",
+                  "INFO")
+
+    def _render_locked(self, item):
+        pf = self.active_platform
+        feats = sorted(self.entitlements.platforms.get(pf.id, set()))
+        site = str(getattr(self.cfg, "license_server", "") or "https://license.moneyfly.club")
+        need = f"{item.group} / {item.label}"
+        desc = ("当前授权未包含该平台。" if not self.entitlements.has_platform(pf.id)
+                else f"当前授权未包含「{item.feature}」功能包。")
+        cta = ft.ElevatedButton(
+            "去授权网站开通", icon=ft.Icons.OPEN_IN_NEW, bgcolor=ACCENT, color=ON_ACCENT,
+            on_click=lambda e: self.page.launch_url(site))
+        self.content.controls = [card(ft.Column([
+            ft.Row([ft.Icon(ft.Icons.LOCK_OUTLINE, size=26, color=WARN_C),
+                    ft.Text(f"{pf.name} · 功能未开通", size=FS_LG, weight=ft.FontWeight.BOLD,
+                            color=TEXT)], spacing=10),
+            muted(desc),
+            ft.Divider(color=BORDER, height=18),
+            muted("已开通的平台：" + (", ".join(self.entitlements.platforms_list()) or "无")),
+            muted("当前平台已授权功能：" + (", ".join(feats) or "无")),
+            muted(f"需要：{need} · 功能包 {item.feature}"),
+            ft.Container(height=6), cta,
+        ], spacing=10))]
+        self._safe_update()
+
     @staticmethod
     def _nav_style(selected):
         return ft.ButtonStyle(
@@ -924,7 +1023,9 @@ class App:
             overlay_color=ft.Colors.with_opacity(0.10, ACCENT))
 
     def _filter_navigation(self, query):
-        matches = {d.index for d in DESTINATIONS if d.matches(str(query or ""))}
+        q = str(query or "")
+        matches = {it.index for it in self.active_platform.pages
+                   if all(w in f"{it.group} {it.label}".casefold() for w in q.casefold().split())}
         for index, button in self.nav_buttons:
             button.visible = index in matches
         for heading, indices in self._nav_groups:
@@ -933,22 +1034,30 @@ class App:
         self._safe_update()
 
     def _open_navigation_match(self):
-        matches = [d for d in DESTINATIONS if d.matches(self.nav_search.value or "")]
+        q = str(self.nav_search.value or "")
+        matches = [it for it in self.active_platform.pages
+                   if all(w in f"{it.group} {it.label}".casefold() for w in q.casefold().split())]
         if matches:
             self._switch(matches[0].index)
             self.nav_search.value = ""
             self._filter_navigation("")
 
     def _switch(self, idx):
-        idx = int(idx) % len(DESTINATIONS)
+        item = self.active_platform.page(int(idx))
+        if item is None:
+            item = self.active_platform.pages[0]
+        idx = item.index
         for page_idx, b in self.nav_buttons:
             on = page_idx == idx
             b.style = self._nav_style(on)
             b.content.controls[0].color = ACCENT if on else MUTED
             b.content.controls[1].color = TEXT if on else MUTED
             b.content.controls[1].weight = ft.FontWeight.W_600 if on else ft.FontWeight.W_500
-        current = destination(idx)
-        self.breadcrumb.value = f"{current.group} / {current.label}"
+        self.breadcrumb.value = f"{self.active_platform.name} / {item.group} / {item.label}"
+        if not self._page_allowed(item):
+            self._page_idx = idx
+            self._render_locked(item)
+            return
         self.store_shortcut.text = self.cfg.store_name or "选择店铺"
         self.field_refs = []
         pages = [self._p_overview, self._p_store, self._p_advanced, self._p_ai, self._p_review,
@@ -8417,9 +8526,44 @@ class App:
             muted("快捷键：⌘R 启动/停止 · ⌘L 打开日志 · ⌘F 搜索商品", 11),
         ], spacing=8))
 
+        _tok = ft.TextField(
+            label="平台授权 Token（授权网站复制）", width=720, multiline=True, min_lines=3,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value=str(getattr(self.cfg, "license_token", "") or ""),
+            hint_text='形如 {"payload":{...},"sig":"..."}；保存后立即生效')
+        _plat_status = ft.Text("", size=12, color=MUTED)
+        def _tok_save(e=None):
+            try:
+                from ..licensing import apply_license_token
+                apply_license_token(self.cfg, str(_tok.value or "").strip(), save_config)
+                self.entitlements = load_entitlements(self.cfg)
+                self._rebuild_nav()
+                try:
+                    self.platform_rail.content = self._build_platform_rail().content
+                except Exception:
+                    pass
+                plats = self.entitlements.platforms_list()
+                _plat_status.value = ("已更新：平台 " + ", ".join(plats)) if plats else "token 已保存，但未解析出平台"
+                _plat_status.color = SUCCESS_C if plats else DANGER_C
+                self._safe_update()
+            except Exception as ex:  # noqa: BLE001
+                _plat_status.value = f"保存失败：{ex}"
+                _plat_status.color = DANGER_C
+                self._safe_update()
+        platform_card = card(ft.Column([
+            h1("平台与功能包授权", 15),
+            muted("授权网站按平台+功能包下发 token；未授权的平台会显示为锁定，功能入口灰显"),
+            ft.Row([ft.Text(f"当前平台：{self.active_platform.name}", size=12.5, color=TEXT),
+                    ft.Text("已开通：" + (", ".join(self.entitlements.platforms_list()) or "无"),
+                            size=12.5, color=MUTED)], spacing=16),
+            _tok, ft.Row([ft.ElevatedButton("保存并刷新授权", icon=ft.Icons.VERIFIED,
+                                            bgcolor=ACCENT, color=ON_ACCENT, on_click=_tok_save),
+                          _plat_status], spacing=12, wrap=True),
+        ], spacing=8))
+
         return [page_header("设置", destination(11).description),
                 workspace_tabs([
-                    ("账号与连接", [api_card, lic_card]),
+                    ("账号与连接", [api_card, lic_card, platform_card]),
                     ("图片与模型", [host_card, model_card, price_card]),
                     ("界面与实例", [ui_card, inst_card]),
                     ("维护与诊断", [upd, diag_card, rec_card]),
@@ -9241,6 +9385,17 @@ class App:
                 self.cfg.set("license_cache_ts", int(time.time()))
             elif "无法连接授权服务器" in str(res.get("message") or ""):
                 self._log("授权服务器暂不可达，保留上次授权缓存", "WARN")
+            # 平台/功能包授权刷新（token 由授权网站下发，旧客户走 legacy 兼容）
+            try:
+                self.entitlements = load_entitlements(self.cfg)
+                self._rebuild_nav()
+                if getattr(self, "platform_rail", None) is not None:
+                    self.platform_rail.content = self._build_platform_rail().content
+                plats = self.entitlements.platforms_list()
+                self.license_text.value = ("平台：" + ", ".join(plats)) if plats else "平台未开通"
+                self._safe_update()
+            except Exception:
+                pass
             else:
                 self.cfg.set("license_cache_ok", False)
                 self.cfg.set("license_cache_ts", 0)

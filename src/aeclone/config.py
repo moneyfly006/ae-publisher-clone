@@ -26,6 +26,10 @@ DEFAULTS: dict = {
     "license_expiry": "",
     "license_voucher_ts": 0,
     "license_client_type": "local",
+    "license_token": "",                                   # 平台+功能包授权 token
+    "license_token_ts": 0,
+    "license_platforms": "",                               # 开发/过渡：手动覆盖（alibaba:listing+ai_text）
+    "active_platform": "alibaba",
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
     "log_auto_follow": True,                              # 日志总是跳到最新
     "ai_image_enable": True,                              # AI 图片处理总开关
