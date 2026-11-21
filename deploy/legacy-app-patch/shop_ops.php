@@ -114,7 +114,11 @@ function page_shop_refund_complete(int $id): void
     $db->prepare('UPDATE licenses SET revoked=1 WHERE user_id=? AND revoked=0')->execute([$r['user_id']]);
     $db->commit();
     audit('完成退款并取消授权', 'refund:' . $id);
-    flash('ok', '退款完成，订单已标记退款、该用户授权已取消');
+    if ($refundOk) {
+        flash('ok', '退款完成（易支付原路退款成功），订单已标记退款、授权已取消');
+    } else {
+        flash('bad', '已完成本地退款登记，但支付渠道退款失败：' . $refundErr . '，请在支付后台人工退款');
+    }
     redirect('/admin/shop-refunds');
 }
 

@@ -6,6 +6,7 @@ require dirname(__DIR__).'/pay_func.php';
 $in = array_merge($_GET, $_POST);
 $sign = (string)($in['sign'] ?? '');
 unset($in['sign']);
+unset($in['sign_type']);   // 易支付回调会带 sign_type，不参与签名
 ksort($in);
 $epay = effective_epay();
 $calc = md5(urldecode(http_build_query($in)).$epay['key']);

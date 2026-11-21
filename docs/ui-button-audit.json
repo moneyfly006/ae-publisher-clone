@@ -1,9 +1,9 @@
 {
   "counts": {
-    "OK": 228,
-    "DEFERRED": 111,
+    "OK": 300,
+    "DEFERRED": 140,
     "NATIVE": 8,
-    "EXTERNAL": 8,
+    "EXTERNAL": 12,
     "ERROR": 0
   },
   "results": [
@@ -102,9 +102,9 @@
       "platform": "alibaba",
       "label": "搜索全部商品",
       "event": "on_click",
-      "status": "OK",
+      "status": "DEFERRED",
       "scenario": "default",
-      "detail": ""
+      "detail": "work"
     },
     {
       "page": 0,
@@ -289,33 +289,6 @@
     {
       "page": 3,
       "platform": "alibaba",
-      "label": "套用",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "套用",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "套用",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
       "label": "启用 AI 标题",
       "event": "on_change",
       "status": "DEFERRED",
@@ -362,60 +335,6 @@
       "page": 3,
       "platform": "alibaba",
       "label": "启用 AI 详情",
-      "event": "on_change",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "background"
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "套用",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "TextField",
-      "event": "on_change",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "background"
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "启用 AI 优化 SKU",
-      "event": "on_change",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "background"
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "套用",
-      "event": "on_click",
-      "status": "OK",
-      "scenario": "default",
-      "detail": ""
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "TextField",
-      "event": "on_change",
-      "status": "DEFERRED",
-      "scenario": "default",
-      "detail": "background"
-    },
-    {
-      "page": 3,
-      "platform": "alibaba",
-      "label": "启用 AI 估重",
       "event": "on_change",
       "status": "DEFERRED",
       "scenario": "default",
@@ -2373,6 +2292,1032 @@
       "status": "OK",
       "scenario": "default",
       "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "01  连接与采集箱",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "02  类目与文案",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "03  Amazon 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "04  运行记录",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "点一下去处理",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "点一下去处理",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "点一下去处理",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "去 Amazon 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "商品标题关键词（留空处理全部）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "商品标题关键词（留空处理全部）",
+      "event": "on_submit",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "选择商品",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "清空",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "搜索全部商品",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "刷新数量",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "前往 Amazon 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "前往 Amazon 刊登",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "前往账号与连接",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "前往账号与连接",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "检查配置冲突",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "去设置",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 0,
+      "platform": "amazon",
+      "label": "重新检测",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "店小秘 Cookie（可粘贴 a=1; b=2；留空自动用本机登录态）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "读取本机 Cookie",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "测试连接",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "店铺",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "站点",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "采集箱",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "待发布",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "在线",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "刷新",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "work"
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "上一页",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "下一页",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "顶级类目",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "加载类目",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "最近使用类目",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "校验路径",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI/平台推荐产品类型",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "标题",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI 生成标题",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "卖点数量",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI 生成五点",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "＋添加卖点",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "清空五点",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "卖点 1",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "卖点 2",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "卖点 3",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "卖点 4",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "卖点 5",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "产品描述（HTML；纯文本会自动包 <p>）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI 生成描述",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "Search Terms（≤250 字节）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI 生成关键词",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "使用 AI（会调用付费 API，默认关闭）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "AI 一键生成全部（付费）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "标准价",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "促销价（可空）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "数量",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "配送方式",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "处理时效（天）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "运费模板",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "刷新运费模板",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "品牌",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "制造商",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "SKU",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "查看 productAttr（只读）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "保存动作",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "预演（不保存）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "保存（预演模式）",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "停止任务",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "上报运行日志",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_run"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "导出日志",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "打开日志文件",
+      "event": "on_click",
+      "status": "EXTERNAL",
+      "scenario": "default",
+      "detail": "external process"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "清空",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "清空已编辑记录",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "复制全部日志",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "导出筛选结果",
+      "event": "on_click",
+      "status": "EXTERNAL",
+      "scenario": "default",
+      "detail": "external process"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "导出 CSV",
+      "event": "on_click",
+      "status": "EXTERNAL",
+      "scenario": "default",
+      "detail": "external process"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "清空日志",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "Dropdown",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "TextField",
+      "event": "on_change",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "清空筛选",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "跟随最新",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "刷新",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "background"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "API Key",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "并发数（同时处理几个产品）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "超时（秒）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "保存",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "测试连接",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "go"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "检测余额",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "购买 / 充值 API",
+      "event": "on_click",
+      "status": "EXTERNAL",
+      "scenario": "default",
+      "detail": "https://api.moneyfly.club"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "复制机器码",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "重新检测",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "旧版授权 ID（可选）",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "保存并刷新授权",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "清理旧图",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "go"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "保存",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "测试上传",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "go"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "恢复推荐图床",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "刷新价格",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "窗口大小",
+      "event": "on_change",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "创建实例",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "创建并启动",
+      "event": "on_click",
+      "status": "OK",
+      "scenario": "default",
+      "detail": ""
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "检查更新",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_check_update"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "开始诊断",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_run_diag"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "下载并安装 ffmpeg（约 70MB）",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "_download_ffmpeg"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "恢复图床",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "恢复 API 地址",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "全部恢复推荐值",
+      "event": "on_click",
+      "status": "DEFERRED",
+      "scenario": "default",
+      "detail": "<lambda>"
     },
     {
       "page": 5,

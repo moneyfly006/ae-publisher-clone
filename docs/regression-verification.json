@@ -238,5 +238,40 @@
     "name": "test_platform_ui_filter",
     "status": "PASS",
     "exit_code": 0
+  },
+  {
+    "name": "test_amazon_contract",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_client",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_payload",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_prompts",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_pipeline",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_ui_page",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_adapter",
+    "status": "PASS",
+    "exit_code": 0
   }
 ]

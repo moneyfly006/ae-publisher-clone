@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import html as _html
 import os
+import time
 import re
 from dataclasses import dataclass, field
 
@@ -68,6 +69,7 @@ class AlibabaRunResult:
     score: float = 0.0
     score_passed: bool = False
     score_fixes: list[str] = field(default_factory=list)
+    publish_state: dict = field(default_factory=dict)
 
     @property
     def incomplete_steps(self) -> list[AlibabaStep]:
@@ -124,6 +126,42 @@ def _plain_text(markup: str) -> str:
     s = re.sub(r"<(script|style)[^>]*>[\s\S]*?</\1>", " ", str(markup or ""), flags=re.I)
     s = re.sub(r"<[^>]+>", " ", s)
     return re.sub(r"\s+", " ", _html.unescape(s)).strip()
+
+
+MAX_TEXT_DESC = 2000   # 平台实测：textDesc 不能超过 1000 汉字或 2000 字符
+
+
+def clip_detail_html(html: str, limit: int = MAX_TEXT_DESC) -> str:
+    """把详情 HTML 截断到平台上限内（尽量保持标签闭合）。
+
+    平台报错示例：textDesc:isv.parameter-parse-error:不能超过1000个汉字或2000个字符。
+    优先在标签边界截断，并补上未闭合的常用标签，避免残缺 HTML 再次被拒。
+    """
+    raw = str(html or "")
+    if len(raw) <= limit:
+        return raw
+    cut = raw[:limit]
+    # 截断点若在标签中间，退到最后一个完整的 '>'
+    if cut.rfind("<") > cut.rfind(">"):
+        cut = cut[:cut.rfind("<")]
+    # 记录未闭合标签并补齐
+    stack = []
+    for m in re.finditer(r"<(/?)([a-zA-Z][a-zA-Z0-9]*)[^>]*?(/?)>", cut):
+        closing, tag, selfclose = m.group(1), m.group(2).lower(), m.group(3)
+        if closing:
+            if stack and stack[-1] == tag:
+                stack.pop()
+            elif tag in stack:
+                while stack and stack[-1] != tag:
+                    stack.pop()
+                if stack:
+                    stack.pop()
+        elif not selfclose and tag not in ("br", "img", "hr", "meta", "input", "link"):
+            stack.append(tag)
+    tail = "".join(f"</{t}>" for t in reversed(stack))
+    if len(cut) + len(tail) > limit:
+        cut = cut[:max(0, limit - len(tail))]
+    return cut + tail
 
 
 def clip_title(title: str, limit: int = MAX_SUBJECT) -> str:
@@ -354,9 +392,13 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                 dr = tp.make_detail(subject or source_subject, _attributes_map(product),
                                     source_text=plain_source, images=detail_urls(product))
                 if _tr_ok(dr):
-                    text_desc = _tr_value(dr)
+                    _raw_desc = _tr_value(dr)
+                    text_desc = clip_detail_html(_raw_desc)
+                    _clipped = len(text_desc) != len(_raw_desc)
                     _step(res, "AI 详情", True,
-                          f"HTML {len(text_desc)} 字符 · 纯文本 {len(_plain_text(text_desc))} 字符")
+                          f"HTML {len(text_desc)} 字符 · 纯文本 {len(_plain_text(text_desc))} 字符"
+                          + (f"（已截断自 {len(_raw_desc)}，平台上限 {MAX_TEXT_DESC}）"
+                             if _clipped else ""))
                     for note in _tr_notes(dr)[:3]:
                         res.warnings.append(note)
                 else:
@@ -436,6 +478,7 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
             save_ov.setdefault("subject", subject or source_subject)
             save_ov.setdefault("text_desc", text_desc)
             save_ov.setdefault("keywords", kws)
+            save_ov["text_desc"] = clip_detail_html(save_ov.get("text_desc") or "")
             save = build_alibaba_save(product, cfg, save_ov, attr_defs=req)
         except Exception as e:  # noqa: BLE001
             return _fail(res, "构建保存载荷", f"build_alibaba_save 失败：{e}")
@@ -554,6 +597,49 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         res.ok = True
         _step(res, "保存到 Alibaba", True,
               f"{OP_LABELS[op]}成功" + (f"：{msg[:110]}" if msg else ""))
+
+        # op=2 提交后平台会异步做发布前校验（类目经营范围、资质等），几秒后可能变为
+        # 「发布失败」。必须回读并如实报告，不能把「已提交」当成「发布成功」。
+        if op == OP_PUBLISH:
+            _state = {}
+            for _i in range(6):
+                time.sleep(2)
+                try:
+                    _p = c.product_detail(pid)
+                except Exception:
+                    continue
+                _state = {"dxmState": _p.get("dxmState"),
+                          "dxmOfflineState": _p.get("dxmOfflineState"),
+                          "productStatusType": _p.get("productStatusType"),
+                          "errMsg": str(_p.get("errMsg") or ""),
+                          "solutionMsg": str(_p.get("solutionMsg") or "")}
+                if not any(k in _p for k in ("dxmState", "dxmOfflineState",
+                                             "productStatusType", "errMsg")):
+                    break   # 离线桩/测试替身：没有真实状态字段，不做轮询
+                _err = _state["errMsg"]
+                if _err or _state["dxmOfflineState"] == "publishFail" or \
+                        _state["productStatusType"] in ("publishFail", "auditFail"):
+                    break
+                if _state["dxmState"] in ("online", "offline") and not _err:
+                    # 已进入在线/下架状态且无错误：视为平台已接受
+                    if _state["dxmState"] == "online":
+                        break
+            res.publish_state = _state
+            _err = str(_state.get("errMsg") or "")
+            if _err or _state.get("dxmOfflineState") == "publishFail":
+                _hint = ""
+                if "CAT_PUB_RESTRICT" in _err or "经营类目" in _err:
+                    _hint = ("；处理：到 Alibaba 卖家中心 → 店铺管理 → 管理公司信息 → "
+                             "经营类目，把该类目加入经营范围后再发布")
+                _step(res, "发布结果", False,
+                      "平台发布校验未通过：" + (_err[:120] or "状态为发布失败") + _hint)
+                res.ok = False
+                res.error = ("已提交，但平台发布校验未通过：" +
+                             (_err[:300] or "状态=发布失败") + _hint)
+                return res
+            _step(res, "发布结果", True,
+                  f"平台状态：{_state.get('dxmState')} / {_state.get('productStatusType') or '-'}")
+
         _step(res, "完成", True, "商品已保存/提交")
         return res
     except Exception as e:  # noqa: BLE001

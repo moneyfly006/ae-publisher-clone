@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T02:03:16+08:00",
+  "generated_at": "2026-11-22T02:13:07+08:00",
   "mode": "read-only",
   "status": "PASS",
   "base": "https://www.dianxiaomi.com",
@@ -133,25 +133,20 @@
     {
       "name": "editSp 商品详情",
       "ok": true,
-      "detail": "code=0 site=CA 字段数=164（期望 164） bulletPoint=279字符±=10段 description=4065字符 productAttr=30键 缺字段=无",
+      "detail": "code=0 site=CA 字段数=164（期望 164） bulletPoint=182字符±=5段 description=88字符 productAttr=30键 缺字段=无",
       "observed": {
         "site": "CA",
         "field_count": 164,
         "missing_fields": [],
-        "title": "5 Ton Diesel Wheeled Backhoe Loader 4x4 Heavy Duty Engine Motor Pump Gear High Load Moment Road Construction Hengwang HW",
+        "title": "5 Ton Diesel Wheeled Backhoe Loader Heavy Duty Construction Machine",
         "bullets": [
-          "Color:Blue, Green, Yellow",
-          "Brand Name:Hengwang",
-          "Place of Origin:Shandong, China",
-          "Power Type:Diesel",
-          "Type:Backhoe Loader",
-          "Moving Type:Wheel Loader",
-          "Dimension (Long * Breadth * High):6200*1960*2800mm(244.09*77.17*110.24in)",
-          "Make:Hengwang",
-          "Warranty:1 Year",
-          "Machine Weight:5400 kg(11904.96lb)"
+          "POWERFUL ENGINE: 75 KW diesel power",
+          "COMPACT 4X4 CHASSIS: easy transport",
+          "HIGH LOAD MOMENT: heavy duty lifting",
+          "LOW FUEL COST: efficient operation",
+          "EASY MAINTENANCE: quick service access"
         ],
-        "description_html": false,
+        "description_html": true,
         "productAttr_keys": 30,
         "productType": "OUTDOOR_LIVING",
         "categoryId": "13553005011",

@@ -29,6 +29,10 @@ DESTINATIONS = (
     Destination(10, "发布与运行", "任务与日志", "RECEIPT_LONG_OUTLINED", "跟踪任务进度、定时发布与运行日志", "诊断 导出 报错"),
     Destination(9, "工具与设置", "图片工作台", "GRID_VIEW", "手动取图、处理、拼图、生成视频和上传结果", "本地 调试 相册"),
     Destination(11, "工具与设置", "设置", "SETTINGS_OUTLINED", "管理 API、授权、图片服务、界面与多开实例", "连接 图床 余额 更新 诊断"),
+    # 12/13 号：平台专属刊登工作台（仅对应平台导航露出；其余平台走通用页）。
+    Destination(12, "刊登", "Alibaba 刊登", "PUBLISH",
+                "Alibaba 商品选择、类目必填、价格贸易、预演与保存",
+                "alibaba 阿里 国际站 刊登 发布 保存 草稿 提交 审核 类目 moq 包装 重量 fob 报价 贸易"),
     # 13 号：Amazon 刊登工作台（平台导航 pages 里只在 Amazon 平台露出）。
     Destination(13, "刊登", "Amazon 刊登", "PUBLISH",
                 "Amazon 采集箱编辑、站点、五点描述、AI、保存",

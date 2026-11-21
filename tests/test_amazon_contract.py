@@ -509,18 +509,34 @@ class WriteEvidenceStructureTests(unittest.TestCase):
         self.assertGreaterEqual(summary["writes"], 1)
 
     def test_write_runs_have_success_response(self) -> None:
-        for run in self.report["runs"]:
-            if run.get("write") is not True:
-                continue
-            response = run.get("save_response") or {}
-            self.assertEqual(str(response.get("code")), "0")
-            self.assertIn("changed_count", run)
-            self.assertIsInstance(run.get("payload_keys"), list)
-            self.assertEqual(len(run["payload_keys"]), 39)
-            self.assertEqual(run["payload_keys"], EXPECTED_SAVE_KEYS)
+        """真实写证据两种记录格式兼容：#1 roundtrip 用 save_response，
+        #2 AI edit 用 save_result；都以 code=0 判定成功。"""
+        write_runs = [run for run in self.report["runs"] if run.get("write") is True]
+        self.assertGreaterEqual(len(write_runs), 2)  # #1 往返 + #2 AI 文案
+        for run in write_runs:
+            response = run.get("save_response") or run.get("save_result") or {}
+            self.assertEqual(str(response.get("code")), "0",
+                             f"写记录 code 非 0：{run.get('note')}")
+            if "payload_keys" in run:
+                self.assertIsInstance(run["payload_keys"], list)
+                self.assertEqual(len(run["payload_keys"]), 39)
+                self.assertEqual(run["payload_keys"], EXPECTED_SAVE_KEYS)
+            if "changed_count" in run:
+                self.assertEqual(run["changed_count"], 0)
+            if run.get("kind") == "ai_edit":
+                # #2：AI 文案写入后回读必须一致（title/5 bullets/search_terms/描述变更）
+                readback = run.get("readback") or {}
+                self.assertEqual(readback.get("title"), run.get("ai_title"))
+                self.assertEqual(len(readback.get("bullets") or []), 5)
+                self.assertTrue(readback.get("search_terms"))
+                self.assertTrue((run.get("checks") or {}).get("description_changed"))
+                self.assertTrue((run.get("checks") or {}).get("title"))
+                self.assertTrue((run.get("checks") or {}).get("bullets"))
 
     def test_cookie_masked(self) -> None:
         for run in self.report["runs"]:
+            if "cookie_masked" not in run:
+                continue
             masked = str(run.get("cookie_masked") or "")
             self.assertLessEqual(len(masked), 32)
             self.assertNotIn("JSESSIONID", masked)

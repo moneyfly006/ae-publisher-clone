@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T02:04:40+0800",
+  "generated_at": "2026-11-22T02:07:57+0800",
   "product_id": "220114598434958580",
   "op": "2",
   "before": {
@@ -18,21 +18,24 @@
         "Applicable People": "All"
       }
     },
-    "hs_code": "9506999000"
+    "hs_code": "9506999000",
+    "freight_template_id": "2055583029",
+    "logistics_property": "general_cargo_0"
   },
   "result": {
-    "ok": false,
-    "saved": false,
+    "ok": true,
+    "saved": true,
     "preview": false,
     "score": 4.8,
-    "error": "保存失败（业务码 -1）：重量、长宽高、物流属性要么全部填写，要么全部清除",
+    "error": "",
     "save_result": {
       "code": 0,
       "msg": "Successful",
       "msgCode": null,
       "data": {
-        "msg": "重量、长宽高、物流属性要么全部填写，要么全部清除",
-        "code": -1
+        "msg": "产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！",
+        "code": 0,
+        "productId": "220114598434958580"
       }
     },
     "steps": [
@@ -83,19 +86,24 @@
       },
       {
         "name": "保存到 Alibaba",
-        "ok": false,
-        "detail": "保存失败（业务码 -1）：重量、长宽高、物流属性要么全部填写，要么全部清除"
+        "ok": true,
+        "detail": "发布成功：产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！"
+      },
+      {
+        "name": "完成",
+        "ok": true,
+        "detail": "商品已保存/提交"
       }
     ]
   },
-  "elapsed_sec": 0.7,
+  "elapsed_sec": 23.2,
   "states_after": [
     {
       "t": 5,
       "state": {
-        "dxmState": "draft",
+        "dxmState": "offline",
         "productStatusType": null,
-        "dxmOfflineState": null,
+        "dxmOfflineState": "publishFail",
         "publishStatus": null,
         "auditStatus": null,
         "productId": null
@@ -104,9 +112,9 @@
     {
       "t": 10,
       "state": {
-        "dxmState": "draft",
+        "dxmState": "offline",
         "productStatusType": null,
-        "dxmOfflineState": null,
+        "dxmOfflineState": "publishFail",
         "publishStatus": null,
         "auditStatus": null,
         "productId": null
@@ -115,9 +123,9 @@
     {
       "t": 15,
       "state": {
-        "dxmState": "draft",
+        "dxmState": "offline",
         "productStatusType": null,
-        "dxmOfflineState": null,
+        "dxmOfflineState": "publishFail",
         "publishStatus": null,
         "auditStatus": null,
         "productId": null
@@ -126,9 +134,9 @@
     {
       "t": 20,
       "state": {
-        "dxmState": "draft",
+        "dxmState": "offline",
         "productStatusType": null,
-        "dxmOfflineState": null,
+        "dxmOfflineState": "publishFail",
         "publishStatus": null,
         "auditStatus": null,
         "productId": null
@@ -137,9 +145,9 @@
     {
       "t": 25,
       "state": {
-        "dxmState": "draft",
+        "dxmState": "offline",
         "productStatusType": null,
-        "dxmOfflineState": null,
+        "dxmOfflineState": "publishFail",
         "publishStatus": null,
         "auditStatus": null,
         "productId": null
@@ -148,9 +156,9 @@
     {
       "t": 30,
       "state": {
-        "dxmState": "draft",
+        "dxmState": "offline",
         "productStatusType": null,
-        "dxmOfflineState": null,
+        "dxmOfflineState": "publishFail",
         "publishStatus": null,
         "auditStatus": null,
         "productId": null
@@ -159,9 +167,9 @@
     {
       "t": 35,
       "state": {
-        "dxmState": "draft",
+        "dxmState": "offline",
         "productStatusType": null,
-        "dxmOfflineState": null,
+        "dxmOfflineState": "publishFail",
         "publishStatus": null,
         "auditStatus": null,
         "productId": null
@@ -170,16 +178,38 @@
     {
       "t": 40,
       "state": {
-        "dxmState": "draft",
+        "dxmState": "offline",
         "productStatusType": null,
-        "dxmOfflineState": null,
+        "dxmOfflineState": "publishFail",
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 45,
+      "state": {
+        "dxmState": "offline",
+        "productStatusType": null,
+        "dxmOfflineState": "publishFail",
+        "publishStatus": null,
+        "auditStatus": null,
+        "productId": null
+      }
+    },
+    {
+      "t": 50,
+      "state": {
+        "dxmState": "offline",
+        "productStatusType": null,
+        "dxmOfflineState": "publishFail",
         "publishStatus": null,
         "auditStatus": null,
         "productId": null
       }
     }
   ],
-  "draft_total": 28,
-  "online_total": 3671,
-  "offline_total": 0
+  "draft_total": 27,
+  "online_total": 3736,
+  "offline_total": 1
 }

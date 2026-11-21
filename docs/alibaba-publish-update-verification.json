@@ -1,0 +1,243 @@
+{
+  "generated_at": "2026-11-22T02:12:40+0800",
+  "product_id": "220114598435122330",
+  "op": "2",
+  "product_type": "existing online machinery (in-scope category)",
+  "before": {
+    "dxmState": "online",
+    "dxmOfflineState": null,
+    "productStatusType": null,
+    "errMsg": "",
+    "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+    "desc_chars": 883,
+    "logistics": null,
+    "attrs": 3284
+  },
+  "score": 4.8,
+  "result": {
+    "ok": false,
+    "saved": false,
+    "error": "保存失败（业务码 -1）：您的产品编辑错误：textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+    "save_result": {
+      "code": 0,
+      "msg": "Successful",
+      "msgCode": null,
+      "data": {
+        "msg": "您的产品编辑错误：textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "code": -1,
+        "productId": "220114598435122330"
+      }
+    },
+    "publish_state": {},
+    "steps": [
+      {
+        "name": "连接 Alibaba",
+        "ok": true,
+        "detail": "Cookie 可用，客户端已创建"
+      },
+      {
+        "name": "读取商品详情",
+        "ok": true,
+        "detail": "Road Construction Laser Screed Robot Fully Hydraulic System  · 类目 127726092"
+      },
+      {
+        "name": "读取类目规则",
+        "ok": true,
+        "detail": "类目 127726092：6 个必填属性 / 8 个模块字段"
+      },
+      {
+        "name": "AI 文案",
+        "ok": true,
+        "detail": "未启用 AI，使用商品原标题/详情"
+      },
+      {
+        "name": "关键词",
+        "ok": true,
+        "detail": "road, construction, laser, screed, robot"
+      },
+      {
+        "name": "保存前校验",
+        "ok": true,
+        "detail": "必填项全部满足"
+      },
+      {
+        "name": "刊登评分",
+        "ok": true,
+        "detail": "4.80/5（发布线 4.5）"
+      },
+      {
+        "name": "违禁词检查",
+        "ok": true,
+        "detail": "未命中"
+      },
+      {
+        "name": "授权校验",
+        "ok": true,
+        "detail": "通过"
+      },
+      {
+        "name": "保存到 Alibaba",
+        "ok": false,
+        "detail": "保存失败（业务码 -1）：您的产品编辑错误：textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b"
+      }
+    ]
+  },
+  "states_after": [
+    {
+      "t": 5,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 10,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 15,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 20,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 25,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 30,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 35,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 40,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 45,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 50,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 55,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    },
+    {
+      "t": 60,
+      "state": {
+        "dxmState": "online",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": "textDesc:isv.parameter-parse-error:textDesc:不能超过1000个汉字或2000个字符:; Trace_id: af074706be5b0d27d1ea486c7a028b8b",
+        "subject": "Road Construction Laser Screed Robot Fully Hydraulic System ",
+        "desc_chars": 5489,
+        "logistics": "general_cargo_0",
+        "attrs": 3881
+      }
+    }
+  ]
+}

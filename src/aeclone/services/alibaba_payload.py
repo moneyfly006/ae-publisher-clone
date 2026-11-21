@@ -396,7 +396,13 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
                 getattr(cfg, "alibaba_lead_time", 30) or 30))
         except Exception:
             _days = 30
-        if _qty > 0 and _days > 0:
+        # 已有发货期时优先保留（不因默认配置覆盖商品真实交期）
+        _existing = trade.get("deliver_periods") or []
+        _keep_existing = any(isinstance(x, dict) and int(x.get("process_period") or 0) > 0
+                             for x in _existing) and not _raw_days
+        if _keep_existing:
+            pass
+        elif _qty > 0 and _days > 0:
             trade["deliver_periods"] = [{"quantity": _qty,
                                          "process_period": _days}]
     if ptype == "fob_price":
@@ -561,8 +567,11 @@ def autofill_required_attributes(product: dict, attr_defs: list | None, cfg=None
                 if nm.lower() in GENERIC_VALUES:
                     v_name, v_id = nm, cand.get("id"); break
         if v_name:
-            # 预设/通用值也必须落在类目候选里；不合理就阻断，不写无效属性。
-            canon = match_attribute_value(d, v_name)
+            # 下拉/多选必须命中候选；自由文本（inputType=input）直接接受预设值。
+            _values = _as_list(d.get("values"))
+            _free_text = (not _values) and str(d.get("inputType") or "").lower() in (
+                "input", "text", "textarea", "number")
+            canon = v_name if _free_text else match_attribute_value(d, v_name)
             if not canon:
                 unresolved.append(f"{name}（值「{v_name}」不在类目候选里）")
                 continue
@@ -718,6 +727,10 @@ def validate_alibaba_save(product: dict, save: dict, cfg=None,
         name = str(a.get("nameEn") or a.get("nameZh") or a.get("attribute_name") or "").strip()
         if name and name.lower() not in have:
             issues.append(f"必填属性缺失：{name}")
+
+    _desc = str(save.get("textDesc") or "")
+    if len(_desc) > 2000:
+        issues.append(f"详情 textDesc {len(_desc)} 字符，超过平台上限 2000（1000 汉字）")
 
     field_ids = [f.get("fieldId") for f in (schema_fields or []) if isinstance(f, dict)]
     if "detailImage" in field_ids and not _as_list(save.get("detailImage")):

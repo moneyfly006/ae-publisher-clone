@@ -23,7 +23,7 @@ class RedesignTests(unittest.TestCase):
 
     def test_all_platform_pages_build_in_both_themes(self):
         """按平台实际页面逐个构建：Alibaba 已移除速卖通专属页，速卖通保留全部旧页。"""
-        self.assertEqual({d.index for d in DESTINATIONS}, set(range(12)) | {13})
+        self.assertEqual({d.index for d in DESTINATIONS}, set(range(12)) | {12, 13})
         for theme in ("dark", "light"):
             ui.apply_theme(theme)
             for pf_id, expect_all in (("alibaba", False), ("aliexpress", True)):

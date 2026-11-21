@@ -311,6 +311,10 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
         detail_score -= 1.0
         dp.append("详情没有 HTML 结构（h3/p/ul/table）")
         df.append("用 AI 详情（输出 HTML）替换纯文本")
+    if len(html) > 2000:
+        detail_score -= 2.0
+        dp.append(f"详情 HTML {len(html)} 字符，超过平台上限 2000")
+        df.append("压缩详情到 2000 字符内（AI 详情会自动截断，建议提示词要求 800~1500 字符）")
     if len(detail_imgs) < 3:
         detail_score -= 1.0
         dp.append(f"详情图仅 {len(detail_imgs)} 张（建议 ≥3）")
@@ -405,7 +409,10 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
         trade_score -= 2.0
         trp.append(f"价格类型异常：{ptype or '空'}")
         trf.append("选择按数量/按规格/单一区间 FOB")
-    moq = int(trade.get("min_order_quantity") or 0)
+    try:
+        moq = int(float(trade.get("min_order_quantity") or 0))
+    except Exception:
+        moq = 0
     if moq <= 0:
         trade_score -= 1.0
         trp.append("MOQ 未填写")

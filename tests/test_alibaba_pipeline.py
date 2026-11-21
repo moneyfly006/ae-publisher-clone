@@ -501,6 +501,30 @@ class AiKeywordTests(unittest.TestCase):
         self.assertLessEqual(len(out), 128)
 
 
+class DetailLimitTests(unittest.TestCase):
+    def test_clip_detail_html_respects_2000_char_limit(self):
+        from aeclone.services.alibaba_pipeline import MAX_TEXT_DESC, clip_detail_html
+        html = "<h3>Overview</h3>" + "<p>" + ("Long detail text. " * 400) + "</p>"
+        out = clip_detail_html(html)
+        self.assertLessEqual(len(out), MAX_TEXT_DESC)
+        self.assertTrue(out.startswith("<h3>"))
+        # 不能以残缺标签结尾
+        self.assertFalse(out.rstrip().endswith("<"))
+        self.assertIn("</p>", out)
+
+    def test_long_override_desc_is_clipped_before_validation(self):
+        long_desc = "<h3>T</h3><p>" + ("x" * 5000) + "</p>"
+        with clean_env(AURORA_SKIP_LICENSE="1"):
+            r = run_alibaba_product("pid-1", make_cfg(), dry_run=True,
+                                    client=FakeClient(), text_pipeline=FakeTextPipeline(),
+                                    overrides={"text_desc": long_desc})
+        self.assertTrue(r.ok, r.error)
+        self.assertEqual(r.issues, [])
+        self.assertLessEqual(len(r.steps[-1].detail), 200)
+        # save 实际内容的长度通过 validate 不再报超长
+        self.assertNotIn("超过平台上限", r.error or "")
+
+
 if __name__ == "__main__":
     result = unittest.main(verbosity=2, exit=False)
     sys.exit(0 if result.result.wasSuccessful() else 1)

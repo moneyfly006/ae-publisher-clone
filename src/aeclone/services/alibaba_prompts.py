@@ -92,7 +92,8 @@ _TITLE_TAIL = (
 _DETAIL_TAIL = (
     "图片规则：原文详情图改用占位符 <img data-detail-img=\"N\">（N 为 1 基序号）"
     "按章节插入，至少 2 张，不要全部堆在开头或结尾；\n"
-    "排版：<h3>/<p>/<ul><li>/<table>，1800~3500 字符，短段落便于移动端阅读；\n"
+    "排版：<h3>/<p>/<ul><li>/<table>，**800~1500 字符**（Alibaba textDesc 平台上限 2000 字符/1000 汉字），"
+    "短段落便于移动端阅读，超长会被平台拒绝；\n"
     "合规：全英文；" + _CONTACT_NOTE + _ABSOLUTE_NOTE + _NO_FABRICATION_NOTE +
     "不要 <style>/<script>/<iframe>；只输出 HTML 片段，不要代码块围栏。"
 )

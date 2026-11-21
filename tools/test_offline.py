@@ -21,6 +21,10 @@ MODULES = (
     "test_price_write_safety", "test_variants_regression", "test_workbench_safety",
     "test_content_review", "test_weight_reuse", "test_ui_state_regression",
     "test_image_hosting_optimization",
+    # Amazon 刊登（task-4 接入；AURORA_TEST=1 下应全绿）
+    "test_amazon_contract", "test_amazon_client", "test_amazon_payload",
+    "test_amazon_prompts", "test_amazon_pipeline", "test_amazon_ui_page",
+    "test_amazon_adapter",
 )
 
 
@@ -33,7 +37,7 @@ def main():
     sys.dont_write_bytecode = True
     with tempfile.TemporaryDirectory(prefix="aurora-offline-") as root:
         env = {"AURORA_CONFIG_DIR": root, "AURORA_INSTANCE": "offline-regression",
-               "AURORA_SKIP_LICENSE": "1"}
+               "AURORA_SKIP_LICENSE": "1", "AURORA_TEST": "1"}
         with patch.dict(os.environ, env), patch.object(socket.socket, "connect", denied), \
              patch.object(socket.socket, "connect_ex", denied), \
              patch.object(socket, "create_connection", denied), \
