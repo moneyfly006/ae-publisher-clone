@@ -25,6 +25,7 @@ SIGN_KEY = b"aurora-list-platform-license-v1"
 PLATFORM_FEATURES = {
     "alibaba": ["listing", "category", "trade", "ai_text", "ai_image", "audit"],
     "aliexpress": ["listing", "category", "pricing", "variants", "ai_text", "ai_image", "audit"],
+    "amazon": ["listing", "category", "ai_text", "ai_image", "audit", "fba"],
     "tiktok": ["listing", "ai_text", "ai_image"],
     "shopee": ["listing", "ai_text", "ai_image"],
 }

@@ -68,6 +68,23 @@ ALIEXPRESS = Platform(
     ),
 )
 
+
+AMAZON = Platform(
+    id="amazon", name="Amazon 亚马逊", short="A", color="#FF9900",
+    pages=(
+        PageItem(0, "概览", "工作空间", "DASHBOARD_OUTLINED", "listing"),
+        PageItem(1, "店铺与登录", "商品准备", "STORE_OUTLINED", "listing"),
+        PageItem(2, "类目与属性", "商品准备", "CATEGORY_OUTLINED", "category"),
+        PageItem(8, "草稿与待发布", "刊登", "CLOUD_UPLOAD_OUTLINED", "listing"),
+        PageItem(3, "AI 文案", "内容", "EDIT_NOTE", "ai_text"),
+        PageItem(5, "AI 图片", "内容", "AUTO_AWESOME", "ai_image"),
+        PageItem(4, "内容审查", "内容", "FACT_CHECK_OUTLINED", "audit"),
+        PageItem(10, "任务与日志", "运行", "RECEIPT_LONG_OUTLINED", "listing"),
+        PageItem(9, "图片工作台", "工具", "GRID_VIEW", "ai_image"),
+        PageItem(11, "设置", "工具", "SETTINGS_OUTLINED", "listing"),
+    ),
+)
+
 TIKTOK = Platform(
     id="tiktok", name="TikTok Shop", short="T", color="#111111",
     implemented=False,
@@ -97,7 +114,7 @@ SHOPEE = Platform(
     ),
 )
 
-PLATFORMS: dict[str, Platform] = {p.id: p for p in (ALIBABA, ALIEXPRESS, TIKTOK, SHOPEE)}
+PLATFORMS: dict[str, Platform] = {p.id: p for p in (ALIBABA, ALIEXPRESS, AMAZON, TIKTOK, SHOPEE)}
 DEFAULT_PLATFORM = "alibaba"
 
 

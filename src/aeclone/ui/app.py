@@ -9344,6 +9344,32 @@ class App:
         finally:
             self._license_checking = False
 
+    def _refresh_platform_license(self):
+        """向授权网站拉取平台+功能包 token；失败保留缓存，不阻塞界面。"""
+        try:
+            from ..license_server import refresh_entitlements
+            from ..core.updater import CURRENT as _ver
+        except Exception:
+            return
+        try:
+            ent = refresh_entitlements(self.cfg, version=_ver, save=save_config)
+            self.entitlements = ent
+            self._rebuild_nav()
+            try:
+                self.platform_rail.content = self._build_platform_rail().content
+            except Exception:
+                pass
+            plats = ent.platforms_list()
+            self.license_text.value = ("平台：" + ", ".join(plats)) if plats else "平台未开通"
+            self._log("平台授权刷新：" + (", ".join(plats) if plats else "未开通（保留本地缓存）"),
+                      "INFO" if plats else "WARN")
+            self._safe_update()
+        except Exception as ex:
+            try:
+                self._log(f"平台授权刷新失败：{ex}", "WARN")
+            except Exception:
+                pass
+
     def _check_license_inner(self):
         try:
             from ..core.updater import CURRENT as _ver
@@ -9386,6 +9412,10 @@ class App:
             elif "无法连接授权服务器" in str(res.get("message") or ""):
                 self._log("授权服务器暂不可达，保留上次授权缓存", "WARN")
             # 平台/功能包授权刷新（token 由授权网站下发，旧客户走 legacy 兼容）
+            try:
+                threading.Thread(target=self._refresh_platform_license, daemon=True).start()
+            except Exception:
+                pass
             try:
                 self.entitlements = load_entitlements(self.cfg)
                 self._rebuild_nav()
