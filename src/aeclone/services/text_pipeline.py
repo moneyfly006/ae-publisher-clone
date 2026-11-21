@@ -212,6 +212,40 @@ class TextPipeline:
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))
 
+    # ---------- 关键词（Alibaba 3~5 个英文搜索词） ----------
+    def make_keywords(self, title: str, detail_text: str = "", limit: int = 5) -> TextResult:
+        """从标题/详情生成 Alibaba 用英文关键词（ASCII，短语优先）。
+
+        商品原 keywords 常常是采集来的小语种（如葡语），直接提交会被平台判为
+        非英文；开启 AI 时用这个方法生成英文搜索词。
+        """
+        prompt = str(getattr(self.cfg, "alibaba_keyword_prompt", "") or "").strip() or (
+            "You are an Alibaba.com SEO expert. From the product title and details, "
+            "output ONLY 3-5 English search keywords as a comma-separated list. "
+            "Lowercase phrases, ASCII only, no brand names, no prices, no claims, "
+            "no explanations.")
+        try:
+            from . import model_of
+            detail_flat = re.sub(r"\s+", " ", str(detail_text or ""))[:1200]
+            user = f"Title: {title}\nDetails: {detail_flat}"
+            out = self.client.chat(model_of(self.cfg, "text"), [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user},
+            ], max_tokens=140)
+            parts = [p.strip() for p in re.split(r"[,;\n]", str(out or "")) if p.strip()]
+            phrases: list[str] = []
+            for p in parts:
+                p = re.sub(r"[^A-Za-z0-9 \-]", " ", p)
+                p = re.sub(r"\s+", " ", p).strip().lower()
+                if p and p not in phrases:
+                    phrases.append(p)
+            phrases = phrases[:limit]
+            if len(phrases) < 3:
+                return TextResult(False, error=f"仅生成 {len(phrases)} 个英文关键词")
+            return TextResult(True, ", ".join(phrases), [f"{len(phrases)} 个"])
+        except Exception as e:  # noqa: BLE001
+            return TextResult(False, error=str(e))
+
     # ---------- 审查 ----------
     def review_text(self, content: str) -> TextResult:
         try:

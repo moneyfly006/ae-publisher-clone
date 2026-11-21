@@ -162,7 +162,7 @@ function page_shop_packages_save(): void
 /* ---------- 支付 / 邮件设置 ---------- */
 function page_shop_pay(): void
 {
-    require_admin();
+    require_admin(); require_owner();
     $keys = ['site_name', 'epay_gateway', 'epay_pid', 'epay_key', 'epay_type', 'allow_mock_pay',
              'announcement', 'require_verify', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass',
              'smtp_secure', 'smtp_from', 'debug_codes'];
@@ -174,7 +174,7 @@ function page_shop_pay(): void
 
 function page_shop_pay_save(): void
 {
-    require_admin(); csrf_check();
+    require_admin(); require_owner(); csrf_check();
     $keys = ['site_name', 'epay_gateway', 'epay_pid', 'epay_key', 'epay_type', 'allow_mock_pay',
              'announcement', 'require_verify', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass',
              'smtp_secure', 'smtp_from', 'debug_codes'];

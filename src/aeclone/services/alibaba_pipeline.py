@@ -367,18 +367,44 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         else:
             _step(res, "AI 文案", True, "未启用 AI，使用商品原标题/详情")
 
-        # 关键词：overrides/cfg > 商品原 keywords > 标题提取，补足到 3~5 个。
+        # AI 关键词：商品原 keywords 常是采集来的小语种（葡语/西语），Alibaba 需要
+        # 英文搜索词；只有用户没配置关键词、也没显式给 overrides 时才用 AI 生成。
+        ai_kws: list[str] = []
+        _ov_kws = str((overrides or {}).get("keywords") or "").strip()
+        if tp is not None and not _configured_keywords(cfg).strip() and not _ov_kws:
+            _mk = getattr(tp, "make_keywords", None)
+            if callable(_mk):
+                try:
+                    kr = _mk(subject or source_subject,
+                             _plain_text(text_desc) or plain_source)
+                    if _tr_ok(kr):
+                        got = [x.strip() for x in str(_tr_value(kr)).split(",") if x.strip()]
+                        if MIN_KEYWORDS <= len(got) <= MAX_KEYWORDS:
+                            ai_kws = got
+                            _step(res, "AI 关键词", True, ", ".join(ai_kws))
+                        else:
+                            _step(res, "AI 关键词", True,
+                                  f"生成 {len(got)} 个（不足 {MIN_KEYWORDS} 个），改用商品关键词/标题")
+                    else:
+                        _step(res, "AI 关键词", True, f"跳过：{_tr_error(kr)[:60]}")
+                except Exception as e:  # noqa: BLE001
+                    _step(res, "AI 关键词", True, f"跳过：{str(e)[:60]}")
+
+        # 关键词：overrides/cfg > 商品原 keywords > AI 英文关键词 > 标题提取。
         # 商品原有短语不能因为「没配置关键词」就被标题提取整段覆盖。
-        kws = keywords_effective(
-            {"subject": subject or source_subject,
-             "keywords": str(product.get("keywords") or "")}, cfg)
-        # 已有来源（cfg/商品原值）时只规整、不从标题扩写；只有完全没有关键词
-        # （keywords_effective 从标题提取且不足）时才用详情文字补足。
-        _has_source_kws = bool(_configured_keywords(cfg).strip()
-                               or str(product.get("keywords") or "").strip())
-        if not _has_source_kws and len(kws) < MIN_KEYWORDS:
-            kws = _top_up_keywords(kws, subject or source_subject,
-                                   _plain_text(text_desc) or plain_source)
+        if ai_kws:
+            kws = ai_kws[:MAX_KEYWORDS]
+        else:
+            kws = keywords_effective(
+                {"subject": subject or source_subject,
+                 "keywords": str(product.get("keywords") or "")}, cfg)
+            # 已有来源（cfg/商品原值）时只规整、不从标题扩写；只有完全没有关键词
+            # （keywords_effective 从标题提取且不足）时才用详情文字补足。
+            _has_source_kws = bool(_configured_keywords(cfg).strip()
+                                   or str(product.get("keywords") or "").strip())
+            if not _has_source_kws and len(kws) < MIN_KEYWORDS:
+                kws = _top_up_keywords(kws, subject or source_subject,
+                                       _plain_text(text_desc) or plain_source)
         if len(kws) < MIN_KEYWORDS:
             warn = f"关键词仅 {len(kws)} 个（建议 {MIN_KEYWORDS}~{MAX_KEYWORDS} 个）"
             res.warnings.append(warn)
