@@ -46,3 +46,20 @@ if "shop-packages" not in s:
     print("nav updated")
 else:
     print("nav exists")
+
+# 4) 实际渲染用的布局是 app/views/layout.php
+V = A + "/views/layout.php"
+s = open(V, encoding="utf-8").read()
+if "shop-packages" not in s:
+    marker = 'href="/admin/settings">系统设置</a>'
+    if marker in s:
+        addnav = (marker +
+          '\n      <a class="<?= strpos($p, \'/admin/shop-packages\') === 0 ? \'on\' : \'\' ?>" href="/admin/shop-packages">套餐管理</a>'
+          '\n      <a class="<?= strpos($p, \'/admin/shop-pay\') === 0 ? \'on\' : \'\' ?>" href="/admin/shop-pay">支付设置</a>'
+          '\n      <a class="<?= strpos($p, \'/admin/shop-orders\') === 0 ? \'on\' : \'\' ?>" href="/admin/shop-orders">套餐订单</a>'
+          '\n      <a class="<?= strpos($p, \'/admin/shop-users\') === 0 ? \'on\' : \'\' ?>" href="/admin/shop-users">套餐用户</a>'
+          '\n      <a class="<?= strpos($p, \'/admin/shop-licenses\') === 0 ? \'on\' : \'\' ?>" href="/admin/shop-licenses">套餐授权</a>'
+          '\n      <a href="/" target="_blank">用户端</a>')
+        shutil.copy(V, V + ".bak." + ts)
+        open(V, "w", encoding="utf-8").write(s.replace(marker, addnav, 1))
+        print("views/layout nav updated")

@@ -326,3 +326,9 @@ CAPABILITIES = {
 - 新软件接口：https://license.moneyfly.club/api/license/entitlements （nginx 映射到内嵌应用）
 - /shop 根路径 301 到 /（内部文件仍由 nginx 映射使用，不再对外暴露）
 - 桌面客户端默认授权服务器：https://license.moneyfly.club
+
+### 修复记录（菜单不显示）
+
+原应用实际渲染使用 `app/views/layout.php`（`app/layout.php` 是旧副本）。
+第一次只改了后者，导致新菜单没出现。现已修补 `views/layout.php`，验证后台左侧可见：
+套餐管理 / 支付设置 / 套餐订单 / 套餐用户 / 套餐授权 / 用户端。
