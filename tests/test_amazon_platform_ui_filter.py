@@ -191,20 +191,28 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                        "Search Terms预设", "SKU预设", "图片预设"):
             self.assertIn(expect, labels)
         btn_texts = {str(getattr(b, "text", "")) for b in visible_buttons(self.app)}
+        # 自动发布选项面板（task-15/16）
+        for expect in ("自动发布动作", "最多自动修复轮数", "发布后等待（秒）",
+                       "自动补齐必填属性", "自动修正标题重复/超长/违规词",
+                       "自动清理描述促销/联系方式/HTML", "自动 AI 重写违规文案（付费）"):
+            self.assertIn(expect, labels, f"13 页缺少自动发布选项：{expect}")
+        btn_texts = {str(getattr(b, "text", "")) for b in visible_buttons(self.app)}
         for expect in ("读取本机 Cookie", "检测连接", "刷新", "加载类目", "校验路径",
                        "AI 生成标题", "AI 一键生成全部（付费）", "AI 生成 SKU",
-                       "发布前检查（不保存）", "查询发布结果", "自动补齐并重试发布",
+                       "保存到 Amazon", "查询发布结果", "自动发布（自动修复）",
+                       "自动补齐并重试发布",
                        "自动补齐必填属性", "套用", "恢复内置", "复制提示词",
                        "发布中", "发布失败"):
             self.assertIn(expect, btn_texts, f"13 页缺少可用控件：{expect}")
-        self.assertTrue(any("保存" in t for t in btn_texts))
-        # 新增预设卡（task-12/13）
+        # 新增预设卡（task-12/13）+ ⑥ 已改为「保存与发布」
         page_text = " ".join(texts(self.app))
         self.assertIn("④b AI 提示词预设", page_text)
         self.assertIn("⑦ AI 图片提示词预设", page_text)
-        # 正式版文案：可见文本不含测试/开发措辞
+        self.assertIn("⑥ 保存与发布", page_text)
+        # 正式版文案：不得出现预演/检查模式/测试措辞
         page_all = " ".join(texts(self.app)) + " " + " ".join(btn_texts)
-        for banned in ("AURORA_", "预演", "测试连接", "本地验收"):
+        for banned in ("AURORA_", "预演", "检查模式", "检查结果", "发布前检查",
+                       "测试连接", "本地验收"):
             self.assertNotIn(banned, page_all, f"Amazon 13 页仍含开发措辞：{banned}")
 
     # ---------- 平台隔离：AliExpress 原样保留 ----------

@@ -453,6 +453,13 @@ DEFAULTS: dict = {
     "amazon_manufacturer_contact": "",   # 发布必填 manufacturer_contact_information；空=自动 "品牌, CN"
     "amazon_publish_wait": 60,           # op=2 发布后轮询发布状态的最长秒数（0=只查一次）
     "amazon_autofill_attrs": True,       # 保存/发布前自动补齐缺失的必填属性（只补缺失，不覆盖已有）
+    # ---- 真实发布自动修复闭环（services/amazon_auto.py） ----
+    "amazon_auto_max_rounds": 3,         # 发布失败自动修复重发的最多轮次
+    "amazon_auto_wait": 90,              # 每轮发布后轮询发布状态的最长秒数
+    "amazon_auto_fix_attrs": True,       # 自动补齐缺失必填属性后重发
+    "amazon_auto_fix_title": True,       # 标题重复/超长/违规自动修复
+    "amazon_auto_fix_description": True, # 描述/卖点/关键词违规自动清洗
+    "amazon_auto_ai_fix": False,         # 内容违规时用 AI 重写描述（付费，默认关）
     # ---------------- TikTok Shop 刊登预设（契约 §3.7） ----------------
     "tiktok_cookies": "",
     "tiktok_shop_id": "",

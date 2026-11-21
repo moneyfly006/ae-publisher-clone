@@ -15,6 +15,7 @@
 | 发布状态独立核验（task-10/11） | **PASS**：最新实时 25 个发布失败 = **A 23（92.0%）/ B 2（8.0%）/ C 0 / D 0**；发布中 0（瞬态） | `docs/amazon-publish-state.json`（generated_at `2026-11-22T03:33:42+08:00`） |
 | 发布 UI / 全按钮 / 逻辑矩阵（task-11） | **27/27 PASS**；69 个可见按钮 0 异常；9 条逻辑断言全 PASS；正式版文案 prod/test 泄漏 0 | `docs/amazon-publish-ui-verify.json`（generated_at `2026-11-22T03:35:14+08:00`） |
 | AI 提示词预设库（task-14） | **25/25 PASS**；50 个预设（title 10/bullets 7/description 7/search_terms 6/sku 6/image 14）；合规扫描 0 未豁免命中 | `docs/amazon-presets-verification.json`（generated_at `2026-11-22T03:47:47+08:00`） |
+| 去预演 + 自动发布（task-17） | **37/37 PASS**；页面无预演痕迹；auto_publish 8 场景/政策 14 项/UI 7 项全 PASS；Lead 证据 2 商品 reviewing 已提交 | `docs/amazon-auto-publish-audit.json`（generated_at `2026-11-22T04:04:48+08:00`） |
 | Amazon 测试（8 文件 194 用例） | **194/194 OK**（`AURORA_TEST=1`） | `tests/test_amazon_*.py` |
 | 离线契约测试 | **27/27 OK** | `tests/test_amazon_contract.py` |
 | 平台隔离审计（task-6 独立实现） | **79/79 PASS**（含 ⌘F 修复后复验；隐藏过头=0 / 隐藏不足=0） | `docs/amazon-platform-isolation.json` |
@@ -320,6 +321,8 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 | `docs/amazon-publish-ui-verify.json` | 发布 UI/全按钮/逻辑矩阵/正式版文案扫描（27/27 PASS，69 按钮 0 异常） |
 | `docs/amazon-presets-verification.json` | AI 提示词预设库独立验收（25/25 PASS；50 预设/合规/功能/UI/隔离） |
 | `docs/design/amazon-presets.png` | 13 页 ④b 预设卡 + ⑦ 图片预设卡截图（449,304 B） |
+| `docs/amazon-auto-publish-audit.json` | 去预演+自动发布独立验收（37/37 PASS：修复场景/政策/UI/Lead 证据） |
+| `docs/design/amazon-auto-publish.png` | 13 页自动发布卡截图（244,962 B） |
 | `docs/design/amazon-listing-page.png` | 13 页顶部截图（274,162 B） |
 | `docs/design/amazon-listing-page-2-price-preview.png` | 13 页价格/预演截图（263,971 B） |
 | `docs/design/amazon-listing-page-3-save.png` | 13 页底部截图（265,636 B） |
@@ -595,3 +598,100 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
   3. 图片预设 v1 仅作提示词备用（Amazon 图片只读，不上传/不替换），截图中的 ⑦ 卡为提示词预览。
 - **外部问题单列**：`test_ui_redesign` 1 ERROR 来自 Alibaba 页新增 `Switch(bool)`（外部并发改动），
   非 Amazon，已按 Lead 要求单列不计。
+
+
+
+---
+
+## 13. 去预演 + 真实自动发布验收（task-17）
+
+工具：`tools/verify_amazon_auto_publish.py`（离线 FakeClient + patch 写收口，不联网/不真实写）。
+证据：`docs/amazon-auto-publish-audit.json`（generated_at `2026-11-22T04:04:48+08:00`，
+**37/37 PASS**）。截图：`docs/design/amazon-auto-publish.png`（244,962 B，13 页自动发布卡）。
+
+### 13.1 用户可见预演逻辑已删除（Amazon 13 页）
+
+- 页面可见文本/按钮扫描：**无「预演」「发布前检查」「检查模式」「发布前检查与保存」**
+  （0 泄漏）；保存按钮为 **「保存到 Amazon」**（真实提交），新增 **「自动发布（自动修复）」**。
+- AURORA_TEST / AURORA_NO_SAVE 下：保存与自动发布均安全拒绝，提示
+  **「当前运行环境禁止写入平台数据，请在正式环境操作」**，且**不出现预演/检查模式字样**。
+- 二次确认弹窗标题 **「确认自动发布（自动修复）」**，内容含商品/标题/站点/动作
+  （op=2 保存并发布·真实提交）/最多轮数/发布后等待/自动修复项/「这会真实写入/发布到平台」。
+- 价格或库存为空时直接阻断（提示缺少价格/库存），不弹确认、不发请求（不会编造价格库存）。
+
+### 13.2 auto_publish 自动修复审计（8 场景全 PASS）
+
+| 场景 | 结果 |
+|---|---|
+| 首轮成功 | `ok=True saved=True rounds=1`；reviewing 视为已提交非失败 |
+| B 类缺属性（90220 属性:item_name） | 第 2 轮补齐属性后提交；`rounds=2 saves=2` |
+| 100470 标题重复 | 自动去重（标题 `loader` ≤2 次）后第 2 轮提交 |
+| 描述含促销/联系方式/中文电话 | `sanitize_description` 清洗/兜底后第 2 轮提交（电话/WhatsApp/free shipping 已清除） |
+| 价格/库存缺失 | 阻断且 **0 次真实写**（不自动编造，需用户填写） |
+| max_rounds 用尽 | 达到上限安全停止（`rounds=max_rounds`，不无限重试） |
+| CI 护栏（AURORA_TEST） | auto_publish 直接拒绝真实发布（blockers 含 AURORA/拒绝），0 次写 |
+| 唯一写入口 | auto_publish 仅经 `save_to_amazon` 写，源码无 `client.save_product` 直连 |
+
+### 13.3 policy_preflight 平台政策（14 项全 PASS，无编造）
+
+- 干净 payload 0 阻断；标题同词>2 → `dedupe_title_words`；标题促销/联系方式/URL、全大写、
+  emoji → `sanitize_title`；五点 HTML/促销 → `sanitize_bullets`；
+  描述促销/联系方式 → `sanitize_description`；ST 超长/标点/促销 → `sanitize_search_terms`；
+  SKU 非法字符 → `sanitize_sku`；schema 必填（strict）→ 阻断；主图缺失 → 阻断。
+- **价格缺失/库存为 0 → 阻断（不编造）**；修复动作集合中**无价格/库存/认证生成**动作。
+- 预检只做「阻断/清洗/去重/截断」；参数/认证只能来自原文。
+
+### 13.4 UI 自动发布控件 / 确认 / 按轮结果（7 项全 PASS）
+
+- 控件：自动发布按钮 + 3 下拉（自动发布动作 / 最多自动修复轮数 1/2/3/5 / 发布后等待 30/60/90/180）
+  + 4 开关（自动补齐必填属性 / 自动修正标题 / 自动清理描述 / 自动 AI 重写付费）；
+  当前值从 cfg `amazon_auto_*` 读取并回写。
+- 二次确认 → 真实执行；价格库存为空阻断；AURORA_TEST 拒绝（无预演文案）。
+- 结果区渲染：`自动发布结果` + `轮数/耗时` + 每轮明细（第 N 轮 · 状态 · 修复/动作 · err）
+  + `自动修复记录` + `阻断原因` + `发布详情`；Lead UI 文本已核对（含 100521 审核中说明）。
+- 13 页可见按钮矩阵：46 个控件逐一点击 **ERROR 0**；全平台 button_audit 21 页/627 回调 ERROR 0。
+
+### 13.5 Lead 真实发布证据交叉核对
+
+`docs/amazon-auto-publish-verification.json`（3 runs，generated 04:02:08）：
+
+| 商品 | 记录 | 结论 |
+|---|---|---|
+| `220114595363181900` | run1 blocked（描述含中文「电话」；autofill 4 属性）；run2 `reviewing` | 修复 sanitize/fallback 后**重跑成功，已提交**；run1 是修复前记录 |
+| `220114595363181652` | run1 `reviewing`，修复记录 autofill 4 属性 | 已提交，平台审核中 |
+- **reviewing = 已提交非失败**（实时列表显示 `publishFail/100521`，分类 A，不是软件失败）。
+- 两商品均有 `saved=True` 与 `code:100521`；实时只读复核 181900/181652 均 `publishFail/A`，
+  与 Lead 证据一致。自动修复记录（autofill / sanitize_description）在证据中可查。
+
+### 13.6 回归与 P0/P1/P2
+
+- `tools/verify_amazon_auto_publish.py`：**37/37 PASS**；页面/截图见上。
+- 全部 `tests/test_amazon_*.py`（14 文件，**382 用例**）：**全部 PASS**（含新增
+  `test_amazon_auto_audit` 10 用例、`test_amazon_auto_publish` 35 用例、`test_amazon_ui_page` 31）。
+- `tools/verify_regressions.py`：**79/79 模块 PASS**（已接入 `test_amazon_auto_audit`）。
+- `tools/test_offline.py`：**941 tests OK**。
+- `button_audit`：**21 页 / 627 回调，ERROR 0**。
+- `tools/verify_amazon.py`：18/18 PASS；`compileall -q src`：exit 0。
+- 平台隔离：AliExpress AI 文案 / Alibaba 12 / Amazon 13 均正常渲染；Amazon 页面正式版文案
+  0 泄漏（AURORA_/预演/本地验收/测试连接/沙箱/mock）。
+- **P0：无。**
+- **P1：无。**
+- **P2**：
+  1. `tools/verify_amazon_ui.py`（task-11 旧工具）仍按「预演/发布前检查」旧文案断言，
+     去预演后 22/27（5 项预期失效）；属验收工具待随新 UI 更新，不影响产品功能。
+  2. 本环境当前 Chrome headless 截图偶尔出现中文字形缺失（布局正确）；此前 task-14 截图正常，
+     属截图链路/环境问题，已在工具中固定 `--headless=new`，如复现建议重跑截图脚本。
+  3. 自动发布为真实写操作：生产使用前需确认价格/库存已填、二次确认弹窗人工核对。
+
+### 13.7 Lead 真实发布与构建验证（2026-11-22 04:00）
+
+- **构建**：`tools/build_verified.py amazon-autopublish` → `dist/verified-amazon-autopublish-20261122-040319/AuroraList.app`；
+  codesign **PASS**，打包程序 `--verify-local` **PASS**，sha256 `d5023a55…d20407f8bb`。
+- **真实发布（程序 UI 事件链路：真实 App 页面 ⑥ → 自动发布按钮 → 二次确认 → amazon_auto，真实网络/真实写）**：
+  | 商品 | 过程 | 结果 |
+  |---|---|---|
+  | 220114595363181900 | 首跑本地预检拦截（描述含中文「电话」）→ 修复中文联系方式/促销词清洗 + 描述过短 fallback → 重跑：第1轮 autofill 4 属性 + sanitize_description → saved=True | **publishFail/A 审核中（100521，非失败）** |
+  | 220114595363181652 | 第1轮 autofill 4 属性 → saved=True | **publishFail/A 审核中（100521，非失败）** |
+- 证据：[docs/amazon-auto-publish-verification.json](docs/amazon-auto-publish-verification.json)（3 条 run：1 条修复前 blocked + 2 条 submitted）。
+- 结论：**「预演」用户功能已删除**；真实发布走 op=2 + 自动修复闭环；失败可自动补属性/清洗标题描述并重发；
+  两商品均成功提交平台审核。

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T03:38:36+08:00",
+  "generated_at": "2026-11-22T04:08:49+08:00",
   "mode": "read-only",
   "status": "PASS",
   "base": "https://www.dianxiaomi.com",
@@ -21,16 +21,16 @@
     "content_logged": false
   },
   "counts": {
-    "draft": 12,
+    "draft": 10,
     "online": 142,
     "waitPublish": 5,
     "publishing": 0,
-    "publishFail": 25,
-    "publishFail_rows_returned": 25,
+    "publishFail": 27,
+    "publishFail_rows_returned": 27,
     "publishing_rows_returned": 0,
     "leftStat": {
       "waitPublish": "5",
-      "publishFail": "25",
+      "publishFail": "27",
       "publishing": 0
     },
     "leftStat_consistency": {
@@ -40,13 +40,15 @@
     }
   },
   "classification": {
-    "total_publish_fail": 25,
+    "total_publish_fail": 27,
     "classes": {
       "A": {
         "label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
-        "count": 24,
-        "percent": 96.0,
+        "count": 26,
+        "percent": 96.3,
         "ids": [
+          "220114595363181652",
+          "220114595363181900",
           "220114595363182036",
           "220114595363182214",
           "220114595363181922",
@@ -72,12 +74,12 @@
           "220114595343496056",
           "220114595343496068"
         ],
-        "sample_errMsg": "code:100470,您在 标题 中使用了两次以上：[backhoe]。 要修复，请重新提交正确的数据。,属性:item_name;code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;code:发布失败"
+        "sample_errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
       },
       "B": {
         "label": "B 类 · 类目必填属性缺失（90220，需补属性）",
         "count": 1,
-        "percent": 4.0,
+        "percent": 3.7,
         "ids": [
           "220114595363180944"
         ],
@@ -98,7 +100,7 @@
         "sample_errMsg": ""
       }
     },
-    "a_share": 96.0,
+    "a_share": 96.3,
     "real_actionable_failures": 1,
     "note": "A 类为平台审核中（非软件失败）；B/D 类需修数据或人工排查；C 类通常被软件预检拦截、不会出现在 publishFail 列表。"
   },
@@ -128,6 +130,44 @@
   },
   "items": {
     "publishFail": [
+      {
+        "id": "220114595363181652",
+        "title": "New Epa Farm Backhoe Excavator Mini Retroexcavadora 4x4 Front End Diesel Backhoe Loader",
+        "sku": "WY-QHCA-LTM-7",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13553005011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
+      {
+        "id": "220114595363181900",
+        "title": "4X4 Wheel Loader Backhoe Loader 85KW Diesel Engine Hydraulic Excavator 1.5m Bucket CE Certified Construction Landscaping",
+        "sku": "WY-QHCA-LTM-6",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "categoryId": "13553005011",
+        "dxmState": "offline",
+        "dxmOfflineState": "publishFail",
+        "errMsg_present": true,
+        "errMsg_len": 89,
+        "codes": [
+          "100521"
+        ],
+        "required_attrs": [],
+        "class": "A",
+        "class_label": "A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+        "reason": "平台审核中（等待最多 48 小时，可能自动转在线）",
+        "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+      },
       {
         "id": "220114595363182036",
         "title": "CE EPA Mini Backhoe Loader 4x4 WD Agricultural Farm Machine for All Terrain Operation",
@@ -705,18 +745,6 @@
         "categoryId": "6257559011"
       },
       {
-        "id": "220114595363181900",
-        "title": "4X4 Wheel Loader Backhoe Loader 85KW Diesel Engine Hydraulic Excavator 1.5m Bucket CE Certified Cons…",
-        "sku": "WY-QHCA-LTM-6",
-        "categoryId": "13553005011"
-      },
-      {
-        "id": "220114595363181652",
-        "title": "New Epa Farm Backhoe Excavator Mini Retroexcavadora 4x4 Front End Diesel Backhoe Loader",
-        "sku": "WY-QHCA-LTM-7",
-        "categoryId": "13553005011"
-      },
-      {
         "id": "220114595363181578",
         "title": "Construction 4x4 Articulated Backhoe Loader Wheeled Digger for Land Leveling, Earthmoving and Storm …",
         "sku": "WY-QHCA-LTM-8",
@@ -880,6 +908,48 @@
       ]
     },
     {
+      "product_id": "220114595363181652",
+      "state": "publishFail",
+      "state_label": "发布失败",
+      "source": "offline.json/publishFail",
+      "title": "New Epa Farm Backhoe Excavator Mini Retroexcavadora 4x4 Front End Diesel Backhoe Loader",
+      "sku": "WY-QHCA-LTM-7",
+      "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;",
+      "conclusion": "发布失败 · A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+      "failure_class": "A",
+      "required_attrs": [],
+      "codes": [
+        "100521"
+      ],
+      "action": "平台审核中：无需改数据，等待最多 48h 后复查（可能自动转在线）",
+      "fields_to_check": [
+        "errMsg 中的 code（100521/90220/8560…）",
+        "errMsg 中的 属性:xxx（缺失属性名）",
+        "errMsg 末尾 Trace_id"
+      ]
+    },
+    {
+      "product_id": "220114595363181900",
+      "state": "publishFail",
+      "state_label": "发布失败",
+      "source": "offline.json/publishFail",
+      "title": "4X4 Wheel Loader Backhoe Loader 85KW Diesel Engine Hydraulic Excavator 1.5m Bucket CE Certified Cons…",
+      "sku": "WY-QHCA-LTM-6",
+      "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;",
+      "conclusion": "发布失败 · A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
+      "failure_class": "A",
+      "required_attrs": [],
+      "codes": [
+        "100521"
+      ],
+      "action": "平台审核中：无需改数据，等待最多 48h 后复查（可能自动转在线）",
+      "fields_to_check": [
+        "errMsg 中的 code（100521/90220/8560…）",
+        "errMsg 中的 属性:xxx（缺失属性名）",
+        "errMsg 末尾 Trace_id"
+      ]
+    },
+    {
       "product_id": "220114595363182036",
       "state": "publishFail",
       "state_label": "发布失败",
@@ -894,27 +964,6 @@
       ],
       "codes": [
         "100470",
-        "100521"
-      ],
-      "action": "平台审核中：无需改数据，等待最多 48h 后复查（可能自动转在线）",
-      "fields_to_check": [
-        "errMsg 中的 code（100521/90220/8560…）",
-        "errMsg 中的 属性:xxx（缺失属性名）",
-        "errMsg 末尾 Trace_id"
-      ]
-    },
-    {
-      "product_id": "220114595363181922",
-      "state": "publishFail",
-      "state_label": "发布失败",
-      "source": "offline.json/publishFail",
-      "title": "4WD Backhoe Loader 75 kW HW15-26 Wheel Loader Excavator for Agriculture Municipal Construction CE",
-      "sku": "WY-QHCA-LTM-5",
-      "errMsg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;",
-      "conclusion": "发布失败 · A 类 · 平台审核中（100521，非软件失败，48h 内可能转在线）",
-      "failure_class": "A",
-      "required_attrs": [],
-      "codes": [
         "100521"
       ],
       "action": "平台审核中：无需改数据，等待最多 48h 后复查（可能自动转在线）",

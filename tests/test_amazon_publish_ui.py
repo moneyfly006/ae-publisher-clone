@@ -141,7 +141,7 @@ class ReleaseUiSourceTests(unittest.TestCase):
             encoding="utf-8")
 
     def test_release_labels_present(self):
-        for needle in ("检测连接", "发布前检查", "保存（检查模式）",
+        for needle in ("检测连接", "发布前检查", "保存草稿",
                        "查询发布结果", "自动补齐并重试发布",
                        "发布必填属性", "model_number", "model_name",
                        "part_number", "manufacturer_contact_information"):

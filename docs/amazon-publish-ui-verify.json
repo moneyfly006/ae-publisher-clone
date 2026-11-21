@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T03:38:51+08:00",
+  "generated_at": "2026-11-22T04:09:21+08:00",
   "checks": [
     {
       "name": "契约 §3 函数签名",
@@ -37,9 +37,9 @@
       "detail": "AURORA_TEST → RuntimeError: 当前是预演/验收模式（AURORA_NO_SAVE/AURORA_TEST），已拒绝真实保存；AURORA_NO_SAVE → RuntimeError: 当前是预演/验收模式（AURORA_NO_SAVE/AURORA_TEST），已拒绝真实保存"
     },
     {
-      "name": "UI 检查模式保存按钮拒绝",
+      "name": "UI 护栏保存拒绝",
       "ok": true,
-      "detail": "按钮文案='保存（检查模式）'；状态提示=已显示检查模式拒绝"
+      "detail": "按钮文案='保存到 Amazon'；状态提示=已显示护栏拒绝"
     },
     {
       "name": "13 页关键控件",
@@ -49,7 +49,7 @@
     {
       "name": "全按钮矩阵（Amazon 0/13/10/11）",
       "ok": true,
-      "detail": "69 个可见按钮逐一点击；ERROR=0；含导航/弹窗/状态刷新"
+      "detail": "83 个可见按钮逐一点击；ERROR=0；含导航/弹窗/状态刷新"
     },
     {
       "name": "逻辑：op=1/2/3 分类",
@@ -84,7 +84,7 @@
     {
       "name": "逻辑：publishFail 列表内审核中商品判定（100521→A）",
       "ok": true,
-      "detail": "publishFail 共 25 个，其中 A 类(审核中) 24 个；含 100521 却未归 A 的=0"
+      "detail": "publishFail 共 27 个，其中 A 类(审核中) 26 个；含 100521 却未归 A 的=0"
     },
     {
       "name": "逻辑：AURORA_TEST/AURORA_NO_SAVE 拒绝真实写",
@@ -132,9 +132,9 @@
       "detail": "[('平台审核中', True), ('发布失败', True), ('处理中', True), ('发布成功', True)]；B类缺失属性渲染=True"
     },
     {
-      "name": "UI：检查模式「自动补齐并重试发布」拒绝",
+      "name": "UI：护栏下「自动发布（自动修复）」拒绝",
       "ok": true,
-      "detail": "已提示检查模式拒绝"
+      "detail": "已提示禁止写入平台数据"
     }
   ],
   "button_matrix": {
@@ -145,8 +145,8 @@
         "errors": []
       },
       "13": {
-        "buttons": 32,
-        "ok": 32,
+        "buttons": 46,
+        "ok": 46,
         "errors": []
       },
       "10": {
@@ -628,7 +628,117 @@
         "error": ""
       },
       {
-        "position": 148,
+        "position": 150,
+        "label": "套用",
+        "type": "ElevatedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 151,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 164,
+        "label": "套用",
+        "type": "ElevatedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 165,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 178,
+        "label": "套用",
+        "type": "ElevatedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 179,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 191,
+        "label": "套用",
+        "type": "ElevatedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 192,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 204,
+        "label": "套用",
+        "type": "ElevatedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 205,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 225,
         "label": "刷新运费模板",
         "type": "OutlinedButton",
         "page": 13,
@@ -639,7 +749,18 @@
         "error": ""
       },
       {
-        "position": 166,
+        "position": 230,
+        "label": "AI 生成 SKU",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 245,
         "label": "自动补齐必填属性",
         "type": "OutlinedButton",
         "page": 13,
@@ -650,7 +771,7 @@
         "error": ""
       },
       {
-        "position": 175,
+        "position": 254,
         "label": "查看 productAttr（只读）",
         "type": "TextButton",
         "page": 13,
@@ -661,8 +782,8 @@
         "error": ""
       },
       {
-        "position": 187,
-        "label": "发布前检查（不保存）",
+        "position": 278,
+        "label": "套用",
         "type": "ElevatedButton",
         "page": 13,
         "outcome": "OK",
@@ -672,8 +793,30 @@
         "error": ""
       },
       {
-        "position": 188,
-        "label": "保存（检查模式）",
+        "position": 279,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 280,
+        "label": "复制提示词",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 294,
+        "label": "保存到 Amazon",
         "type": "ElevatedButton",
         "page": 13,
         "outcome": "OK",
@@ -683,7 +826,7 @@
         "error": ""
       },
       {
-        "position": 189,
+        "position": 295,
         "label": "查询发布结果",
         "type": "TextButton",
         "page": 13,
@@ -694,9 +837,20 @@
         "error": ""
       },
       {
-        "position": 190,
+        "position": 296,
         "label": "自动补齐并重试发布",
         "type": "OutlinedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 300,
+        "label": "自动发布（自动修复）",
+        "type": "ElevatedButton",
         "page": 13,
         "outcome": "OK",
         "after": 13,
@@ -952,7 +1106,7 @@
       }
     ],
     "errors": [],
-    "total": 69
+    "total": 83
   },
   "logic_matrix": {
     "rows": [
@@ -989,7 +1143,7 @@
       {
         "name": "publishFail 列表内审核中商品判定（100521→A）",
         "ok": true,
-        "detail": "publishFail 共 25 个，其中 A 类(审核中) 24 个；含 100521 却未归 A 的=0"
+        "detail": "publishFail 共 27 个，其中 A 类(审核中) 26 个；含 100521 却未归 A 的=0"
       },
       {
         "name": "AURORA_TEST/AURORA_NO_SAVE 拒绝真实写",
@@ -1074,16 +1228,16 @@
     ],
     "stale_products": [],
     "live_counts": {
-      "draft": 12,
+      "draft": 10,
       "online": 142,
       "waitPublish": 5,
       "publishing": 0,
-      "publishFail": 25,
-      "publishFail_rows_returned": 25,
+      "publishFail": 27,
+      "publishFail_rows_returned": 27,
       "publishing_rows_returned": 0,
       "leftStat": {
         "waitPublish": "5",
-        "publishFail": "25",
+        "publishFail": "27",
         "publishing": 0
       },
       "leftStat_consistency": {
@@ -1155,7 +1309,7 @@
         }
       },
       {
-        "name": "检查模式重试发布被拒绝",
+        "name": "护栏下自动发布被拒绝",
         "ok": true
       }
     ]

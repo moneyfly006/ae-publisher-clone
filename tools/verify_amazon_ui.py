@@ -299,13 +299,13 @@ def check_write_guards(report: Report) -> None:
                all(ok for ok, _ in results),
                "；".join(detail for _, detail in results))
 
-    # UI 运行期：预演模式下点「保存」必须在调用 pipeline 之前返回。
+    # UI 运行期：安全护栏环境点「保存」必须在调用 pipeline 之前返回（页面无预演字样）。
     from ui_sandbox import build_app, sandbox, walk
     import flet as ft
     from aeclone.services import amazon_pipeline
 
     def boom(*args, **kwargs):
-        raise AssertionError("UI 预演模式不得调用 pipeline.run_amazon_product")
+        raise AssertionError("护栏环境下 UI 不得调用 pipeline.run_amazon_product")
 
     with sandbox():
         app = build_app()
@@ -314,12 +314,10 @@ def check_write_guards(report: Report) -> None:
         save_button = next(
             (control for control in walk(app.content.controls)
              if isinstance(control, (ft.ElevatedButton, ft.OutlinedButton, ft.TextButton))
-             and "保存" in str(getattr(control, "text", "") or "")
-             and ("检查模式" in str(getattr(control, "text", "") or "")
-                  or "预演模式" in str(getattr(control, "text", "") or ""))), None)
+             and "保存到 Amazon" in str(getattr(control, "text", "") or "")), None)
         if save_button is None:
-            report.add("UI 检查模式保存按钮拒绝", False,
-                       "找不到「保存（检查模式）」按钮")
+            report.add("UI 护栏保存拒绝", False,
+                       "找不到「保存到 Amazon」按钮")
             return
         with patch.object(amazon_pipeline, "run_amazon_product", boom), \
              patch.object(amazon_pipeline, "prepare_save", boom):
@@ -333,11 +331,11 @@ def check_write_guards(report: Report) -> None:
                 error = f"{type(exc).__name__}: {exc}"
         texts = [str(getattr(control, "value", "") or "")
                  for control in walk(app.content.controls) if isinstance(control, ft.Text)]
-        rejected = any(("已拒绝真实保存" in text or "检查模式" in text
-                       or "预演模式" in text) for text in texts)
-    report.add("UI 检查模式保存按钮拒绝", ok and rejected,
+        rejected = any(("禁止写入平台数据" in text or "已拒绝真实保存" in text
+                       or "请在正式环境操作" in text) for text in texts)
+    report.add("UI 护栏保存拒绝", ok and rejected,
                f"按钮文案={getattr(save_button, 'text', '')!r}；"
-               f"状态提示={'已显示检查模式拒绝' if rejected else '未显示'}"
+               f"状态提示={'已显示护栏拒绝' if rejected else '未显示'}"
                + (f"；异常={error}" if error else ""))
 
 
@@ -373,11 +371,14 @@ def check_page_controls(report: Report) -> None:
         "5 个卖点输入": all(f"卖点 {index}" in textfields for index in range(1, 6)),
         "＋添加卖点": any("添加卖点" in text for text in button_texts),
         "检测连接": any("检测连接" in text for text in button_texts),
-        "发布前检查": any("发布前检查" in text for text in button_texts),
-        "保存（检查模式/正式）": any("保存" in text for text in button_texts),
+        "自动发布（自动修复）": any("自动发布" in text for text in button_texts),
+        "保存到 Amazon": any("保存到 Amazon" in text for text in button_texts),
         "查询发布结果": any("查询发布结果" in text for text in button_texts),
-        "自动补齐并重试发布": any("自动补齐并重试发布" in text for text in button_texts),
-        "自动补齐必填属性": any("自动补齐必填属性" in text for text in button_texts),
+        "自动补齐必填属性": any("自动补齐" in text for text in button_texts),
+        "自动发布选项（轮数/等待）": (any("最多自动修复轮数" in str(getattr(c, "label", ""))
+                                  for c in controls if isinstance(c, ft.Dropdown))
+                              and any("发布后等待" in str(getattr(c, "label", ""))
+                                      for c in controls if isinstance(c, ft.Dropdown))),
         "发布中/发布失败状态按钮": (any("发布中" in text for text in button_texts)
                               and any("发布失败" in text for text in button_texts)),
         "发布必填属性字段": all(needle in " ".join(textfields) for needle in
@@ -866,6 +867,12 @@ def check_publish_evidence_consistency(report: Report) -> dict:
                   for row in live.get("checklist") or []}
     live_items = {str(row.get("id")): row
                   for row in (live.get("items") or {}).get("publishFail") or []}
+    # checklist 只抽样部分商品；其余可在 publishFail 全量 items 里定位（class/state 同源）
+    for _pid, _row in live_items.items():
+        if _pid not in live_check:
+            live_check[_pid] = {"product_id": _pid, "state": "publishFail",
+                                "class": _row.get("class") or "",
+                                "err_msg": _row.get("errMsg") or ""}
     result["live_counts"] = live.get("counts") or {}
     expected: dict[str, dict] = {}
     for run in lead.get("runs") or []:
@@ -1086,9 +1093,8 @@ def check_publish_ui_mock(report: Report) -> dict:
             # 控件存在（静态渲染）
             values = _visible_values(app)
             controls_ok = all(any(needle in value for value in values) for needle in
-                              ("检测连接", "发布前检查", "查询发布结果",
-                               "自动补齐并重试发布", "发布必填属性",
-                               "发布中", "发布失败"))
+                              ("检测连接", "自动发布", "查询发布结果",
+                               "发布必填属性", "发布中", "发布失败"))
             result["checks"].append({"name": "发布控件齐全", "ok": controls_ok})
             report.add("UI：发布控件齐全（检测连接/发布前检查/查询/重试/属性/状态列表）",
                        controls_ok, "关键发布控件均可见" if controls_ok else "缺少发布控件")
@@ -1121,15 +1127,15 @@ def check_publish_ui_mock(report: Report) -> dict:
                        f"{[(row['needle'], row['ok']) for row in badge_rows]}；"
                        f"B类缺失属性渲染={b_render}")
 
-            # 检查模式下「自动补齐并重试发布」拒绝真实写
+            # 安全护栏下「自动发布（自动修复）」拒绝真实写（页面无预演字样）
             fake.verify_queue = [B_MISSING]
             with _sync_threads():
-                ok, err = _click_button(app, "自动补齐并重试发布")
+                ok, err = _click_button(app, "自动发布")
             texts = " ".join(_visible_values(app))
-            retry_ok = ok and ("检查模式" in texts or "拒绝" in texts)
-            result["checks"].append({"name": "检查模式重试发布被拒绝", "ok": retry_ok})
-            report.add("UI：检查模式「自动补齐并重试发布」拒绝", retry_ok,
-                       "已提示检查模式拒绝" if retry_ok else f"未提示（{err}）")
+            retry_ok = ok and ("禁止写入平台数据" in texts or "拒绝" in texts)
+            result["checks"].append({"name": "护栏下自动发布被拒绝", "ok": retry_ok})
+            report.add("UI：护栏下「自动发布（自动修复）」拒绝", retry_ok,
+                       "已提示禁止写入平台数据" if retry_ok else f"未提示（{err}）")
     return result
 
 

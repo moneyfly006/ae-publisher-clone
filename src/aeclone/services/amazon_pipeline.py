@@ -1,16 +1,21 @@
 """Amazon 刊登流水线（服务层，不含 UI）。
 
 一条链路：读 editSp 详情 → 站点/币种 → 类目校验 →（可选）AI 文案 →
-组装 39 键保存包 → 必填/合规校验 → 违禁词提示 → 预演或保存。
+组装 39 键保存包 → 必填/合规校验 → 违禁词提示 → 保存。
+
+生产用户流程
+------------
+UI 的「保存/发布」应调用 ``services.amazon_auto.auto_publish``（真实发布 + 失败自动修复重发）。
+本模块的 ``dry_run`` 参数仅供测试/内部校验使用；``AURORA_NO_SAVE`` / ``AURORA_TEST``
+仅是 CI 安全护栏（命中时拒绝真实写），生产（无 env）没有预演分支/文案。
 
 安全语义
 --------
-- ``dry_run=True``（默认）绝不调用 ``save_product`` / ``save_to_amazon``；
-- ``AURORA_NO_SAVE`` / ``AURORA_TEST`` 存在时任何真实写都强制降级为预演；
+- ``dry_run=True``（测试内部）绝不调用 ``save_product`` / ``save_to_amazon``；
 - 真实保存必须通过 ``core.guard.require(cfg)``，并统一走
   ``services.amazon_publish.save_to_amazon``（唯一写收口）；
 - 任何异常都转成 ``ok=False`` + 失败步骤，不静默吞掉；
-- AI 失败只记 notes/warnings，不阻断预演（保留手填内容继续校验）。
+- AI 失败只记 notes/warnings，不阻断后续校验（保留手填内容）。
 """
 from __future__ import annotations
 
