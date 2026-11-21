@@ -48,9 +48,20 @@ case 'register': {
     if (strlen($pass) < 6) fail('密码至少 6 位');
     $st = db()->prepare('SELECT id FROM users WHERE email=?'); $st->execute([$email]);
     if ($st->fetch()) fail('邮箱已注册');
-    $st = db()->prepare('INSERT INTO users(email,pass,name,created_at) VALUES(?,?,?,?)');
-    $st->execute([$email, password_hash($pass, PASSWORD_DEFAULT), trim((string)($in['name'] ?? '')), now()]);
-    session_start(); $_SESSION['uid'] = (int)db()->lastInsertId();
+    $need = get_setting('require_verify') === '1';
+    $st = db()->prepare('INSERT INTO users(email,pass,name,verified,created_at) VALUES(?,?,?,?,?)');
+    $st->execute([$email, password_hash($pass, PASSWORD_DEFAULT),
+                  trim((string)($in['name'] ?? '')), $need ? 0 : 1, now()]);
+    $uid = (int)db()->lastInsertId();
+    if ($need) {
+        $code = save_code($email, 'verify');
+        [$ok, $err] = send_code_email($email, $code, 'verify');
+        $data = ['need_verify'=>true, 'email'=>$email];
+        if (get_setting('debug_codes') === '1') $data['debug_code'] = $code;
+        if (!$ok) $data['mail_error'] = $err;
+        out($data);
+    }
+    session_start(); $_SESSION['uid'] = $uid;
     out(['user'=>current_user()]);
 }
 case 'login': {
@@ -58,10 +69,53 @@ case 'login': {
     $st = db()->prepare('SELECT * FROM users WHERE email=?'); $st->execute([$email]);
     $u = $st->fetch(PDO::FETCH_ASSOC);
     if (!$u || !password_verify((string)($in['password'] ?? ''), $u['pass'])) fail('邮箱或密码错误');
+    if ((int)($u['verified'] ?? 1) === 0 && get_setting('require_verify') === '1') {
+        $code = save_code($email, 'verify'); send_code_email($email, $code, 'verify');
+        out(['need_verify'=>true, 'email'=>$email], 0, '需要邮箱验证');
+    }
     session_start(); $_SESSION['uid'] = (int)$u['id'];
     out(['user'=>['id'=>$u['id'],'email'=>$u['email'],'name'=>$u['name']]]);
 }
 case 'logout': { session_start(); session_destroy(); out(['ok'=>true]); }
+
+case 'verify_email': {
+    $in = body(); $email = trim(strtolower((string)($in['email'] ?? '')));
+    if (!check_code($email, (string)($in['code'] ?? ''), 'verify')) fail('验证码错误或已过期');
+    db()->prepare('UPDATE users SET verified=1 WHERE email=?')->execute([$email]);
+    $st = db()->prepare('SELECT * FROM users WHERE email=?'); $st->execute([$email]);
+    $u = $st->fetch(PDO::FETCH_ASSOC);
+    session_start(); $_SESSION['uid'] = (int)$u['id'];
+    out(['user'=>['id'=>$u['id'],'email'=>$u['email'],'name'=>$u['name']]]);
+}
+case 'resend_code': {
+    $in = body(); $email = trim(strtolower((string)($in['email'] ?? '')));
+    $purpose = (string)($in['purpose'] ?? 'verify');
+    $code = save_code($email, $purpose);
+    [$ok, $err] = send_code_email($email, $code, $purpose);
+    $d = ['ok'=>$ok];
+    if (get_setting('debug_codes') === '1') $d['debug_code'] = $code;
+    if (!$ok) $d['error'] = $err;
+    out($d);
+}
+case 'request_reset': {
+    $in = body(); $email = trim(strtolower((string)($in['email'] ?? '')));
+    $st = db()->prepare('SELECT id FROM users WHERE email=?'); $st->execute([$email]);
+    if ($st->fetch()) {
+        $code = save_code($email, 'reset'); send_code_email($email, $code, 'reset');
+        if (get_setting('debug_codes') === '1') out(['ok'=>true, 'debug_code'=>$code]);
+    }
+    out(['ok'=>true]);  // 不暴露邮箱是否存在
+}
+case 'reset_password': {
+    $in = body(); $email = trim(strtolower((string)($in['email'] ?? '')));
+    $pass = (string)($in['password'] ?? '');
+    if (strlen($pass) < 6) fail('密码至少 6 位');
+    if (!check_code($email, (string)($in['code'] ?? ''), 'reset')) fail('验证码错误或已过期');
+    db()->prepare('UPDATE users SET pass=?, verified=1 WHERE email=?')
+        ->execute([password_hash($pass, PASSWORD_DEFAULT), $email]);
+    out(['ok'=>true]);
+}
+
 case 'me': {
     $u = current_user();
     $lic = null;
@@ -201,17 +255,33 @@ case 'admin_settings_get': {
       'epay_type'=>get_setting('epay_type'),
       'allow_mock_pay'=>get_setting('allow_mock_pay'),
       'announcement'=>get_setting('announcement'),
+      'require_verify'=>get_setting('require_verify'),
+      'smtp_host'=>get_setting('smtp_host'),
+      'smtp_port'=>get_setting('smtp_port'),
+      'smtp_user'=>get_setting('smtp_user'),
+      'smtp_pass'=>get_setting('smtp_pass'),
+      'smtp_secure'=>get_setting('smtp_secure'),
+      'smtp_from'=>get_setting('smtp_from'),
+      'debug_codes'=>get_setting('debug_codes'),
     ]]);
 }
 case 'admin_settings_save': {
     require_admin();
     $in = body();
-    foreach (['site_name','epay_gateway','epay_pid','epay_key','epay_type','allow_mock_pay','announcement'] as $k) {
+    foreach (['site_name','epay_gateway','epay_pid','epay_key','epay_type','allow_mock_pay','announcement',
+              'require_verify','smtp_host','smtp_port','smtp_user','smtp_pass','smtp_secure','smtp_from','debug_codes'] as $k) {
         if (array_key_exists($k, $in)) set_setting($k, (string)$in[$k]);
     }
     out(['ok'=>true]);
 }
 
+case 'admin_test_mail': {
+    require_admin(); $in = body(); $to = trim((string)($in['to'] ?? ''));
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) fail('邮箱格式不正确');
+    [$ok, $err] = send_code_email($to, '123456', 'verify');
+    if (!$ok) fail('发送失败：'.$err);
+    out(['ok'=>true]);
+}
 case 'admin_stats': {
     require_admin();
     $db = db();

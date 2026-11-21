@@ -92,6 +92,25 @@ tr:last-child td{border-bottom:none}
       <div class="row" style="margin-top:14px"><button class="btn primary" id="eSave">保存支付设置</button>
         <span class="muted" id="eHint"></span></div>
     </div>
+    <div class="card"><h3>邮箱验证 / 找回密码（SMTP）</h3>
+      <div class="row"><label style="width:110px" class="muted"><input type="checkbox" id="sVerify" style="vertical-align:-2px"> 注册需要邮箱验证</label>
+        <label class="muted"><input type="checkbox" id="sDebug" style="vertical-align:-2px"> 调试：接口返回验证码（仅测试）</label></div>
+      <div class="row" style="margin-top:10px">
+        <label style="width:110px" class="muted">SMTP 主机</label><input id="sHost" placeholder="smtp.exmail.qq.com" style="width:260px">
+        <label class="muted">端口</label><input id="sPort" value="465" style="width:80px">
+        <label class="muted">加密</label><select id="sSecure"><option value="ssl">SSL</option><option value="tls">STARTTLS</option><option value="none">无</option></select>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label style="width:110px" class="muted">SMTP 账号</label><input id="sUser" style="width:260px">
+        <label class="muted">授权码/密码</label><input id="sPass" type="password" style="width:240px">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label style="width:110px" class="muted">发件人</label><input id="sFrom" placeholder="no-reply@yourdomain.com" style="width:300px">
+        <label class="muted">测试收件</label><input id="sTest" placeholder="you@example.com" style="width:220px">
+        <button class="btn" id="sTestBtn">发送测试</button>
+      </div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="sSave">保存邮件设置</button><span class="muted" id="sHint"></span></div>
+    </div>
     <div class="card"><h3>说明</h3>
       <p class="muted">1. 易支付网关地址一般以 <code>/</code> 结尾，例如 https://pay.xxx.com/<br>
       2. 回调地址为 <code id="notifyUrl2"></code>，需在易支付后台允许该域名<br>
@@ -174,6 +193,10 @@ async function loadPay(){
   $('#eGateway').value=d.epay_gateway||''; $('#ePid').value=d.epay_pid||''; $('#eKey').value=d.epay_key||'';
   $('#eType').value=d.epay_type||'alipay'; $('#eMock').checked = d.allow_mock_pay==='1';
   $('#eAnn').value=d.announcement||'';
+  $('#sVerify').checked=d.require_verify==='1'; $('#sDebug').checked=d.debug_codes==='1';
+  $('#sHost').value=d.smtp_host||''; $('#sPort').value=d.smtp_port||'465';
+  $('#sSecure').value=d.smtp_secure||'ssl'; $('#sUser').value=d.smtp_user||'';
+  $('#sPass').value=d.smtp_pass||''; $('#sFrom').value=d.smtp_from||'';
   const u=location.origin+location.pathname.replace('admin.php','pay/notify.php');
   $('#notifyUrl').textContent=u; $('#notifyUrl2').textContent=u;
 }
@@ -183,6 +206,21 @@ $('#eSave') && ($('#eSave').onclick=async()=>{
     announcement:$('#eAnn').value.trim()});
   $('#eHint').textContent=r.code===0?'已保存':'保存失败：'+r.msg;
   $('#eHint').style.color=r.code===0?'var(--accent)':'var(--danger)';
+});
+$('#sSave') && ($('#sSave').onclick=async()=>{
+  const r=await api('admin_settings_save',{require_verify:$('#sVerify').checked?'1':'0',
+    debug_codes:$('#sDebug').checked?'1':'0', smtp_host:$('#sHost').value.trim(),
+    smtp_port:$('#sPort').value.trim(), smtp_secure:$('#sSecure').value,
+    smtp_user:$('#sUser').value.trim(), smtp_pass:$('#sPass').value,
+    smtp_from:$('#sFrom').value.trim()});
+  $('#sHint').textContent=r.code===0?'已保存':'保存失败：'+r.msg;
+  $('#sHint').style.color=r.code===0?'var(--accent)':'var(--danger)';
+});
+$('#sTestBtn') && ($('#sTestBtn').onclick=async()=>{
+  $('#sHint').textContent='发送中…'; $('#sHint').style.color='var(--muted)';
+  const r=await api('admin_test_mail',{to:$('#sTest').value.trim()});
+  $('#sHint').textContent=r.code===0?'测试邮件已发送':('发送失败：'+r.msg);
+  $('#sHint').style.color=r.code===0?'var(--accent)':'var(--danger)';
 });
 async function loadLic(){const r=await api('admin_licenses');const t=$('#licTable');
   t.innerHTML='<tr><th>ID</th><th>用户</th><th>机器码</th><th>平台</th><th>到期</th><th>状态</th><th>操作</th></tr>'+

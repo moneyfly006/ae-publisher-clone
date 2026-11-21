@@ -37,6 +37,10 @@ function db(): PDO {
     $pdo->exec("CREATE TABLE IF NOT EXISTS settings(k TEXT PRIMARY KEY, v TEXT)");
     // 兼容旧库：设备解绑时间字段
     try { $pdo->exec('ALTER TABLE licenses ADD COLUMN last_unbind INTEGER DEFAULT 0'); } catch (Exception $e) {}
+    try { $pdo->exec('ALTER TABLE users ADD COLUMN verified INTEGER DEFAULT 1'); } catch (Exception $e) {}
+    $pdo->exec("CREATE TABLE IF NOT EXISTS email_codes(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL, code TEXT NOT NULL,
+      purpose TEXT NOT NULL, expires INTEGER NOT NULL, used INTEGER DEFAULT 0, created_at INTEGER NOT NULL)");
     $n = (int)$pdo->query('SELECT COUNT(*) FROM packages')->fetchColumn();
     if ($n === 0) {
         $now = time();
@@ -162,6 +166,10 @@ function setting_defaults(): array {
       'epay_type' => $c['epay_type'],
       'allow_mock_pay' => $c['allow_mock_pay'] ? '1' : '0',
       'announcement' => '',
+      'require_verify' => '0',
+      'smtp_host' => '', 'smtp_port' => '465', 'smtp_user' => '',
+      'smtp_pass' => '', 'smtp_secure' => 'ssl', 'smtp_from' => '',
+      'debug_codes' => '0',
     ];
 }
 
@@ -188,3 +196,97 @@ function effective_epay(): array {
     ];
 }
 
+// ---------- 邮件 ----------
+function smtp_send(string $to, string $subject, string $body): array {
+    $host = trim(get_setting('smtp_host'));
+    if (!$host) return [false, '未配置 SMTP'];
+    $port = (int)get_setting('smtp_port', '465');
+    $user = get_setting('smtp_user');
+    $pass = get_setting('smtp_pass');
+    $secure = get_setting('smtp_secure', 'ssl');
+    $from = get_setting('smtp_from') ?: $user;
+    $remote = ($secure === 'ssl' ? 'ssl://' : '').$host.':'.$port;
+    $ctx = stream_context_create(['ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
+    $fp = @stream_socket_client($remote, $errno, $errstr, 12, STREAM_CLIENT_CONNECT, $ctx);
+    if (!$fp) return [false, "连接失败：$errstr"];
+    $read = function() use ($fp) {
+        $data = '';
+        while (($line = fgets($fp, 515)) !== false) {
+            $data .= $line;
+            if (isset($line[3]) && $line[3] === ' ') break;
+        }
+        return $data;
+    };
+    $cmd = function(string $c, string $expect = '2') use ($fp, $read) {
+        fwrite($fp, $c."\r\n");
+        $r = $read();
+        return strpos($r, $expect) === 0 ? [true, $r] : [false, $r];
+    };
+    $read();
+    [$ok, $r] = $cmd('EHLO auroralist', '2');
+    if (!$ok) { fclose($fp); return [false, "EHLO 失败"]; }
+    if ($secure === 'tls') {
+        [$ok] = $cmd('STARTTLS', '2');
+        if (!$ok) { fclose($fp); return [false, 'STARTTLS 失败']; }
+        stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        [$ok] = $cmd('EHLO auroralist', '2');
+        if (!$ok) { fclose($fp); return [false, 'EHLO(TLS) 失败']; }
+    }
+    if ($user) {
+        [$ok] = $cmd('AUTH LOGIN', '3');
+        if (!$ok) { fclose($fp); return [false, 'AUTH 失败']; }
+        [$ok] = $cmd(base64_encode($user), '3');
+        if (!$ok) { fclose($fp); return [false, '用户名失败']; }
+        [$ok] = $cmd(base64_encode($pass), '2');
+        if (!$ok) { fclose($fp); return [false, '密码失败']; }
+    }
+    [$ok] = $cmd('MAIL FROM:<'.$from.'>', '2');
+    if (!$ok) { fclose($fp); return [false, 'MAIL FROM 失败']; }
+    [$ok] = $cmd('RCPT TO:<'.$to.'>', '2');
+    if (!$ok) { fclose($fp); return [false, 'RCPT TO 失败']; }
+    [$ok] = $cmd('DATA', '3');
+    if (!$ok) { fclose($fp); return [false, 'DATA 失败']; }
+    $headers = 'From: AuroraList <'.$from.'>'."\r\n"
+        .'To: <'.$to.'>'."\r\n"
+        .'Subject: =?UTF-8?B?'.base64_encode($subject).'?='."\r\n"
+        .'MIME-Version: 1.0'."\r\n"
+        .'Content-Type: text/plain; charset=UTF-8'."\r\n"
+        .'Content-Transfer-Encoding: base64'."\r\n\r\n";
+    fwrite($fp, $headers.chunk_split(base64_encode($body))."\r\n.\r\n");
+    $read();
+    fclose($fp);
+    return [true, ''];
+}
+
+function send_code_email(string $email, string $code, string $purpose): array {
+    $titles = ['verify'=>'注册验证码', 'reset'=>'找回密码验证码'];
+    $subject = 'AuroraList 授权中心 · '.($titles[$purpose] ?? '验证码');
+    $body = "你的验证码是：$code\n有效期 10 分钟。如果不是本人操作请忽略。";
+    [$ok, $err] = smtp_send($email, $subject, $body);
+    if (!$ok) {
+        // 兜底：PHP mail()
+        $ok = @mail($email, $subject, $body,
+            'From: '.get_setting('smtp_from','no-reply@auroralist.local')."\r\nContent-Type: text/plain; charset=UTF-8");
+        if (!$ok) return [false, $err ?: '邮件发送失败'];
+    }
+    return [true, ''];
+}
+
+function make_code(): string { return (string)random_int(100000, 999999); }
+
+function save_code(string $email, string $purpose): string {
+    $code = make_code();
+    db()->prepare('UPDATE email_codes SET used=1 WHERE email=? AND purpose=? AND used=0')->execute([$email, $purpose]);
+    db()->prepare('INSERT INTO email_codes(email,code,purpose,expires,created_at) VALUES(?,?,?,?,?)')
+        ->execute([$email, $code, $purpose, now()+600, now()]);
+    return $code;
+}
+
+function check_code(string $email, string $code, string $purpose): bool {
+    $st = db()->prepare('SELECT * FROM email_codes WHERE email=? AND code=? AND purpose=? AND used=0 ORDER BY id DESC LIMIT 1');
+    $st->execute([$email, $code, $purpose]);
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$r || (int)$r['expires'] < now()) return false;
+    db()->prepare('UPDATE email_codes SET used=1 WHERE id=?')->execute([$r['id']]);
+    return true;
+}

@@ -104,9 +104,17 @@ code{background:var(--card2);padding:2px 7px;border-radius:6px;font-size:12px;wo
       <div class="field"><label>邮箱</label><input id="aEmail" placeholder="you@example.com" autocomplete="email"></div>
       <div class="field"><label>密码</label><input id="aPass" type="password" placeholder="至少 6 位" autocomplete="current-password"></div>
       <div class="field" id="nameField" style="display:none"><label>称呼（可选）</label><input id="aName" placeholder="公司 / 称呼"></div>
+      <div class="field" id="codeField" style="display:none"><label>邮箱验证码</label>
+        <div style="display:flex;gap:8px"><input id="aCode" placeholder="6 位验证码" style="flex:1">
+          <button class="btn small" id="aSendCode" type="button">发送验证码</button></div></div>
+      <div class="field" id="newPassField" style="display:none"><label>新密码</label><input id="aNewPass" type="password" placeholder="至少 6 位"></div>
       <button class="btn primary" id="aSubmit" style="width:100%;justify-content:center;margin-top:6px">登录</button>
       <div class="err" id="aErr"></div>
-      <div class="hint" style="margin-top:14px">登录后即可购买套餐；已有授权可在这里绑定/解绑设备。</div>
+      <div class="row" style="margin-top:12px;justify-content:space-between">
+        <a class="muted" id="aForgot" style="cursor:pointer;font-size:12.5px">忘记密码？</a>
+        <a class="muted" id="aBack" style="cursor:pointer;font-size:12.5px;display:none">返回登录</a>
+      </div>
+      <div class="hint" id="authHint" style="margin-top:10px">登录后即可购买套餐；已有授权可在这里绑定/解绑设备。</div>
     </div>
   </div>
   <div style="padding:6px 0 46px">
@@ -201,19 +209,48 @@ api('site').then(r=>{ if(r.code===0){ const d=r.data||{};
   if(d.announcement){ $('#ann').textContent=d.announcement; $('#ann').style.display='inline-block'; } }});
 
 /* 登录/注册 */
-document.querySelectorAll('.auth-tab').forEach(t=>t.onclick=()=>{
-  AUTH_MODE=t.dataset.mode;
-  document.querySelectorAll('.auth-tab').forEach(x=>x.classList.toggle('on',x===t));
-  $('#nameField').style.display=AUTH_MODE==='register'?'block':'none';
-  $('#aSubmit').textContent=AUTH_MODE==='register'?'注册并登录':'登录';
-});
-$('#aSubmit').onclick=async()=>{
-  const email=$('#aEmail').value.trim(), password=$('#aPass').value;
-  if(!email||!password){$('#aErr').textContent='请填写邮箱和密码';return;}
-  const r=await api(AUTH_MODE,{email,password,name:$('#aName').value.trim()});
+function setMode(m){
+  AUTH_MODE=m;
+  const isLogin=m==='login', isReg=m==='register', isVerify=m==='verify', isReset=m==='reset';
+  document.querySelectorAll('.auth-tab').forEach(x=>x.classList.toggle('on',
+    (x.dataset.mode==='login'&&isLogin)||(x.dataset.mode==='register'&&isReg)));
+  $('#nameField').style.display=isReg?'block':'none';
+  $('#codeField').style.display=(isVerify||isReset)?'block':'none';
+  $('#newPassField').style.display=isReset?'block':'none';
+  $('#aPass').parentElement.style.display=(isVerify||isReset)?'none':'block';
+  $('#aSubmit').textContent=isLogin?'登录':isReg?'注册并登录':isVerify?'验证并登录':'重置密码';
+  $('#aForgot').style.display=isLogin?'inline':'none';
+  $('#aBack').style.display=(isVerify||isReset)?'inline':'none';
+  $('#authHint').textContent=isVerify?'验证码已发送到邮箱，10 分钟内有效':
+    isReset?'输入邮箱验证码并设置新密码':'登录后即可购买套餐；已有授权可在这里绑定/解绑设备。';
+  $('#aErr').textContent='';
+}
+document.querySelectorAll('.auth-tab').forEach(t=>t.onclick=()=>setMode(t.dataset.mode));
+$('#aForgot').onclick=()=>setMode('reset');
+$('#aBack').onclick=()=>setMode('login');
+$('#aSendCode').onclick=async()=>{
+  const email=$('#aEmail').value.trim();
+  if(!email){$('#aErr').textContent='先填邮箱';return;}
+  const purpose=AUTH_MODE==='reset'?'reset':'verify';
+  const r=await api('resend_code',{email,purpose});
   if(r.code!==0){$('#aErr').textContent=r.msg;return;}
+  $('#aErr').style.color='var(--accent)';
+  $('#aErr').textContent=r.data?.debug_code?('验证码（调试）：'+r.data.debug_code):'验证码已发送，请查收邮件';
+};
+$('#aSubmit').onclick=async()=>{
+  const email=$('#aEmail').value.trim();
+  if(!email){$('#aErr').textContent='请填写邮箱';return;}
+  let r;
+  if(AUTH_MODE==='login'){ r=await api('login',{email,password:$('#aPass').value}); }
+  else if(AUTH_MODE==='register'){ r=await api('register',{email,password:$('#aPass').value,name:$('#aName').value.trim()}); }
+  else if(AUTH_MODE==='verify'){ r=await api('verify_email',{email,code:$('#aCode').value.trim()}); }
+  else { r=await api('reset_password',{email,code:$('#aCode').value.trim(),password:$('#aNewPass').value}); }
+  if(r.code!==0){$('#aErr').style.color='var(--danger)';$('#aErr').textContent=r.msg;return;}
+  if(r.data?.need_verify){ setMode('verify'); if(r.data.debug_code){$('#aErr').style.color='var(--accent)';$('#aErr').textContent='验证码（调试）：'+r.data.debug_code;} return; }
+  if(AUTH_MODE==='reset'){ setMode('login'); $('#aErr').style.color='var(--accent)'; $('#aErr').textContent='密码已重置，请登录'; return; }
   $('#aErr').textContent=''; await boot();
 };
+setMode('login');
 $('#aPass').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#aSubmit').click(); });
 
 $('#navAuth').onclick=()=>{ if(ME){ logout(); } else { $('#landing').scrollIntoView({behavior:'smooth'}); } };

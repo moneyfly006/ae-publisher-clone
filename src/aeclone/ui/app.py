@@ -28,6 +28,7 @@ from ..services.scheduler import Scheduler
 from .navigation import DESTINATIONS, destination
 from ..licensing import load_entitlements
 from ..platforms import PLATFORMS, get_platform
+from ..services.heartbeat import HeartbeatLoop
 
 ACCENT, ACCENT_2 = "#58C9B7", "#58C9B7"
 INFO_C, DANGER_C, WARN_C, SUCCESS_C = "#80BCF4", "#FF9298", "#EAC078", "#58C9B7"
@@ -885,6 +886,18 @@ class App:
                 self.scheduler.start(self._run_scheduled)
         except Exception as ex:
             self._log(f"调度器启动失败：{ex}", "WARN")
+        def _start_heartbeat():
+            try:
+                if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
+                    return
+                if getattr(self, "_heartbeat", None) is None:
+                    self._heartbeat = HeartbeatLoop(self._heartbeat_payload,
+                                                    interval=int(getattr(self.cfg, "heartbeat_interval", 120) or 120))
+                    self._heartbeat.start()
+            except Exception as ex:
+                self._log(f"心跳线程启动失败：{ex}", "WARN")
+        threading.Thread(target=_start_heartbeat, daemon=True).start()
+
         def _detect_cookie():
             try:
                 from ..integrations.browser_cookies import describe, resolve
@@ -9440,6 +9453,32 @@ class App:
                 self._log(f"授权登录窗口异常：{ex}", "WARN")
             except Exception:
                 pass
+
+    def _heartbeat_payload(self):
+        """(server, machine, payload)：平台状态 + 最近刊登产品。"""
+        try:
+            from ..license import machine_code as _mc
+            machine = _mc()
+        except Exception:
+            machine = str(getattr(self.cfg, "license_identity", "") or "")
+        server = str(getattr(self.cfg, "license_server", "") or "")
+        running = bool(getattr(self, "_running", False))
+        plats = {}
+        for pid in self.entitlements.platforms_list():
+            plats[pid] = {"status": "运行中" if running else "空闲",
+                          "today": int(getattr(self, "_today_processed", 0) or 0)}
+        products = []
+        for p in list(getattr(self, "products", []) or [])[-12:]:
+            if not isinstance(p, dict):
+                continue
+            title = str(p.get("title") or p.get("subject") or p.get("name") or "")[:120]
+            if not title:
+                continue
+            products.append({"platform": self.active_platform.id,
+                             "title": title,
+                             "status": str(p.get("status") or p.get("dxm_state") or "处理中"),
+                             "updated": time.strftime("%Y-%m-%d %H:%M")})
+        return server, machine, {"platforms": plats, "products": products}
 
     def _refresh_platform_license(self):
         """向授权网站拉取平台+功能包 token；失败保留缓存，不阻塞界面。"""

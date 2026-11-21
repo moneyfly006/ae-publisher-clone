@@ -97,6 +97,7 @@
  "freight_template": "",
  "generate_main_video": false,
  "goods_cost": "",
+ "heartbeat_interval": 120,
  "high_concerned_chemical": "否",
  "host_keep_days": 1,
  "image_ai_jobs": "[{\"group\": \"main\", \"index\": 1, \"refs\": \"\", \"prompt\": \"基于上传的图片融合生成专业电商主图。\\n生成要求：\\n1. 主体清晰突出，构图饱满平衡\\n2. 纯白或浅灰背景，突出商品\\n3. 柔和自然光，无突兀阴影\\n4. 不添加任何文字，去除logo、水印\\n5. 一个欧洲面孔的美女正在操作机器，旁边有两个工人辅助\", \"mode\": \"edit\", \"count\": 1, \"insert\": \"first\", \"preset\": \"自定义\", \"ref_paths\": []}]",
