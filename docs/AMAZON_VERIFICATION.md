@@ -17,6 +17,7 @@
 | AI 提示词预设库（task-14） | **25/25 PASS**；50 个预设（title 10/bullets 7/description 7/search_terms 6/sku 6/image 14）；合规扫描 0 未豁免命中 | `docs/amazon-presets-verification.json`（generated_at `2026-11-22T03:47:47+08:00`） |
 | 去预演 + 自动发布（task-17） | **37/37 PASS**；页面无预演痕迹；auto_publish 8 场景/政策 14 项/UI 7 项全 PASS；Lead 证据 2 商品 reviewing 已提交 | `docs/amazon-auto-publish-audit.json`（generated_at `2026-11-22T04:04:48+08:00`） |
 | Amazon 登录页新 7 卡布局（task-20） | **layout 30/30 + 预设 27/27 + 隔离 82/82 PASS**；7 卡顺序/步骤条/控件归属正确；回归 399 用例全 PASS | `docs/amazon-publish-ui-verify.json`、`docs/amazon-presets-verification.json`、`docs/amazon-platform-isolation.json` |
+| 左侧导航拆分（task-22） | **导航 35/35 + 预设 29/29 + 隔离 85/85 PASS**；10 可见入口/6 分组/13 隐藏路由 7 卡；7 张新页截图 | `docs/amazon-publish-ui-verify.json`、`docs/amazon-presets-verification.json`、`docs/amazon-platform-isolation.json`、`docs/design/amazon-nav-manifest.json` |
 | Amazon 测试（8 文件 194 用例） | **194/194 OK**（`AURORA_TEST=1`） | `tests/test_amazon_*.py` |
 | 离线契约测试 | **27/27 OK** | `tests/test_amazon_contract.py` |
 | 平台隔离审计（task-6 独立实现） | **79/79 PASS**（含 ⌘F 修复后复验；隐藏过头=0 / 隐藏不足=0） | `docs/amazon-platform-isolation.json` |
@@ -326,6 +327,8 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 | `docs/design/amazon-auto-publish.png` | 13 页自动发布卡截图（244,962 B） |
 | `docs/design/amazon-listing-page.png` | 新 7 卡布局首屏（334,806 B） |
 | `docs/design/amazon-listing-new-layout.png` | 新 7 卡整页长图（1560×5,119） |
+| `docs/design/amazon-nav-*.png`（15–21） | 左侧导航拆分后 7 个功能页截图 |
+| `docs/design/amazon-nav-manifest.json` | 7 页截图清单（尺寸/字节/sha256） |
 | `docs/design/amazon-listing-page.png` | 13 页顶部截图（274,162 B） |
 | `docs/design/amazon-listing-page-2-price-preview.png` | 13 页价格/预演截图（263,971 B） |
 | `docs/design/amazon-listing-page-3-save.png` | 13 页底部截图（265,636 B） |
@@ -764,3 +767,75 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
   1. 整页长图较高（5,119px），部分 Markdown 预览器会自动缩略；文件本身未截断，可按需查看原图。
   2. ⑤ 文案卡内 6 个预设「套用/恢复」按钮同名，自动化按控件位置断言归属；人工操作按卡片分区无误。
   3. 图片提示词输入框 label 仍为「图片提示词提示词（可编辑…）」（历史小瑕疵，建议改「图片提示词（可编辑…）」）。
+
+
+
+---
+
+## 15. 左侧导航按功能拆分（task-22）
+
+### 15.1 新导航结构（渲染实测）
+
+| 分组 | 页面 |
+|---|---|
+| 工作空间 | 0 概览 |
+| 商品准备 | **15 连接与店铺 / 16 采集箱商品 / 17 站点与类目 / 18 商品信息** |
+| 内容处理 | **19 文案与 AI / 20 AI 图片** |
+| 发布与运行 | **21 发布与结果** |
+| 运行 | 10 任务与日志 |
+| 工具 | 11 设置 |
+
+- 左侧导航共 **10 个可见入口**（顺序：0→15→16→17→18→19→20→21→10→11），6 个分组归属正确。
+- **13「Amazon 刊登」不在左侧导航**：`PageItem(13, group="__internal__")`，`Platform.groups()` 过滤；
+  `_switch(13)` 仍渲染完整 7 卡工作台（旧测试/深链兼容）。
+- **15–21 每页只渲染对应单卡** + 页头引导（如 `① 连接与店铺：…`）+ 上下文行
+  （`当前商品 / 当前站点 / 当前类目`）；7 页均无其它卡标题泄漏。
+- 其它平台（Alibaba/AliExpress/TikTok/Shopee）页面集合/导航未变，全部页面可渲染。
+
+### 15.2 审计工具更新
+
+| 工具 | 更新 | 结果 |
+|---|---|---|
+| `tools/verify_amazon_ui.py` | 新增 6 项导航断言：10 入口/顺序、6 分组归属、13 不在导航（`__internal__`）、15–21 每页单卡+页头+上下文、隐藏路由 13 完整 7 卡；正式版扫描扩展到新导航页 | **35/35 PASS** |
+| `tools/verify_amazon_platform_isolation.py` | Amazon 页面清单改为 0/15–21/10/11 + 隐藏 13；新增导航/分组/单卡断言；其它平台隔离断言不变 | **85/85 PASS** |
+| `tools/verify_amazon_presets.py` | 新增：19 页仅文案预设（无图片预设）、20 页仅图片预设（无文案预设）；13 深链兼容保留 | **29/29 PASS** |
+| `tools/button_audit.py` | 复核 Lead 动态 Amazon 可见页实现：`_amz_visible = pages where not group.startswith("_")`，覆盖 0/10/11/15–21（13 不入导航）；无重复/漏页 | **27 页/629 回调 ERROR 0** |
+| `tests/test_amazon_ui_page.py`（34）/`test_amazon_platform_ui_filter.py`（11） | UI 团队已先更新导航断言；本 verifier 复核其含入口顺序/分组/隐藏 13/每页单卡/过滤搜索断言，未重复改冲突 | 34/34、11/11（其中 ui_page 1 项见 P1 外部配置） |
+
+### 15.3 截图（7 张新页 + 清单）
+
+| 页面 | 截图 |
+|---|---|
+| 15 连接与店铺 | `docs/design/amazon-nav-15-connection.png` |
+| 16 采集箱商品 | `docs/design/amazon-nav-16-products.png` |
+| 17 站点与类目 | `docs/design/amazon-nav-17-category.png` |
+| 18 商品信息 | `docs/design/amazon-nav-18-product-info.png` |
+| 19 文案与 AI | `docs/design/amazon-nav-19-copy-ai.png` |
+| 20 AI 图片 | `docs/design/amazon-nav-20-ai-image.png` |
+| 21 发布与结果 | `docs/design/amazon-nav-21-publish.png` |
+
+- 7 张均 1560×2200 非空；清单/字节/尺寸/sha256 前缀见
+  `docs/design/amazon-nav-manifest.json`（generated_at `2026-11-22T13:25:57+08:00`）。
+- 13 内部 7 卡工作台的整页长图仍为 `docs/design/amazon-listing-new-layout.png`（task-20）。
+- 正式版文案扫描（含新导航页）：无 AURORA_/预演/本地验收/测试连接/沙箱/mock 泄漏。
+
+### 15.4 回归与 P0/P1/P2
+
+- 导航专项：`verify_amazon_ui` **35/35**、`verify_amazon_presets` **29/29**、
+  `verify_amazon_platform_isolation` **85/85**、button_audit **27 页/629 回调 ERROR 0**。
+- `test_ui_redesign`：20/20 PASS；`test_amazon_platform_ui_filter`：11/11 PASS。
+- `tests/test_amazon_*.py`（15 文件，402 用例）：**400 PASS / 2 FAIL**（见 P1，根因同一外部配置）；
+  `tools/test_offline.py`：959 tests / 3 FAIL（上述 2 项 + TikTok 外部 WIP 1 项）。
+- **P0：无。**
+- **P1（外部配置问题，非导航缺陷）**：
+  `assets/preset_defaults.json` 把 `amazon_use_ai` 设为 `true`，覆盖了 `config.py` DEFAULTS 的
+  `False`，导致：
+  1. `tests/test_amazon_pipeline.py::test_config_defaults_present` 断言 `cfg.amazon_use_ai is False`
+     失败；
+  2. `tests/test_amazon_ui_page.py::test_ai_generation_needs_switch_then_fills_fields` 因 AI 默认
+     开启，点「AI 生成标题」不再弹「开关」提示而失败。
+  建议：由 preset/测试 owner 对齐（改 preset 回 false，或更新测试期望），与本任务导航改动无关。
+- **P2**：
+  1. `test_offline` 另 1 个失败 `test_tiktok_ui_page` 属外部 TikTok 并发 WIP（非 Amazon）。
+  2. 13 号页保留为内部深链（不在导航），旧链接/测试仍可访问；后续若无深链需求可考虑移除。
+  3. 导航搜索/快捷键仍按当前平台可见页工作，隐藏 13 不参与搜索。

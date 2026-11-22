@@ -1,0 +1,1504 @@
+{
+  "generated_at": "2026-11-22T03:37:58+08:00",
+  "task": "task-6 Amazon 缺失发布必填属性自动补齐（多商品真实回归）",
+  "account": "QINGHEMAOYI",
+  "shop_id": "9408005",
+  "read_only": true,
+  "write_endpoints_never_called": true,
+  "cookie": {
+    "path": ".tmp-probe/cookies.txt",
+    "content_logged": false
+  },
+  "config": {
+    "amazon_autofill_attrs": true,
+    "amazon_autofill_attrs_source": "cfg 未配置时按默认 True；config.py DEFAULTS 由 Lead 补充",
+    "amazon_manufacturer_contact": "",
+    "note": "补齐只写 payload.productAttr；不调用任何平台写接口"
+  },
+  "required_common": [
+    "model_number",
+    "part_number",
+    "model_name",
+    "manufacturer_contact_information"
+  ],
+  "products": [
+    {
+      "product_id": "220114595363181982",
+      "row_sku": "WY-QHCA-LTM-4",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Heavy Duty 4WD Articulated Backhoe Loader Hydraulic Wheel Excavator with Reinforced Chassis for Road Subgrade Earthwork",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "OUTDOOR_LIVING",
+      "category_id": "6257559011",
+      "category_path": "6299024011/6257556011/6257557011/6257559011",
+      "sku": "WY-QHCA-LTM-4",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Heavy Duty 4WD Articulated Backhoe Loader Hydraulic Wheel Excavator with Reinforced Chassis for Road Subgrade Earthwork",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "contains_liquid_contents",
+        "country_of_origin",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "is_assembly_required",
+        "is_expiration_dated_product",
+        "item_dimensions",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "list_price",
+        "main_product_image_locator",
+        "manufacturer",
+        "merchant_shipping_group",
+        "number_of_boxes",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "power_source_type",
+        "product_description",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-LTM-4",
+        "part_number": "WY-QHCA-LTM-4",
+        "model_name": "WY-QHCA-LTM-4",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-LTM-4",
+        "part_number": "WY-QHCA-LTM-4",
+        "model_name": "WY-QHCA-LTM-4",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 35,
+      "prepare_save_issues": [],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-LTM-4、part_number=WY-QHCA-LTM-4、model_name=WY-QHCA-LTM-4、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595363181900",
+      "row_sku": "WY-QHCA-LTM-6",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "4X4 Wheel Loader Backhoe Loader 85KW Diesel Engine Hydraulic Excavator 1.5m Bucket CE Certified Construction Landscaping",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "OUTDOOR_LIVING",
+      "category_id": "13553005011",
+      "category_path": "6299024011/6256963011/6256964011/13553005011",
+      "sku": "WY-QHCA-LTM-6",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "4X4 Wheel Loader Backhoe Loader 85KW Diesel Engine Hydraulic Excavator 1.5m Bucket CE Certified Construction Landscaping",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "contains_liquid_contents",
+        "country_of_origin",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "is_assembly_required",
+        "is_expiration_dated_product",
+        "item_dimensions",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "main_product_image_locator",
+        "manufacturer",
+        "merchant_shipping_group",
+        "number_of_boxes",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "power_source_type",
+        "product_description",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-LTM-6",
+        "part_number": "WY-QHCA-LTM-6",
+        "model_name": "WY-QHCA-LTM-6",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-LTM-6",
+        "part_number": "WY-QHCA-LTM-6",
+        "model_name": "WY-QHCA-LTM-6",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 34,
+      "prepare_save_issues": [
+        "产品描述含促销/联系方式/绝对化词：电话"
+      ],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-LTM-6、part_number=WY-QHCA-LTM-6、model_name=WY-QHCA-LTM-6、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595363181652",
+      "row_sku": "WY-QHCA-LTM-7",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "New Epa Farm Backhoe Excavator Mini Retroexcavadora 4x4 Front End Diesel Backhoe Loader",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "OUTDOOR_LIVING",
+      "category_id": "13553005011",
+      "category_path": "6299024011/6256963011/6256964011/13553005011",
+      "sku": "WY-QHCA-LTM-7",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "New Epa Farm Backhoe Excavator Mini Retroexcavadora 4x4 Front End Diesel Backhoe Loader",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "contains_liquid_contents",
+        "country_of_origin",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "is_assembly_required",
+        "is_expiration_dated_product",
+        "item_dimensions",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "main_product_image_locator",
+        "manufacturer",
+        "merchant_shipping_group",
+        "number_of_boxes",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "power_source_type",
+        "product_description",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-LTM-7",
+        "part_number": "WY-QHCA-LTM-7",
+        "model_name": "WY-QHCA-LTM-7",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-LTM-7",
+        "part_number": "WY-QHCA-LTM-7",
+        "model_name": "WY-QHCA-LTM-7",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 34,
+      "prepare_save_issues": [],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-LTM-7、part_number=WY-QHCA-LTM-7、model_name=WY-QHCA-LTM-7、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595363181578",
+      "row_sku": "WY-QHCA-LTM-8",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Construction 4x4 Articulated Backhoe Loader Wheeled Digger for Land Leveling, Earthmoving and Storm Water Pipe Laying",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "OUTDOOR_LIVING",
+      "category_id": "13553005011",
+      "category_path": "6299024011/6256963011/6256964011/13553005011",
+      "sku": "WY-QHCA-LTM-8",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Construction 4x4 Articulated Backhoe Loader Wheeled Digger for Land Leveling, Earthmoving and Storm Water Pipe Laying",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "contains_liquid_contents",
+        "country_of_origin",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "is_assembly_required",
+        "is_expiration_dated_product",
+        "item_dimensions",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "main_product_image_locator",
+        "manufacturer",
+        "merchant_shipping_group",
+        "number_of_boxes",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "power_source_type",
+        "product_description",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-LTM-8",
+        "part_number": "WY-QHCA-LTM-8",
+        "model_name": "WY-QHCA-LTM-8",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-LTM-8",
+        "part_number": "WY-QHCA-LTM-8",
+        "model_name": "WY-QHCA-LTM-8",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 34,
+      "prepare_save_issues": [],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-LTM-8、part_number=WY-QHCA-LTM-8、model_name=WY-QHCA-LTM-8、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595363181530",
+      "row_sku": "WY-QHCA-LTM-9",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "VIFT Brand Earth-moving Machinery Mini Tractor 4WD Backhoe Loader Excavator for Sale",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "OUTDOOR_LIVING",
+      "category_id": "13553005011",
+      "category_path": "6299024011/6256963011/6256964011/13553005011",
+      "sku": "WY-QHCA-LTM-9",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "VIFT Brand Earth-moving Machinery Mini Tractor 4WD Backhoe Loader Excavator for Sale",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "contains_liquid_contents",
+        "country_of_origin",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "is_assembly_required",
+        "is_expiration_dated_product",
+        "item_dimensions",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "main_product_image_locator",
+        "manufacturer",
+        "merchant_shipping_group",
+        "number_of_boxes",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "power_source_type",
+        "product_description",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-LTM-9",
+        "part_number": "WY-QHCA-LTM-9",
+        "model_name": "WY-QHCA-LTM-9",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-LTM-9",
+        "part_number": "WY-QHCA-LTM-9",
+        "model_name": "WY-QHCA-LTM-9",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 34,
+      "prepare_save_issues": [
+        "标题含促销/联系方式/绝对化词：sale",
+        "产品描述含促销/联系方式/绝对化词：best"
+      ],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-LTM-9、part_number=WY-QHCA-LTM-9、model_name=WY-QHCA-LTM-9、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595363181466",
+      "row_sku": "WY-QHCA-LTM-10",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Hydraulic Backhoe Loader 2870kg 1500mm Dig Depth 0.08m³ Excavator Bucket Wheel Loader Backhoe for Garden Landscaping",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "LAWN_MOWER",
+      "category_id": "6257315011",
+      "category_path": "6299024011/6257267011/6257314011/6257315011",
+      "sku": "WY-QHCA-LTM-10",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Hydraulic Backhoe Loader 2870kg 1500mm Dig Depth 0.08m³ Excavator Bucket Wheel Loader Backhoe for Garden Landscaping",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "is_assembly_required",
+        "item_name",
+        "item_package_quantity",
+        "list_price",
+        "main_product_image_locator",
+        "manufacturer",
+        "merchant_shipping_group",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "product_description",
+        "supplier_declared_has_product_identifier_exemption"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-LTM-10",
+        "part_number": "WY-QHCA-LTM-10",
+        "model_name": "WY-QHCA-LTM-10",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-LTM-10",
+        "part_number": "WY-QHCA-LTM-10",
+        "model_name": "WY-QHCA-LTM-10",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 27,
+      "prepare_save_issues": [],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-LTM-10、part_number=WY-QHCA-LTM-10、model_name=WY-QHCA-LTM-10、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595363180938",
+      "row_sku": "WY-QHCA-LTM-12",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "100% Original Super Value Used JCB 3CX 4x4 Backhoe Loader Reliable Engine Backhoe Loader for Construction Job",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "OUTDOOR_LIVING",
+      "category_id": "13553005011",
+      "category_path": "6299024011/6256963011/6256964011/13553005011",
+      "sku": "WY-QHCA-LTM-12",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "100% Original Super Value Used JCB 3CX 4x4 Backhoe Loader Reliable Engine Backhoe Loader for Construction Job",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "contains_liquid_contents",
+        "country_of_origin",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "is_assembly_required",
+        "is_expiration_dated_product",
+        "item_dimensions",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "main_product_image_locator",
+        "manufacturer",
+        "merchant_shipping_group",
+        "number_of_boxes",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "power_source_type",
+        "product_description",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-LTM-12",
+        "part_number": "WY-QHCA-LTM-12",
+        "model_name": "WY-QHCA-LTM-12",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-LTM-12",
+        "part_number": "WY-QHCA-LTM-12",
+        "model_name": "WY-QHCA-LTM-12",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 34,
+      "prepare_save_issues": [
+        "标题含促销/联系方式/绝对化词：100%"
+      ],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-LTM-12、part_number=WY-QHCA-LTM-12、model_name=WY-QHCA-LTM-12、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595363180882",
+      "row_sku": "WY-QHCA-LTM-13",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Versatile 4x4 Backhoe Loader Wheeled Digger with Hydraulic Auger and Snow Blade for Fence Post Drilling and Winter Road ",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "OUTDOOR_LIVING",
+      "category_id": "13553005011",
+      "category_path": "6299024011/6256963011/6256964011/13553005011",
+      "sku": "WY-QHCA-LTM-13",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Versatile 4x4 Backhoe Loader Wheeled Digger with Hydraulic Auger and Snow Blade for Fence Post Drilling and Winter Road Clearing",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "contains_liquid_contents",
+        "country_of_origin",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "is_assembly_required",
+        "is_expiration_dated_product",
+        "item_dimensions",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "main_product_image_locator",
+        "manufacturer",
+        "merchant_shipping_group",
+        "number_of_boxes",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "power_source_type",
+        "product_description",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-LTM-13",
+        "part_number": "WY-QHCA-LTM-13",
+        "model_name": "WY-QHCA-LTM-13",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-LTM-13",
+        "part_number": "WY-QHCA-LTM-13",
+        "model_name": "WY-QHCA-LTM-13",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 34,
+      "prepare_save_issues": [],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-LTM-13、part_number=WY-QHCA-LTM-13、model_name=WY-QHCA-LTM-13、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595362938114",
+      "row_sku": "YX02-QH-XLZ-3",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Versatile High-Torque Water Well Drill Rig for Household Water Intake",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "DRILL",
+      "category_id": "7205686011",
+      "category_path": "11076214011/11850754011/11850786011/3111928011/7205686011",
+      "sku": "YX02-QH-XLZ-3",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Versatile High-Torque Water Well Drill Rig for Household Water Intake",
+      "raw_attr_keys": [
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "condition_type",
+        "country_of_origin",
+        "fulfillment_availability",
+        "generic_keyword",
+        "gpsr_safety_attestation",
+        "included_components",
+        "item_length_width_height",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "list_price",
+        "main_product_image_locator",
+        "manufacturer",
+        "manufacturer_contact_information",
+        "max_order_quantity",
+        "maximum_rotational_speed",
+        "merchant_shipping_group",
+        "model_name",
+        "model_number",
+        "number_of_items",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "part_number",
+        "power_source_type",
+        "product_description",
+        "style",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption",
+        "title_differentiation",
+        "unit_count",
+        "voltage"
+      ],
+      "missing_before": [],
+      "filled_deterministic": {},
+      "filled_values": {
+        "model_number": "xiaolanz",
+        "part_number": "YX02-QH-XLZ-3",
+        "model_name": "YX02-QH-XLZ-3",
+        "manufacturer_contact_information": "+86 150 3836 1505"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": null,
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": null,
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 41,
+      "prepare_save_issues": [],
+      "prepare_save_warnings": [],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595362938072",
+      "row_sku": "YX02-QH-XLZ-4",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Lightweight Compact Small Water Well Drill Rig for Geothermal Drilling",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "TOOLS",
+      "category_id": "7205676011",
+      "category_path": "3006903011/3094787011/3111923011/7205676011",
+      "sku": "YX02-QH-XLZ-4",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Lightweight Compact Small Water Well Drill Rig for Geothermal Drilling",
+      "raw_attr_keys": [
+        "batteries_required",
+        "color",
+        "country_of_origin",
+        "included_components",
+        "item_package_dimensions",
+        "item_package_weight",
+        "item_weight",
+        "list_price",
+        "material",
+        "max_order_quantity",
+        "number_of_boxes",
+        "number_of_items",
+        "power_source_type",
+        "recommended_browse_nodes",
+        "skip_offer",
+        "supplier_declared_dg_hz_regulation",
+        "unit_count",
+        "voltage"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "YX02-QH-XLZ-4",
+        "part_number": "YX02-QH-XLZ-4",
+        "model_name": "YX02-QH-XLZ-4",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "YX02-QH-XLZ-4",
+        "part_number": "YX02-QH-XLZ-4",
+        "model_name": "YX02-QH-XLZ-4",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 22,
+      "prepare_save_issues": [
+        "卖点数量超过 10 条（26）",
+        "产品描述含促销/联系方式/绝对化词：100%"
+      ],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=YX02-QH-XLZ-4、part_number=YX02-QH-XLZ-4、model_name=YX02-QH-XLZ-4、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595362938074",
+      "row_sku": "105430344183",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Lightweight Compact Small Water Well Drill Rig for Geothermal Drilling",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": null,
+      "category_id": null,
+      "category_path": null,
+      "sku": "105430344183",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Lightweight Compact Small Water Well Drill Rig for Geothermal Drilling",
+      "raw_attr_keys": [],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "105430344183",
+        "part_number": "105430344183",
+        "model_name": "105430344183",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "105430344183",
+        "part_number": "105430344183",
+        "model_name": "105430344183",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 4,
+      "prepare_save_issues": [
+        "类目无效：空",
+        "产品描述含促销/联系方式/绝对化词：100%"
+      ],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=105430344183、part_number=105430344183、model_name=105430344183、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595362937990",
+      "row_sku": "YX02-QH-XLZ-5",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Efficient Portable Water Well Drill Rig, Hydraulic Drilling Machine",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": null,
+      "category_id": null,
+      "category_path": null,
+      "sku": "YX02-QH-XLZ-5",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Efficient Portable Water Well Drill Rig, Hydraulic Drilling Machine",
+      "raw_attr_keys": [],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "YX02-QH-XLZ-5",
+        "part_number": "YX02-QH-XLZ-5",
+        "model_name": "YX02-QH-XLZ-5",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "YX02-QH-XLZ-5",
+        "part_number": "YX02-QH-XLZ-5",
+        "model_name": "YX02-QH-XLZ-5",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 4,
+      "prepare_save_issues": [
+        "卖点数量超过 10 条（26）",
+        "类目无效：空"
+      ],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=YX02-QH-XLZ-5、part_number=YX02-QH-XLZ-5、model_name=YX02-QH-XLZ-5、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595362937994",
+      "row_sku": "107465057539",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Efficient Portable Water Well Drill Rig, Hydraulic Drilling Machine",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": null,
+      "category_id": null,
+      "category_path": null,
+      "sku": "107465057539",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Efficient Portable Water Well Drill Rig, Hydraulic Drilling Machine",
+      "raw_attr_keys": [],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "107465057539",
+        "part_number": "107465057539",
+        "model_name": "107465057539",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "107465057539",
+        "part_number": "107465057539",
+        "model_name": "107465057539",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 4,
+      "prepare_save_issues": [
+        "类目无效：空"
+      ],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=107465057539、part_number=107465057539、model_name=107465057539、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    },
+    {
+      "product_id": "220114595350136294",
+      "row_sku": "WY-QHCA-PSJ1",
+      "row_site": "A2EUQ1WTGCTBG2",
+      "row_title": "Mini Crawler Mobile Jaw Crusher Small Track Rock Crushing Equipment Portable Jaw Breaker for Limestone Basalt Processing",
+      "site": "A2EUQ1WTGCTBG2",
+      "product_type": "DRILL",
+      "category_id": "3111937011",
+      "category_path": "3006903011/3094787011/3111923011/3111937011",
+      "sku": "WY-QHCA-PSJ1",
+      "brand": "Generic",
+      "manufacturer": "Generic",
+      "title": "Mini Crawler Mobile Jaw Crusher Small Track Rock Crushing Equipment Portable Jaw Breaker for Limestone Basalt Processing",
+      "raw_attr_keys": [
+        "batteries_included",
+        "batteries_required",
+        "brand",
+        "bullet_point",
+        "color",
+        "condition_type",
+        "country_of_origin",
+        "fulfillment_availability",
+        "gpsr_safety_attestation",
+        "included_components",
+        "item_length_width_height",
+        "item_name",
+        "item_package_dimensions",
+        "item_package_weight",
+        "list_price",
+        "main_product_image_locator",
+        "manufacturer",
+        "material",
+        "max_order_quantity",
+        "merchant_shipping_group",
+        "other_product_image_locator_1",
+        "other_product_image_locator_2",
+        "other_product_image_locator_3",
+        "other_product_image_locator_4",
+        "other_product_image_locator_5",
+        "other_product_image_locator_6",
+        "other_product_image_locator_7",
+        "other_product_image_locator_8",
+        "power_source_type",
+        "product_description",
+        "purchasable_offer",
+        "supplier_declared_dg_hz_regulation",
+        "supplier_declared_has_product_identifier_exemption",
+        "unit_count",
+        "voltage"
+      ],
+      "missing_before": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "filled_deterministic": {
+        "model_number": "WY-QHCA-PSJ1",
+        "part_number": "WY-QHCA-PSJ1",
+        "model_name": "WY-QHCA-PSJ1",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_values": {
+        "model_number": "WY-QHCA-PSJ1",
+        "part_number": "WY-QHCA-PSJ1",
+        "model_name": "WY-QHCA-PSJ1",
+        "manufacturer_contact_information": "Generic, CN"
+      },
+      "filled_meta": {
+        "model_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "part_number": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "model_name": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        },
+        "manufacturer_contact_information": {
+          "language_tag": "en_CA",
+          "marketplace_id": "A2EUQ1WTGCTBG2"
+        }
+      },
+      "missing_after": [],
+      "notes": [],
+      "payload_product_attr_present": [
+        "model_number",
+        "part_number",
+        "model_name",
+        "manufacturer_contact_information"
+      ],
+      "payload_attr_keys_count": 39,
+      "prepare_save_issues": [
+        "产品描述含促销/联系方式/绝对化词：100%, 电话"
+      ],
+      "prepare_save_warnings": [
+        "已自动补齐发布必填属性：model_number=WY-QHCA-PSJ1、part_number=WY-QHCA-PSJ1、model_name=WY-QHCA-PSJ1、manufacturer_contact_information=Generic, CN"
+      ],
+      "payload_39_keys": true,
+      "ok": true
+    }
+  ],
+  "duplicate_rows": [],
+  "errors": [],
+  "ai_sample": {
+    "attempted": true,
+    "calls_executed": 3,
+    "note": "真实 AI 兜底抽样（成本克制：每个属性 1 次 chat，max_tokens=180）；仅验证链路，不批量调用、不写平台",
+    "samples": [
+      {
+        "product_id": "220114595363181982",
+        "attribute": "material",
+        "suggested": {},
+        "notes": [
+          "material：AI 无法从原文确定，需用户填写"
+        ],
+        "conclusion": "AI 保守返回 N/A（不编造），符合「无依据不填」策略"
+      },
+      {
+        "product_id": "220114595363181982",
+        "attribute": "size",
+        "suggested": {
+          "size": "5500*1750*2650mm"
+        },
+        "conclusion": "从商品描述尺寸提取，链路可用"
+      },
+      {
+        "product_id": "220114595363181982",
+        "attribute": "color",
+        "suggested": {
+          "color": "Blue, Black, Green, Yellow, White, Customizable"
+        },
+        "conclusion": "从描述可选颜色提取，链路可用"
+      }
+    ]
+  },
+  "summary": {
+    "status": "PASS",
+    "drafts_total": 12,
+    "products_verified": 14,
+    "products_fully_filled": 14,
+    "products_with_missing_after": 0,
+    "required_common": [
+      "model_number",
+      "part_number",
+      "model_name",
+      "manufacturer_contact_information"
+    ],
+    "coverage": {
+      "model_number": "14/14 (100.0%)",
+      "part_number": "14/14 (100.0%)",
+      "model_name": "14/14 (100.0%)",
+      "manufacturer_contact_information": "14/14 (100.0%)"
+    },
+    "all_four_filled_rate": "14/14 (100.0%)",
+    "ai_calls": 3,
+    "platform_writes": 0,
+    "write_calls": [],
+    "request_calls": {
+      "list_products": 2,
+      "product_detail": 28,
+      "currency": 14
+    },
+    "draft_total_before": 12,
+    "draft_total_after": 12,
+    "elapsed_seconds": 5.9,
+    "products_with_other_blocking_issues": 8,
+    "other_blocking_issue_products": [
+      {
+        "product_id": "220114595363181900",
+        "issues": [
+          "产品描述含促销/联系方式/绝对化词：电话"
+        ]
+      },
+      {
+        "product_id": "220114595363181530",
+        "issues": [
+          "标题含促销/联系方式/绝对化词：sale",
+          "产品描述含促销/联系方式/绝对化词：best"
+        ]
+      },
+      {
+        "product_id": "220114595363180938",
+        "issues": [
+          "标题含促销/联系方式/绝对化词：100%"
+        ]
+      },
+      {
+        "product_id": "220114595362938072",
+        "issues": [
+          "卖点数量超过 10 条（26）",
+          "产品描述含促销/联系方式/绝对化词：100%"
+        ]
+      },
+      {
+        "product_id": "220114595362938074",
+        "issues": [
+          "类目无效：空",
+          "产品描述含促销/联系方式/绝对化词：100%"
+        ]
+      },
+      {
+        "product_id": "220114595362937990",
+        "issues": [
+          "卖点数量超过 10 条（26）",
+          "类目无效：空"
+        ]
+      },
+      {
+        "product_id": "220114595362937994",
+        "issues": [
+          "类目无效：空"
+        ]
+      },
+      {
+        "product_id": "220114595350136294",
+        "issues": [
+          "产品描述含促销/联系方式/绝对化词：100%, 电话"
+        ]
+      }
+    ],
+    "rows_vs_total": "pageList 返回 14 行（platform totalSize=12）；14 行均成功读取 editSp 并补齐，无重复 id、无读取失败。"
+  },
+  "limitations": [
+    "只读回归：仅 pageList / editSp / currency（+ 最多 1 次 AI 兜底抽样）；未调用 save_product/add.json，未真实保存/发布。",
+    "覆盖的是 REQUIRED_COMMON 4 项（model_number/part_number/model_name/manufacturer_contact_information）；其它类目必填项需按 errMsg/schema 另补。",
+    "补齐值来自 SKU/标题/品牌等确定性推导，属于可上架草稿值；发布前建议人工确认型号/零件号与制造商联系信息。",
+    "AI 兜底仅抽样验证可调用性，不在本次数据上批量调用（成本克制）。",
+    "config.py 的 DEFAULTS 尚未含 amazon_autofill_attrs（由 Lead 补充），当前按 getattr 默认 True 生效。",
+    "真实 AI 兜底共抽样 3 次 chat（material / size / color，max_tokens=180）；均为抽样验证，未在 12+ 商品上批量调用。"
+  ],
+  "draft_list": {
+    "total": 12,
+    "rows": 14,
+    "left_stat": {
+      "waitPublish": 5,
+      "publishFail": 25
+    }
+  },
+  "implementation": {
+    "auto_fill_in_payload": {
+      "file": "src/aeclone/services/amazon_payload.py",
+      "functions": [
+        "build_amazon_payload(..., notes=None)",
+        "autofill_enabled(cfg)",
+        "required_attribute_names(cfg, overrides)",
+        "_payload_autofill",
+        "attribute_value_text",
+        "format_attribute_summary",
+        "AUTOFILL_CFG_KEY"
+      ],
+      "behavior": "默认补齐缺失的发布必填属性进 payload.productAttr；只补缺失、不覆盖已有；cfg.amazon_autofill_attrs=False 关闭；notes 收集补了什么；未补齐时 build_warnings 仍提示缺失。"
+    },
+    "auto_fill_in_prepare_save": {
+      "file": "src/aeclone/services/amazon_pipeline.py",
+      "functions": [
+        "prepare_save",
+        "run_amazon_product(④b 必填属性补齐)"
+      ],
+      "behavior": "op=1/3/2 保存链路都补齐（不再只在发布时补）；op=2 仍额外拉同类模板；warnings/attribute_notes 说明补了什么、哪些仍缺；缺失只是 warning 不阻断。"
+    },
+    "deterministic_mapping": {
+      "file": "src/aeclone/services/amazon_pipeline.py",
+      "functions": [
+        "_autofill_attributes_with_notes",
+        "_autofill_context",
+        "_PAYLOAD_ATTRIBUTE_FIELDS",
+        "_PRODUCT_MODEL_KEYS"
+      ],
+      "behavior": "model_number/model_name/part_number：标题型号 → 商品型号字段 → SKU；manufacturer_contact_information：cfg.amazon_manufacturer_contact 或 「制造商/品牌, 产地(默认 CN)」；新增 item_name/product_description/bullet_point/generic_keyword/brand/manufacturer 同名映射、item_package_quantity 默认 1、color/variation_theme/识别码只取真实字段。"
+    },
+    "ai_fallback": {
+      "file": "src/aeclone/services/amazon_pipeline.py + amazon_prompts.py",
+      "functions": [
+        "ai_suggest_attributes(product, cfg, marketplace_id, missing)",
+        "build_attributes_prompt",
+        "parse_attribute_suggestion",
+        "AI_ATTRIBUTE_SKIP",
+        "AI_ATTRIBUTE_MAX_FIELDS"
+      ],
+      "behavior": "确定性映射补不了且 use_ai=True 时才调用；逐字段 try/except；价格/尺寸/图片/识别码/物流等结构属性跳过不编造；不自动写平台，只在 payload/UI 建议中。"
+    },
+    "config": {
+      "amazon_autofill_attrs": "默认 True（config.py DEFAULTS 由 Lead 补充；当前 getattr 默认）",
+      "amazon_manufacturer_contact": "可选覆盖「品牌, CN」默认值"
+    },
+    "ui_recommendation": [
+      "载入商品后直接展示「已自动补齐 N 项必填属性」的提示与属性值输入框（现有 autofill 按钮可保留，但不再必须点击才能保存）。",
+      "预演/保存结果区展示 warnings 里「已自动补齐发布必填属性：...」与「发布必填属性仍缺失：...」。",
+      "属性输入框旁加「AI 建议」按钮：调用 ai_suggest_attributes(product, cfg, site, missing)，建议值先填表单由用户确认（不要自动保存/自动写平台）。",
+      "设置页可加开关「保存时自动补齐发布必填属性」(amazon_autofill_attrs，默认开)。"
+    ]
+  },
+  "tests": {
+    "new_file": "tests/test_amazon_attributes.py",
+    "new_file_result": "27/27 OK",
+    "amazon_test_files": {
+      "tests/test_amazon_attributes.py": "27/27 OK",
+      "tests/test_amazon_pipeline.py": "76/76 OK",
+      "tests/test_amazon_payload.py": "39/39 OK",
+      "tests/test_amazon_prompts.py": "33/33 OK",
+      "tests/test_amazon_contract.py": "27/27 OK",
+      "tests/test_amazon_client.py": "45/45 OK",
+      "tests/test_amazon_adapter.py": "3/3 OK",
+      "tests/test_amazon_ui_page.py": "21/21 OK（AURORA_TEST=1）",
+      "tests/test_amazon_platform_ui_filter.py": "10/10 OK（AURORA_TEST=1）"
+    },
+    "compile": ".venv/bin/python -m compileall -q src → exit 0"
+  }
+}

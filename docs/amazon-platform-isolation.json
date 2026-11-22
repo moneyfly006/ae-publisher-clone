@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T13:07:21+08:00",
+  "generated_at": "2026-11-22T13:29:34+08:00",
   "mode": "sandbox UI audit (AURORA_TEST=1, no network, no write)",
   "platform": "amazon",
   "sections": {
@@ -112,9 +112,14 @@
         "detail": "Amazon tooltip='去 Amazon 刊登（Amazon 不走速卖通批量任务）'；AliExpress='启动 / 停止本次任务（⌘R / Ctrl+R）'"
       },
       {
-        "name": "13 页七张卡齐全",
+        "name": "隐藏路由 13：七张卡齐全（不在左侧导航）",
         "ok": true,
         "detail": "7/7；缺=[]"
+      },
+      {
+        "name": "15–21 每页仅渲染对应单卡",
+        "ok": true,
+        "detail": "7 页；问题=无"
       },
       {
         "name": "13 页保留「检测连接」入口",
@@ -362,19 +367,29 @@
       {
         "name": "所有声明页面可渲染（不崩溃）",
         "ok": true,
-        "detail": "4 页渲染；声明 pages=[0, 10, 11, 14]；落点={0: 0, 14: 14, 10: 10, 11: 11}（TikTok 处于外部并发开发中，不计入 Amazon 结论）"
+        "detail": "11 页渲染；声明 pages=[0, 10, 11, 14, 22, 23, 24, 25, 26, 27, 28]；落点={0: 0, 22: 22, 23: 23, 24: 24, 25: 25, 26: 26, 27: 27, 28: 28, 10: 10, 11: 11, 14: 14}（TikTok 处于外部并发开发中，不计入 Amazon 结论）"
       },
       {
-        "name": "Amazon 页面集合仍为 0/13/10/11",
+        "name": "Amazon 页面集合为 0/15–21/10/11 + 隐藏 13",
         "ok": true,
-        "detail": "amazon pages=[0, 10, 11, 13]（与 TikTok 外部改动无关）"
+        "detail": "amazon pages=[0, 10, 11, 13, 15, 16, 17, 18, 19, 20, 21]（与 TikTok 外部改动无关）"
       }
     ],
     "amazon_smt_entries": [
       {
-        "name": "导航仅 4 个入口（0/13/10/11）",
+        "name": "新导航 10 个可见入口（0/15–21/10/11）",
         "ok": true,
-        "detail": "nav=[0, 13, 10, 11]"
+        "detail": "nav=[0, 15, 16, 17, 18, 19, 20, 21, 10, 11]"
+      },
+      {
+        "name": "13「Amazon 刊登」不在左侧导航（内部隐藏路由）",
+        "ok": true,
+        "detail": "13_in_nav=False"
+      },
+      {
+        "name": "新导航 6 个分组/条目归属",
+        "ok": true,
+        "detail": "groups=[('工作空间', [0]), ('商品准备', [15, 16, 17, 18]), ('内容处理', [19, 20]), ('发布与运行', [21]), ('运行', [10]), ('工具', [11])]"
       },
       {
         "name": "直切 1–9 号页均被重定向（不落 SMT 页）",
@@ -421,28 +436,28 @@
       {
         "name": "13 页顶部截图",
         "ok": true,
-        "detail": "/Users/apple/Projects/alibaba-lister/docs/design/amazon-listing-page.png (334806 bytes)",
+        "detail": "/Users/apple/Projects/alibaba-lister/docs/design/amazon-listing-page.png (347493 bytes)",
         "observed": {
           "path": "docs/design/amazon-listing-page.png",
-          "bytes": 334806,
-          "sha256": "72607f5ab4bac47511d7052917a54fcc9dc1622870e18d392d841b1eaa355add"
+          "bytes": 347493,
+          "sha256": "1ee449011d7fc206ca9070422b040f956e8efd380007b05cc6da42c9bd6103b2"
         }
       },
       {
         "name": "13 页价格/预演截图",
         "ok": true,
-        "detail": "amazon-listing-page-2-price-preview.png (256014 bytes)",
+        "detail": "amazon-listing-page-2-price-preview.png (269720 bytes)",
         "observed": {
           "path": "docs/design/amazon-listing-page-2-price-preview.png",
-          "bytes": 256014,
-          "sha256": "f236c612cc95120c1054cc3e838f3d0e0fddd5927721f2eb5c25237e1f51ccb1"
+          "bytes": 269720,
+          "sha256": "76865444b1e8a49d3c22bb9c9919bebf90974867a8ac234b114c96df774d76cd"
         }
       }
     ]
   },
   "summary": {
-    "passed": 82,
-    "total": 82,
+    "passed": 85,
+    "total": 85,
     "failed": []
   },
   "hide_too_much": [],
@@ -450,11 +465,11 @@
   "screenshots": {
     "top": {
       "path": "docs/design/amazon-listing-page.png",
-      "sha256": "72607f5ab4bac47511d7052917a54fcc9dc1622870e18d392d841b1eaa355add"
+      "sha256": "1ee449011d7fc206ca9070422b040f956e8efd380007b05cc6da42c9bd6103b2"
     },
     "price_preview": {
       "path": "docs/design/amazon-listing-page-2-price-preview.png",
-      "sha256": "f236c612cc95120c1054cc3e838f3d0e0fddd5927721f2eb5c25237e1f51ccb1"
+      "sha256": "76865444b1e8a49d3c22bb9c9919bebf90974867a8ac234b114c96df774d76cd"
     }
   },
   "notes": [

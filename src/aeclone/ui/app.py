@@ -759,7 +759,7 @@ class App:
             self._maybe_license_login()
         except Exception:
             pass
-        self._log("运行实例：" + ("预览模式（不保存商品）" if self._preview_mode else "日常运行")
+        self._log("运行实例：" + ("日常运行（写入保护已启用）" if self._preview_mode else "日常运行")
                   + f" · 配置目录：{config_dir()} · 程序：{sys.executable}")
         # 无论从哪一页启动，都拉一次各状态数量（概览/发布队列都要用）
         try:
@@ -992,7 +992,7 @@ class App:
                 _pid_now = str(getattr(getattr(self, "active_platform", None),
                                        "id", "") or "")
                 if _pid_now == "tiktok":
-                    self.btn_run.tooltip = "去 TikTok 刊登（TikTok 不走速卖通批量任务）"
+                    self.btn_run.tooltip = "去 TikTok 刊登（连接与店铺）"
                 elif _pid_now == "amazon":
                     self.btn_run.tooltip = "去 Amazon 刊登（Amazon 不走速卖通批量任务）"
                 elif not self._cap("smt_pipeline_actions"):
@@ -1214,6 +1214,19 @@ class App:
             _builder = getattr(self, _name, None)
             if callable(_builder) and _builder not in pages:
                 pages.append(_builder)
+        # 15–21：Amazon 左侧导航功能页（薄封装，每页只返回对应一张卡；
+        # 13 号完整工作台仍保留为内部隐藏路由）。
+        for _sec, _sec_title, _sec_sub in self.AMAZON_SECTIONS:
+            pages.append(
+                lambda _s=_sec, _t=_sec_title, _sub=_sec_sub:
+                self._p_amazon_section(_s, _t, _sub))
+        # 22–28：TikTok 左侧导航功能页（同样是薄封装；14 号为隐藏完整路由）。
+        # 固定占位以保证 dispatch 下标与页面号一致；其它平台的 pages 不含这些号，
+        # 只有 TikTok 会真正渲染它们。
+        for _pos, (_card, _t, _sub) in enumerate(self.TIKTOK_SECTIONS):
+            pages.append(
+                lambda _c=_card, _t=_t, _sub=_sub, _p=22 + _pos:
+                self._p_tiktok_section(_c, _t, _sub, page=_p))
         idx = idx % len(pages)
         self._page_idx = idx
         self._building_page = True
@@ -1565,9 +1578,9 @@ class App:
         def _ready_row(icon, label, ctrl, target=None):
             if target is None:
                 target = (1 if label in ("Cookie", "模板商品", "Alibaba 商品/类目")
-                          else (14 if label == "TikTok 商品/类目" else 11))
+                          else (23 if label == "TikTok 商品/类目" else 11))
             ctrl.expand = True
-            _tip = ("前往 TikTok 刊登" if target == 14 else
+            _tip = ("前往 TikTok 刊登" if target in (14, 22, 23) else
                     ("前往 Alibaba 刊登" if target == 12 else
                      ("前往 Amazon 刊登" if target == 13 else
                       ("前往店铺与模板" if target == 1 else "前往账号与连接"))))
@@ -1583,8 +1596,8 @@ class App:
                              ("Amazon 商品/类目" if is_amazon else
                               ("TikTok 商品/类目" if is_tiktok else "模板商品")))
         _ready_item_target = (12 if is_alibaba else
-                              (13 if is_amazon else (14 if is_tiktok else 1)))
-        _ready_cookie_target = 14 if is_tiktok else (13 if is_amazon else 1)
+                              (13 if is_amazon else (23 if is_tiktok else 1)))
+        _ready_cookie_target = 22 if is_tiktok else (13 if is_amazon else 1)
         ready_card = card(ft.Column([
             h1i(ft.Icons.CHECKLIST, "准备状态"),
             muted("红色项点击可直接去对应页修复；Alibaba 平台不依赖模板商品" if is_alibaba
@@ -1768,7 +1781,7 @@ class App:
                           ("online", "在线", "已上架", ACCENT_2, None),
                           ("publishFail", "发布失败", "可重试", DANGER_C, 13)]
         elif is_tiktok:
-            # TikTok 计数来自 tiktok_publish/TikTokClient（只读）；点数字去 14 号页处理。
+            # TikTok 计数来自 tiktok_publish/TikTokClient（只读）；点数字去 22 号页处理。
             tile_specs = [("draft", "采集箱", "待编辑", TEXT, 14),
                           ("offline", "待发布", "可直接发布", INFO_C, 14),
                           ("online", "在线", "已上架", ACCENT_2, None),
@@ -1820,7 +1833,7 @@ class App:
             if is_alibaba:
                 self._switch(12)
             elif is_tiktok:
-                self._switch(14)
+                self._switch(23)
             elif is_amazon:
                 self._switch(13)
             else:
@@ -1829,7 +1842,7 @@ class App:
         # Alibaba / Amazon / TikTok 平台：批量启动/关键词搜索/选择商品都属于 SMT 管线，
         # 隐藏；只保留「去刊登 / 刷新数量」两个入口。
         _smt_only = bool(is_alibaba or is_amazon or is_tiktok)
-        _jump_page = 12 if is_alibaba else (14 if is_tiktok else 13)
+        _jump_page = 12 if is_alibaba else (22 if is_tiktok else 13)
         _jump_label = ("去 Alibaba 刊登" if is_alibaba else
                        ("去 TikTok 刊登" if is_tiktok else "去 Amazon 刊登"))
         self.search_kw.visible = not _smt_only
@@ -1840,7 +1853,7 @@ class App:
                  ("开始一次 Amazon 刊登" if is_amazon else "开始一次任务"))),
             muted("Alibaba 商品请在「Alibaba 刊登」页选择并保存；"
                   "批量管线与关键词筛选仅用于速卖通" if is_alibaba else
-                  ("TikTok 商品请在「TikTok 刊登」页选择并保存（含店铺/站点/类目/文案/预演）；"
+                  ("TikTok 商品请在「TikTok 刊登」页选择并保存（含店铺/站点/类目/文案）；"
                    "批量管线与关键词筛选仅用于速卖通" if is_tiktok else
                    ("Amazon 商品请在「Amazon 刊登」页选择并保存；"
                     "批量管线与关键词筛选仅用于速卖通" if is_amazon else
@@ -1898,10 +1911,10 @@ class App:
                                ("03  Amazon 刊登", ft.Icons.PUBLISH, 13),
                                ("04  运行记录", ft.Icons.RECEIPT_LONG_OUTLINED, 10))
         elif is_tiktok:
-            # TikTok 平台只有 0/14/10/11：工作流入口都指向 14 号「TikTok 刊登」。
-            _workflow_specs = (("01  连接与店铺/站点", ft.Icons.STORE_OUTLINED, 14),
-                               ("02  类目与文案", ft.Icons.EDIT_NOTE, 14),
-                               ("03  TikTok 刊登", ft.Icons.PUBLISH, 14),
+            # TikTok 左侧导航已按功能拆页：工作流入口分别指向对应功能页。
+            _workflow_specs = (("01  连接与采集箱", ft.Icons.STORE_OUTLINED, 22),
+                               ("02  类目与文案", ft.Icons.EDIT_NOTE, 24),
+                               ("03  保存与发布", ft.Icons.CLOUD_UPLOAD_OUTLINED, 28),
                                ("04  运行记录", ft.Icons.RECEIPT_LONG_OUTLINED, 10))
         else:
             _publish_target = 12 if is_alibaba else 8
@@ -1956,7 +1969,7 @@ class App:
         _ov_subtitle = ("Amazon 采集箱 → 站点/类目 → 五点与 AI 文案 → 保存与发布（自动修复）。"
                         if is_amazon else
                         ("TikTok 采集箱 → 店铺/站点 → 类目/属性 → AI 文案 → 图片/价格/库存"
-                         " → 预演 → 保存。" if is_tiktok else
+                         " → 校验 → 保存。" if is_tiktok else
                          "从商品准备到发布，在一个工作空间完成日常运营。"))
         return [page_header("概览", _ov_subtitle), workflow,
                 tiles_head, tiles_row, filter_card, ready_card,
@@ -2847,9 +2860,9 @@ class App:
         if self._is_tiktok():
             # 定时发布属于 SMT 写操作：TikTok 平台不跑速卖通定时器（跳 14 号页 + WARN）。
             self._log(f"TikTok 平台禁止速卖通定时发布：{getattr(job, 'product_id', '')}"
-                      "（请用「TikTok 刊登」页保存）", "WARN")
+                      "（请用左侧 TikTok 功能页保存）", "WARN")
             try:
-                self._switch(14)
+                self._switch(22)
             except Exception:
                 pass
             return
@@ -3995,7 +4008,7 @@ class App:
                                 pass
                             _preview = bool(getattr(res, "preview", False))
                             history.record("preview" if _preview else "publish", 1, 0, prod["id"])
-                            _result_label = getattr(res, "completion_label", "预演完成（未保存商品）" if _preview else "编辑成功")
+                            _result_label = getattr(res, "completion_label", "查看结果（未保存商品）" if _preview else "编辑成功")
                             self._log(f"✓ {_result_label}：{prod['id']} "
                                       f"{(prod.get('title') or '')[:44]}", "WARN" if any(not s.ok for s in res.steps) else "INFO")
                         else:
@@ -8544,7 +8557,7 @@ class App:
                                 scheduler=getattr(self, "scheduler", None))
                 res = pub.run(prod, dry_run=preview, manage_progress=False)
                 status = "done" if res.ok else "failed"
-                msg = (("预演完成，未保存商品、未标记已编辑" if preview else
+                msg = (("测试保护：未保存商品、未标记已编辑" if preview else
                         "处理完成，已保存到店小秘") if res.ok else res.error)
             except Exception as ex:  # noqa: BLE001
                 status, msg = "failed", str(ex)[:160]
@@ -8565,7 +8578,7 @@ class App:
         ok, fail = counts["ok"], counts["fail"]
         history.record("queue:preview" if preview else "queue:process", ok, fail)
         self._log(f"队列处理完成：成功 {ok} / 失败 {fail}" + ("（已按请求停止）" if self._stop_requested else ""))
-        self.toast(f"队列处理完成：成功 {ok} / 失败 {fail}" + ("（预演，未保存商品）" if preview else ""))
+        self.toast(f"队列处理完成：成功 {ok} / 失败 {fail}" + ("（测试保护：未保存商品）" if preview else ""))
 
     def _images_from_products(self):
         urls: list[str] = []
@@ -11593,7 +11606,7 @@ class App:
 
         check_card = card(ft.Column([
             h1("保存 / 发布（真实写入）", FS_MD),
-            muted("四个动作都会真实写入店小秘/平台（不是预演）："
+            muted("四个动作都会真实写入店小秘/平台（不是测试模拟）："
                   "保存草稿不提交；发布/定时会先校验必填/评分/类目，再弹确认框。"),
             save_ai_use,
             *([_save_ai_preset] if _save_ai_preset else []),
@@ -11858,6 +11871,87 @@ class App:
             steps,
             *self._amazon_cards(),
         ]
+
+    # Amazon 左侧导航 7 个功能页：(section 序号, 标题, 页头引导副标题)
+    AMAZON_SECTIONS = (
+        (0, "连接与店铺",
+         "① 连接与店铺：填写/读取店小秘 Cookie →「检测连接」登录，选择 Amazon 店铺与站点"),
+        (1, "采集箱商品",
+         "② 采集箱商品：按状态浏览/搜索采集箱商品，点「编辑」把商品载入到后续页面"),
+        (2, "站点与类目",
+         "③ 站点与类目：先选站点，再逐级下钻到末级类目；可用最近使用或 nodePath 校验"),
+        (3, "商品信息",
+         "④ 商品信息：填写价格/库存/物流/品牌/SKU 与发布必填属性（价格库存为空禁止发布）"),
+        (4, "文案与 AI",
+         "⑤ 文案与 AI：编辑标题/五点/描述/Search Terms，可用 AI 生成和提示词预设（结果需人工复核）"),
+        (5, "AI 图片",
+         "⑥ AI 图片：当前图片只读预览；可套用图片提示词预设（v1 不处理图片上传）"),
+        (6, "发布与结果",
+         "⑦ 发布与结果：保存/发布、查询发布结果、自动修复重发；失败会显示原因与建议"),
+    )
+
+    # TikTok 左侧导航 7 个功能页：(完整工作台卡片序号, 标题, 页头引导副标题)
+    # 顺序 = 左侧导航顺序（连接 → 采集箱 → 类目 → 价格库存 → 文案 → 图片 → 保存），
+    # 页面号 22–28 与 navigation.Destination 一一对应。
+    TIKTOK_SECTIONS = (
+        (0, "连接与店铺",
+         "填写/读取店小秘 Cookie →「测试连接」登录，选择 TikTok Shop 店铺与 L7 站点"),
+        (1, "采集箱商品",
+         "按状态浏览/搜索采集箱商品，点「编辑」把商品载入到后续页面"),
+        (2, "类目与属性",
+         "先选站点，再逐级下钻到末级类目；加载必填属性并可用规则/AI 补全"),
+        (5, "价格 / 库存 / 物流",
+         "填写价格/库存/重量尺寸/SKU 与仓库，价格库存为空禁止保存"),
+        (3, "文案与 AI",
+         "编辑标题/五点/描述/关键词，可用 AI 生成、翻译与提示词预设（结果需人工复核）"),
+        (4, "图片与视频",
+         "管理主图/详情图/视频 URL，应用图片方案并查看平台规则校验"),
+        (6, "保存与发布",
+         "发布前检查 → 二次确认保存；查看只读保存包；运行接入诊断"),
+    )
+
+    def _p_tiktok_section(self, card_idx, title, subtitle, page=None):
+        """TikTok 左侧功能页：复用 14 号完整工作台的单张卡片（14 号为隐藏完整路由）。"""
+        self._current = int(page) if page is not None else 22 + int(card_idx)
+        cards = self._tiktok_cards()
+        idx = max(0, min(int(card_idx), len(cards) - 1))
+        form = getattr(self, "_tt_form", None) or {}
+        pid = str(form.get("id") or getattr(self.cfg, "tiktok_test_product_id", "") or "")
+        ptitle = str(form.get("title") or "")[:36]
+        site = str(getattr(self.cfg, "tiktok_site", "") or "")
+        shop = str(getattr(self.cfg, "tiktok_shop_id", "") or "")
+        parts = ["当前商品：" + ((pid + (" · " + ptitle if ptitle else "")) if pid
+                                else "未选择"),
+                 "站点：" + (site or "未选择"),
+                 "店铺：" + (shop or "未绑定")]
+        if int(card_idx) in (2, 3, 4, 5, 6):
+            parts.append("类目：" + (str(getattr(self.cfg, "tiktok_category_name", "") or "")
+                                    or "未选择"))
+        chosen = ([cards[6], cards[7]] if int(card_idx) == 6 else [cards[idx]])
+        return [page_header(title, subtitle),
+                card(ft.Column([muted(" · ".join(parts), 11)], spacing=2), padding=12),
+                *chosen]
+
+    def _p_amazon_section(self, section, title, subtitle):
+        """Amazon 左侧功能页：复用完整工作台的单张卡片（13 号为隐藏完整路由）。"""
+        self._current = 15 + int(section)
+        cards = self._amazon_cards()
+        idx = max(0, min(int(section), len(cards) - 1))
+        form = getattr(self, "_amz_form", None) or {}
+        pid = str(getattr(self.cfg, "amazon_test_product_id", "") or "")
+        ptitle = str(form.get("title") or "")[:36]
+        site = " · ".join(x for x in (
+            str(getattr(self.cfg, "amazon_site_code", "") or ""),
+            str(getattr(self.cfg, "amazon_site_name", "") or "")) if x)
+        parts = ["当前商品：" + ((pid + (" · " + ptitle if ptitle else "")) if pid
+                                else "未选择"),
+                 "站点：" + (site or "未选择")]
+        if int(section) in (2, 3, 4, 5, 6):
+            parts.append("类目：" + (str(getattr(self.cfg, "amazon_category_name", "") or "")
+                                    or "未选择"))
+        return [page_header(title, subtitle),
+                card(ft.Column([muted(" · ".join(parts), 11)], spacing=2), padding=12),
+                cards[idx]]
 
     def _amazon_cards(self):
         """Amazon 刊登六张卡片（契约 §4.3）；所有回调 try/except + toast，不抛到界面。"""
@@ -14904,19 +14998,19 @@ class App:
         return True
 
     def _tiktok_guard(self, action: str = "启动速卖通批量管线") -> bool:
-        """TikTok 平台守卫：拦截速卖通(SMT)写操作，跳 14 号页并写 WARN 日志。"""
+        """TikTok 平台守卫：拦截速卖通(SMT)写操作，跳到功能页并写 WARN 日志。"""
         if not self._is_tiktok():
             return False
         try:
-            self._log(f"已阻止在 TikTok 平台{action}，请使用「TikTok 刊登」页", "WARN")
+            self._log(f"已阻止在 TikTok 平台{action}，请使用左侧「连接与店铺 / 采集箱商品」等功能页", "WARN")
         except Exception:
             pass
         try:
-            self.toast("TikTok 商品请在「TikTok 刊登」页编辑并保存（不走速卖通批量管线）", False)
+            self.toast("TikTok 商品请在左侧「连接与店铺 → 采集箱商品 → …」功能页编辑并保存（不走速卖通批量管线）", False)
         except Exception:
             pass
         try:
-            self._switch(14)
+            self._switch(22)
         except Exception:
             pass
         return True
@@ -15014,7 +15108,7 @@ class App:
         return [
             page_header("TikTok 刊登",
                         "TikTok 采集箱商品 → 店铺/站点 → 类目与属性 → AI 文案 → "
-                        "图片/价格/库存 → 预演 → 确认保存"),
+                        "图片/价格/库存 → 确认保存"),
             workspace_tabs([
                 ("连接与商品", [conn_card, list_card]),
                 ("类目与属性", [cat_card]),
@@ -15370,7 +15464,7 @@ class App:
                                      border_color=CARD_2, color=TEXT,
                                      value=str(_cget("tiktok_source_url", "") or ""))
 
-        # ---------- ⑦ 预演与保存 ----------
+        # ---------- ⑦ 保存与发布 ----------
         _op0 = str(_cget("tiktok_op", 1) or 1)
         _mode0 = str(_cget("tiktok_save_mode", "") or "")
         _op0 = f"{_op0}|{_mode0}" if _mode0 else _op0
@@ -15378,7 +15472,7 @@ class App:
             label="保存动作", width=330, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value=_op0,
             options=[ft.dropdown.Option(k, v) for k, v in self.TIKTOK_OP_OPTIONS])
-        save_status = ft.Text("尚未预演", size=12.5, color=MUTED, selectable=True)
+        save_status = ft.Text("尚未保存", size=12.5, color=MUTED, selectable=True)
         result_box = ft.Column(spacing=2)
         _preview_mode = bool(getattr(self, "_preview_mode", False)) or bool(
             os.environ.get("AURORA_NO_SAVE") or os.environ.get("AURORA_TEST"))
@@ -16885,7 +16979,7 @@ class App:
                 rows.append(ft.Text("失败原因：" + err, size=12, color=DANGER_C,
                                     selectable=True))
             if preview:
-                rows.append(muted("预演不写任何数据（saved=false）。", 11))
+                rows.append(muted("只读结果：本次未写任何数据（saved=false）。", 11))
             result_box.controls = rows
 
         def _render_missing(missing, title="保存前置检查未通过"):
@@ -16894,7 +16988,7 @@ class App:
                                 color=DANGER_C, weight=ft.FontWeight.BOLD))
             rows += [ft.Text("✗ " + x, size=11.5, color=DANGER_C, selectable=True)
                      for x in missing]
-            rows.append(muted("补齐后请先「预演（不保存）」确认，再保存。", 11))
+            rows.append(muted("补齐后点「保存到 TikTok」；保存前会再次校验。", 11))
             result_box.controls = rows
 
         def _refresh_after_save():
@@ -16952,40 +17046,6 @@ class App:
 
             threading.Thread(target=work, daemon=True).start()
 
-        def do_preview(e=None):
-            pid = _pid()
-            if not pid:
-                _status(save_status, "先选择/载入一个采集箱商品，再预演", WARN_C)
-                _toast("请先选择或载入采集箱商品", False)
-                return
-            op, _sep, save_mode = str(op_dd.value or "1").partition("|")
-            _status(save_status,
-                    "预演中（读取详情、校验；不发写请求、不花 AI 费用）…", MUTED)
-            result_box.controls = [muted("运行中…", 11)]
-            _ui()
-
-            def work():
-                try:
-                    _make, _payload, pipeline = _backend()
-                    res = pipeline.run_tiktok_product(
-                        pid, self.cfg, overrides=_overrides(), dry_run=True,
-                        use_ai=False, op=op or "1", save_mode=save_mode)
-                    _render_result(res, "预演结果（未保存）", preview=True)
-                    ok = bool(getattr(res, "ok", False))
-                    _status(save_status,
-                            ("预演通过，未保存、未花钱；确认无误后可点「保存」" if ok else
-                             "预演发现问题：" +
-                             str(getattr(res, "error", "") or "见下方阻断项")[:120]),
-                            SUCCESS_C if ok else DANGER_C)
-                    _toast("预演完成（未保存）", ok)
-                except Exception as ex:
-                    _status(save_status, f"预演失败：{str(ex)[:160]}", DANGER_C)
-                    _toast(f"预演失败：{str(ex)[:70]}", False)
-                finally:
-                    _ui()
-
-            threading.Thread(target=work, daemon=True).start()
-
         def show_payload(e=None):
             pid = _pid()
             if not pid:
@@ -17031,9 +17091,9 @@ class App:
         def do_save(e=None):
             if _preview_mode:
                 _status(save_status,
-                        "当前是预演模式（AURORA_NO_SAVE/AURORA_TEST）：保存已拒绝，"
-                        "请用「预演」校验；真实保存需在正式环境操作", WARN_C)
-                _toast("预演模式：已拒绝真实保存，请用「预演」校验", False)
+                        "当前是测试保护模式（AURORA_NO_SAVE/AURORA_TEST）：已拒绝真实保存；"
+                        "请在正式环境操作", WARN_C)
+                _toast("测试保护模式：已拒绝真实保存", False)
                 return
             pid = _pid()
             if not pid:
@@ -17096,7 +17156,7 @@ class App:
                             *([ft.Text("提醒：" + "；".join([str(w) for w in warnings[:4]]),
                                        size=11, color=WARN_C, selectable=True)]
                               if warnings else []),
-                            muted("这会真实写入店小秘/TikTok Shop（不是预演）。", 11),
+                            muted("这会真实写入店小秘/TikTok Shop（不是测试模拟）。", 11),
                         ], spacing=6, width=470),
                         actions=[ft.TextButton("取消", on_click=lambda ev: _close(dlg)),
                                  ft.ElevatedButton(
@@ -17178,7 +17238,7 @@ class App:
                               else "未选择商品"))
                     missing = _precheck()
                     add("保存前置", not missing,
-                        "店铺/站点/类目/主图齐全，可预演或保存" if not missing
+                        "店铺/站点/类目/主图齐全，可保存" if not missing
                         else "缺：" + "；".join(missing), warn=bool(missing))
                     diag_status.value = "诊断完成：红色项需修复，黄色项为提醒"
                     diag_status.color = MUTED
@@ -17329,18 +17389,14 @@ class App:
         ], spacing=8))
 
         save_card = card(ft.Column([
-            h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "预演与保存", FS_MD),
-            muted("先「预演（不保存、不花钱）」；真实保存会二次确认并列出商品/标题/店铺/站点/"
-                  "动作/校验问题。AURORA_NO_SAVE/AURORA_TEST 下只允许预演。"),
+            h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "保存与发布", FS_MD),
+            muted("保存会二次确认，并列出商品/标题/店铺/站点/动作/校验问题；"
+                  "保存前先做必填校验，不发无效写请求。"),
             ft.Row([op_dd,
-                    ft.ElevatedButton("预演（不保存）", icon=ft.Icons.FACT_CHECK,
-                                      bgcolor=ACCENT, color=ON_ACCENT,
-                                      on_click=do_preview),
-                    ft.ElevatedButton("保存（预演模式）" if _preview_mode else "保存到 TikTok",
-                                      icon=ft.Icons.CLOUD_UPLOAD,
+                    ft.ElevatedButton("保存到 TikTok", icon=ft.Icons.CLOUD_UPLOAD,
                                       bgcolor=SUCCESS_C, color=ON_ACCENT,
                                       on_click=do_save),
-                    ft.TextButton("查看保存包（预演）", icon=ft.Icons.DATA_OBJECT,
+                    ft.TextButton("查看保存包（只读）", icon=ft.Icons.DATA_OBJECT,
                                   on_click=show_payload)], spacing=10, wrap=True),
             save_status,
             result_box,

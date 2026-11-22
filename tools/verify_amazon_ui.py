@@ -477,6 +477,7 @@ def check_page_controls(report: Report) -> None:
 # 6) 全按钮矩阵（Amazon 0/13/10/11：可见控件逐一点击；mock 网络；线程同步执行）
 # ---------------------------------------------------------------------------
 AMAZON_PAGES = (0, 13, 10, 11)
+AMAZON_NAV_PAGES = (0, 15, 16, 17, 18, 19, 20, 21, 10, 11)
 BANNED_RELEASE_TERMS = ("AURORA_", "预演模式", "本地验收", "测试连接", "沙箱",
                         "mock", "验收预演")
 
@@ -872,7 +873,7 @@ def check_release_ui_scan(report: Report) -> dict:
                 app = build_app()
                 app._switch_platform("amazon")
                 title = str(getattr(app.page, "title", "") or "")
-                for page in AMAZON_PAGES:
+                for page in AMAZON_NAV_PAGES + (13,):
                     app._switch(page)
                     for value in _visible_values(app):
                         for term in BANNED_RELEASE_TERMS:
@@ -1213,6 +1214,106 @@ def check_publish_ui_mock(report: Report) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# 11) 左侧导航拆分（Amazon 7 功能页 + 隐藏 13 深链）
+# ---------------------------------------------------------------------------
+def check_navigation(report: Report) -> dict:
+    import flet as ft
+    from ui_sandbox import build_app, sandbox
+
+    def nav_texts(container):
+        texts = []
+        def walk(control):
+            if isinstance(control, ft.Text):
+                texts.append(str(control.value or ""))
+            try:
+                children = list(control._get_children())
+            except Exception:  # noqa: BLE001
+                children = []
+            for child in children:
+                walk(child)
+        walk(container)
+        return texts
+
+    expected_groups = [
+        ("工作空间", [0]),
+        ("商品准备", [15, 16, 17, 18]),
+        ("内容处理", [19, 20]),
+        ("发布与运行", [21]),
+        ("运行", [10]),
+        ("工具", [11]),
+    ]
+    expected_nav = [(0, "概览"), (15, "连接与店铺"), (16, "采集箱商品"),
+                    (17, "站点与类目"), (18, "商品信息"), (19, "文案与 AI"),
+                    (20, "AI 图片"), (21, "发布与结果"),
+                    (10, "任务与日志"), (11, "设置")]
+    CARD_HEADERS = ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
+                    "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
+                    "⑤ 文案与 AI", "⑥ AI 图片（图片只读，v1 备用）",
+                    "⑦ 发布与结果")
+    PAGE_CARD = {15: 0, 16: 1, 17: 2, 18: 3, 19: 4, 20: 5, 21: 6}
+    PAGE_GUIDE = {
+        15: "① 连接与店铺", 16: "② 采集箱商品", 17: "③ 站点与类目",
+        18: "④ 商品信息", 19: "⑤ 文案与 AI", 20: "⑥ AI 图片", 21: "⑦ 发布与结果",
+    }
+
+    with sandbox():
+        app = build_app()
+        app._switch_platform("amazon")
+        nav_rows = [(int(idx), " ".join(nav_texts(button)))
+                    for idx, button in app.nav_buttons]
+        groups = [((" ".join(nav_texts(container))), [int(i) for i in indices])
+                  for container, indices in app._nav_groups]
+        internal = app.active_platform.page(13)
+        # 每页单卡 + 页头 + 上下文
+        per_page = {}
+        for page, card_index in PAGE_CARD.items():
+            app._switch(page)
+            texts = [str(c.value or "") for c in
+                     (lambda: __import__("ui_sandbox").walk(app.content.controls))()
+                     if isinstance(c, ft.Text)]
+            own = CARD_HEADERS[card_index]
+            other = [h for i, h in enumerate(CARD_HEADERS) if i != card_index]
+            per_page[page] = {
+                "landed": getattr(app, "_page_idx", None),
+                "own_header": own in texts,
+                "guide": any(PAGE_GUIDE[page] in t for t in texts),
+                "context": any("当前商品" in t for t in texts),
+                "other_headers": [h for h in other if h in texts],
+            }
+        # 隐藏路由 13 仍为完整 7 卡
+        app._switch(13)
+        page13_texts = [str(c.value or "") for c in
+                        (lambda: __import__("ui_sandbox").walk(app.content.controls))()
+                        if isinstance(c, ft.Text)]
+        route13 = {"landed": getattr(app, "_page_idx", None),
+                   "headers": [h for h in CARD_HEADERS if h in page13_texts]}
+
+    nav_ok = nav_rows == expected_nav
+    report.add("新导航：Amazon 10 个可见入口/顺序", nav_ok,
+               f"nav={nav_rows}")
+    groups_ok = groups == expected_groups
+    report.add("新导航：6 个分组/条目归属", groups_ok,
+               f"groups={groups}")
+    hidden_ok = (13 not in [i for i, _ in nav_rows]
+                 and bool(internal) and internal.group == "__internal__")
+    report.add("新导航：13「Amazon 刊登」不在左侧（内部隐藏路由）", hidden_ok,
+               f"13_in_nav={13 in [i for i,_ in nav_rows]} group="
+               f"{getattr(internal, 'group', None)}")
+    page_bad = {page: row for page, row in per_page.items()
+                if row["landed"] != page or not row["own_header"]
+                or not row["guide"] or not row["context"]
+                or row["other_headers"]}
+    report.add("新导航：15–21 每页仅渲染本卡 + 页头引导 + 上下文",
+               not page_bad, f"{len(per_page)} 页；问题={page_bad or '无'}")
+    report.add("隐藏路由 13：仍渲染完整 7 卡（旧深链兼容）",
+               route13["landed"] == 13 and len(route13["headers"]) == 7,
+               f"landed={route13['landed']} headers={route13['headers']}")
+    return {"nav": nav_rows, "groups": groups,
+            "hidden_13": hidden_ok, "per_page": per_page,
+            "route13": route13}
+
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 def main() -> int:
@@ -1222,6 +1323,7 @@ def main() -> int:
     check_single_write_entry(report)
     check_write_guards(report)
     check_page_controls(report)
+    navigation = check_navigation(report)
     button_matrix = check_button_matrix(report)
     logic_matrix = check_logic_matrix(report)
     release_scan = check_release_ui_scan(report)
@@ -1235,6 +1337,7 @@ def main() -> int:
         "generated_at": __import__("datetime").datetime.now().astimezone()
         .isoformat(timespec="seconds"),
         "checks": report.rows,
+        "navigation": navigation,
         "button_matrix": button_matrix,
         "logic_matrix": logic_matrix,
         "release_ui_scan": release_scan,

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T13:07:03+08:00",
+  "generated_at": "2026-11-22T13:30:27+08:00",
   "mode": "read-only/offline audit (no network, no real write)",
   "preset_version": "2026-11-22.1",
   "counts": {
@@ -181,6 +181,16 @@
         "detail": "图片预设/复制提示词均在 ⑥ 卡内"
       },
       {
+        "name": "新导航：19 页仅文案预设（无图片预设）",
+        "ok": true,
+        "detail": "page19=['SKU预设', 'Search Terms预设', '五点描述预设', '产品描述预设', '标题预设']"
+      },
+      {
+        "name": "新导航：20 页仅图片预设（无文案预设）",
+        "ok": true,
+        "detail": "page20=['图片预设']"
+      },
+      {
         "name": "后端预设库缺失降级不崩溃",
         "ok": true,
         "detail": "预设库缺失时 13 页仍可渲染（下拉禁用/提示未就绪）"
@@ -219,18 +229,18 @@
       {
         "name": "文案卡预设分区截图（整页长图）",
         "ok": true,
-        "detail": "amazon-presets.png (706416 bytes)",
+        "detail": "amazon-presets.png (719823 bytes)",
         "observed": {
           "path": "docs/design/amazon-presets.png",
-          "bytes": 706416,
-          "sha256": "9150defdc553786f"
+          "bytes": 719823,
+          "sha256": "83fcda09ba43872d"
         }
       }
     ]
   },
   "summary": {
-    "passed": 27,
-    "total": 27,
+    "passed": 29,
+    "total": 29,
     "failed": []
   },
   "content_audit": {
@@ -447,7 +457,7 @@
   "screenshot": {
     "ok": true,
     "path": "docs/design/amazon-presets.png",
-    "bytes": 706416
+    "bytes": 719823
   },
   "notes": [
     "独立实现：用公开 API 与沙箱渲染做断言，不复制实现内部分支。",

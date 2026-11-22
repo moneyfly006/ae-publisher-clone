@@ -39,10 +39,13 @@ def _cases():
     exp_only = sorted({p.index for p in exp.pages} - set(ali_ids))
     cases = [(idx, False, "alibaba") for idx in ali_ids]
     cases += [(idx, False, "aliexpress") for idx in exp_only]
-    # Amazon 平台 13 号刊登页 + 概览/日志/设置（task-4 端到端验收要求）。
-    cases += [(idx, False, "amazon") for idx in (0, 13, 10, 11) if amz.page(idx)]
-    # TikTok 平台 14 号刊登页 + 概览/日志/设置（task-5 端到端验收要求）。
-    cases += [(idx, False, "tiktok") for idx in (0, 14, 10, 11) if ttk.page(idx)]
+    # Amazon 平台：遍历左侧导航全部可见页（含 15–21 功能页；13 为内部隐藏路由，不在导航）。
+    _amz_visible = sorted({p.index for p in amz.pages if not p.group.startswith("_")})
+    cases += [(idx, False, "amazon") for idx in _amz_visible if amz.page(idx)]
+    # TikTok 平台：遍历左侧导航全部可见功能页（0 + 15–21 + 10/11；
+    # 14 号为内部隐藏完整工作台，不在导航，另由 verify_tiktok_ui 覆盖）。
+    _ttk_visible = sorted({p.index for p in ttk.pages if not p.group.startswith("_")})
+    cases += [(idx, False, "tiktok") for idx in _ttk_visible if ttk.page(idx)]
     cases += [(5, True, "alibaba"), (10, True, "alibaba")]
     return cases
 

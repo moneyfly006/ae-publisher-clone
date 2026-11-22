@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T13:06:53+08:00",
+  "generated_at": "2026-11-22T13:29:37+08:00",
   "checks": [
     {
       "name": "契约 §3 函数签名",
@@ -60,6 +60,31 @@
       "name": "新布局：控件归属 7 卡正确（无丢失/错位）",
       "ok": true,
       "detail": "7 卡控件均在对应卡内"
+    },
+    {
+      "name": "新导航：Amazon 10 个可见入口/顺序",
+      "ok": true,
+      "detail": "nav=[(0, '概览'), (15, '连接与店铺'), (16, '采集箱商品'), (17, '站点与类目'), (18, '商品信息'), (19, '文案与 AI'), (20, 'AI 图片'), (21, '发布与结果'), (10, '任务与日志'), (11, '设置')]"
+    },
+    {
+      "name": "新导航：6 个分组/条目归属",
+      "ok": true,
+      "detail": "groups=[('工作空间', [0]), ('商品准备', [15, 16, 17, 18]), ('内容处理', [19, 20]), ('发布与运行', [21]), ('运行', [10]), ('工具', [11])]"
+    },
+    {
+      "name": "新导航：13「Amazon 刊登」不在左侧（内部隐藏路由）",
+      "ok": true,
+      "detail": "13_in_nav=False group=__internal__"
+    },
+    {
+      "name": "新导航：15–21 每页仅渲染本卡 + 页头引导 + 上下文",
+      "ok": true,
+      "detail": "7 页；问题=无"
+    },
+    {
+      "name": "隐藏路由 13：仍渲染完整 7 卡（旧深链兼容）",
+      "ok": true,
+      "detail": "landed=13 headers=['① 连接与店铺', '② 采集箱商品', '③ 站点与类目', '④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）', '⑤ 文案与 AI', '⑥ AI 图片（图片只读，v1 备用）', '⑦ 发布与结果']"
     },
     {
       "name": "全按钮矩阵（Amazon 0/13/10/11）",
@@ -152,6 +177,156 @@
       "detail": "已提示禁止写入平台数据"
     }
   ],
+  "navigation": {
+    "nav": [
+      [
+        0,
+        "概览"
+      ],
+      [
+        15,
+        "连接与店铺"
+      ],
+      [
+        16,
+        "采集箱商品"
+      ],
+      [
+        17,
+        "站点与类目"
+      ],
+      [
+        18,
+        "商品信息"
+      ],
+      [
+        19,
+        "文案与 AI"
+      ],
+      [
+        20,
+        "AI 图片"
+      ],
+      [
+        21,
+        "发布与结果"
+      ],
+      [
+        10,
+        "任务与日志"
+      ],
+      [
+        11,
+        "设置"
+      ]
+    ],
+    "groups": [
+      [
+        "工作空间",
+        [
+          0
+        ]
+      ],
+      [
+        "商品准备",
+        [
+          15,
+          16,
+          17,
+          18
+        ]
+      ],
+      [
+        "内容处理",
+        [
+          19,
+          20
+        ]
+      ],
+      [
+        "发布与运行",
+        [
+          21
+        ]
+      ],
+      [
+        "运行",
+        [
+          10
+        ]
+      ],
+      [
+        "工具",
+        [
+          11
+        ]
+      ]
+    ],
+    "hidden_13": true,
+    "per_page": {
+      "15": {
+        "landed": 15,
+        "own_header": true,
+        "guide": true,
+        "context": true,
+        "other_headers": []
+      },
+      "16": {
+        "landed": 16,
+        "own_header": true,
+        "guide": true,
+        "context": true,
+        "other_headers": []
+      },
+      "17": {
+        "landed": 17,
+        "own_header": true,
+        "guide": true,
+        "context": true,
+        "other_headers": []
+      },
+      "18": {
+        "landed": 18,
+        "own_header": true,
+        "guide": true,
+        "context": true,
+        "other_headers": []
+      },
+      "19": {
+        "landed": 19,
+        "own_header": true,
+        "guide": true,
+        "context": true,
+        "other_headers": []
+      },
+      "20": {
+        "landed": 20,
+        "own_header": true,
+        "guide": true,
+        "context": true,
+        "other_headers": []
+      },
+      "21": {
+        "landed": 21,
+        "own_header": true,
+        "guide": true,
+        "context": true,
+        "other_headers": []
+      }
+    },
+    "route13": {
+      "landed": 13,
+      "headers": [
+        "① 连接与店铺",
+        "② 采集箱商品",
+        "③ 站点与类目",
+        "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
+        "⑤ 文案与 AI",
+        "⑥ AI 图片（图片只读，v1 备用）",
+        "⑦ 发布与结果"
+      ]
+    }
+  },
   "button_matrix": {
     "pages": {
       "0": {
@@ -1050,7 +1225,7 @@
         "error": ""
       },
       {
-        "position": 74,
+        "position": 81,
         "label": "创建实例",
         "type": "ElevatedButton",
         "page": 11,
@@ -1061,7 +1236,7 @@
         "error": ""
       },
       {
-        "position": 75,
+        "position": 82,
         "label": "创建并启动",
         "type": "ElevatedButton",
         "page": 11,
@@ -1072,7 +1247,7 @@
         "error": ""
       },
       {
-        "position": 90,
+        "position": 97,
         "label": "检查更新",
         "type": "ElevatedButton",
         "page": 11,
@@ -1083,7 +1258,7 @@
         "error": ""
       },
       {
-        "position": 96,
+        "position": 103,
         "label": "开始诊断",
         "type": "ElevatedButton",
         "page": 11,
@@ -1094,7 +1269,7 @@
         "error": ""
       },
       {
-        "position": 110,
+        "position": 117,
         "label": "恢复 API 地址",
         "type": "OutlinedButton",
         "page": 11,
@@ -1107,7 +1282,7 @@
         "error": ""
       },
       {
-        "position": 111,
+        "position": 118,
         "label": "全部恢复推荐值",
         "type": "ElevatedButton",
         "page": 11,
@@ -1330,8 +1505,8 @@
     ]
   },
   "summary": {
-    "passed": 30,
-    "total": 30,
+    "passed": 35,
+    "total": 35,
     "failed": []
   }
 }

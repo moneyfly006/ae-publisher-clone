@@ -518,29 +518,76 @@ class AmazonPageTests(unittest.TestCase):
         self.app._switch_platform("amazon")
 
     # ---------- 导航 / 页面结构 ----------
-    def test_amazon_navigation_is_slim_and_has_page_13(self):
-        self.assertEqual({p.index for p in AMAZON.pages}, {0, 13, 10, 11})
-        self.assertEqual([p.index for p in AMAZON.pages], [0, 13, 10, 11])
-        self.assertIn(13, {d.index for d in DESTINATIONS})
-        dest = next(d for d in DESTINATIONS if d.index == 13)
-        self.assertEqual(dest.label, "Amazon 刊登")
-        # 搜索别名：契约 §4.1
-        page = get_platform("amazon").page(13)
-        for word in ("采集箱", "站点", "五点", "卖点", "bullet", "类目", "价格", "保存",
-                     "发布", "ai", "翻译"):
-            self.assertTrue(page.matches(word), f"13 号页搜索不到：{word}")
-        # 侧栏只有 4 项
+    def test_amazon_left_nav_has_seven_function_pages(self):
+        """task-21：左侧导航按功能拆 7 页；13 号完整工作台为隐藏内部路由。"""
+        indices = [p.index for p in AMAZON.pages]
+        self.assertEqual(indices, [0, 15, 16, 17, 18, 19, 20, 21, 10, 11, 13])
+        for i in range(15, 22):
+            self.assertIn(i, {d.index for d in DESTINATIONS})
+        self.assertEqual(AMAZON.page(13).group, "__internal__")
+        # 分组顺序与速卖通风格一致
+        self.assertEqual(AMAZON.groups(),
+                         ["工作空间", "商品准备", "内容处理", "发布与运行", "运行", "工具"])
         nav = [b.content.controls[1].value for _, b in self.app.nav_buttons]
-        self.assertEqual(nav, ["概览", "Amazon 刊登", "任务与日志", "设置"])
-        # 侧栏「启动任务」在 Amazon 平台文案改为「去 Amazon 刊登」
+        self.assertEqual(nav, ["概览", "连接与店铺", "采集箱商品", "站点与类目",
+                               "商品信息", "文案与 AI", "AI 图片", "发布与结果",
+                               "任务与日志", "设置"])
+        self.assertNotIn("Amazon 刊登", nav, "隐藏路由不应出现在左侧导航")
+        self.assertNotIn(13, [i for i, _ in self.app.nav_buttons])
+        # 侧栏按钮文案仍为「去 Amazon 刊登」（点击跳隐藏工作台 13）
         self.app._sync_run_button()
         self.assertEqual(self.app.btn_run_text.value, "去 Amazon 刊登")
-        # 导航搜索别名：五点 / 采集箱 都命中 13
-        for query in ("五点", "采集箱", "bullet"):
+        # 导航搜索按功能命中
+        for query, expect in (("五点", [19]), ("采集箱", [16]), ("发布失败", [16])):
             self.app._filter_navigation(query)
-            self.assertEqual([i for i, b in self.app.nav_buttons if b.visible], [13],
-                             f"搜索 {query} 未命中 Amazon 刊登页")
+            self.assertEqual([i for i, b in self.app.nav_buttons if b.visible], expect,
+                             f"搜索 {query} 命中异常")
         self.app._filter_navigation("")
+
+    def test_amazon_function_pages_show_only_their_card(self):
+        """15–21 每个功能页只渲染对应的一张卡 + 引导页头。"""
+        expect = {
+            15: ("①", "连接与店铺"), 16: ("②", "采集箱商品"),
+            17: ("③", "站点与类目"), 18: ("④", "商品信息"),
+            19: ("⑤", "文案与 AI"), 20: ("⑥", "AI 图片"),
+            21: ("⑦", "发布与结果"),
+        }
+
+        def numbered_cards():
+            out = []
+            for c in self.app.content.controls:
+                for x in walk([c]):
+                    if (isinstance(x, ft.Text) and x.value
+                            and x.value[0] in "①②③④⑤⑥⑦"
+                            and "→" not in x.value and "：" not in x.value):
+                        out.append(x.value)
+                        break
+            return out
+
+        for idx, (num, name) in expect.items():
+            with self.subTest(page=idx):
+                self.app._switch(idx)
+                self.assertEqual(self.app._page_idx, idx)
+                cards = numbered_cards()
+                self.assertEqual(len(cards), 1, f"页 {idx} 应只有 1 张卡，实际 {cards}")
+                self.assertTrue(cards[0].startswith(num), f"页 {idx} 卡编号错误：{cards[0]}")
+                self.assertIn(name, cards[0])
+                page_text = " ".join(texts(self.app))
+                self.assertIn(num, page_text)
+                # 引导副标题存在（含操作提示）
+                self.assertTrue(any(k in page_text for k in ("先", "填写", "浏览", "选择",
+                                                             "编辑", "查看", "保存")),
+                                f"页 {idx} 缺少操作引导")
+
+    def test_hidden_route_13_renders_full_workbench(self):
+        """13 号隐藏路由仍可 _switch(13) 渲染完整 7 卡（旧测试/深链兼容）。"""
+        self.app._switch(13)
+        self.assertEqual(self.app._page_idx, 13)
+        self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
+        page_text = " ".join(texts(self.app))
+        for title in ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
+                      "④ 商品信息", "⑤ 文案与 AI", "⑥ AI 图片", "⑦ 发布与结果"):
+            self.assertIn(title, page_text)
 
     def test_page_13_renders_in_dark_and_light_themes(self):
         for theme in ("dark", "light"):

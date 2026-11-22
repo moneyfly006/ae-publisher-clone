@@ -98,6 +98,27 @@ def tabs_of(controls):
     return out
 
 
+
+def _nav_groups_of(app) -> list:
+    """左侧导航分组：[(分组名, [页面 index...])]。"""
+    import flet as ft
+    out = []
+    for container, indices in getattr(app, "_nav_groups", []):
+        texts = []
+        def walk(control):
+            if isinstance(control, ft.Text):
+                texts.append(str(control.value or ""))
+            try:
+                children = list(control._get_children())
+            except Exception:  # noqa: BLE001
+                children = []
+            for child in children:
+                walk(child)
+        walk(container)
+        out.append((" ".join(texts), [int(i) for i in indices]))
+    return out
+
+
 def open_app(platform_id: str, page_index: int):
     from ui_sandbox import build_app, sandbox
     with sandbox():
@@ -120,6 +141,7 @@ def snapshot_of(app) -> dict:
         "store_shortcut_visible": bool(getattr(getattr(app, "store_shortcut", None),
                                                "visible", True)),
         "nav_indices": [int(index) for index, _button in getattr(app, "nav_buttons", [])],
+        "nav_groups": _nav_groups_of(app),
         "texts": texts,
         "buttons": buttons,
         "tabs": tabs_of(app.content.controls),
@@ -300,8 +322,20 @@ def check_amazon_retained(report: Report) -> None:
 
     page13 = open_app("amazon", 13)
     missing = [header for header in AMAZON_CARD_HEADERS if not has_visible(page13, header)]
-    report.add(section, "13 页七张卡齐全", not missing,
+    report.add(section, "隐藏路由 13：七张卡齐全（不在左侧导航）", not missing,
                f"{len(AMAZON_CARD_HEADERS) - len(missing)}/{len(AMAZON_CARD_HEADERS)}；缺={missing}")
+    page_card = {15: 0, 16: 1, 17: 2, 18: 3, 19: 4, 20: 5, 21: 6}
+    page_problems = {}
+    for page, card_index in page_card.items():
+        snap = open_app("amazon", page)
+        own = AMAZON_CARD_HEADERS[card_index]
+        other_hits = [h for i, h in enumerate(AMAZON_CARD_HEADERS)
+                      if i != card_index and has_visible(snap, h)]
+        if not has_visible(snap, own) or other_hits:
+            page_problems[page] = {"own": has_visible(snap, own),
+                                   "other": other_hits}
+    report.add(section, "15–21 每页仅渲染对应单卡", not page_problems,
+               f"7 页；问题={page_problems or '无'}")
     for needle in ("检测连接", "采集箱", "刷新", "加载类目", "校验路径",
                    "保存到 Amazon", "自动发布（自动修复）"):
         report.add(section, f"13 页保留「{needle}」入口", has_visible(page13, needle),
@@ -473,8 +507,9 @@ def check_other_platforms(report: Report) -> None:
                "（TikTok 处于外部并发开发中，不计入 Amazon 结论）")
     # Amazon 自己的导航/页面集合不能被外部 TikTok 改动污染。
     amazon = get_platform("amazon")
-    report.add("tiktok", "Amazon 页面集合仍为 0/13/10/11",
-               {item.index for item in amazon.pages} == {0, 13, 10, 11},
+    expected_amazon = {0, 10, 11, 13, 15, 16, 17, 18, 19, 20, 21}
+    report.add("tiktok", "Amazon 页面集合为 0/15–21/10/11 + 隐藏 13",
+               {item.index for item in amazon.pages} == expected_amazon,
                f"amazon pages={sorted(item.index for item in amazon.pages)}"
                "（与 TikTok 外部改动无关）")
 
@@ -549,9 +584,24 @@ def check_amazon_smt_entries(report: Report) -> None:
     from ui_sandbox import build_app, sandbox
     section = "amazon_smt_entries"
     overview = open_app("amazon", 0)
-    report.add(section, "导航仅 4 个入口（0/13/10/11）",
-               set(overview["nav_indices"]) == {0, 13, 10, 11},
+    expected_nav = [0, 15, 16, 17, 18, 19, 20, 21, 10, 11]
+    report.add(section, "新导航 10 个可见入口（0/15–21/10/11）",
+               list(overview["nav_indices"]) == expected_nav,
                f"nav={overview['nav_indices']}")
+    report.add(section, "13「Amazon 刊登」不在左侧导航（内部隐藏路由）",
+               13 not in overview["nav_indices"]
+               and any(item.index == 13 and str(item.group).startswith("_")
+                       for item in __import__("aeclone.platforms", fromlist=["get_platform"])
+                       .get_platform("amazon").pages),
+               f"13_in_nav={13 in overview['nav_indices']}")
+    expected_groups = [("工作空间", [0]),
+                       ("商品准备", [15, 16, 17, 18]),
+                       ("内容处理", [19, 20]),
+                       ("发布与运行", [21]),
+                       ("运行", [10]), ("工具", [11])]
+    report.add(section, "新导航 6 个分组/条目归属",
+               [tuple(row) for row in overview["nav_groups"]] == expected_groups,
+               f"groups={overview['nav_groups']}")
 
     import flet as ft
     from aeclone.platforms import AMAZON

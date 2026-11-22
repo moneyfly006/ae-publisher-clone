@@ -421,6 +421,27 @@ def check_ui(report: Report) -> dict:
                    "下拉/套用/恢复均在 ⑤ 卡内")
         report.add("ui", "新布局：图片预设/复制/编辑位于 ⑥ AI 图片", image_ok,
                    "图片预设/复制提示词均在 ⑥ 卡内")
+        # 新导航拆分：文案预设在 19 页；图片预设在 20 页；13 深链仍兼容
+        def _page_labels(page):
+            with sandbox():
+                page_app = build_app()
+                page_app._switch_platform("amazon")
+                page_app._switch(page)
+                return [str(getattr(control, "label", "") or "")
+                        for control, visible in _visible_controls(page_app)
+                        if visible and isinstance(control, ft.Dropdown)]
+        text_preset_labels = {label for label in _page_labels(19)
+                              if label.endswith("预设")}
+        image_preset_labels = {label for label in _page_labels(20)
+                               if label.endswith("预设")}
+        page19_ok = (all(label in text_preset_labels for label in text_presets)
+                     and not any("图片" in label for label in text_preset_labels))
+        page20_ok = (any("图片预设" in label for label in image_preset_labels)
+                     and not any(label in image_preset_labels for label in text_presets))
+        report.add("ui", "新导航：19 页仅文案预设（无图片预设）", page19_ok,
+                   f"page19={sorted(text_preset_labels)}")
+        report.add("ui", "新导航：20 页仅图片预设（无文案预设）", page20_ok,
+                   f"page20={sorted(image_preset_labels)}")
     return {"dropdown_counts": {label: len(getattr(dropdowns.get(label),
                                                    "options", []) or [])
                                 for label in expected_labels},

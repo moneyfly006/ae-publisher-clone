@@ -219,6 +219,53 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                        "测试连接", "本地验收"):
             self.assertNotIn(banned, page_all, f"Amazon 13 页仍含开发措辞：{banned}")
 
+    # ---------- 左侧导航按功能拆 7 页（task-21） ----------
+    def test_amazon_left_nav_split_seven_pages_and_hidden_route(self):
+        from aeclone.platforms import AMAZON
+        self.app._switch_platform("amazon")
+        indices = [p.index for p in AMAZON.pages]
+        self.assertEqual(indices, [0, 15, 16, 17, 18, 19, 20, 21, 10, 11, 13])
+        self.assertEqual(AMAZON.page(13).group, "__internal__")
+        self.assertEqual(AMAZON.groups(),
+                         ["工作空间", "商品准备", "内容处理", "发布与运行", "运行", "工具"])
+        nav_labels = [b.content.controls[1].value for _, b in self.app.nav_buttons]
+        self.assertEqual(nav_labels, ["概览", "连接与店铺", "采集箱商品", "站点与类目",
+                                      "商品信息", "文案与 AI", "AI 图片", "发布与结果",
+                                      "任务与日志", "设置"])
+        self.assertNotIn("Amazon 刊登", nav_labels, "左侧导航不应出现隐藏的 13 号入口")
+        self.assertNotIn(13, [i for i, _ in self.app.nav_buttons])
+        # 7 个新条目在正确分组
+        self.assertEqual([p.index for p in AMAZON.pages if p.group == "商品准备"],
+                         [15, 16, 17, 18])
+        self.assertEqual([p.index for p in AMAZON.pages if p.group == "内容处理"], [19, 20])
+        self.assertEqual([p.index for p in AMAZON.pages if p.group == "发布与运行"], [21])
+
+        def numbered_card(card):
+            for x in walk([card]):
+                if (isinstance(x, ft.Text) and x.value
+                        and x.value[0] in "①②③④⑤⑥⑦"
+                        and "→" not in x.value and "：" not in x.value):
+                    return x.value
+            return ""
+
+        expect = {15: "① 连接与店铺", 16: "② 采集箱商品", 17: "③ 站点与类目",
+                  18: "④ 商品信息", 19: "⑤ 文案与 AI", 20: "⑥ AI 图片",
+                  21: "⑦ 发布与结果"}
+        for idx, title in expect.items():
+            with self.subTest(page=idx):
+                self.app._switch(idx)
+                self.assertEqual(self.app._page_idx, idx)
+                cards = [c for c in self.app.content.controls if numbered_card(c)]
+                self.assertEqual(len(cards), 1, f"页 {idx} 应只渲染 1 张卡：{cards}")
+                self.assertTrue(numbered_card(cards[0]).startswith(title),
+                                f"页 {idx} 卡片错误：{numbered_card(cards[0])}")
+        # 13 隐藏路由仍渲染完整 7 卡
+        self.app._switch(13)
+        self.assertEqual(self.app._page_idx, 13)
+        self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
+        cards = [c for c in self.app.content.controls if numbered_card(c)]
+        self.assertEqual(len(cards), 7, f"13 隐藏路由应有 7 卡：{[numbered_card(c) for c in cards]}")
+
     # ---------- 平台隔离：AliExpress 原样保留 ----------
     def test_amazon_ctrl_f_does_not_open_smt_search(self):
         """Amazon 平台 ⌘F 不得打开 SMT 全局商品搜索（应跳 13 页）；AliExpress 仍打开。"""
