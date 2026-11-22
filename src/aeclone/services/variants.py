@@ -67,10 +67,36 @@ def _dimensions(sku: dict) -> tuple[str, dict[str, str]]:
         if not isinstance(raw, list):
             raise ValueError("aeopSKUProperty 必须是属性列表")
         pairs = []
+        # 两种真实形态：
+        # 1) 标准：{"skuPropertyId":..,"propertyValueId":..}
+        # 2) 命名：{"Model Number":"YG-150","Power (W)":"60KW","skuImage":null,"extraImages":""}
+        #    店小秘/速卖通采集数据常见命名形态，元数据字段（skuImage/extraImages 等）
+        #    不是规格维度，必须忽略，否则会误报「属性键和值必须是非空标量」。
+        _META = {
+            "skuimage", "extraimages", "image", "img", "imageurllist",
+            "skupropertyname", "propertyvaluename", "propertyvaluedefinitionname",
+            "skuid", "sku", "id", "skupropertyid", "propertyvalueid",
+            "parentpropertyid", "parentvalueid", "plug_parent_property_id",
+            "plug_parent_value_id", "mobilemodelskuimage", "skupropertylist",
+            "skucode", "currencycode", "skuprice", "ipmskustock", "skustock",
+        }
         for item in raw:
             if not isinstance(item, dict):
                 raise ValueError("标准属性必须是字典")
-            pairs.append((item.get("skuPropertyId"), item.get("propertyValueId")))
+            if "skuPropertyId" in item or "propertyValueId" in item:
+                pairs.append((item.get("skuPropertyId"), item.get("propertyValueId")))
+                continue
+            for key, value in item.items():
+                low = str(key).strip().lower()
+                if low in _META or value is None:
+                    continue
+                if isinstance(value, str) and not value.strip():
+                    continue
+                # 命名形态里的容器值（列表/字典）只会是采集元数据（图片列表等），
+                # 不是规格维度；直接忽略，避免误报「必须是非空标量」。
+                if isinstance(value, (list, dict)):
+                    continue
+                pairs.append((key, value))
         style = "standard"
     elif isinstance(raw, dict):
         pairs = list(raw.items())

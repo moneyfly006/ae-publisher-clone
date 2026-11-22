@@ -1,0 +1,35 @@
+{
+ "product_id": "220114600917618096",
+ "title": "Yugong Bolehole DTH Drilling Rig – Portable Mine Machine, 120m Depth, Hydraulic Rock Drill",
+ "sku_count": 1,
+ "repair_note": "",
+ "issues": [],
+ "skus": [
+  {
+   "sku": "SKU-001",
+   "source": "aeopAeProductSKUs/smtProductSkuList",
+   "has_source_rows": true
+  }
+ ],
+ "ok": true,
+ "read_only": true,
+ "fix": {
+  "root_cause": "速卖通采集数据 aeopSKUProperty 里混有元数据键/空值/列表（如 skuImage=None、imageUrlList、skuPropertyList），旧版解析把它们当规格维度，触发「属性键和值必须是非空标量」",
+  "fix_files": [
+   "src/aeclone/services/variants.py"
+  ],
+  "rules": [
+   "标准形态只取 skuPropertyId/propertyValueId",
+   "命名形态忽略 skuImage/extraImages/imageUrlList 等元数据与 None/空串/容器值",
+   "smtProductSkuList 的 skuPropertyList 字符串不当作维度",
+   "真正缺失属性值仍报错"
+  ],
+  "build": "dist/verified-smt-sku-fix2-20261122-042301/AuroraList.app",
+  "sha256": "455126416c218998b36c292e9f83157a70a3fa0f6e8d2fe5ed00705701aed221",
+  "installed": "/Applications/AuroraList.app (v1.0.6)",
+  "sample_draft_check": {
+   "checked": 8,
+   "problems": 0
+  }
+ }
+}
