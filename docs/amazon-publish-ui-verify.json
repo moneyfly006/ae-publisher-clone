@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T04:17:28+08:00",
+  "generated_at": "2026-11-22T13:06:53+08:00",
   "checks": [
     {
       "name": "契约 §3 函数签名",
@@ -45,6 +45,21 @@
       "name": "13 页关键控件",
       "ok": true,
       "detail": "22/22 项存在"
+    },
+    {
+      "name": "新布局：7 卡标题/编号顺序",
+      "ok": true,
+      "detail": "① 连接与店铺=10 → ② 采集箱商品=27 → ③ 站点与类目=48 → ④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）=75 → ⑤ 文案与 AI=115 → ⑥ AI 图片（图片只读，v1 备用）=259 → ⑦ 发布与结果=298"
+    },
+    {
+      "name": "新布局：步骤条与卡片顺序一致",
+      "ok": true,
+      "detail": "① 连接店铺/站点  →  ② 选采集箱商品  →  ③ 站点与类目  →  ④ 价格/库存/品牌/SKU  →  ⑤ 文案与 AI（含预设）  →  ⑥ AI 图片  →  ⑦ 发布与结果"
+    },
+    {
+      "name": "新布局：控件归属 7 卡正确（无丢失/错位）",
+      "ok": true,
+      "detail": "7 卡控件均在对应卡内"
     },
     {
       "name": "全按钮矩阵（Amazon 0/13/10/11）",
@@ -496,7 +511,51 @@
         "error": ""
       },
       {
-        "position": 73,
+        "position": 70,
+        "label": "查看 productAttr（只读）",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "DIALOG",
+        "after": 13,
+        "switched": [],
+        "dialog": "产品属性 productAttr（只读）",
+        "error": ""
+      },
+      {
+        "position": 88,
+        "label": "刷新运费模板",
+        "type": "OutlinedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 93,
+        "label": "AI 生成 SKU",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 108,
+        "label": "自动补齐必填属性",
+        "type": "OutlinedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 121,
         "label": "AI 生成标题",
         "type": "TextButton",
         "page": 13,
@@ -507,7 +566,7 @@
         "error": ""
       },
       {
-        "position": 80,
+        "position": 128,
         "label": "AI 生成五点",
         "type": "OutlinedButton",
         "page": 13,
@@ -518,7 +577,7 @@
         "error": ""
       },
       {
-        "position": 81,
+        "position": 129,
         "label": "＋添加卖点",
         "type": "TextButton",
         "page": 13,
@@ -529,7 +588,7 @@
         "error": ""
       },
       {
-        "position": 83,
+        "position": 131,
         "label": "清空五点",
         "type": "TextButton",
         "page": 13,
@@ -540,7 +599,7 @@
         "error": ""
       },
       {
-        "position": 89,
+        "position": 137,
         "label": "AI",
         "type": "TextButton",
         "page": 13,
@@ -551,7 +610,7 @@
         "error": ""
       },
       {
-        "position": 95,
+        "position": 143,
         "label": "AI",
         "type": "TextButton",
         "page": 13,
@@ -562,7 +621,7 @@
         "error": ""
       },
       {
-        "position": 101,
+        "position": 149,
         "label": "AI",
         "type": "TextButton",
         "page": 13,
@@ -573,7 +632,7 @@
         "error": ""
       },
       {
-        "position": 107,
+        "position": 155,
         "label": "AI",
         "type": "TextButton",
         "page": 13,
@@ -584,7 +643,7 @@
         "error": ""
       },
       {
-        "position": 113,
+        "position": 161,
         "label": "AI",
         "type": "TextButton",
         "page": 13,
@@ -595,7 +654,7 @@
         "error": ""
       },
       {
-        "position": 119,
+        "position": 167,
         "label": "AI 生成描述",
         "type": "TextButton",
         "page": 13,
@@ -606,7 +665,7 @@
         "error": ""
       },
       {
-        "position": 125,
+        "position": 173,
         "label": "AI 生成关键词",
         "type": "TextButton",
         "page": 13,
@@ -617,7 +676,7 @@
         "error": ""
       },
       {
-        "position": 129,
+        "position": 177,
         "label": "AI 一键生成全部（付费）",
         "type": "ElevatedButton",
         "page": 13,
@@ -628,7 +687,7 @@
         "error": ""
       },
       {
-        "position": 150,
+        "position": 197,
         "label": "套用",
         "type": "ElevatedButton",
         "page": 13,
@@ -639,7 +698,7 @@
         "error": ""
       },
       {
-        "position": 151,
+        "position": 198,
         "label": "恢复内置",
         "type": "TextButton",
         "page": 13,
@@ -650,7 +709,7 @@
         "error": ""
       },
       {
-        "position": 164,
+        "position": 211,
         "label": "套用",
         "type": "ElevatedButton",
         "page": 13,
@@ -661,73 +720,7 @@
         "error": ""
       },
       {
-        "position": 165,
-        "label": "恢复内置",
-        "type": "TextButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 178,
-        "label": "套用",
-        "type": "ElevatedButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 179,
-        "label": "恢复内置",
-        "type": "TextButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 191,
-        "label": "套用",
-        "type": "ElevatedButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 192,
-        "label": "恢复内置",
-        "type": "TextButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 204,
-        "label": "套用",
-        "type": "ElevatedButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 205,
+        "position": 212,
         "label": "恢复内置",
         "type": "TextButton",
         "page": 13,
@@ -739,50 +732,6 @@
       },
       {
         "position": 225,
-        "label": "刷新运费模板",
-        "type": "OutlinedButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 230,
-        "label": "AI 生成 SKU",
-        "type": "TextButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 245,
-        "label": "自动补齐必填属性",
-        "type": "OutlinedButton",
-        "page": 13,
-        "outcome": "OK",
-        "after": 13,
-        "switched": [],
-        "dialog": "",
-        "error": ""
-      },
-      {
-        "position": 254,
-        "label": "查看 productAttr（只读）",
-        "type": "TextButton",
-        "page": 13,
-        "outcome": "DIALOG",
-        "after": 13,
-        "switched": [],
-        "dialog": "产品属性 productAttr（只读）",
-        "error": ""
-      },
-      {
-        "position": 278,
         "label": "套用",
         "type": "ElevatedButton",
         "page": 13,
@@ -793,7 +742,7 @@
         "error": ""
       },
       {
-        "position": 279,
+        "position": 226,
         "label": "恢复内置",
         "type": "TextButton",
         "page": 13,
@@ -804,7 +753,73 @@
         "error": ""
       },
       {
-        "position": 280,
+        "position": 238,
+        "label": "套用",
+        "type": "ElevatedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 239,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 251,
+        "label": "套用",
+        "type": "ElevatedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 252,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 289,
+        "label": "套用",
+        "type": "ElevatedButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 290,
+        "label": "恢复内置",
+        "type": "TextButton",
+        "page": 13,
+        "outcome": "OK",
+        "after": 13,
+        "switched": [],
+        "dialog": "",
+        "error": ""
+      },
+      {
+        "position": 291,
         "label": "复制提示词",
         "type": "TextButton",
         "page": 13,
@@ -815,7 +830,7 @@
         "error": ""
       },
       {
-        "position": 294,
+        "position": 305,
         "label": "保存到 Amazon",
         "type": "ElevatedButton",
         "page": 13,
@@ -826,7 +841,7 @@
         "error": ""
       },
       {
-        "position": 295,
+        "position": 306,
         "label": "查询发布结果",
         "type": "TextButton",
         "page": 13,
@@ -837,7 +852,7 @@
         "error": ""
       },
       {
-        "position": 296,
+        "position": 307,
         "label": "自动补齐并重试发布",
         "type": "OutlinedButton",
         "page": 13,
@@ -848,7 +863,7 @@
         "error": ""
       },
       {
-        "position": 300,
+        "position": 313,
         "label": "自动发布（自动修复）",
         "type": "ElevatedButton",
         "page": 13,
@@ -1315,8 +1330,8 @@
     ]
   },
   "summary": {
-    "passed": 27,
-    "total": 27,
+    "passed": 30,
+    "total": 30,
     "failed": []
   }
 }

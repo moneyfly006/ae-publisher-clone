@@ -12,7 +12,7 @@
    ``pipeline.run_amazon_product / prepare_save``。
 4. **预演/验收护栏**：``AURORA_TEST`` / ``AURORA_NO_SAVE`` 下 ``save_to_amazon`` 直接拒绝；
    UI「保存」按钮在预演模式下不调用 pipeline（运行期断言）。
-5. **13 页关键控件**：店铺/站点 Dropdown、5 个卖点输入、「＋添加卖点」、预演/保存、AI 5 按钮、
+5. **13 页关键控件/新 7 卡布局**：卡顺序/步骤条/控件归属、店铺/站点 Dropdown、5 个卖点输入、
    n/200 · n/700 · n/2000 · n/250 bytes 计数。
 
 全程 ``AURORA_TEST=1``、``tools/ui_sandbox.sandbox`` 隔离配置；不联网、不写平台。
@@ -398,6 +398,79 @@ def check_page_controls(report: Report) -> None:
     report.add("13 页关键控件", not missing,
                f"{sum(checks.values())}/{len(checks)} 项存在"
                + (f"；缺 {missing}" if missing else ""))
+
+    # ---- 新 7 卡布局：顺序/编号/步骤条/控件归属 ----
+    import re as _re
+    CARD_HEADERS = ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
+                    "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
+                    "⑤ 文案与 AI", "⑥ AI 图片（图片只读，v1 备用）",
+                    "⑦ 发布与结果")
+    ordered = []  # (position, label)
+    for pos, control in enumerate(controls):
+        label = ""
+        if isinstance(control, ft.Text):
+            label = str(control.value or "")
+        elif isinstance(control, (ft.ElevatedButton, ft.OutlinedButton,
+                                  ft.TextButton, ft.IconButton)):
+            label = str(getattr(control, "text", "") or "")
+        elif isinstance(control, (ft.Dropdown, ft.TextField, ft.Switch)):
+            label = str(getattr(control, "label", "") or "")
+        if label:
+            ordered.append((pos, label))
+    header_positions = {}
+    for header in CARD_HEADERS:
+        hits = [pos for pos, label in ordered if label == header]
+        header_positions[header] = hits[0] if hits else None
+    headers_ok = all(header_positions[h] is not None for h in CARD_HEADERS) and all(
+        header_positions[CARD_HEADERS[i]] < header_positions[CARD_HEADERS[i + 1]]
+        for i in range(len(CARD_HEADERS) - 1))
+    report.add("新布局：7 卡标题/编号顺序", headers_ok,
+               " → ".join(f"{h}={header_positions[h]}" for h in CARD_HEADERS))
+    step = next((label for _pos, label in ordered
+                 if "① 连接店铺/站点" in label and "⑦ 发布与结果" in label), "")
+    step_ok = bool(step)
+    if step:
+        idx = [step.find(token) for token in
+               ("① 连接店铺/站点", "② 选采集箱商品", "③ 站点与类目",
+                "④ 价格/库存/品牌/SKU", "⑤ 文案与 AI", "⑥ AI 图片", "⑦ 发布与结果")]
+        step_ok = all(i >= 0 for i in idx) and idx == sorted(idx)
+    report.add("新布局：步骤条与卡片顺序一致", step_ok,
+               step[:140] if step else "未找到步骤条")
+    CARD_CONTROLS = {
+        0: ["读取本机 Cookie", "检测连接", "店铺", "站点"],
+        1: ["采集箱", "待发布", "发布中", "发布失败", "在线", "刷新",
+            "上一页", "下一页", "搜索标题 / SKU / 商品 ID"],
+        2: ["加载类目", "最近使用类目", "校验路径", "查看 productAttr（只读）"],
+        3: ["标准价", "促销价（可空）", "数量", "配送方式", "处理时效（天）",
+            "运费模板", "刷新运费模板", "品牌", "制造商", "SKU",
+            "AI 生成 SKU", "型号（model_number）", "型号名称（model_name）",
+            "零件编号（part_number）", "制造商联系信息", "自动补齐必填属性"],
+        4: ["AI 生成标题", "AI 生成五点", "＋添加卖点", "清空五点", "卖点 1",
+            "卖点 5", "AI 生成描述", "AI 生成关键词", "AI 一键生成全部（付费）",
+            "标题预设", "五点描述预设", "产品描述预设", "Search Terms预设",
+            "SKU预设", "套用", "恢复内置"],
+        5: ["AI 图片提示词预设", "图片提示词预设", "复制提示词", "图片"],
+        6: ["保存动作", "保存到 Amazon", "查询发布结果", "自动补齐并重试发布",
+            "自动发布（自动修复）", "自动发布动作", "最多自动修复轮数",
+            "发布后等待（秒）", "自动补齐必填属性", "自动修正标题",
+            "自动清理描述", "AI 重写"],
+    }
+    attribution_missing = {}
+    for card_index, needles in CARD_CONTROLS.items():
+        start = header_positions[CARD_HEADERS[card_index]]
+        end = (header_positions[CARD_HEADERS[card_index + 1]]
+               if card_index + 1 < len(CARD_HEADERS) else len(controls))
+        missing_needles = []
+        for needle in needles:
+            found = any(start < pos < end and needle in label
+                        for pos, label in ordered)
+            if not found:
+                missing_needles.append(needle)
+        if missing_needles:
+            attribution_missing[CARD_HEADERS[card_index]] = missing_needles
+    report.add("新布局：控件归属 7 卡正确（无丢失/错位）", not attribution_missing,
+               "7 卡控件均在对应卡内" if not attribution_missing
+               else str(attribution_missing))
 
 
 # ---------------------------------------------------------------------------

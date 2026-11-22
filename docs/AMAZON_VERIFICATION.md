@@ -16,6 +16,7 @@
 | 发布 UI / 全按钮 / 逻辑矩阵（task-11） | **27/27 PASS**；69 个可见按钮 0 异常；9 条逻辑断言全 PASS；正式版文案 prod/test 泄漏 0 | `docs/amazon-publish-ui-verify.json`（generated_at `2026-11-22T03:35:14+08:00`） |
 | AI 提示词预设库（task-14） | **25/25 PASS**；50 个预设（title 10/bullets 7/description 7/search_terms 6/sku 6/image 14）；合规扫描 0 未豁免命中 | `docs/amazon-presets-verification.json`（generated_at `2026-11-22T03:47:47+08:00`） |
 | 去预演 + 自动发布（task-17） | **37/37 PASS**；页面无预演痕迹；auto_publish 8 场景/政策 14 项/UI 7 项全 PASS；Lead 证据 2 商品 reviewing 已提交 | `docs/amazon-auto-publish-audit.json`（generated_at `2026-11-22T04:04:48+08:00`） |
+| Amazon 登录页新 7 卡布局（task-20） | **layout 30/30 + 预设 27/27 + 隔离 82/82 PASS**；7 卡顺序/步骤条/控件归属正确；回归 399 用例全 PASS | `docs/amazon-publish-ui-verify.json`、`docs/amazon-presets-verification.json`、`docs/amazon-platform-isolation.json` |
 | Amazon 测试（8 文件 194 用例） | **194/194 OK**（`AURORA_TEST=1`） | `tests/test_amazon_*.py` |
 | 离线契约测试 | **27/27 OK** | `tests/test_amazon_contract.py` |
 | 平台隔离审计（task-6 独立实现） | **79/79 PASS**（含 ⌘F 修复后复验；隐藏过头=0 / 隐藏不足=0） | `docs/amazon-platform-isolation.json` |
@@ -323,6 +324,8 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 | `docs/design/amazon-presets.png` | 13 页 ④b 预设卡 + ⑦ 图片预设卡截图（449,304 B） |
 | `docs/amazon-auto-publish-audit.json` | 去预演+自动发布独立验收（37/37 PASS：修复场景/政策/UI/Lead 证据） |
 | `docs/design/amazon-auto-publish.png` | 13 页自动发布卡截图（244,962 B） |
+| `docs/design/amazon-listing-page.png` | 新 7 卡布局首屏（334,806 B） |
+| `docs/design/amazon-listing-new-layout.png` | 新 7 卡整页长图（1560×5,119） |
 | `docs/design/amazon-listing-page.png` | 13 页顶部截图（274,162 B） |
 | `docs/design/amazon-listing-page-2-price-preview.png` | 13 页价格/预演截图（263,971 B） |
 | `docs/design/amazon-listing-page-3-save.png` | 13 页底部截图（265,636 B） |
@@ -695,3 +698,69 @@ AURORA_TEST=1 .venv/bin/python tools/button_audit.py --json docs/ui-button-audit
 - 证据：[docs/amazon-auto-publish-verification.json](docs/amazon-auto-publish-verification.json)（3 条 run：1 条修复前 blocked + 2 条 submitted）。
 - 结论：**「预演」用户功能已删除**；真实发布走 op=2 + 自动修复闭环；失败可自动补属性/清洗标题描述并重发；
   两商品均成功提交平台审核。
+
+> 全平台最终验收总报告：`docs/ALL_PLATFORMS_FINAL_VERIFICATION.md`（2026-11-22，含构建/AI/图片/视频/逐平台）。
+
+
+
+---
+
+## 14. Amazon 刊登页布局重构（按功能分组，task-20）
+
+> 背景：task-19 将 13 页从旧 6 卡（④b/⑥/⑦ 混排）重排为按功能分组的 **7 卡**；
+> 本 verifier 独立渲染复核 + 更新过时审计工具/截图/文档。
+
+### 14.1 新 7 卡顺序与标题（渲染实测）
+
+| # | 卡标题 | 主要内容（迁移后归属） |
+|---|---|---|
+| ① | 连接与店铺 | Cookie 输入/读取本机 Cookie/检测连接/店铺/站点/连接状态 |
+| ② | 采集箱商品 | 5 状态 tab（采集箱/待发布/发布中/发布失败/在线）/搜索/刷新/上一下一页/商品列表 |
+| ③ | 站点与类目 | 顶层类目/最近使用/加载类目/nodePath 校验/推荐产品类型 + **类目属性（productAttr 只读）**（原 ⑤/⑥ 迁移） |
+| ④ | 商品信息（价格 / 库存 / 物流 / 品牌 / SKU） | 标准价/促销价/数量/配送/时效/运费模板+刷新/品牌/制造商/SKU+AI 生成 SKU/**4 必填属性+自动补齐** |
+| ⑤ | 文案与 AI | 标题+AI/卖点数量+AI 生成五点/＋添加/清空/5 行/描述+AI/ST+AI/一键生成全部 + **5 组文案预设（下拉/套用/恢复/可编辑）**（原 ④b 合并） |
+| ⑥ | AI 图片（图片只读，v1 备用） | 图片数量/缩略图 + **图片提示词预设（14 个/套用/恢复/复制/编辑）**（原 ⑦ 合并） |
+| ⑦ | 发布与结果 | 保存动作/保存到 Amazon/查询发布结果/自动补齐并重试发布/**自动发布（自动修复）+3 下拉+4 开关**/结果区 |
+
+- 步骤条（页头）：`① 连接店铺/站点 → ② 选采集箱商品 → ③ 站点与类目 →
+  ④ 价格/库存/品牌/SKU → ⑤ 文案与 AI → ⑥ AI 图片 → ⑦ 发布与结果`，
+  与卡片实际顺序**完全一致**（位置断言 10→27→48→75→115→259→298）。
+- 控件归属检查：7 卡全部关键控件均在对应卡范围内（无丢失/错位）；
+  原「④b AI 提示词预设」「⑦ AI 图片提示词预设」「⑥ 保存与发布」已合并/改名。
+
+### 14.2 审计工具更新点
+
+| 工具 | 更新 |
+|---|---|
+| `tools/verify_amazon_ui.py` | 新增 4 项新布局断言：7 卡标题/编号顺序、步骤条与卡顺序一致、7 卡控件归属；发布区检查改为新卡「保存到 Amazon/自动发布」；结果 30/30 PASS |
+| `tools/verify_amazon_presets.py` | 新增 2 项归属断言：5 组文案预设必须在 ⑤；图片预设/复制/编辑必须在 ⑥；截图改为整页长图（裁空白），结果 27/27 PASS |
+| `tools/verify_amazon_platform_isolation.py` | 卡片标签更新为新 7 卡；保留项「测试连接/预演」改为「检测连接/保存到 Amazon/自动发布」；结果 82/82 PASS |
+| `tests/test_amazon_ui_page.py` / `test_amazon_platform_ui_filter.py` | UI 团队已先更新断言（32/32、10/10），本 verifier 复核其已含新卡顺序/步骤条/控件归属断言，未重复改冲突 |
+
+### 14.3 截图
+
+- `docs/design/amazon-listing-page.png`：新布局首屏（1560×2200，334,806 B）。
+- `docs/design/amazon-listing-new-layout.png`：**整页长图**（1560×5,119，706,416 B，未截断：
+  含 ①–⑦ 全部卡片；底部空白已裁掉）。
+- `docs/design/amazon-presets.png`：更新为整页长图（1560×5,119，706,416 B，⑤ 文案预设 + ⑥ 图片预设）。
+- 正式版文案：`verify_amazon_ui` 正式版扫描 0 泄漏（无 AURORA_/预演/检查模式/测试字样）。
+
+### 14.4 回归（全部绿）
+
+- 全部 `tests/test_amazon_*.py`（15 文件，**399 用例**）：**全 PASS**
+  （含 `test_amazon_ui_page` 32、`test_amazon_platform_ui_filter` 10、`test_amazon_live_smoke` 16）。
+- `tools/verify_amazon_ui.py`：**30/30 PASS**（含新布局 4 项）。
+- `tools/verify_amazon_presets.py`：**27/27 PASS**（含新布局 2 项）。
+- `tools/verify_amazon_platform_isolation.py`：**82/82 PASS**（新 7 卡 + 其它平台隔离）。
+- `button_audit`：**21 页 / 630 回调，ERROR 0**。
+- `tools/test_offline.py`：**943 tests OK**；`python -m compileall -q src`：exit 0。
+- 其它平台（Alibaba/AliExpress/TikTok/Shopee）页面在隔离审计中均可渲染，未被 Amazon 布局改动影响。
+
+### 14.5 P0/P1/P2
+
+- **P0：无。** 新布局渲染/步骤条/控件归属全部通过，回归全绿。
+- **P1：无。**
+- **P2（备注）**：
+  1. 整页长图较高（5,119px），部分 Markdown 预览器会自动缩略；文件本身未截断，可按需查看原图。
+  2. ⑤ 文案卡内 6 个预设「套用/恢复」按钮同名，自动化按控件位置断言归属；人工操作按卡片分区无误。
+  3. 图片提示词输入框 label 仍为「图片提示词提示词（可编辑…）」（历史小瑕疵，建议改「图片提示词（可编辑…）」）。

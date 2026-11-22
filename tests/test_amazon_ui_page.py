@@ -553,21 +553,20 @@ class AmazonPageTests(unittest.TestCase):
                 # 主题切换后关键文案仍在（颜色走主题变量，不写死深色）
                 self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
                 self.assertTrue(any(isinstance(c, ft.Text) and c.value
-                                    and "⑥ 保存与发布" in c.value for c in rendered))
+                                    and "⑦ 发布与结果" in c.value for c in rendered))
         ui.apply_theme("dark")
 
-    def test_page_13_renders_with_all_six_cards_and_key_controls(self):
+    def test_page_13_renders_with_all_seven_cards_and_key_controls(self):
         self.app._switch(13)
         self.assertEqual(self.app._page_idx, 13)
         self.assertEqual(self.app._current, 13)
         self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
         all_text = texts(self.app)
         for title in ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
-                      "④ 标题与卖点（AI）",
-                      "④b AI 提示词预设（标题 / 五点 / 描述 / Search Terms / SKU）",
-                      "⑤ 价格 / 库存 / 物流 / 品牌 / SKU",
-                      "⑥ 保存与发布",
-                      "⑦ AI 图片提示词预设（图片只读，v1 备用）"):
+                      "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
+                      "⑤ 文案与 AI",
+                      "⑥ AI 图片（图片只读，v1 备用）",
+                      "⑦ 发布与结果"):
             self.assertIn(title, all_text)
         # 关键控件（契约 §4.3）
         self.assertIn("店铺", labels(self.app))
@@ -605,6 +604,76 @@ class AmazonPageTests(unittest.TestCase):
             self.assertTrue(any(str(getattr(b, "text", "")).startswith(label)
                                 for b in buttons(self.app)), label)
 
+    def test_page_13_layout_groups_controls_by_function(self):
+        """task-19：7 卡按功能分组，控件归属正确、步骤条与卡片顺序一致。"""
+        self.app._switch(13)
+
+        def first_title(card):
+            for x in walk([card]):
+                if (isinstance(x, ft.Text) and x.value
+                        and x.value[0] in "①②③④⑤⑥⑦" and "→" not in x.value):
+                    return x.value
+            return ""
+
+        cards = [c for c in self.app.content.controls if first_title(c)]
+        titles = [first_title(c) for c in cards]
+        self.assertEqual(len(titles), 7, f"应为 7 张功能卡：{titles}")
+        expected = ["① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
+                    "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
+                    "⑤ 文案与 AI", "⑥ AI 图片（图片只读，v1 备用）",
+                    "⑦ 发布与结果"]
+        self.assertEqual(titles, expected)
+
+        def texts_of(card):
+            return [str(x.value) for x in walk([card])
+                    if isinstance(x, ft.Text) and x.value]
+
+        def labels_of(card):
+            return [str(getattr(x, "label", "")) for x in walk([card])
+                    if getattr(x, "label", "")]
+
+        def btns_of(card):
+            return [str(getattr(x, "text", "")) for x in walk([card])
+                    if hasattr(x, "text")]
+
+        # ③ 类目：productAttr 只读查看移入本卡
+        self.assertIn("类目属性（只读）", texts_of(cards[2]))
+        self.assertTrue(any("查看 productAttr" in b for b in btns_of(cards[2])))
+        # ④ 商品信息：价格/必填属性/SKU AI；不含图片缩略图、不含文案预设
+        self.assertIn("标准价", labels_of(cards[3]))
+        self.assertIn("型号（model_number）", labels_of(cards[3]))
+        self.assertIn("自动补齐必填属性", btns_of(cards[3]))
+        self.assertFalse(any("图片：主图" in t for t in texts_of(cards[3])),
+                         "④ 商品信息不应再显示图片")
+        self.assertNotIn("标题预设", labels_of(cards[3]))
+        # ⑤ 文案与 AI：标题/五点/描述/关键词 + 文案预设合并到卡内
+        self.assertIn("标题", labels_of(cards[4]))
+        for preset_label in ("标题预设", "五点描述预设", "产品描述预设",
+                             "Search Terms预设", "SKU预设"):
+            self.assertIn(preset_label, labels_of(cards[4]),
+                          f"⑤ 文案卡缺少预设：{preset_label}")
+        self.assertTrue(any("AI 一键生成全部（付费）" == b
+                            for b in btns_of(cards[4])))
+        self.assertNotIn("图片预设", labels_of(cards[4]))
+        # ⑥ AI 图片：缩略图 + 图片预设（套用/恢复/复制）
+        self.assertTrue(any("图片：主图" in t for t in texts_of(cards[5])),
+                        "⑥ AI 图片卡缺少图片数量/缩略图")
+        self.assertIn("图片预设", labels_of(cards[5]))
+        self.assertTrue(any("复制提示词" == b for b in btns_of(cards[5])))
+        self.assertNotIn("保存到 Amazon", btns_of(cards[5]))
+        # ⑦ 发布与结果：保存/查询/自动重试/自动发布+选项/结果
+        for b in ("保存到 Amazon", "查询发布结果", "自动补齐并重试发布",
+                  "自动发布（自动修复）"):
+            self.assertIn(b, btns_of(cards[6]), f"⑦ 发布卡缺少：{b}")
+        self.assertIn("自动发布动作", labels_of(cards[6]))
+        self.assertFalse(any("标题预设" in l for l in labels_of(cards[6])))
+        # 步骤条与卡顺序一致（⑤ 在 ⑦ 之前，⑥ 在 ⑦ 之前）
+        steps = [t for t in texts(self.app)
+                 if "① 连接店铺/站点" in t and "⑦ 发布与结果" in t]
+        self.assertTrue(steps, "缺少新的 7 步步骤条")
+        self.assertLess(steps[0].index("⑤ 文案与 AI"), steps[0].index("⑦ 发布与结果"))
+        self.assertLess(steps[0].index("⑥ AI 图片"), steps[0].index("⑦ 发布与结果"))
+
     def test_amazon_page_has_no_dev_wording(self):
         """正式版：Amazon 13 页可见文本不得出现测试/开发措辞。"""
         self.app._switch(13)
@@ -613,7 +682,7 @@ class AmazonPageTests(unittest.TestCase):
         for banned in ("AURORA_", "预演", "检查模式", "检查结果", "发布前检查",
                        "测试连接", "本地验收", "AURORA_TEST"):
             self.assertNotIn(banned, page_texts, f"Amazon 页仍含开发措辞：{banned}")
-        for kept in ("检测连接", "保存与发布", "自动发布（自动修复）"):
+        for kept in ("检测连接", "发布与结果", "自动发布（自动修复）"):
             self.assertIn(kept, page_texts, f"正式版文案缺失：{kept}")
 
     # ---------- ① 连接 / ② 列表 / ③ 类目 / 载入详情 ----------
@@ -786,8 +855,9 @@ class AmazonPageTests(unittest.TestCase):
             self.assertTrue(dd.disabled, "预设库缺失时下拉应禁用")
             click(self._preset_buttons("套用")[0])
         self.assertIn("预设库未就绪", snack(self.app))
-        self.assertIn("④b AI 提示词预设", " ".join(texts(self.app)))
-        self.assertIn("⑦ AI 图片提示词预设", " ".join(texts(self.app)))
+        self.assertIn("AI 提示词预设（文案：标题 / 五点 / 描述 / Search Terms / SKU）",
+                      " ".join(texts(self.app)))
+        self.assertIn("⑥ AI 图片（图片只读，v1 备用）", " ".join(texts(self.app)))
 
     # ---------- ④ AI ----------
     def test_ai_generation_needs_switch_then_fills_fields(self):

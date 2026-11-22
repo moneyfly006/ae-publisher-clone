@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T04:17:04+08:00",
+  "generated_at": "2026-11-22T13:07:03+08:00",
   "mode": "read-only/offline audit (no network, no real write)",
   "preset_version": "2026-11-22.1",
   "counts": {
@@ -171,6 +171,16 @@
         "detail": "预设 prompt 已写入 cfg"
       },
       {
+        "name": "新布局：5 组文案预设位于 ⑤ 文案与 AI",
+        "ok": true,
+        "detail": "下拉/套用/恢复均在 ⑤ 卡内"
+      },
+      {
+        "name": "新布局：图片预设/复制/编辑位于 ⑥ AI 图片",
+        "ok": true,
+        "detail": "图片预设/复制提示词均在 ⑥ 卡内"
+      },
+      {
         "name": "后端预设库缺失降级不崩溃",
         "ok": true,
         "detail": "预设库缺失时 13 页仍可渲染（下拉禁用/提示未就绪）"
@@ -207,20 +217,20 @@
     ],
     "screenshot": [
       {
-        "name": "预设卡截图",
+        "name": "文案卡预设分区截图（整页长图）",
         "ok": true,
-        "detail": "amazon-presets.png (450134 bytes)",
+        "detail": "amazon-presets.png (706416 bytes)",
         "observed": {
           "path": "docs/design/amazon-presets.png",
-          "bytes": 450134,
-          "sha256": "3921d3ded38edd6c"
+          "bytes": 706416,
+          "sha256": "9150defdc553786f"
         }
       }
     ]
   },
   "summary": {
-    "passed": 25,
-    "total": 25,
+    "passed": 27,
+    "total": 27,
     "failed": []
   },
   "content_audit": {
@@ -360,6 +370,10 @@
       "加载类目",
       "校验路径",
       "AI/平台推荐产品类型",
+      "查看 productAttr（只读）",
+      "刷新运费模板",
+      "AI 生成 SKU",
+      "自动补齐必填属性",
       "AI 生成标题",
       "AI 生成五点",
       "＋添加卖点",
@@ -382,10 +396,6 @@
       "恢复内置",
       "套用",
       "恢复内置",
-      "刷新运费模板",
-      "AI 生成 SKU",
-      "自动补齐必填属性",
-      "查看 productAttr（只读）",
       "套用",
       "恢复内置",
       "复制提示词",
@@ -398,6 +408,17 @@
       "店小秘 Cookie（可粘贴 a=1; b=2；留空自动用本机登录态）",
       "搜索标题 / SKU / 商品 ID",
       "类目路径 nodePath（可粘贴校验，如 6299024011/6256963011/13553005011）",
+      "标准价",
+      "促销价（可空）",
+      "数量",
+      "处理时效（天）",
+      "品牌",
+      "制造商",
+      "SKU",
+      "型号（model_number）",
+      "型号名称（model_name）",
+      "零件编号（part_number）",
+      "制造商联系信息（manufacturer_contact_information）",
       "标题",
       "卖点 1",
       "卖点 2",
@@ -411,17 +432,6 @@
       "产品描述提示词（可编辑，留空=内置默认）",
       "Search Terms提示词（可编辑，留空=内置默认）",
       "SKU提示词（可编辑，留空=内置默认）",
-      "标准价",
-      "促销价（可空）",
-      "数量",
-      "处理时效（天）",
-      "品牌",
-      "制造商",
-      "SKU",
-      "型号（model_number）",
-      "型号名称（model_name）",
-      "零件编号（part_number）",
-      "制造商联系信息（manufacturer_contact_information）",
       "图片提示词（可编辑，留空=内置默认）"
     ]
   },
@@ -437,7 +447,7 @@
   "screenshot": {
     "ok": true,
     "path": "docs/design/amazon-presets.png",
-    "bytes": 450134
+    "bytes": 706416
   },
   "notes": [
     "独立实现：用公开 API 与沙箱渲染做断言，不复制实现内部分支。",

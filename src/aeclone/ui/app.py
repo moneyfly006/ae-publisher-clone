@@ -8825,6 +8825,19 @@ class App:
             self.logs_progress_text,
         ], spacing=10))
 
+        # ---------- Alibaba 批量任务（与日志同一页展示，用户不用去猜测）----------
+        alb_task_card = None
+        if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
+            self.alb_task_summary = ft.Text("还没有 Alibaba 批量任务记录", size=12.5, color=MUTED)
+            self.alb_task_box = ft.Column(spacing=3, height=150, scroll=ft.ScrollMode.AUTO)
+            alb_task_card = card(ft.Column([
+                h1("Alibaba 批量任务", FS_MD),
+                self.alb_task_summary,
+                muted("这里显示本次运行的每个商品结果；详细时间线在下方「运行日志」。"),
+                self.alb_task_box,
+            ], spacing=6))
+            self._refresh_alibaba_task_card()
+
         # ---------- 操作栏 ----------
         self.log_status = ft.Text("", size=12.5, color=MUTED)
         toolbar = card(ft.Column([
@@ -8931,6 +8944,7 @@ class App:
                                 if str(getattr(self.active_platform, "id", "")) == "tiktok"
                                 else "跟踪 Amazon 运行日志与任务记录"))
         return [page_header("任务与日志", _logs_subtitle), status_card,
+                *([alb_task_card] if alb_task_card is not None else []),
                 workspace_tabs(_log_tabs)]
 
     def _report_logs_now(self, e=None):
@@ -10583,6 +10597,25 @@ class App:
                 try:
                     from ..services.alibaba_publish import prepare_save
                     _product, save, _req, issues = prepare_save(pid, self.cfg)
+                    _state = str((_product or {}).get("dxmState") or "")
+                    if op == "3" and _state and _state != "draft":
+                        _label = {"offline": "待发布/已下线", "online": "在线"}.get(_state, _state)
+                        status.value = (f"「移入待发布」只适用于采集箱商品；"
+                                        f"当前商品状态：{_label}，平台会拒绝该操作")
+                        status.color = WARN_C
+                        try:
+                            self._safe_update()
+                        except Exception:
+                            pass
+                        return
+                    if op == "5" and not str(getattr(self.cfg, "alibaba_schedule_time", "") or "").strip():
+                        status.value = "定时发布需要先填写发布时间（设置 → Alibaba 定时发布）"
+                        status.color = WARN_C
+                        try:
+                            self._safe_update()
+                        except Exception:
+                            pass
+                        return
                     precheck = None
                     if op == "2" and not use_ai:
                         from types import SimpleNamespace as _NS
@@ -10734,13 +10767,24 @@ class App:
         batch_status = ft.Text("采集箱：未读取", size=12.5, color=MUTED)
         batch_limit = ft.TextField(label="本次处理数量（0=全部）", width=180, value="10",
                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        batch_source = ft.Dropdown(
+            label="批量来源", width=170, value="draft", bgcolor=CARD_2, border_color=CARD_2,
+            color=TEXT, options=[ft.dropdown.Option("draft", "采集箱（草稿）"),
+                                 ft.dropdown.Option("waitPublish", "待发布")],
+            on_change=lambda e: load_collect())
         batch_ai = ft.Switch(label="本次使用 AI 生成文案", value=False, active_color=ACCENT)
+        def _on_only_cat(e):
+            try:
+                batch_cat_tf.disabled = not bool(e.control.value)
+                self._safe_update()
+            except Exception:
+                pass
         batch_only_cat = ft.Switch(label="只处理匹配类目（可选）", value=False,
-                                   active_color=ACCENT)
+                                   active_color=ACCENT, on_change=_on_only_cat)
         batch_cat_tf = ft.TextField(label="批量处理的目标类目", width=220, dense=True,
                                     bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
                                     value=str(getattr(self.cfg, "alibaba_batch_category_id", "") or ""),
-                                    hint_text="如 127726092（机械类）",
+                                    hint_text="如 127726092（机械类）", disabled=True,
                                     on_change=lambda e: (self.cfg.set("alibaba_batch_category_id",
                                                                       str(e.control.value or "").strip()),
                                                          save_config(self.cfg)))
@@ -10762,7 +10806,8 @@ class App:
             def work():
                 try:
                     from ..services.alibaba_batch import list_collect_products
-                    rows = list_collect_products(client(), page_size=100)
+                    _state = str(batch_source.value or "draft")
+                    rows = list_collect_products(client(), page_size=100, state=_state)
                     items = []
                     for r in rows:
                         pid = str(r.get("id") or "")
@@ -10772,13 +10817,12 @@ class App:
                             ft.Text(f"类目 {r.get('categoryId') or '-'}", size=11, color=MUTED),
                         ], spacing=8))
                     batch_box.controls = items or [muted("采集箱没有商品（先去采集商品）")]
-                    batch_status.value = f"采集箱：{len(rows)} 个商品（批量处理不需要手动选择）"
+                    _label = "待发布" if str(batch_source.value or "") == "waitPublish" else "采集箱"
+                    batch_status.value = (f"{_label}：{len(rows)} 个商品（批量处理不需要手动选择；"
+                                          "批量不会改当前商品的类目）")
                     batch_status.color = ACCENT_2
-                    # 自动选中第一个，兼容下方「高级：单独处理」
-                    if rows and not str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip():
-                        first = rows[0]
-                        set_product(str(first.get("id")), str(first.get("subject") or ""),
-                                    str(first.get("categoryId") or ""))
+                    # 不再自动选中第一个：避免把采集箱第一个商品的类目写进全局配置；
+                    # 单商品保存/评分时若未选择，会自动读取第一个商品（按需），见 do_save。
                 except Exception as ex:  # noqa: BLE001
                     batch_status.value = f"读取采集箱失败：{str(ex)[:120]}"
                     batch_status.color = DANGER_C
@@ -10810,6 +10854,7 @@ class App:
             self._alibaba_batch_running = True
             try:
                 self._log("[Alibaba任务] 开始批量处理采集箱（按每个商品自己的类目）", "INFO")
+                self._alibaba_task_update(reset=True)
                 self._alibaba_task_progress(0, 0, "Alibaba 批量处理：准备中…")
             except Exception:
                 pass
@@ -10834,6 +10879,7 @@ class App:
                                       f"{str(rec.get('subject') or '')[:50]}"
                                       f"{(' · ' + rec.get('error','')[:100]) if rec.get('error') else ''}",
                                       _lvl)
+                            self._alibaba_task_update(item=rec, total=total, done=i)
                             self._alibaba_task_progress(i, total,
                                 f"Alibaba 批量处理 {i}/{total}（成功/跳过/失败见日志）")
                         except Exception:
@@ -10853,7 +10899,8 @@ class App:
                         self.cfg, op=str(op), limit=_batch_limit(),
                         use_ai=bool(batch_ai.value), client=client(), progress=progress,
                         only_current_category=bool(batch_only_cat.value),
-                        current_category=str(batch_cat_tf.value or "").strip())
+                        current_category=str(batch_cat_tf.value or "").strip(),
+                        state=str(batch_source.value or "draft"))
                     ok_n = sum(1 for x in results if x.get("ok"))
                     skip_n = sum(1 for x in results if x.get("skipped"))
                     fail_n = len(results) - ok_n - skip_n
@@ -10862,6 +10909,8 @@ class App:
                     try:
                         self._log(f"[Alibaba任务] 批量完成：成功 {ok_n} / 跳过 {skip_n} / 失败 {fail_n}",
                                   "INFO" if fail_n == 0 else "WARN")
+                        self._alibaba_task_update(finished=True, total=len(results),
+                                                  done=len(results))
                         self._alibaba_task_progress(len(results), len(results),
                                                     f"Alibaba 批量完成：成功 {ok_n} / 跳过 {skip_n} / 失败 {fail_n}")
                     except Exception:
@@ -10884,6 +10933,153 @@ class App:
                     pass
             threading.Thread(target=work, daemon=True).start()
 
+        rule_title = ft.Text("标题：—", size=13, color=MUTED, selectable=True)
+        rule_kw = ft.Text("关键词：—", size=13, color=MUTED, selectable=True)
+        rule_desc = ft.Text("详情：—", size=13, color=MUTED, selectable=True)
+        rule_ai = ft.Text("AI：Alibaba 专用提示词", size=12, color=MUTED)
+        rule_img = ft.Text("图片：—", size=13, color=MUTED, selectable=True)
+        rule_video = ft.Text("视频：—", size=13, color=MUTED, selectable=True)
+
+        def check_rules(e=None):
+            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            rule_title.value = "标题：正在读取…"
+            rule_kw.value = "关键词：正在读取…"
+            rule_desc.value = "详情：正在读取…"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def work():
+                try:
+                    if not pid:
+                        rule_title.value = "标题：未选择商品（保存时会自动读取采集箱第一个）"
+                        rule_title.color = MUTED
+                        rule_kw.value = "关键词：—"
+                        rule_desc.value = "详情：—"
+                        return
+                    p = client().product_detail(pid)
+                    title = str(p.get("subject") or "")
+                    kws = str(getattr(self.cfg, "alibaba_keywords", "") or "").strip()
+                    if not kws:
+                        kws = str(p.get("keywords") or "")
+                    n_kw = len([x for x in kws.replace(";", ",").split(",") if x.strip()])
+                    desc = str(p.get("textDesc") or "")
+                    rule_title.value = (f"标题：{len(title)}/128 字符"
+                                        + ("（超限，保存会截断）" if len(title) > 128 else " ✓"))
+                    rule_title.color = DANGER_C if len(title) > 128 else ACCENT_2
+                    rule_kw.value = (f"关键词：{n_kw} 个（Alibaba 必填 3，最多 5）"
+                                     + (" ✓" if 3 <= n_kw <= 5 else "（不足 3 个不能保存）"))
+                    rule_kw.color = ACCENT_2 if 3 <= n_kw <= 5 else DANGER_C
+                    rule_desc.value = (f"详情：{len(desc)} 字符（上限 2000）"
+                                       + ("（超限会被截断）" if len(desc) > 2000 else " ✓"))
+                    rule_desc.color = WARN_C if len(desc) > 2000 else ACCENT_2
+                    imgs = [u for u in str(p.get("mainImage") or "").split(",") if u.strip()]
+                    rule_img.value = f"主图：{len(imgs)} 张（平台建议 6 张）"
+                    rule_img.color = ACCENT_2 if len(imgs) >= 6 else WARN_C
+                    has_video = bool(p.get("mainVideoId") or p.get("detailVideoId"))
+                    rule_video.value = ("视频：已有主图视频 ✓" if has_video else
+                                        "视频：缺失（Alibaba 保存接口不含视频，需在卖家中心上传）")
+                    rule_video.color = ACCENT_2 if has_video else WARN_C
+                except Exception as ex:  # noqa: BLE001
+                    rule_title.value = f"规则检查失败：{str(ex)[:120]}"
+                    rule_title.color = WARN_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+            threading.Thread(target=work, daemon=True).start()
+
+        rules_card = card(ft.Column([
+            h1("平台规则检查（Alibaba）", FS_MD),
+            muted("Alibaba 与速卖通规则不同：标题 ≤128 字符；关键词必填 3 个（最多 5 个）；"
+                  "详情上限 2000 字符；AI 使用 Alibaba 专用提示词。"),
+            ft.Row([ft.ElevatedButton("检查当前商品", icon=ft.Icons.FACT_CHECK,
+                                      bgcolor=CARD_2, color=TEXT, on_click=check_rules)],
+                   spacing=8),
+            rule_title, rule_kw, rule_desc, rule_img, rule_video, rule_ai,
+        ], spacing=6))
+
+        def precheck_batch(e=None):
+            if getattr(self, "_alibaba_batch_running", False):
+                self.toast("采集箱正在批量处理中，请稍候…", False)
+                return
+            self._alibaba_batch_running = True
+            batch_status.value = "发布前评分检查中（只读，不保存）…"
+            batch_status.color = MUTED
+            batch_box.controls = []
+            try:
+                self._log("[Alibaba任务] 开始发布前评分检查（只读，不发写请求）", "INFO")
+                self._alibaba_task_update(reset=True)
+                self._alibaba_task_progress(0, 0, "Alibaba 发布前检查：准备中…")
+            except Exception:
+                pass
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def work():
+                try:
+                    from ..services.alibaba_batch import precheck_collect_batch
+                    def progress(i, total, rec):
+                        icon = "⏭" if rec.get("skipped") else ("✓" if rec.get("ok") else "✗")
+                        color = MUTED if rec.get("skipped") else (ACCENT_2 if rec.get("ok") else DANGER_C)
+                        batch_box.controls.append(ft.Text(
+                            f"{icon} {i}/{total} {rec.get('id')} · {str(rec.get('subject') or '')[:40]}"
+                            f"  {('评分 %.2f' % rec['score']) if rec.get('score') else ''}"
+                            f"{(' · ' + rec['error'][:80]) if rec.get('error') else ''}",
+                            size=11.5, color=color, selectable=True))
+                        try:
+                            self._log(f"[Alibaba预检] {icon} {i}/{total} {rec.get('id')} "
+                                      f"评分 {rec.get('score',0):.2f} "
+                                      f"{('· ' + rec.get('error','')[:100]) if rec.get('error') else ''}",
+                                      "INFO" if rec.get("ok") else "WARN")
+                            self._alibaba_task_update(item=rec, total=total, done=i)
+                            self._alibaba_task_progress(i, total,
+                                f"Alibaba 发布前检查 {i}/{total}")
+                        except Exception:
+                            pass
+                        try:
+                            self._safe_update()
+                        except Exception:
+                            pass
+
+                    results = precheck_collect_batch(
+                        self.cfg, limit=_batch_limit(), client=client(), progress=progress,
+                        only_current_category=bool(batch_only_cat.value),
+                        current_category=str(batch_cat_tf.value or "").strip(),
+                        state=str(batch_source.value or "draft"))
+                    ok_n = sum(1 for x in results if x.get("ok"))
+                    skip_n = sum(1 for x in results if x.get("skipped"))
+                    fail_n = len(results) - ok_n - skip_n
+                    batch_status.value = f"评分检查完成：可通过 {ok_n} / 跳过 {skip_n} / 未通过 {fail_n}"
+                    batch_status.color = ACCENT_2 if fail_n == 0 else WARN_C
+                    try:
+                        self._log(f"[Alibaba任务] 评分检查完成：可通过 {ok_n} / 跳过 {skip_n} / 未通过 {fail_n}",
+                                  "INFO" if fail_n == 0 else "WARN")
+                        self._alibaba_task_update(finished=True, total=len(results),
+                                                  done=len(results))
+                        self._alibaba_task_progress(len(results), len(results),
+                                                    f"Alibaba 评分检查完成：可通过 {ok_n} / 未通过 {fail_n}")
+                    except Exception:
+                        pass
+                    self.toast(f"评分检查：可通过 {ok_n}，未通过 {fail_n}", fail_n == 0)
+                except Exception as ex:  # noqa: BLE001
+                    batch_status.value = f"评分检查失败：{str(ex)[:150]}"
+                    batch_status.color = DANGER_C
+                    try:
+                        self._log(f"[Alibaba任务] 评分检查失败：{str(ex)[:200]}", "ERROR")
+                    except Exception:
+                        pass
+                finally:
+                    self._alibaba_batch_running = False
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+            threading.Thread(target=work, daemon=True).start()
+
         self._alibaba_batch_run = run_batch
         self._alibaba_batch_load = load_collect
         self._alibaba_batch_limit = _batch_limit
@@ -10893,7 +11089,7 @@ class App:
             muted("参考速卖通流程：读取采集箱商品 → 按每个商品自己的类目自动补齐必填属性 → "
                   "保存草稿/发布；不需要逐个手选。自动补的属性会标记「请复核」，"
                   "发布仍需评分 ≥4.5。"),
-            ft.Row([batch_limit, batch_cat_tf, batch_ai, batch_only_cat,
+            ft.Row([batch_source, batch_limit, batch_cat_tf, batch_ai, batch_only_cat,
                     ft.ElevatedButton("刷新采集箱", icon=ft.Icons.REFRESH, bgcolor=CARD_2,
                                       color=TEXT, on_click=load_collect),
                     ft.ElevatedButton("处理全部（保存草稿）", icon=ft.Icons.SAVE,
@@ -10901,7 +11097,9 @@ class App:
                                       on_click=lambda e: run_batch(e, "1")),
                     ft.ElevatedButton("处理全部（发布）", icon=ft.Icons.CLOUD_UPLOAD,
                                       bgcolor=WARN_C, color=ON_ACCENT,
-                                      on_click=lambda e: run_batch(e, "2"))],
+                                      on_click=lambda e: run_batch(e, "2")),
+                    ft.OutlinedButton("发布前评分检查（只读）", icon=ft.Icons.FACT_CHECK,
+                                      on_click=precheck_batch)],
                    spacing=10, wrap=True),
             batch_status,
             batch_box,
@@ -10909,8 +11107,9 @@ class App:
 
         prod_card = card(ft.Column([
             h1("采集箱商品列表（查看 / 高级单独处理）", FS_MD),
-            muted("连接/Cookie 在「Alibaba 连接」页维护；这里从店小秘 Alibaba 商品列表"
-                  "按标题/ID 搜索并选择，选中的商品用于下面的保存。"),
+            muted("批量处理请直接用上方按钮，不需要手动选商品；这里仅用于查看或高级单独处理。"
+                  "单个保存/评分未选商品时，会自动读取采集箱第一个商品。"
+                  "连接/Cookie 在「Alibaba 连接」页维护。"),
             prod_now,
             ft.Row([prod_state, prod_kw,
                     ft.ElevatedButton("读取商品", icon=ft.Icons.REFRESH, bgcolor=ACCENT,
@@ -11411,8 +11610,10 @@ class App:
                                   bgcolor=WARN_C, color=ON_ACCENT,
                                   on_click=lambda e: do_save(e, "2")),
                 ft.OutlinedButton("移入待发布", icon=ft.Icons.INVENTORY_2,
+                                  tooltip="仅对采集箱商品有效；待发布/在线商品平台会拒绝",
                                   on_click=lambda e: do_save(e, "3")),
                 ft.OutlinedButton("定时发布", icon=ft.Icons.SCHEDULE,
+                                  tooltip="按设置里的发布时间排队；需要商品状态允许定时",
                                   on_click=lambda e: do_save(e, "5")),
             ], spacing=10, wrap=True),
             required_box, status,
@@ -11421,6 +11622,8 @@ class App:
         # 打开页面即自动读取采集箱与运费模板。
         try:
             threading.Thread(target=load_collect, daemon=True).start()
+            if str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip():
+                threading.Timer(0.6, lambda: check_rules(None)).start()
         except Exception:
             pass
         # 打开页面即自动读取运费模板，避免下拉框一直空白、用户以为“无法选择”。
@@ -11430,7 +11633,7 @@ class App:
             pass
 
         return [workspace_tabs([
-                    ("商品", [batch_card, prod_card]),
+                    ("商品", [batch_card, rules_card, prod_card]),
                     ("类目", [cat_card]),
                     ("预设资料", [preset_card]),
                     ("价格与贸易", [trade_card]),
@@ -11644,13 +11847,14 @@ class App:
             padding=ft.padding.symmetric(horizontal=14, vertical=8),
             bgcolor=CARD_2, border_radius=8,
             content=ft.Text(
-                "① 连接店铺/站点  →  ② 选采集箱商品  →  ③ 选类目  →  "
-                "④ 标题/五点/描述 + AI  →  ④b AI 提示词预设  →  ⑤ 价格/库存/物流  →  "
-                "⑥ 保存与发布（含自动修复）  →  ⑦ 图片提示词",
+                "① 连接店铺/站点  →  ② 选采集箱商品  →  ③ 站点与类目  →  "
+                "④ 价格/库存/品牌/SKU  →  ⑤ 文案与 AI（含预设）  →  ⑥ AI 图片  →  "
+                "⑦ 发布与结果",
                 size=12, color=MUTED, selectable=False))
         return [
             page_header("Amazon 刊登",
-                        "采集箱商品 → 站点/类目 → 五点描述与 AI 文案 → 保存与发布（自动修复）"),
+                        "连接店铺 → 采集箱商品 → 站点与类目 → 商品信息 → 文案与 AI"
+                        " → AI 图片 → 发布与结果（含自动修复）"),
             steps,
             *self._amazon_cards(),
         ]
@@ -14275,9 +14479,10 @@ class App:
                     _ui()
             threading.Thread(target=work, daemon=True).start()
 
-        # ---------- 组装卡片 ----------
+        # ---------- 组装卡片（按功能分 7 卡，编号与步骤条一致） ----------
         _cookie_src_hint = ("留空时优先用「店铺与登录」的手动 Cookie，"
                             "再回退本机浏览器登录态（与后端一致）")
+        # ① 连接与店铺
         conn_card = card(ft.Column([
             h1i(ft.Icons.STORE_OUTLINED, "① 连接与店铺", FS_MD),
             muted("Cookie 优先级：本页填写 → 店铺与登录手动 Cookie → 本机浏览器登录态。"
@@ -14295,6 +14500,7 @@ class App:
             conn_status,
         ], spacing=8))
 
+        # ② 采集箱商品
         list_card = card(ft.Column([
             h1i(ft.Icons.INVENTORY_2_OUTLINED, "② 采集箱商品", FS_MD),
             muted("采集箱(draft) / 待发布(offline) / 在线(online)；点行或「编辑」载入"
@@ -14314,6 +14520,7 @@ class App:
             list_status,
         ], spacing=8))
 
+        # ③ 站点与类目（含产品属性只读查看——属性归属类目）
         cat_card = card(ft.Column([
             h1i(ft.Icons.CATEGORY_OUTLINED, "③ 站点与类目", FS_MD),
             site_now,
@@ -14333,12 +14540,65 @@ class App:
                                       on_click=predict_type)], spacing=10, wrap=True),
             predict_text,
             cat_status,
+            ft.Divider(color=BORDER, height=12),
+            h1i(ft.Icons.RULE, "类目属性（只读）", 14),
+            muted("产品属性 productAttr 属于类目属性：v1 保存时原样回写，不在 UI 编辑。", 11),
+            ft.Row([attr_text,
+                    ft.TextButton("查看 productAttr（只读）", icon=ft.Icons.DATA_OBJECT,
+                                  on_click=show_attrs)], spacing=8, wrap=True),
         ], spacing=8))
 
+        # ④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU / 发布必填属性）
+        price_card = card(ft.Column([
+            h1i(ft.Icons.SELL_OUTLINED,
+                "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）", FS_MD),
+            muted("价格/数量/品牌/SKU 会覆盖保存包；图片只读（在⑥查看），"
+                  "产品属性在③查看。"),
+            ft.Row([price_tf, currency_text, sale_tf, qty_tf, fulfil_dd,
+                    handling_tf], spacing=10, wrap=True),
+            # 注意：wrap=True 的 Row 里放 expand 子控件在 Flet CanvasKit 下会
+            # 被撑成超大空白块；运费模板行改为固定宽度下拉 + 按钮，不用 expand。
+            ft.Row([ship_dd,
+                    ft.OutlinedButton("刷新运费模板", icon=ft.Icons.REFRESH,
+                                      on_click=load_logistics)], spacing=10, wrap=True),
+            ft.Row([brand_tf, maker_tf, sku_tf,
+                    ft.TextButton("AI 生成 SKU", icon=ft.Icons.AUTO_AWESOME,
+                                  tooltip="AI 生成 SKU（只填入输入框，保存时才提交）",
+                                  on_click=_ai_sku)], spacing=10, wrap=True),
+            sku_ai_status,
+            # ---------- 发布必填属性（task-8/9）：常用 4 项 + 失败原因动态追加 ----------
+            ft.Divider(color=BORDER, height=12),
+            h1i(ft.Icons.RULE, "发布必填属性（缺失会导致发布失败）", 14),
+            attr_fill_hint,
+            ft.Row([attr_tfs[_k] for _k, _l in self.AMAZON_ATTR_KEYS],
+                   spacing=10, wrap=True),
+            attr_extra_scroll,
+            ft.Row([ft.OutlinedButton("自动补齐必填属性", icon=ft.Icons.AUTO_FIX_HIGH,
+                                      on_click=autofill_attrs),
+                    attrs_missing_text], spacing=10, wrap=True),
+            attr_status,
+        ], spacing=8))
+
+        # ⑤ 文案与 AI（含提示词预设）
+        def _preset_block(kind, label, with_copy=False):
+            w = preset_widgets[kind]
+            btns = [ft.ElevatedButton("套用", icon=ft.Icons.CHECK,
+                                      bgcolor=ACCENT, color=ON_ACCENT,
+                                      on_click=_apply_preset(kind)),
+                    ft.TextButton("恢复内置", icon=ft.Icons.RESTART_ALT,
+                                  on_click=_reset_preset(kind))]
+            if with_copy:
+                btns.append(ft.TextButton("复制提示词", icon=ft.Icons.COPY,
+                                          on_click=_copy_prompt(kind)))
+            return [h1(label, 13),
+                    ft.Row([w["dd"], *btns], spacing=10, wrap=True),
+                    w["name"], w["tf"]]
+
         text_card = card(ft.Column([
-            h1i(ft.Icons.EDIT_NOTE, "④ 标题与卖点（AI）", FS_MD),
-            muted("标题 ≤200 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条（建议 5 条，最多 10 条）；"
-                  "描述为 HTML；Search Terms ≤250 字节。AI 结果全部可编辑。"),
+            h1i(ft.Icons.EDIT_NOTE, "⑤ 文案与 AI", FS_MD),
+            muted("标题 ≤200 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条"
+                  "（建议 5 条，最多 10 条）；描述为 HTML；Search Terms ≤250 字节。"
+                  "AI 结果全部可编辑。"),
             ft.Row([ft.Container(content=title_tf, expand=True),
                     ft.Column([ft.TextButton("AI 生成标题",
                                              on_click=_ai_one("title")),
@@ -14366,25 +14626,10 @@ class App:
                                       color=ON_ACCENT, on_click=ai_all)],
                    spacing=12, wrap=True),
             ai_status,
-        ], spacing=8))
-
-        def _preset_block(kind, label, with_copy=False):
-            w = preset_widgets[kind]
-            btns = [ft.ElevatedButton("套用", icon=ft.Icons.CHECK,
-                                      bgcolor=ACCENT, color=ON_ACCENT,
-                                      on_click=_apply_preset(kind)),
-                    ft.TextButton("恢复内置", icon=ft.Icons.RESTART_ALT,
-                                  on_click=_reset_preset(kind))]
-            if with_copy:
-                btns.append(ft.TextButton("复制提示词", icon=ft.Icons.COPY,
-                                          on_click=_copy_prompt(kind)))
-            return [h1(label, 13),
-                    ft.Row([w["dd"], *btns], spacing=10, wrap=True),
-                    w["name"], w["tf"]]
-
-        preset_card = card(ft.Column([
-            h1i(ft.Icons.TUNE, "④b AI 提示词预设（标题 / 五点 / 描述 / Search Terms / SKU）",
-                FS_MD),
+            # ---------- AI 提示词预设（文案区，原 ④b 合并进来） ----------
+            ft.Divider(color=BORDER, height=12),
+            h1i(ft.Icons.TUNE,
+                "AI 提示词预设（文案：标题 / 五点 / 描述 / Search Terms / SKU）", 14),
             muted("选预设 →「套用」写入对应提示词（可继续编辑，留空=内置默认）；"
                   "「恢复内置」清空覆盖。预设只是提示词模板，生成结果仍需人工复核；"
                   "AI 输出须遵守 Amazon 规则（≤200 标题 / 同词≤2 / 无促销与联系方式）。"),
@@ -14394,50 +14639,23 @@ class App:
               for c in _preset_block(_kind, _label)],
         ], spacing=10))
 
-        price_card = card(ft.Column([
-            h1i(ft.Icons.SELL_OUTLINED, "⑤ 价格 / 库存 / 物流 / 品牌 / SKU", FS_MD),
-            muted("价格/数量/品牌/SKU 会覆盖保存包；图片只读保留原图；"
-                  "产品属性 v1 原样回写不编辑。"),
-            ft.Row([price_tf, currency_text, sale_tf, qty_tf, fulfil_dd,
-                    handling_tf], spacing=10, wrap=True),
-            # 注意：wrap=True 的 Row 里放 expand 子控件在 Flet CanvasKit 下会
-            # 被撑成超大空白块；运费模板行改为固定宽度下拉 + 按钮，不用 expand。
-            ft.Row([ship_dd,
-                    ft.OutlinedButton("刷新运费模板", icon=ft.Icons.REFRESH,
-                                      on_click=load_logistics)], spacing=10, wrap=True),
-            ft.Row([brand_tf, maker_tf, sku_tf,
-                    ft.TextButton("AI 生成 SKU", icon=ft.Icons.AUTO_AWESOME,
-                                  tooltip="AI 生成 SKU（只填入输入框，保存时才提交）",
-                                  on_click=_ai_sku)], spacing=10, wrap=True),
-            sku_ai_status,
-            # ---------- 发布必填属性（task-8/9）：常用 4 项 + 失败原因动态追加 ----------
+        # ⑥ AI 图片（图片只读预览 + 图片提示词预设）
+        image_card = card(ft.Column([
+            h1i(ft.Icons.IMAGE_OUTLINED, "⑥ AI 图片（图片只读，v1 备用）", FS_MD),
+            muted("v1 Amazon 图片只读（不上传/不替换）；缩略图仅预览。主图禁文字/水印，"
+                  "不改变产品本体形状/颜色/材质/比例。"),
+            h1i(ft.Icons.PHOTO_LIBRARY_OUTLINED, "当前商品图片", 14),
+            img_text,
+            img_box,
             ft.Divider(color=BORDER, height=12),
-            h1i(ft.Icons.RULE, "发布必填属性（缺失会导致发布失败）", 14),
-            attr_fill_hint,
-            ft.Row([attr_tfs[_k] for _k, _l in self.AMAZON_ATTR_KEYS],
-                   spacing=10, wrap=True),
-            attr_extra_scroll,
-            ft.Row([ft.OutlinedButton("自动补齐必填属性", icon=ft.Icons.AUTO_FIX_HIGH,
-                                      on_click=autofill_attrs),
-                    attrs_missing_text], spacing=10, wrap=True),
-            attr_status,
-            ft.Divider(color=BORDER, height=12),
-            img_text, img_box,
-            ft.Row([attr_text,
-                    ft.TextButton("查看 productAttr（只读）", icon=ft.Icons.DATA_OBJECT,
-                                  on_click=show_attrs)], spacing=8, wrap=True),
-        ], spacing=8))
-
-        image_preset_card = card(ft.Column([
-            h1i(ft.Icons.IMAGE_OUTLINED, "⑦ AI 图片提示词预设（图片只读，v1 备用）",
-                FS_MD),
-            muted("v1 Amazon 图片只读（不上传/不替换）；提示词用于图片工作台或后续图片处理。"
-                  "主图禁文字/水印，不改变产品本体形状/颜色/材质/比例。"),
+            h1i(ft.Icons.TUNE, "AI 图片提示词预设", 14),
+            muted("提示词用于图片工作台或后续图片处理；如需图片编辑请到「图片工作台」。"),
             *_preset_block("image", "图片提示词", with_copy=True),
         ], spacing=10))
 
+        # ⑦ 发布与结果（保存/查询/自动补齐重试/自动发布+选项/结果）
         save_card = card(ft.Column([
-            h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "⑥ 保存与发布", FS_MD),
+            h1i(ft.Icons.CLOUD_UPLOAD_OUTLINED, "⑦ 发布与结果", FS_MD),
             muted("保存草稿 / 移入待发布 / 保存并发布（真实提交）；保存会二次确认并列出"
                   "商品/标题/站点/op/校验问题。发布失败可点「自动发布（自动修复）」"
                   "按轮自动补齐/修正后重发。"),
@@ -14452,15 +14670,14 @@ class App:
                                       tooltip="补齐必填属性后以 op=2 重新发布（需二次确认）",
                                       on_click=retry_publish)], spacing=10, wrap=True),
             ft.Divider(color=BORDER, height=12),
-            ft.Row([ft.Text("自动发布（自动修复）", size=14, color=TEXT,
-                            weight=ft.FontWeight.BOLD),
-                    ft.ElevatedButton("自动发布（自动修复）",
+            h1i(ft.Icons.ROCKET_LAUNCH, "自动发布（自动修复）", 14),
+            ft.Row([ft.ElevatedButton("自动发布（自动修复）",
                                       icon=ft.Icons.ROCKET_LAUNCH,
                                       bgcolor=WARN_C, color=ON_ACCENT,
                                       tooltip="真实发布；失败自动补齐/修正并按轮重发（二次确认）",
                                       on_click=_confirm_auto_publish)],
                    spacing=12, wrap=True),
-            muted("发布选项（会保存到本机配置；价格/库存沿用⑤表单值，为空时禁止发布）：", 11),
+            muted("发布选项（会保存到本机配置；价格/库存沿用④表单值，为空时禁止发布）：", 11),
             ft.Row([auto_op_dd, auto_rounds_dd, auto_wait_dd], spacing=10, wrap=True),
             ft.Row([auto_fix_attrs_sw, auto_fix_title_sw, auto_fix_desc_sw,
                     auto_ai_fix_sw], spacing=14, wrap=True),
@@ -14490,8 +14707,10 @@ class App:
                 _load_presets(_kind)
             except Exception:
                 pass
-        return [conn_card, list_card, cat_card, text_card, preset_card,
-                price_card, image_preset_card, save_card]
+        # 7 卡按功能分组：连接 → 商品 → 类目 → 商品信息 → 文案+预设 → 图片 → 发布
+        return [conn_card, list_card, cat_card, price_card, text_card, image_card,
+                save_card]
+
 
     # ---------- TikTok Shop 刊登（14 号页，契约 §4） ----------
     TIKTOK_STATES = (("draft", "采集箱", "待编辑/待刊登"),
@@ -14516,6 +14735,58 @@ class App:
 
     def _is_tiktok(self) -> bool:
         return str(getattr(getattr(self, "active_platform", None), "id", "")) == "tiktok"
+
+    def _alibaba_task_update(self, *, reset: bool = False, item: dict | None = None,
+                             total: int | None = None, done: int | None = None,
+                             finished: bool = False) -> None:
+        """维护 Alibaba 批量任务状态，并刷新「任务与日志」里的任务卡。"""
+        try:
+            st = getattr(self, "_alibaba_task_state", None)
+            if reset or not isinstance(st, dict):
+                st = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "total": 0, "done": 0,
+                      "ok": 0, "skip": 0, "fail": 0, "finished": False, "items": []}
+                self._alibaba_task_state = st
+            if total is not None:
+                st["total"] = int(total)
+            if done is not None:
+                st["done"] = int(done)
+            if item:
+                st["items"] = (st.get("items") or [])[-49:] + [dict(item)]
+                if item.get("skipped"):
+                    st["skip"] = int(st.get("skip", 0)) + 1
+                elif item.get("ok"):
+                    st["ok"] = int(st.get("ok", 0)) + 1
+                else:
+                    st["fail"] = int(st.get("fail", 0)) + 1
+            if finished:
+                st["finished"] = True
+            self._refresh_alibaba_task_card()
+        except Exception:
+            pass
+
+    def _refresh_alibaba_task_card(self) -> None:
+        try:
+            st = getattr(self, "_alibaba_task_state", None) or {}
+            box = getattr(self, "alb_task_box", None)
+            summary = getattr(self, "alb_task_summary", None)
+            if summary is not None:
+                summary.value = (f"{st.get('done',0)}/{st.get('total',0)} · 成功 {st.get('ok',0)}"
+                                 f" / 跳过 {st.get('skip',0)} / 失败 {st.get('fail',0)}"
+                                 + (" · 已结束" if st.get("finished") else " · 进行中"))
+                summary.color = ACCENT_2 if st.get("finished") and not st.get("fail") else (
+                    WARN_C if st.get("fail") else MUTED)
+            if box is not None:
+                rows = []
+                for it in (st.get("items") or [])[-10:]:
+                    icon = "⏭" if it.get("skipped") else ("✓" if it.get("ok") else "✗")
+                    color = MUTED if it.get("skipped") else (ACCENT_2 if it.get("ok") else DANGER_C)
+                    rows.append(ft.Text(
+                        f"{icon} {it.get('id','')} · {str(it.get('subject') or '')[:34]}"
+                        f"{(' · ' + it.get('error','')[:60]) if it.get('error') else ''}",
+                        size=12, color=color, selectable=True))
+                box.controls = rows or [muted("还没有 Alibaba 批量任务记录")]
+        except Exception:
+            pass
 
     def _alibaba_task_progress(self, done: int, total: int, text: str = "") -> None:
         """把 Alibaba 批量进度同步到「任务与日志」的运行状态/进度条。"""

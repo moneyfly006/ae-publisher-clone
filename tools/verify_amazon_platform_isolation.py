@@ -8,7 +8,7 @@
    配置冲突行 + 检查配置冲突按钮 / 底部图片服务 tile」；任务与日志「停止任务 / 已编辑记录 /
    定时发布 tab」；设置「图片与模型 tab / ffmpeg / 副标题与实例说明里的图片服务×任务队列×定时发布 /
    恢复图床」；首次引导不弹。
-2. **隐藏过头检查**：Amazon 13 页六张卡与关键控件、概览成本/用量/准备状态/API/授权仍在。
+2. **隐藏过头检查**：Amazon 13 页新 7 卡与关键控件、概览成本/用量/准备状态/API/授权仍在。
 3. **其它平台保留**：AliExpress 上述 SMT 元素全部仍在、所有页面可渲染、引导仍弹；
    Alibaba 既有 cap 行为不变（无 6/7 页、scheduled_publish 隐藏、12 页在）；TikTok/Shopee 页面集合
    与关键控件不受影响、渲染不崩溃。
@@ -273,7 +273,9 @@ def _wizard_created(platform_id: str) -> bool:
 # 2) Amazon 应保留项（防「隐藏过头」）
 # ---------------------------------------------------------------------------
 AMAZON_CARD_HEADERS = ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
-                       "④ 标题与卖点", "⑤ 价格 / 库存 / 物流", "⑥ 预演与保存")
+                       "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
+                       "⑤ 文案与 AI", "⑥ AI 图片（图片只读，v1 备用）",
+                       "⑦ 发布与结果")
 
 
 def check_amazon_retained(report: Report) -> None:
@@ -298,9 +300,10 @@ def check_amazon_retained(report: Report) -> None:
 
     page13 = open_app("amazon", 13)
     missing = [header for header in AMAZON_CARD_HEADERS if not has_visible(page13, header)]
-    report.add(section, "13 页六张卡齐全", not missing,
+    report.add(section, "13 页七张卡齐全", not missing,
                f"{len(AMAZON_CARD_HEADERS) - len(missing)}/{len(AMAZON_CARD_HEADERS)}；缺={missing}")
-    for needle in ("测试连接", "采集箱", "刷新", "加载类目", "校验路径"):
+    for needle in ("检测连接", "采集箱", "刷新", "加载类目", "校验路径",
+                   "保存到 Amazon", "自动发布（自动修复）"):
         report.add(section, f"13 页保留「{needle}」入口", has_visible(page13, needle),
                    "可见" if has_visible(page13, needle) else "不可见（隐藏过头）")
 
@@ -312,7 +315,8 @@ def check_amazon_retained(report: Report) -> None:
         "店铺/站点下拉": {"店铺" in dropdowns, "站点" in dropdowns},
         "5 个卖点输入": all(f"卖点 {index}" in fields for index in range(1, 6)),
         "＋添加卖点": any("添加卖点" in text for text in buttons),
-        "预演按钮": any("预演" in text for text in buttons),
+        "保存到 Amazon": any("保存到 Amazon" in text for text in buttons),
+        "自动发布（自动修复）": any("自动发布" in text for text in buttons),
         "保存按钮": any("保存" in text for text in buttons),
         "AI 生成标题": any("AI 生成标题" in text for text in buttons),
         "AI 生成五点": any("AI 生成五点" in text for text in buttons),

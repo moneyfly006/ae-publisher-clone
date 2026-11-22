@@ -204,11 +204,15 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                        "自动补齐必填属性", "套用", "恢复内置", "复制提示词",
                        "发布中", "发布失败"):
             self.assertIn(expect, btn_texts, f"13 页缺少可用控件：{expect}")
-        # 新增预设卡（task-12/13）+ ⑥ 已改为「保存与发布」
+        # 7 卡按功能分组（task-19）：标题编号与顺序
         page_text = " ".join(texts(self.app))
-        self.assertIn("④b AI 提示词预设", page_text)
-        self.assertIn("⑦ AI 图片提示词预设", page_text)
-        self.assertIn("⑥ 保存与发布", page_text)
+        for title in ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
+                      "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
+                      "⑤ 文案与 AI", "⑥ AI 图片（图片只读，v1 备用）",
+                      "⑦ 发布与结果"):
+            self.assertIn(title, page_text)
+        self.assertIn("AI 提示词预设（文案：标题 / 五点 / 描述 / Search Terms / SKU）",
+                      page_text)
         # 正式版文案：不得出现预演/检查模式/测试措辞
         page_all = " ".join(texts(self.app)) + " " + " ".join(btn_texts)
         for banned in ("AURORA_", "预演", "检查模式", "检查结果", "发布前检查",

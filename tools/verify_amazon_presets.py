@@ -387,6 +387,40 @@ def check_ui(report: Report) -> dict:
             row_ok = str(getattr(app.cfg, "amazon_title_prompt", "")) == expected_prompt
         report.add("ui", "套用按钮写入 amazon_title_prompt", row_ok,
                    "预设 prompt 已写入 cfg" if row_ok else "套用未生效")
+        # 新布局：文案预设属于 ⑤ 文案与 AI；图片预设属于 ⑥ AI 图片
+        ordered = []
+        for pos, (control, visible) in enumerate(_visible_controls(app)):
+            if not visible:
+                continue
+            label = ""
+            if isinstance(control, ft.Text):
+                label = str(control.value or "")
+            elif isinstance(control, (ft.ElevatedButton, ft.OutlinedButton,
+                                      ft.TextButton, ft.IconButton)):
+                label = str(getattr(control, "text", "") or "")
+            elif isinstance(control, (ft.Dropdown, ft.TextField, ft.Switch)):
+                label = str(getattr(control, "label", "") or "")
+            if label:
+                ordered.append((pos, label))
+        def _header_pos(header):
+            hits = [pos for pos, label in ordered if label == header]
+            return hits[0] if hits else None
+        h5 = _header_pos("⑤ 文案与 AI")
+        h6 = _header_pos("⑥ AI 图片（图片只读，v1 备用）")
+        h7 = _header_pos("⑦ 发布与结果")
+        text_presets = ["标题预设", "五点描述预设", "产品描述预设",
+                        "Search Terms预设", "SKU预设"]
+        image_presets = ["图片提示词预设"]
+        text_ok = (h5 is not None and h6 is not None and all(
+            any(h5 < pos < h6 and needle in label for pos, label in ordered)
+            for needle in text_presets + ["套用", "恢复内置"]))
+        image_ok = (h6 is not None and h7 is not None and all(
+            any(h6 < pos < h7 and needle in label for pos, label in ordered)
+            for needle in image_presets + ["复制提示词", "套用", "恢复内置"]))
+        report.add("ui", "新布局：5 组文案预设位于 ⑤ 文案与 AI", text_ok,
+                   "下拉/套用/恢复均在 ⑤ 卡内")
+        report.add("ui", "新布局：图片预设/复制/编辑位于 ⑥ AI 图片", image_ok,
+                   "图片预设/复制提示词均在 ⑥ 卡内")
     return {"dropdown_counts": {label: len(getattr(dropdowns.get(label),
                                                    "options", []) or [])
                                 for label in expected_labels},
@@ -488,14 +522,14 @@ def check_release_scan(report: Report) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# 6) 截图（滚动到 ④b 预设卡）
+# 6) 截图（新布局整页长图：⑤ 文案卡内预设分区 + ⑥ 图片预设）
 # ---------------------------------------------------------------------------
 def capture_screenshot(report: Report) -> dict:
     try:
         from playwright.sync_api import sync_playwright
         import amazon_ui_shots as ui_shots
     except Exception as exc:  # noqa: BLE001
-        report.add("screenshot", "预设卡截图", False, f"截图链路不可用：{exc}")
+        report.add("screenshot", "文案卡预设分区截图", False, f"截图链路不可用：{exc}")
         return {}
     port = ui_shots._free_port()
     server = ui_shots._PreviewServer("amazon", 13, port)
@@ -513,23 +547,44 @@ def capture_screenshot(report: Report) -> dict:
                 except Exception:  # noqa: BLE001
                     browser = playwright.chromium.launch(headless=True)
                 try:
-                    ctx = browser.new_context(viewport={"width": 1560, "height": 3600})
+                    ctx = browser.new_context(viewport={"width": 1560, "height": 6000})
                     page = ctx.new_page()
                     page.goto(f"http://127.0.0.1:{port}", wait_until="load",
                               timeout=45000)
                     with contextlib.suppress(Exception):
                         page.wait_for_selector("canvas", timeout=25000)
-                    page.wait_for_timeout(4500)
+                    page.wait_for_timeout(5000)
                     page.screenshot(path=str(SHOT))
                 finally:
                     browser.close()
+            # 裁掉底部空白，生成整页长图
+            try:
+                from PIL import Image
+                image = Image.open(SHOT).convert("RGB")
+                width, height = image.size
+                pixels = image.load()
+                last = height - 1
+                step = 4
+                for y in range(height - 1, 0, -step):
+                    bright = 0
+                    for x in range(220, width, 12):
+                        r, g, b = pixels[x, y]
+                        if (r + g + b) / 3.0 > 60:
+                            bright += 1
+                    if bright > 8:
+                        last = y
+                        break
+                if last < height - 80:
+                    image.crop((0, 0, width, min(height, last + 60))).save(SHOT)
+            except Exception:
+                pass
             ok = SHOT.exists() and SHOT.stat().st_size > 0
             detail = f"{SHOT.name} ({SHOT.stat().st_size} bytes)" if ok else "截图为空"
     except Exception as exc:  # noqa: BLE001
         detail = f"{type(exc).__name__}: {exc}"
     finally:
         server.stop()
-    report.add("screenshot", "预设卡截图", ok, detail,
+    report.add("screenshot", "文案卡预设分区截图（整页长图）", ok, detail,
                {"path": str(SHOT.relative_to(ROOT)),
                 "bytes": SHOT.stat().st_size,
                 "sha256": hashlib.sha256(SHOT.read_bytes()).hexdigest()[:16]}

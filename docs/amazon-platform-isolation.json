@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-22T02:49:00+08:00",
+  "generated_at": "2026-11-22T13:07:21+08:00",
   "mode": "sandbox UI audit (AURORA_TEST=1, no network, no write)",
   "platform": "amazon",
   "sections": {
@@ -112,12 +112,12 @@
         "detail": "Amazon tooltip='去 Amazon 刊登（Amazon 不走速卖通批量任务）'；AliExpress='启动 / 停止本次任务（⌘R / Ctrl+R）'"
       },
       {
-        "name": "13 页六张卡齐全",
+        "name": "13 页七张卡齐全",
         "ok": true,
-        "detail": "6/6；缺=[]"
+        "detail": "7/7；缺=[]"
       },
       {
-        "name": "13 页保留「测试连接」入口",
+        "name": "13 页保留「检测连接」入口",
         "ok": true,
         "detail": "可见"
       },
@@ -142,6 +142,16 @@
         "detail": "可见"
       },
       {
+        "name": "13 页保留「保存到 Amazon」入口",
+        "ok": true,
+        "detail": "可见"
+      },
+      {
+        "name": "13 页保留「自动发布（自动修复）」入口",
+        "ok": true,
+        "detail": "可见"
+      },
+      {
         "name": "13 页关键控件：店铺/站点下拉",
         "ok": true,
         "detail": "存在"
@@ -157,7 +167,12 @@
         "detail": "存在"
       },
       {
-        "name": "13 页关键控件：预演按钮",
+        "name": "13 页关键控件：保存到 Amazon",
+        "ok": true,
+        "detail": "存在"
+      },
+      {
+        "name": "13 页关键控件：自动发布（自动修复）",
         "ok": true,
         "detail": "存在"
       },
@@ -298,12 +313,12 @@
       {
         "name": "Alibaba 无 SMT 价格页(6)/变种页(7)",
         "ok": true,
-        "detail": "pages=[0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12]"
+        "detail": "pages=[0, 1, 3, 4, 5, 8, 9, 10, 11, 12]"
       },
       {
         "name": "Alibaba 12 号刊登页仍在",
         "ok": true,
-        "detail": "pages=[0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12]"
+        "detail": "pages=[0, 1, 3, 4, 5, 8, 9, 10, 11, 12]"
       },
       {
         "name": "Alibaba 概览可渲染",
@@ -399,35 +414,35 @@
       {
         "name": "Amazon 页面可见控件无 SMT 跳转/弹窗",
         "ok": true,
-        "detail": "共点击 64 个可见控件；残留=[]"
+        "detail": "共点击 83 个可见控件；残留=[]"
       }
     ],
     "screenshots": [
       {
         "name": "13 页顶部截图",
         "ok": true,
-        "detail": "/Users/apple/Projects/alibaba-lister/docs/design/amazon-listing-page.png (274162 bytes)",
+        "detail": "/Users/apple/Projects/alibaba-lister/docs/design/amazon-listing-page.png (334806 bytes)",
         "observed": {
           "path": "docs/design/amazon-listing-page.png",
-          "bytes": 274162,
-          "sha256": "6d5a75e217c6d177f17901ca94eaa18493da0b533430d614d5afb6d3462c9b48"
+          "bytes": 334806,
+          "sha256": "72607f5ab4bac47511d7052917a54fcc9dc1622870e18d392d841b1eaa355add"
         }
       },
       {
         "name": "13 页价格/预演截图",
         "ok": true,
-        "detail": "amazon-listing-page-2-price-preview.png (263971 bytes)",
+        "detail": "amazon-listing-page-2-price-preview.png (256014 bytes)",
         "observed": {
           "path": "docs/design/amazon-listing-page-2-price-preview.png",
-          "bytes": 263971,
-          "sha256": "8efa936354ac38ffb38b3ca583a924ac5bbdea0a28cc4c5f7374a694dd2ff4ff"
+          "bytes": 256014,
+          "sha256": "f236c612cc95120c1054cc3e838f3d0e0fddd5927721f2eb5c25237e1f51ccb1"
         }
       }
     ]
   },
   "summary": {
-    "passed": 79,
-    "total": 79,
+    "passed": 82,
+    "total": 82,
     "failed": []
   },
   "hide_too_much": [],
@@ -435,11 +450,11 @@
   "screenshots": {
     "top": {
       "path": "docs/design/amazon-listing-page.png",
-      "sha256": "6d5a75e217c6d177f17901ca94eaa18493da0b533430d614d5afb6d3462c9b48"
+      "sha256": "72607f5ab4bac47511d7052917a54fcc9dc1622870e18d392d841b1eaa355add"
     },
     "price_preview": {
       "path": "docs/design/amazon-listing-page-2-price-preview.png",
-      "sha256": "8efa936354ac38ffb38b3ca583a924ac5bbdea0a28cc4c5f7374a694dd2ff4ff"
+      "sha256": "f236c612cc95120c1054cc3e838f3d0e0fddd5927721f2eb5c25237e1f51ccb1"
     }
   },
   "notes": [
