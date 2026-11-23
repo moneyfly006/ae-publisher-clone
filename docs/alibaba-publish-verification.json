@@ -1,215 +1,37 @@
 {
-  "generated_at": "2026-11-22T02:07:57+0800",
+  "generated_at": "2026-11-22T02:23:30+0800",
   "product_id": "220114598434958580",
   "op": "2",
-  "before": {
-    "dxmState": "draft",
-    "productStatusType": null,
-    "dxmOfflineState": null,
-    "publishStatus": null,
-    "auditStatus": null,
-    "productId": null
+  "category_id": "202107201",
+  "product": "玻璃钢集装箱泳池（采集箱草稿）",
+  "score": 4.8,
+  "score_line": 4.5,
+  "score_passed": true,
+  "scope_preflight": {
+    "in_scope_guess": false,
+    "evidence_count": 0,
+    "scanned": 600,
+    "detail": "类目 202107201 未在 600 个在线商品类目样本中出现，可能不在经营类目范围"
   },
-  "edit": {
-    "overrides": {
-      "category_id": "202107201",
-      "full_cid": "18,100005657,100005663,202107201",
-      "attributes": {
-        "Applicable People": "All"
-      }
-    },
-    "hs_code": "9506999000",
-    "freight_template_id": "2055583029",
-    "logistics_property": "general_cargo_0"
-  },
-  "result": {
-    "ok": true,
-    "saved": true,
-    "preview": false,
-    "score": 4.8,
-    "error": "",
-    "save_result": {
+  "submit_response": {
+    "code": 0,
+    "msg": "Successful",
+    "data": {
+      "msg": "产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！",
       "code": 0,
-      "msg": "Successful",
-      "msgCode": null,
-      "data": {
-        "msg": "产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！",
-        "code": 0,
-        "productId": "220114598434958580"
-      }
-    },
-    "steps": [
-      {
-        "name": "连接 Alibaba",
-        "ok": true,
-        "detail": "Cookie 可用，客户端已创建"
-      },
-      {
-        "name": "读取商品详情",
-        "ok": true,
-        "detail": "Customized Fiberglass Container Pool - Ready-Made Prefabrica · 类目 202107201"
-      },
-      {
-        "name": "读取类目规则",
-        "ok": true,
-        "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
-      },
-      {
-        "name": "AI 文案",
-        "ok": true,
-        "detail": "未启用 AI，使用商品原标题/详情"
-      },
-      {
-        "name": "关键词",
-        "ok": true,
-        "detail": "fiberglass container pool, prefabricated outdoor pool, villa pool, custom fiberglass pool, low-maintenance swimming pool"
-      },
-      {
-        "name": "保存前校验",
-        "ok": true,
-        "detail": "必填项全部满足"
-      },
-      {
-        "name": "刊登评分",
-        "ok": true,
-        "detail": "4.80/5（发布线 4.5）"
-      },
-      {
-        "name": "违禁词检查",
-        "ok": true,
-        "detail": "未命中"
-      },
-      {
-        "name": "授权校验",
-        "ok": true,
-        "detail": "通过"
-      },
-      {
-        "name": "保存到 Alibaba",
-        "ok": true,
-        "detail": "发布成功：产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！"
-      },
-      {
-        "name": "完成",
-        "ok": true,
-        "detail": "商品已保存/提交"
-      }
-    ]
-  },
-  "elapsed_sec": 23.2,
-  "states_after": [
-    {
-      "t": 5,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 10,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 15,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 20,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 25,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 30,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 35,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 40,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 45,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
-    },
-    {
-      "t": 50,
-      "state": {
-        "dxmState": "offline",
-        "productStatusType": null,
-        "dxmOfflineState": "publishFail",
-        "publishStatus": null,
-        "auditStatus": null,
-        "productId": null
-      }
+      "productId": "220114598434958580"
     }
-  ],
-  "draft_total": 27,
-  "online_total": 3736,
-  "offline_total": 1
+  },
+  "final_state": {
+    "dxmState": "offline",
+    "dxmOfflineState": "publishFail",
+    "productStatusType": null,
+    "errMsg": "systemError:isp.system-service-error:PUB_BIZCHECK_CAT_PUB_RESTRICT:当前商品类目不在线上经营类目范围内，无法发品，请前往店铺管理->管理公司信息完成经营类目设置:; Trace_id: eedd073ada2af687bb983e5f7fffe3d1",
+    "subject": "Customized Fiberglass Container Pool - Ready-Made Prefabricated Outdoor Swimming Pool",
+    "textDesc": "<2000 chars plain text>"
+  },
+  "final_result": "publishFail",
+  "failure_code": "PUB_BIZCHECK_CAT_PUB_RESTRICT",
+  "customer_advice": "Alibaba 卖家中心 → 店铺管理 → 管理公司信息 → 经营类目，把该类目加入经营范围后再发布；软件无法代替平台开通经营类目",
+  "verified_at": "2026-11-22T02:23:30+0800"
 }

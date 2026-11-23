@@ -407,6 +407,7 @@ def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False,
 "amazon_description_prompt": "",
 "amazon_search_terms_prompt": "",
 "amazon_last_status": "",
+"amazon_autofill_attrs": True,     # 保存/发布前自动补齐缺失的必填属性（只补缺失，不覆盖已有）
 ```
 > `config.py` 只由 backend 修改；UI 只读写这些键。
 

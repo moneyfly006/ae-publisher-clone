@@ -88,6 +88,25 @@ DESTINATIONS = (
                 "tiktok 保存 发布 诊断 保存包 回读 预检 二次确认"),
 )
 
+DESTINATIONS += (
+    Destination(29, "商品准备", "采集箱商品", "INVENTORY_2_OUTLINED", "浏览、搜索或按 ID 选择 Alibaba 商品"),
+    Destination(30, "商品准备", "类目与属性", "CATEGORY_OUTLINED", "选择 Alibaba 类目，填写必填属性并核对经营范围"),
+    Destination(31, "商品准备", "公司与商品资料", "BUSINESS_OUTLINED", "维护公司信息、商品资料和行业预设"),
+    Destination(32, "商品准备", "价格与贸易", "SELL_OUTLINED", "配置阶梯价、FOB、起订量、包装与物流"),
+    Destination(33, "发布与运行", "保存与发布", "CLOUD_UPLOAD_OUTLINED", "单个或批量检查、保存、发布并查看结果"),
+    Destination(34, "商品准备", "SKU 与库存", "ACCOUNT_TREE_OUTLINED", "维护 Amazon SKU、库存、品牌与制造商"),
+    Destination(35, "商品准备", "SKU 与库存", "ACCOUNT_TREE_OUTLINED", "维护 TikTok SKU 与库存"),
+)
+
+# Shopee 使用独立的全局/站点编辑器，避免复用速卖通字段与端点。
+from .shopee import SECTIONS as SHOPEE_SECTIONS
+DESTINATIONS += tuple(Destination(36 + i,
+    "商品准备" if i < 5 else "内容处理" if i < 7 else "发布与运行",
+    title, "STORE_OUTLINED" if i == 0 else "INVENTORY_2_OUTLINED", description)
+    for i, (title, description) in enumerate(SHOPEE_SECTIONS))
+DESTINATIONS += (Destination(44, "自动处理", "处理规则", "TUNE", "设置 Alibaba 文案、图片和商品资料的批量规则"),)
+DESTINATIONS += (Destination(45, "自动处理", "处理规则", "TUNE", "设置 Amazon 文案、图片和商品资料的批量规则"),)
+
 BY_INDEX = {item.index: item for item in DESTINATIONS}
 
 

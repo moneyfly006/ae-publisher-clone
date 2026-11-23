@@ -124,21 +124,35 @@ def refresh_entitlements(cfg, version: str = "", timeout: int = 8,
     失败时保留本地缓存（7 天宽限由 licensing.load_entitlements 控制）。
     """
     try:
-        from .license import machine_code
+        from .license import machine_code, identity_candidates
         mcode = machine_code()
+        allowed = set(identity_candidates())
     except Exception:
         mcode = str(getattr(cfg, "license_identity", "") or "")
+        allowed = {mcode}
     server = str(getattr(cfg, "license_server", "") or "")
     tok, err = fetch_entitlement_token(server, mcode, version=version,
                                        session=session, timeout=timeout)
     if not tok:
-        log.info("授权服务器未返回 token：%s", err)
-        return load_entitlements(cfg)
+        # 旧账号可能仍绑定旧机器码：升级后自动尝试旧格式，避免授权丢失。
+        try:
+            from .license import legacy_machine_code
+            _legacy = legacy_machine_code()
+        except Exception:
+            _legacy = ""
+        if _legacy and _legacy != mcode:
+            tok2, err2 = fetch_entitlement_token(server, _legacy, version=version,
+                                                 session=session, timeout=timeout)
+            if tok2:
+                tok, err = tok2, ""
+        if not tok:
+            log.info("授权服务器未返回 token：%s", err)
+            return load_entitlements(cfg)
     payload = verify_token(tok)
     if not payload:
         log.warning("授权服务器返回的 token 验签失败，忽略")
         return load_entitlements(cfg)
-    machine_ok = str(payload.get("machine_code") or "") in ("", mcode)
+    machine_ok = str(payload.get("machine_code") or "") in ("", *allowed)
     if not machine_ok:
         log.warning("token 机器码不匹配：%s != %s", payload.get("machine_code"), mcode)
         return load_entitlements(cfg)
@@ -148,6 +162,40 @@ def refresh_entitlements(cfg, version: str = "", timeout: int = 8,
         save(cfg)
     log.info("平台授权已刷新：%s", ", ".join(ent.platforms_list()) or "无")
     return ent
+
+def software_bind(server: str, email: str, password: str, machine_code: str,
+                  legacy_identities: list[str] | None = None, version: str = "",
+                  timeout: int = 10, session=None) -> tuple[str, str, dict]:
+    """旧授权迁移：邮箱/密码 + 旧授权 identity → 绑定本机并下发全平台 token。"""
+    base = canonical_server(str(server or "")).rstrip("/")
+    if not base:
+        return "", "未配置授权服务器", {}
+    try:
+        sess = session or requests.Session()
+        url = base + "/api.php?action=software_bind"
+        payload = {"email": email, "password": password, "machine_code": machine_code,
+                   "legacy_identity": (legacy_identities or [""])[0],
+                   "legacy_identities": list(legacy_identities or []),
+                   "version": version}
+        r = _request_keep_query(sess, "POST", url, timeout=timeout, json=payload)
+        d = r.json()
+    except Exception as ex:
+        return "", f"连接授权服务器失败：{str(ex)[:80]}", {}
+    if d.get("code") != 0:
+        msg = str(d.get("msg") or "绑定失败")
+        # 后台还未部署 software_bind 时，已有账号可退回普通软件登录。
+        if "未知操作" in msg or "不支持" in msg or "not found" in msg.lower():
+            return software_login(server, email, password, machine_code,
+                                  version=version, timeout=timeout, session=session)
+        return "", msg, {}
+    data = d.get("data") or {}
+    token = str(data.get("token") or "")
+    if not token:
+        return "", "服务器未返回授权", {}
+    if not verify_token(token):
+        return "", "授权 token 验签失败", {}
+    return token, "", data
+
 
 def software_login(server: str, email: str, password: str, machine_code: str,
                    version: str = "", timeout: int = 10, session=None) -> tuple[str, str, dict]:

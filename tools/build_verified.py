@@ -16,7 +16,7 @@ def main():
     for test in args.test:
         path=(ROOT/test).resolve()
         if not path.is_relative_to(ROOT/'tests') or path.suffix!='.py': parser.error('test must be a Python file under tests/')
-        env=dict(os.environ,AURORA_CONFIG_DIR=str(folder/'config'),AURORA_SKIP_LICENSE='1',PYTHONPATH=str(ROOT/'src'))
+        env=dict(os.environ,AURORA_CONFIG_DIR=str(folder/'config'),AURORA_SKIP_LICENSE='1',AURORA_TEST='1',PYTHONPATH=str(ROOT/'src'))
         with (folder/(path.stem+'.log')).open('w') as log:
             subprocess.run([str(ROOT/'.venv/bin/python'),str(path)],cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
         tests.append(test)

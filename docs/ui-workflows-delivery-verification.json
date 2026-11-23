@@ -1,0 +1,48 @@
+{
+  "verified_at": "2026-11-22T14:25:35.294626",
+  "build": {
+    "issue": "ui-workflows-final",
+    "build": "dist/verified-ui-workflows-final-20261122-142212/AuroraList.app",
+    "tests": [
+      "tests/test_platform_workflows.py",
+      "tests/test_alibaba_editor.py",
+      "tests/test_shopee_workflow.py",
+      "tests/test_media_actions.py",
+      "tests/test_amazon_ui_page.py",
+      "tests/test_tiktok_ui_page.py"
+    ],
+    "sha256": "6e61ee97c918617405334264d74e314179efd34c1cac2066740c383b8e2179df",
+    "verified_at": "2026-11-22T14:22:42.257874",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  "offline_tests": {
+    "total": 1082,
+    "failed": 0,
+    "log": "build/ui-redesign/final-test-results.log"
+  },
+  "visual": {
+    "total": 47,
+    "failures": 0,
+    "widths": [
+      1280,
+      1024
+    ]
+  },
+  "buttons": {
+    "pages": 32,
+    "callbacks": 223,
+    "errors": 0
+  },
+  "source_diff_check": "PASS",
+  "live_publication": "NOT_RUN",
+  "live_paid_ai": "NOT_RUN",
+  "account_limitations": "Alibaba/TikTok/Shopee 缺少已授权店铺；全球属性和站点类目需绑定店铺后实测",
+  "native_ui": {
+    "build": "dist/verified-ui-workflows-final-20261122-142212/AuroraList.app",
+    "native_launch": true,
+    "screenshot": false,
+    "capture_output": "系统截图工具超时；原生进程已正常启动，页面另有 Flet 实际渲染截图。",
+    "runtime_errors": ""
+  }
+}

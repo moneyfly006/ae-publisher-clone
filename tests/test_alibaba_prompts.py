@@ -63,13 +63,18 @@ class PresetShapeTests(unittest.TestCase):
             self.assertNotIn("125", t, f"{pid} 标题提示词仍在用旧的 125 上限")
 
     def test_detail_prompt_constraints(self):
-        """详情必须是 HTML 片段 + 原图占位符 + 禁止联系方式。"""
+        """平台 textDesc 只收纯文本：提示词必须要求纯文本、≤2000 字符、禁联系方式。
+
+        2026-11-22 实测：Alibaba add.json 对 HTML 详情报
+        textDesc:不能输入HTML脚本 / 不能超过1000个汉字或2000个字符。
+        """
         for pid, p in AP.PRESETS.items():
             d = p["detail_prompt"]
-            self.assertIn("HTML", d, f"{pid} 详情提示词未要求 HTML")
-            self.assertIn("data-detail-img", d, f"{pid} 详情提示词缺图片占位符规则")
-            self.assertIn("img", d.lower(), pid)
-            self.assertIn("只输出", d, f"{pid} 详情提示词未约束只输出 HTML 片段")
+            self.assertIn("纯文本", d, f"{pid} 详情提示词未要求纯文本")
+            self.assertIn("2000", d, f"{pid} 详情提示词未约束 2000 字符上限")
+            self.assertIn("800~1500", d, f"{pid} 详情提示词未给安全长度区间")
+            self.assertNotIn("data-detail-img", d, f"{pid} 详情提示词不应再要求图片占位符")
+            self.assertIn("HTML", d, f"{pid} 详情提示词未说明不要 HTML")
 
     def test_sku_prompt_constraints(self):
         for pid, p in AP.PRESETS.items():

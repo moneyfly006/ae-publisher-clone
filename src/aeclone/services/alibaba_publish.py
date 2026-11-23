@@ -54,8 +54,7 @@ def make_client(cfg) -> AlibabaClient:
     if not raw:
         raw = _browser_cookies()
     if not raw:
-        raise RuntimeError("没有 Alibaba/店小秘 Cookie：请在「设置 → Alibaba 刊登」粘贴 Cookie，"
-                           "或在「店铺与登录」读取/粘贴店小秘 Cookie")
+        raise RuntimeError("没有 Alibaba/店小秘 Cookie，请在「连接与店铺」填写，或先在浏览器登录店小秘")
     return AlibabaClient(raw)
 
 

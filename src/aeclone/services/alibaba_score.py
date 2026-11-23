@@ -13,6 +13,8 @@ import json
 import re
 from dataclasses import dataclass, field
 
+from .alibaba_payload import _looks_like_contact_number, sku_summary
+
 PASS_SCORE = 4.5
 
 # 维度权重（合计 100）
@@ -68,6 +70,22 @@ CONTACT_RE = re.compile(
     r"(https?://|www\.|@[a-z0-9.-]+\.[a-z]{2,}|\bwhatsapp\b|\bwechat\b|\bskype\b"
     r"|telegram|\bqq\b|\+?\d[\d\s\-()]{7,}\d)", re.I)
 _FAB_ABSOLUTE = ("best", "100%", "guaranteed", "world leading", "no.1", "number one")
+
+
+def contact_hit(text: str) -> str:
+    """返回文本里第一处站外联系方式（没有则空串）。
+
+    CONTACT_RE 的电话分支会把「1200 800 900」这类尺寸/年份数字也匹配进来，
+    这里复用保存清理的同一套判定，避免对正常规格文本误报联系方式。
+    """
+    s = str(text or "")
+    for m in CONTACT_RE.finditer(s):
+        frag = m.group(0)
+        if frag.startswith(("http", "www")) or "@" in frag or re.search(r"[A-Za-z]", frag):
+            return frag
+        if _looks_like_contact_number(frag):
+            return frag
+    return ""
 
 
 @dataclass
@@ -196,16 +214,16 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
     # 1) 类目与属性
     attr_score = 5.0
     attr_problems, attr_fixes = [], []
-    if not str(product.get("categoryId") or "").strip() or \
-            str(product.get("categoryId")).strip().lower() in ("none", "null"):
+    category = str(save.get("categoryId", product.get("categoryId")) or "").strip().lower()
+    if not category or category in ("none", "null", "undefined", "0"):
         attr_score = 0.0
         attr_problems.append("未选择末级类目")
         attr_fixes.append("在「Alibaba 刊登 → 类目」搜索并选择末级叶子类目")
         res.blockers.append("未选择类目")
     if req:
-        missing = [str(a.get("nameEn") or a.get("nameZh") or "").strip()
-                   for a in req
-                   if str(a.get("nameEn") or a.get("nameZh") or "").strip().lower() not in attrs]
+        missing = [name for row in req if isinstance(row, dict)
+                   and (name := str(row.get("nameEn") or row.get("nameZh") or "").strip())
+                   and not attrs.get(name.lower())]
         if missing:
             attr_score = min(attr_score, 2.0)
             attr_problems.append("缺少必填属性：" + "、".join(missing[:6]))
@@ -253,7 +271,7 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
             title_score -= 1.5
             tp.append("标题含违禁/促销词：" + "、".join(bad[:4]))
             tf.append("删除违禁词/促销词/绝对化用语")
-        if CONTACT_RE.search(title):
+        if contact_hit(title):
             title_score -= 2.0
             tp.append("标题含联系方式/网址")
             tf.append("标题去掉电话/邮箱/网址/WhatsApp")
@@ -287,26 +305,23 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
     add_item("keywords", kw_score, kp, kf)
 
     # 4) 详情
-    html = str(save.get("textDesc") or product.get("textDesc") or "")
+    html = str(save.get("textDesc", product.get("textDesc")) or "")
     plain = _plain(html)
-    detail_imgs = _new_list(save.get("detailImage"))
-    if not detail_imgs:
-        detail_imgs = _as_list(product.get("detailImage"))
+    detail_imgs = _new_list(save.get("detailImage", product.get("detailImage")))
     detail_score, dp, df = 5.0, [], []
     n_chars = len(plain)
+    # 门槛与「提示词/文档」对齐：Alibaba 详情提示词要求 800~1500 字符、平台上限 2000，
+    # 文档 ALIBABA_SCORING 的期望区间是 800~1800。旧实现把 1810→1800 之间的正常详情
+    # 扣到 4.0（1747 字符也扣），与自家提示词互相矛盾，且会把 4.45 压到 4.25。
     if n_chars < 300:
         detail_score = 1.0
         dp.append(f"详情纯文本仅 {n_chars} 字符")
-        df.append("用 AI 详情生成器补全（建议 1800+ 字符，含参数表/结构/应用）")
+        df.append("用 AI 详情生成器补全（建议 800~1500 字符，含参数表/结构/应用）")
         res.blockers.append("详情过短")
     elif n_chars < 800:
-        detail_score = 2.5
-        dp.append(f"详情偏短（{n_chars} 字符）")
-        df.append("补充参数表、使用场景、包装与服务")
-    elif n_chars < 1800:
-        detail_score = 4.0
-        dp.append(f"详情 {n_chars} 字符（建议 1800+）")
-        df.append("增加参数表/安装/维护段落")
+        detail_score = 3.0
+        dp.append(f"详情偏短（{n_chars} 字符，建议 800+）")
+        df.append("补充参数表、使用场景、包装与服务（提示词建议 800~1500 字符）")
     if re.search(r"<[a-zA-Z/][^>]*>", html):
         detail_score -= 1.0
         dp.append("详情含 HTML 标签（平台 textDesc 只接受纯文本，保存时会被剥掉）")
@@ -320,7 +335,7 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
         dp.append(f"详情图仅 {len(detail_imgs)} 张（建议 ≥3）")
         df.append("保留原详情图并在详情中插入")
     low = plain.lower()
-    if CONTACT_RE.search(low):
+    if contact_hit(low):
         detail_score -= 2.0
         dp.append("详情含联系方式/网址/二维码文本")
         df.append("删除电话/邮箱/WhatsApp/网址（Alibaba 禁止站外联系）")
@@ -332,7 +347,7 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
     add_item("detail", detail_score, dp, df)
 
     # 5) 图片
-    main = _img_urls(save.get("mainImage") or product.get("mainImage"))
+    main = _img_urls(save.get("mainImage", product.get("mainImage")))
     img_score, ip, ifx = 5.0, [], []
     n_main = len(main)
     if n_main == 0:
@@ -379,6 +394,7 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
             vp.append("没有商品视频（mainVideoId/detailVideoId 为空）")
             vf.append("在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，"
                       "视频需在平台侧补充后重新评分")
+
     add_item("video", video_score, vp, vf)
 
     # 7) 价格与贸易
@@ -396,10 +412,23 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
             trp.append("阶梯价为空或价格 <=0")
             trf.append("在「价格与贸易」填阶梯价 JSON")
     elif ptype == "sku_price":
-        if not _as_list(save.get("productSku") or product.get("productSku")):
+        # 真实 edit.json 的 productSku 是 JSON 字符串（dict：attributes + special_skus），
+        # 之前用 _as_list 只认数组，dict 形状会被判成「没有 SKU」，
+        # 导致所有 sku_price 商品价格维度 2.5 分、总分被压到 4.25（真实回归 2026-11-22）。
+        _has_sku, _valid_skus, _has_dims = sku_summary(
+            save.get("productSku") or product.get("productSku"))
+        if not _has_sku:
             trade_score -= 2.5
             trp.append("按规格定价但缺少 SKU 数据")
             trf.append("补 SKU 或改用按数量定价")
+        elif not _has_dims:
+            trade_score -= 1.5
+            trp.append("productSku 缺少 SKU 维度属性（attributes）")
+            trf.append("在「价格与贸易 → SKU」补规格维度（如 Color/Size）")
+        elif _valid_skus <= 0:
+            trade_score -= 2.5
+            trp.append("productSku 无有效 SKU（全部 exclude 或无价格/规格）")
+            trf.append("补有效 SKU 价格/编码，或改用按数量定价")
     elif ptype == "fob_price":
         if not (fob.get("fob_min_price") and fob.get("fob_max_price") and fob.get("fob_currency")):
             trade_score -= 2.5
@@ -463,7 +492,7 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
         comp_score -= 1.5
         cp.append("含违禁/绝对化词：" + "、".join(bad[:5]))
         cf.append("删除违禁词后重新评分")
-    if CONTACT_RE.search(corpus):
+    if contact_hit(corpus):
         comp_score -= 2.0
         cp.append("含联系方式/网址/二维码")
         cf.append("删除所有站外联系方式")
@@ -475,7 +504,9 @@ def score_product(product: dict, cfg=None, *, save: dict | None = None,
 
     # 汇总
     total_w = sum(i.weight for i in res.items) or 1
-    res.total = sum(i.score * i.weight for i in res.items) / total_w
+    # 门禁阈值是两位小数：先按两位四舍五入再比较，避免加权和 4.495 显示成
+    # 「4.50/5」却仍判不通过（旧实现会给出自相矛盾的「4.50 未达 4.5」提示）。
+    res.total = round(sum(i.score * i.weight for i in res.items) / total_w, 2)
     res.fixes = [f for i in res.items for f in i.fixes]
     # 去重保序
     res.fixes = list(dict.fromkeys(res.fixes))

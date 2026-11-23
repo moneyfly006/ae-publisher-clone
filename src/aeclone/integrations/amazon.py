@@ -163,7 +163,7 @@ class AmazonClient:
         """
         if any(hint in str(path or "") for hint in WRITE_PATH_HINTS):
             retry = False
-        attempts = RETRY_MAX_ATTEMPTS if retry else 1
+        attempts = (min(3, max(0, int(getattr(self, "read_retries", RETRY_MAX_ATTEMPTS - 1)))) + 1) if retry else 1
         last_error = ""
         for attempt in range(1, attempts + 1):
             try:
@@ -712,6 +712,21 @@ def _banned_hits(raw) -> list[str]:
     return out[:20]
 
 
+def is_leaf_category(node: dict) -> bool:
+    flag = str(node.get("leafCategory", "")).strip().casefold()
+    return bool(node) and flag not in ("false", "0") and not node.get("childIds")
+
+
+def product_scope_issue(product: dict, shop_id: str, marketplace_id: str) -> str:
+    shop = str(product.get("shopIdStr") or product.get("shopId") or product.get("shop_id") or "")
+    market = str(product.get("marketPlaceId") or product.get("marketplace_id") or "")
+    if shop_id not in ("", "0", "-1") and shop not in ("", "0", "-1", shop_id):
+        return "商品属于另一家 Amazon 店铺"
+    if marketplace_id and market not in ("", "0", "-1", marketplace_id):
+        return "商品属于另一 Amazon 站点"
+    return ""
+
+
 def normalize_product(row: dict) -> dict:
     """把店小秘 amazon 列表行整理成统一结构（保留旧键：id/title/sku/asin/price/...）。"""
     if not isinstance(row, dict):
@@ -729,7 +744,7 @@ def normalize_product(row: dict) -> dict:
     if not price:
         price = "0"
     return {
-        "id": str(row.get("id") or row.get("productId") or row.get("idStr") or ""),
+        "id": str(row.get("idStr") or row.get("id") or row.get("productId") or ""),
         "title": str(row.get("title") or row.get("subject") or row.get("productName") or ""),
         "sku": str(row.get("sku") or row.get("sellerSku") or ""),
         "asin": str(row.get("asin") or row.get("productId") or ""),
@@ -748,7 +763,7 @@ def normalize_product(row: dict) -> dict:
         "err_msg": str(row.get("errMsg") or ""),
         "warning_msg": str(row.get("warningMsg") or ""),
         "import_warning_msg": str(row.get("importWarningMsg") or ""),
-        "shop_id": str(row.get("shopId") or ""),
+        "shop_id": str(row.get("shopIdStr") or row.get("shopId") or ""),
         "is_variation": _num(row.get("isVariation"), 0),
         "update_time": row.get("updateTime") or row.get("gmtModified") or "",
     }

@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-11-22T03:12:56+0800",
+  "local": {
+    "ok": true,
+    "files": [
+      "docs/design/test-assets/local-square.png",
+      "docs/design/test-assets/local-watermark.png",
+      "docs/design/test-assets/local-four.png",
+      "docs/design/test-assets/local-marketing.png"
+    ],
+    "elapsed": 0.05
+  },
+  "ai_image": {
+    "ok": true,
+    "url": "http://132.226.1.44:8099/imgres/aafbd96b52a44b85bf8d178480392712.png",
+    "saved": "docs/design/test-assets/ai-white-bg.png",
+    "elapsed": 8.6
+  },
+  "video": {
+    "ok": true,
+    "path": "docs/design/test-assets/carousel-test.mp4",
+    "size": 34483,
+    "elapsed": 0.7
+  }
+}

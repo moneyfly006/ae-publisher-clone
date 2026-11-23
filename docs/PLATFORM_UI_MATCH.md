@@ -88,7 +88,7 @@ PLATFORM_CAPS = {
 |---|---|
 | 回归 `verify_regressions.py` | **48/48 PASS**（含 `test_platform_ui_filter.py`、`test_ui_alibaba_actions.py`） |
 | 离线安全 `test_offline.py` | 63/63 PASS |
-| 全按钮审计（按平台页面） | 13 页（Alibaba 11 + 速卖通独有 6/7）355 回调：OK 228 / DEFERRED 111 / NATIVE 8 / EXTERNAL 8 / **ERROR 0** |
+| 全按钮审计（按平台页面） | 17 页（Alibaba/速卖通/Amazon 页面集合）464 回调：OK 303 / DEFERRED 141 / NATIVE 8 / EXTERNAL 12 / **ERROR 0** |
 | 开关/下拉审计 | 按平台页面遍历，0 error（Alibaba 无死开关） |
 | 页面构建 | Alibaba 11 页 + 速卖通 12 页，明/暗主题全部可构建 |
 | 平台切换 | Alibaba→速卖通：被裁剪的页面/卡片全部恢复（测试断言） |

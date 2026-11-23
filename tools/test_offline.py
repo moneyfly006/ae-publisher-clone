@@ -34,9 +34,18 @@ MODULES = (
     # TikTok Shop 刊登（task-5 接入；AURORA_TEST=1 下应全绿）
     "test_tiktok_client", "test_tiktok_payload", "test_tiktok_prompts",
     "test_tiktok_pipeline", "test_tiktok_contract", "test_tiktok_ui_page",
+    "test_smt_publish_fixes",
     "test_smt_attr_integration",
     "test_image_ops_watermark",
     "test_alibaba_attributes", "test_smt_attributes", "test_tiktok_attributes",
+    "test_platform_workflows", "test_alibaba_editor", "test_shopee_workflow",
+    "test_alibaba_payload", "test_alibaba_pipeline", "test_alibaba_batch",
+    "test_media_actions",
+    "test_collect_automation", "test_collect_ui", "test_listing_recovery", "test_conflict_effectiveness", "test_collect_ai", "test_navigation_operations",
+    "test_ui_redesign", "test_ui_function_dedup", "test_collect_runtime", "test_collect_optimization",
+    "test_platforms",
+    "test_macos_app",
+    "test_license_compatibility",
 )
 
 

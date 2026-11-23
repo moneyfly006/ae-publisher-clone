@@ -50,7 +50,7 @@ _DIRECT_KEYS = [
     "specialProductTypeList", "freightTemplateId", "promiseTemplateId",
     "shippingTempateName", "freightTemplateIsAi", "hsCode",
     "aeopQualificationStructList", "manufactureId", "msrEuId", "msrTrId",
-    "submitEuQualification", "taxType", "productType",
+    "submitEuQualification", "taxType", "productType", "nationalPriceMode",
 ]
 
 
@@ -222,6 +222,29 @@ def _drop_names(cfg) -> set[str]:
     return {_norm_attr_name(x) for x in parts if _norm_attr_name(x)}
 
 
+_ATTR_SPECIAL_MAP = {
+    "㎡": "m2", "m²": "m2", "≤": "<=", "≥": ">=", "‰": "%%", "±": "+/-",
+    "℃": "C", "℉": "F", "Μ": "M", "Ω": "ohm", "µ": "u", "é": "e",
+    "×": "x", "÷": "/", "—": "-", "–": "-", "“": '"', "”": '"',
+}
+
+
+def sanitize_attr_value(value) -> str:
+    """自定义属性值只允许平台接受的英文字母/数字/常见符号（实测 isv.7011012）。
+
+    平台错误：「【产品属性-自定义属性】中不允许使用特殊字符，请用英文字母和数字 ㎡≤≥‰±℃℉ΜΩé」。
+    常见单位先做语义替换（㎡→m2、≤→<=），其余非 ASCII 字符删除并压缩空白。
+    """
+    import re as _re
+    s = str(value if value is not None else "")
+    # NBSP/零宽字符平台同样不接受（实测 Local Service\xa0Location）
+    s = s.replace("\xa0", " ").replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
+    for _a, _b in _ATTR_SPECIAL_MAP.items():
+        s = s.replace(_a, _b)
+    s = _re.sub(r"[^A-Za-z0-9 .,:;/()\[\]{}#%+\-_*&@!?='\"<>]", "", s)
+    return _re.sub(r"\s{2,}", " ", s).strip()
+
+
 def to_submit_props(product: dict, template: dict | None = None,
                     custom_attributes: list | None = None,
                     drop_names: set[str] | None = None) -> list[dict]:
@@ -300,7 +323,7 @@ def to_submit_props(product: dict, template: dict | None = None,
         if _ck in seen_custom:
             continue                      # 两个自定义属性同名 → 只保留第一个（CHK_CUSTOM_PROP_NAME）
         seen_custom.add(_ck)
-        out.append({"attrName": name, "attrValue": value})
+        out.append({"attrName": name, "attrValue": sanitize_attr_value(value)})
         have_names.add(name)
 
     # 模板系统属性：目标缺的才补（只补 id 有效的）
@@ -321,7 +344,7 @@ def to_submit_props(product: dict, template: dict | None = None,
             if (_n and _v and _ck and _ck not in seen_custom
                     and not (drop_names and _ck in drop_names)
                     and _ck not in system_names and _n not in have_names):
-                out.append({"attrName": _n, "attrValue": _v})
+                out.append({"attrName": _n, "attrValue": sanitize_attr_value(_v)})
                 have_names.add(_n)
                 seen_custom.add(_ck)
     return out
@@ -365,7 +388,11 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
         tpl_skus = (tr or [])[0] if isinstance(tr, list) and tr else None
 
     out = []
-    _prod_freight = str((product or {}).get("freightTemplateId") or "").strip()
+    # 选了模板商品后，物流/运费模板以模板为准（用户期望：模板的物流方式直接沿用）。
+    _tpl_freight = str((template or {}).get("freightTemplateId") or "").strip() if template else ""
+    if not _tpl_freight and tpl_skus:
+        _tpl_freight = str(tpl_skus.get("freightTemplateId") or "").strip()
+    _prod_freight = _tpl_freight or str((product or {}).get("freightTemplateId") or "").strip()
     if not _prod_freight and template is not None:
         _prod_freight = str((template or {}).get("freightTemplateId") or "").strip()
     for sku in skus:
@@ -380,9 +407,11 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
             for k in ("originalBox", "logisticAttrList", "specialProductTypeList"):
                 if s.get(k) in (None, "", []) and tpl_skus.get(k) not in (None, "", []):
                     s[k] = deepcopy(tpl_skus[k])
-        # SKU 级运费模板：商品级 → 模板商品级 → 模板 SKU 级，逐级兜底。
+        # SKU 级运费模板：选了模板时强制沿用模板；否则商品级 → 模板商品级 → 模板 SKU 级。
         # 缺了平台就报 CHK_SKU_FREIGHT_TEMPLATE_NULL（采集商品常见的坑）。
-        if not str(s.get("freightTemplateId") or "").strip():
+        if _tpl_freight:
+            s["freightTemplateId"] = _tpl_freight
+        elif not str(s.get("freightTemplateId") or "").strip():
             _f = _prod_freight
             if not _f and tpl_skus:
                 _f = str(tpl_skus.get("freightTemplateId") or "").strip()
@@ -410,11 +439,32 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
             for x in _tp)
         if _has_plug_tpl:
             for _s in out:
-                _p0 = _s.get("aeopSKUProperty") or []
-                _has = any(isinstance(x, dict) and (x.get("plug_parent_property_id") or x.get("parentPropertyId"))
+                _p0 = [x for x in (_s.get("aeopSKUProperty") or []) if isinstance(x, dict)]
+                _has = any((x.get("plug_parent_property_id") or x.get("parentPropertyId"))
                            for x in _p0)
                 if not _has:
-                    _s["aeopSKUProperty"] = [dict(x) for x in _tp if isinstance(x, dict)]
+                    _std_target = any(x.get("skuPropertyId") for x in _p0)
+                    if not _std_target:
+                        # 非标准（没有 skuPropertyId）：沿用旧行为，整组用模板标准变种
+                        _s["aeopSKUProperty"] = [dict(x) for x in _tp if isinstance(x, dict)]
+                        continue
+                    # 标准型号属性 + 缺 plug：只补模板的 plug/Voltage，保留商品型号；
+                    # 整组替换会让所有 SKU 变成同一组合，触发「规格属性重复」。
+                    _seen_keys = {(str(x.get("skuPropertyId")), str(x.get("propertyValueId")),
+                                   str(x.get("parentPropertyId") or x.get("plug_parent_property_id")))
+                                  for x in _p0}
+                    _extra = []
+                    for _x in _tp:
+                        if not isinstance(_x, dict):
+                            continue
+                        if not (_x.get("plug_parent_property_id") or _x.get("parentPropertyId")):
+                            continue
+                        _k = (str(_x.get("skuPropertyId")), str(_x.get("propertyValueId")),
+                              str(_x.get("parentPropertyId") or _x.get("plug_parent_property_id")))
+                        if _k not in _seen_keys:
+                            _seen_keys.add(_k); _extra.append(dict(_x))
+                    if _extra:
+                        _s["aeopSKUProperty"] = _p0 + _extra
 
     validate_sku_combinations(out)
 
@@ -445,7 +495,7 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
     return out
 
 
-def _sanitize_payload(p: dict, cfg=None) -> None:
+def _sanitize_payload(p: dict, cfg=None, action: str = "save_only") -> None:
     """平台硬性校验的兜底清理（采集数据常见脏值）。"""
     import re as _rs
 
@@ -515,7 +565,15 @@ def _sanitize_payload(p: dict, cfg=None) -> None:
         pass
 
     # 区域调价方式：非合法枚举就置空（让平台用默认）
-    if str(p.get("nationalPriceMode") or "").strip() not in ("0", "1", "2", "3"):
+    _npm = str(p.get("nationalPriceMode") or "").strip()
+    if _npm not in ("0", "1", "2", "3"):
+        _quote = str(p.get("aeopNationalQuoteConfiguration") or "").strip()
+        if action == "publish" and _quote and _quote not in ("", "null", "None"):
+            # 平台实测 isv.7CHK_BASIC_ONEOF：有区域调价配置但调价方式为空/非法会被拒。
+            raise ValueError(
+                "该商品有区域调价配置但缺少合法「区域调价方式」(nationalPriceMode)，"
+                "发布会被速卖通拒绝（isv.7CHK_BASIC_ONEOF）。"
+                "请到店小秘商品编辑里重新保存一次区域调价，或清空区域调价后再发布。")
         p["nationalPriceMode"] = ""
 
     # PC 详情为空：用标题 + 主图拼一个，避免「PC端为空」
@@ -566,6 +624,19 @@ def build_save_payload(product: dict, template: dict | None = None,
         p["categoryId"] = str(p.get("categoryId") or "").strip()   # 保留商品自带类目（去空格）
     else:
         p.pop("categoryId", None)  # 让下面的模板补齐逻辑接管
+    # 模板商品已选：商品级运费模板强制跟模板，而不是保留目标商品旧模板。
+    _tpl_freight = str((template or {}).get("freightTemplateId") or "").strip() if template else ""
+    if not _tpl_freight and template:
+        try:
+            _ts = template.get("aeopAeProductSKUs")
+            if isinstance(_ts, str):
+                _ts = json.loads(_ts)
+            if isinstance(_ts, list) and _ts:
+                _tpl_freight = str((_ts[0] or {}).get("freightTemplateId") or "").strip()
+        except Exception:
+            _tpl_freight = ""
+    if _tpl_freight:
+        p["freightTemplateId"] = _tpl_freight
     for k in ("categoryId", "productType", "taxType", "sizechartId",
               "grossWeight", "packageLength", "packageWidth", "packageHeight",
               "productManual", "freightTemplateId", "promiseTemplateId",
@@ -650,9 +721,11 @@ def build_save_payload(product: dict, template: dict | None = None,
     try:
         if overrides and "detail" in overrides and "mobileDetail" not in overrides:
             p["mobileDetail"] = build_mobile_detail(p.get("detail") or "")
-        _sanitize_payload(p, cfg)
+        _sanitize_payload(p, cfg, action=action)
         if not mobile_detail_ok(p.get("mobileDetail")):
             p["mobileDetail"] = build_mobile_detail(p.get("detail") or "")
+    except ValueError:
+        raise
     except Exception:
         pass
     return p
@@ -870,7 +943,24 @@ def build_ai_overrides(product_edit: dict, p: dict, cfg, images: list[str] | Non
                 _has_plug = isinstance(_p0, list) and any(
                     isinstance(x, dict) and (x.get("plug_parent_property_id") or x.get("parentPropertyId"))
                     for x in _p0)
-                if (not _std) or (_tpl_has_plug and not _has_plug):
+                if _std and _tpl_has_plug and not _has_plug:
+                    # 已有标准型号属性：只追加模板的 plug/Voltage 属性，保留型号差异。
+                    _seen_keys = {(str(x.get("skuPropertyId")), str(x.get("propertyValueId")),
+                                   str(x.get("parentPropertyId") or x.get("plug_parent_property_id")))
+                                  for x in _p0 if isinstance(x, dict)}
+                    _extra = []
+                    for _x in _tpl_props:
+                        if not isinstance(_x, dict):
+                            continue
+                        if not (_x.get("plug_parent_property_id") or _x.get("parentPropertyId")):
+                            continue
+                        _k = (str(_x.get("skuPropertyId")), str(_x.get("propertyValueId")),
+                              str(_x.get("parentPropertyId") or _x.get("plug_parent_property_id")))
+                        if _k not in _seen_keys:
+                            _seen_keys.add(_k); _extra.append(dict(_x))
+                    if _extra:
+                        sku["aeopSKUProperty"] = [dict(x) for x in _p0 if isinstance(x, dict)] + _extra
+                elif not _std:
                     sku["aeopSKUProperty"] = [dict(x) for x in _tpl_props if isinstance(x, dict)]
 
     price = None

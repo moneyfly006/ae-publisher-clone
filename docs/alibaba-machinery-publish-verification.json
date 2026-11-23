@@ -1,0 +1,84 @@
+{
+  "generated_at": "2026-11-22T02:36:52+0800",
+  "products": [
+    {
+      "source": "220114598435130386",
+      "new_product_id": "220114598435132784",
+      "category": "100007282",
+      "subject": "Hydraulic Core Drilling Rig Machine for Geological Sampling and Mining Exploration",
+      "create_ok": true,
+      "create_resp": {
+        "code": 0,
+        "msg": "Successful"
+      },
+      "score": 4.6,
+      "dry_ok": true,
+      "dry_error": "",
+      "publish_ok": true,
+      "saved": true,
+      "auditing": false,
+      "error": "",
+      "after": {
+        "dxmState": "online",
+        "dxmOfflineState": "publishSuccess",
+        "errMsg": ""
+      }
+    },
+    {
+      "source": "220114598435128116",
+      "new_product_id": "220114598435132938",
+      "category": "2308",
+      "subject": "Automatic Egg Tray Making Machine Pulp Molding Production Line",
+      "create_ok": true,
+      "create_resp": {
+        "code": 0,
+        "msg": "Successful"
+      },
+      "score": 4.34,
+      "dry_ok": false,
+      "dry_error": "刊登评分 4.34/5 未达发布线 4.5，已阻止提交审核。需要修复：把这些属性改成真实值（Other 只用于确实无法确定时）；增加参数表/安装/维护段落；在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分；按真实规格修正占位属性"
+    }
+  ],
+  "publish_fail_list": [
+    [
+      "220114598434958580",
+      "Customized Fiberglass Container Pool - R"
+    ]
+  ],
+  "verified_at": "2026-11-22T02:38:23+0800",
+  "success": [
+    {
+      "new_product_id": "220114598435132626",
+      "source": "220114598435130384",
+      "category": "127726092",
+      "score": 4.6,
+      "state": "online",
+      "offline_state": "publishSuccess",
+      "errMsg": ""
+    },
+    {
+      "new_product_id": "220114598435132784",
+      "source": "220114598435130386",
+      "category": "100007282",
+      "score": 4.6,
+      "state": "online",
+      "offline_state": "publishSuccess",
+      "errMsg": ""
+    },
+    {
+      "new_product_id": "220114598435132938",
+      "source": "220114598435128116",
+      "category": "2308",
+      "score": 4.54,
+      "state": "online",
+      "offline_state": "publishSuccess",
+      "errMsg": ""
+    }
+  ],
+  "publish_fail_list_at_end": [
+    [
+      "220114598434958580",
+      "Customized Fiberglass Container Pool (经营类目受限)"
+    ]
+  ]
+}

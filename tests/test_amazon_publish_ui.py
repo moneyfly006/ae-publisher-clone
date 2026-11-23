@@ -108,7 +108,7 @@ class AutofillTests(unittest.TestCase):
         self.assertNotIn("model_number", filled)   # 用户值优先，不覆盖
         self.assertNotIn("part_number", filled)   # 已有值不覆盖
         self.assertTrue(filled.get("model_name"))
-        self.assertTrue(filled.get("manufacturer_contact_information"))
+        self.assertNotIn("manufacturer_contact_information", filled)  # 商品未提供真实联系方式
 
     def test_confirm_write_gate(self):
         calls = []

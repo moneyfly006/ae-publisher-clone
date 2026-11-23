@@ -23,7 +23,9 @@ class RedesignTests(unittest.TestCase):
 
     def test_all_platform_pages_build_in_both_themes(self):
         """按平台实际页面逐个构建：Alibaba 已移除速卖通专属页，速卖通保留全部旧页。"""
-        self.assertEqual({d.index for d in DESTINATIONS}, set(range(12)) | {12, 13})
+        _idx = {d.index for d in DESTINATIONS}
+        self.assertTrue(set(range(12)).issubset(_idx), _idx)
+        self.assertTrue({12, 13, 14}.issubset(_idx), _idx)
         for theme in ("dark", "light"):
             ui.apply_theme(theme)
             for pf_id, expect_all in (("alibaba", False), ("aliexpress", True)):
@@ -54,21 +56,11 @@ class RedesignTests(unittest.TestCase):
         indices = {p.index for p in pf.pages}
         self.assertNotIn(6, indices, "Alibaba 平台不应有 SMT 价格页")
         self.assertNotIn(7, indices, "Alibaba 平台不应有 SMT 变种/库存页")
+        self.assertNotIn(2, indices, "Alibaba 的类目信息已合并到刊登页，不应再有重复页")
         self.assertIn(12, indices)
         nav_labels = [b.content.controls[1].value for _, b in self.app.nav_buttons]
         self.assertNotIn("价格 / 阶梯 / 批发", nav_labels)
         self.assertNotIn("SKU · 库存 · 套装", nav_labels)
-        # 类目页：SMT 的欧盟资质/原箱/申报货值/属性模板输入控件不出现
-        self.app._switch(2)
-        labels = {getattr(c, "label", "") for c in walk(self.app.content.controls)
-                  if getattr(c, "label", "")}
-        for banned in ("是否原箱", "货值默认值", "高关注化学品", "是否带电",
-                       "是否提交欧盟资质"):
-            self.assertFalse(any(banned in t for t in labels),
-                             f"Alibaba 类目页不应出现输入项：{banned}")
-        tabs_all = [c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs)]
-        for t in tabs_all:
-            self.assertNotIn("欧盟资质", [x.text for x in t.tabs])
         # 图片页：营销图 Tab 移除；日志页：定时发布 Tab 移除
         self.app._switch(5)
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
@@ -88,40 +80,31 @@ class RedesignTests(unittest.TestCase):
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
         self.assertIn("营销图", [t.text for t in tabs.tabs])
 
-    def test_alibaba_listing_page_is_in_navigation_not_buried_in_settings(self):
-        """Alibaba 刊登是真正的刊登操作，必须有独立导航页（12 号）。"""
-        page = self.app.active_platform.page(12)
-        self.assertIsNotNone(page, "Alibaba 平台缺少 12 号「Alibaba 刊登」页")
-        self.app._switch(12)
+    def test_alibaba_home_offers_one_manual_workspace_outside_the_batch_steps(self):
+        self.app._switch(0)
+        visible = {index for index, _ in self.app.nav_buttons}
+        self.assertTrue({1, 44, 33}.issubset(visible))
+        self.assertTrue({12, 3, 5, 30, 31, 32}.isdisjoint(visible))
+        actions = {getattr(c, "text", ""): c for c in walk(self.app.content.controls)
+                   if isinstance(c, (ft.OutlinedButton, ft.TextButton))}
+        self.assertTrue({"去连接店铺", "设置处理规则", "去运行与结果", "单品处理"}.issubset(actions))
+        actions["单品处理"].on_click(None)
         self.assertEqual(self.app._page_idx, 12)
-        self.assertIn("Alibaba 刊登", self.app.breadcrumb.value)
-        texts = {c.value for c in walk(self.app.content.controls)
-                 if isinstance(c, ft.Text) and c.value}
-        labels = {getattr(c, "label", "") for c in walk(self.app.content.controls)}
-        self.assertTrue(any("选择商品" in t for t in texts), texts)
-        self.assertIn("保存动作", labels)
-        # 新增控件：按 ID 打开、Alibaba 行业预设、AI 建议属性
-        self.assertIn("按商品 ID 打开（可空）", labels)
-        self.assertIn("Alibaba 行业预设", " ".join(
-            getattr(c, "value", "") or "" for c in walk(self.app.content.controls)))
-        buttons = {getattr(c, "text", "") for c in walk(self.app.content.controls)}
-        for expected in ("按 ID 打开", "AI 建议缺失属性", "生成属性预设模板", "套用预设"):
-            self.assertIn(expected, buttons, expected)
-        # 设置页不再重复放 Alibaba 刊登，避免两处入口状态不一致。
-        self.app._switch(11)
-        tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
-        self.assertNotIn("Alibaba 刊登", [t.text for t in tabs.tabs])
+        self.assertIn("单品处理", self.app.breadcrumb.value)
+        controls = list(walk(self.app.content.controls))
+        self.assertIn("按商品 ID 打开（可空）", {getattr(c, "label", "") for c in controls})
+        self.assertIn("按 ID 打开", {getattr(c, "text", "") for c in controls})
+        self.assertNotIn("保存草稿", {getattr(c, "text", "") for c in controls})
 
     def test_navigation_search_alias_empty_state_and_enter(self):
         self.app._filter_navigation("水印")
         visible = {i for i, button in self.app.nav_buttons if button.visible}
-        self.assertEqual(visible, {5})
+        self.assertEqual(visible, {44})
         self.app._filter_navigation("no-such-destination")
         self.assertTrue(self.app.nav_empty.visible)
         self.app.nav_search.value = "库存"
         self.app._open_navigation_match()
-        # Alibaba 没有 SMT 变种页，「库存」在 Alibaba 命中 12 号刊登页（含库存字段）
-        self.assertEqual(self.app._page_idx, 12)
+        self.assertEqual(self.app._page_idx, 44)
         self.assertEqual(self.app.nav_search.value, "")
         self.assertTrue(all(b.visible for _, b in self.app.nav_buttons))
         self.app._switch_platform("aliexpress")
@@ -167,25 +150,13 @@ class RedesignTests(unittest.TestCase):
             self.assertEqual(self.app._page_idx, 5)
 
     def test_ai_and_review_fields_are_complete_and_save_across_navigation(self):
-        # Alibaba 平台隐藏 SMT 专用的 SKU 优化/读图估重卡；其余 AI/审查配置必须完整，
-        # 并切到速卖通验证 4 组 AI 能力全部回归（多平台融合不能误删）。
+        # 速卖通原有能力完整保留，Alibaba 的专用提示词不应写入通用配置。
+        self.app._switch_platform("aliexpress")
         for index, schema in ((3, ui.schema_ai), (4, ui.schema_review)):
-            self.app._switch_platform("alibaba")
             self.app._switch(index)
             expected = {f.key for _, fields in schema() for f in fields}
-            if index == 3:
-                expected -= {"enable_ai_sku", "enable_ai_weight",
-                             "sku_prompt", "weight_prompt"}
             fields = {f.key: f for f in self.app.field_refs}
             self.assertEqual(set(fields), expected)
-            if index == 3:
-                self.app._switch_platform("aliexpress")
-                self.app._switch(index)
-                full = {f.key for _, fields in schema() for f in fields}
-                self.assertEqual({f.key for f in self.app.field_refs}, full)
-                self.app._switch_platform("alibaba")
-                self.app._switch(index)
-                fields = {f.key: f for f in self.app.field_refs}
             for key, field in fields.items():
                 value = not field.ctrl.value if field.kind == "bool" else "验证提示词"
                 field.ctrl.value = value
@@ -195,6 +166,15 @@ class RedesignTests(unittest.TestCase):
             self.app._switch(index)
             for field in self.app.field_refs:
                 self.assertEqual(field.ctrl.value, self.app.cfg.get(field.key))
+        self.app._switch_platform("alibaba")
+        before = self.app.cfg.title_prompt
+        self.app._switch(3)
+        editor = next(c for c in walk(self.app.content.controls)
+                      if isinstance(c, ft.TextField) and c.label == "标题提示词")
+        editor.value = "Alibaba 专用测试提示词"
+        editor.on_change(Event(control=editor))
+        self.assertEqual(self.app.cfg.alibaba_title_prompt, editor.value)
+        self.assertEqual(self.app.cfg.title_prompt, before)
 
     def test_feature_groups_keep_every_settings_card_and_variant_tool(self):
         # Alibaba：只保留 Alibaba 能力；SMT 专属 Tab/卡片被裁剪
@@ -202,11 +182,9 @@ class RedesignTests(unittest.TestCase):
         self.app._switch(12)
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
         self.assertEqual([t.text for t in tabs.tabs],
-                         ["连接与商品", "类目", "预设资料", "价格与贸易", "预演 / 保存"])
+                         ["选择商品", "文案", "图片", "类目与属性", "商品资料", "价格与贸易", "保存单品"])
         alibaba_expected = {
-            3: ["AI 能力与提示词"],
-            5: ["简单编辑", "精细化编辑", "图片输出与水印", "商品视频"],
-            8: ["商品队列"],
+            44: ["AI 文案", "AI 图片", "类目与属性", "价格与贸易", "公司资料"],
             9: ["商品与取图", "图片处理与输出"],
             10: ["运行日志"],
             11: ["账号与连接", "图片与模型", "界面与实例", "维护与诊断"],
@@ -217,10 +195,6 @@ class RedesignTests(unittest.TestCase):
             self.assertEqual([t.text for t in tabs.tabs], titles, f"page {index}")
             # 控件树必须包含非活动 Tab 的功能，不能仅渲染一页后丢掉其余能力。
             self.assertTrue(all(list(walk([tab.content])) for tab in tabs.tabs))
-        # Alibaba 类目页 = 状态页（无 SMT 设置 Tab），入口按钮存在
-        self.app._switch(2)
-        buttons = {getattr(c, "text", "") for c in walk(self.app.content.controls)}
-        self.assertIn("去选类目 / 读取必填", buttons)
         # 设置页关键卡仍在
         self.app._switch(11)
         all_text = {c.value for c in walk(self.app.content.controls) if isinstance(c, ft.Text)}
@@ -249,11 +223,11 @@ class RedesignTests(unittest.TestCase):
                             for c in walk(self.app.content.controls)))
 
     def test_run_button_keeps_start_stop_and_stopping_states(self):
-        # Alibaba 平台空闲时按钮语义是「去 Alibaba 刊登」（点击跳 12 号页），
+        # Alibaba 平台空闲时按钮语义是「处理采集箱」（打开 12 号页并确认批量），
         # SMT 平台才是「启动任务」；先切到速卖通验证原按钮状态。
         self.app._running = self.app._stop_requested = False
         self.app._sync_run_button()
-        self.assertEqual(self.app.btn_run_text.value, "去 Alibaba 刊登")
+        self.assertEqual(self.app.btn_run_text.value, "自动处理采集箱")
         self.app._switch_platform("aliexpress")
         for running, stopping, title in ((False, False, "启动任务"), (True, False, "停止"),
                                          (True, True, "停止中…")):
@@ -269,7 +243,7 @@ class RedesignTests(unittest.TestCase):
             stop.assert_called_once()
 
     def test_publish_starts_with_quantity_and_destination_and_video_lives_with_media(self):
-        # 运行设置/SMT 队列属于 SMT 平台；Alibaba 平台只保留只读 ICBU 队列。
+        # 速卖通队列保留；Alibaba 旧队列统一转到自动处理发布页。
         self.app._switch_platform("aliexpress")
         self.app._switch(8)
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
@@ -286,13 +260,9 @@ class RedesignTests(unittest.TestCase):
         self.assertTrue({"视频来源", "每张停留秒数", "视频尺寸", "首尾淡入淡出"} <= labels)
         self.app._switch_platform("alibaba")
         self.app._switch(8)
-        tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
-        self.assertEqual([t.text for t in tabs.tabs], ["商品队列"])
-        texts = {c.value for c in walk(self.app.content.controls)
-                 if isinstance(c, ft.Text) and c.value}
-        self.assertTrue(any("Alibaba 商品队列" in t for t in texts))
-        self.assertTrue(any("去 Alibaba 刊登" in getattr(c, "text", "")
-                            for c in walk(self.app.content.controls)))
+        self.assertEqual(self.app._page_idx, 33)
+        labels = {getattr(c, "label", "") for c in walk(self.app.content.controls)}
+        self.assertTrue({"本次处理数量（0 = 全部）", "完成后去向"} <= labels)
 
     def test_documented_unlimited_count_and_local_processing_validation(self):
         from aeclone.services.preflight import ai_active
@@ -379,13 +349,13 @@ class RedesignTests(unittest.TestCase):
         populate(self.app, 5)
         self.app._switch(5)
         prompt = next(c for c in walk(self.app.content.controls)
-                      if getattr(c, "label", "") == "AI 提示词")
+                      if getattr(c, "label", "") == "自动图片处理提示词")
         prompt.value = "保留商品结构，使用浅灰背景"
         prompt.on_change(Event(control=prompt))
         self.app._switch(0)
         self.app._switch(5)
         rebuilt = next(c for c in walk(self.app.content.controls)
-                       if getattr(c, "label", "") == "AI 提示词")
+                       if getattr(c, "label", "") == "自动图片处理提示词")
         self.assertEqual(rebuilt.value, "保留商品结构，使用浅灰背景")
 
     def test_workbench_download_moves_to_processing_without_network(self):

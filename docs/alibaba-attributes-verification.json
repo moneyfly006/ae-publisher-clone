@@ -1,0 +1,2731 @@
+{
+ "generated_at": "2026-11-22T03:39:39+08:00",
+ "task": "task-7 Alibaba 类目属性值缺失：多商品真实回归与 value_id 解析/校验强化",
+ "verifier": "alibaba-attrs",
+ "workspace": "/Users/apple/Projects/alibaba-lister",
+ "git_head": "42d4802",
+ "safety": {
+  "write_calls": 0,
+  "save_or_publish_calls": 0,
+  "readonly_endpoints": [
+   "GET /api/alibabaIcbuProduct/list.json",
+   "GET /api/alibabaIcbuProduct/edit.json",
+   "POST /api/alibabaIcbuCategory/getByCategoryId.json",
+   "POST /api/alibabaIcbuCategory/attributeList.json",
+   "POST /api/alibabaIcbuCategory/schemaList.json"
+  ],
+  "ai_real_calls": 2,
+  "ai_model": "qwen-plus",
+  "ai_mock": "tests/test_alibaba_attributes.py 使用 FakeClient，其余统计无 AI 调用",
+  "secrets_logged": false,
+  "config_source": "aeclone.config.get_config().manual_cookies（店铺 9466975）"
+ },
+ "environment": {
+  "shop_id": "9466975",
+  "list_totals_observed": {
+   "draft": 24,
+   "offline": 4,
+   "online_scanned_full": 5410
+  },
+  "note": "在线总数在回归期间持续变化（任务口径 5198 / 本次全量分页扫到 5410 行）"
+ },
+ "sample_plan": {
+  "drafts": 24,
+  "offline_wait_publish": 4,
+  "online_distinct_categories": 5,
+  "products": 33,
+  "categories": 9,
+  "selection": "24 个草稿全量 + 4 个待发布全量 + 在线列表逐页找 5 个不同类目各 1 个"
+ },
+ "attribute_set_scan": {
+  "scanned_online_products": 5410,
+  "pages": 59,
+  "attribute_count": {
+   "min": 8,
+   "max": 46,
+   "p50": 25,
+   "p90": 33,
+   "p99": 39,
+   "gt60": 0,
+   "gt100": 0,
+   "gt500": 0,
+   "gt1000": 0
+  },
+  "products_with_gt100_attributes": 0,
+  "conclusion": "本店 Alibaba 商品未出现 attributes 上千条；最大 46 条。真正的大集合是类目候选值（Place of Origin 257 个国家），已按 id/中文名/别名解析并采样展示候选前 6 个。"
+ },
+ "summary": {
+  "products": 33,
+  "drafts": 24,
+  "offline_wait_publish": 4,
+  "online_distinct_categories": 5,
+  "categories": 9,
+  "products_with_required_missing_before": 5,
+  "products_with_required_block_after": 22,
+  "unresolved_before": 5,
+  "unresolved_after": 22,
+  "validate_clean_before": 14,
+  "validate_clean_after": 11,
+  "issues_total_before": 41,
+  "issues_total_after": 34,
+  "required_issue_total_before": 13,
+  "required_issue_total_after": 30,
+  "raw_attrs_value_name_without_id": 426,
+  "raw_attrs_value_not_in_enum": 113,
+  "payload_after_value_id_resolved": 325,
+  "payload_after_value_id_missing": 0,
+  "payload_after_value_not_in_enum": 41,
+  "payload_after_id_mismatch": 0,
+  "autofill_filled_entries": 153,
+  "new_validate_on_old_payload": {
+   "products_blocked": 28,
+   "attribute_issues": 142,
+   "top_issues": [
+    {
+     "issue": "必填属性「Place of Origin」缺少 value_id（值「China」应写平台 id=100000458），请从平台候选值重新选择",
+     "count": 28
+    },
+    {
+     "issue": "必填属性「Color」缺少 value_id（值「Other」应写平台 id=4），请从平台候选值重新选择",
+     "count": 24
+    },
+    {
+     "issue": "必填属性「Applicable People」缺少 value_id（值「All」应写平台 id=3254703），请从平台候选值重新选择",
+     "count": 19
+    },
+    {
+     "issue": "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pool",
+     "count": 10
+    },
+    {
+     "issue": "必填属性「Material」缺少 value_id（值「Glass Fiber」应写平台 id=326756224），请从平台候选值重新选择",
+     "count": 10
+    },
+    {
+     "issue": "必填属性「Material」缺少 value_id（值「Other」应写平台 id=4），请从平台候选值重新选择",
+     "count": 7
+    },
+    {
+     "issue": "必填属性「Applicable People」的值「Children, Adult, All」候选值存在歧义：Children / Adult / All（候选示例：Newborn",
+     "count": 3
+    },
+    {
+     "issue": "必填属性「Type」的值「Container swimming pool」不在平台候选值中（候选示例：Heated Pools / Residential Pools / Abov",
+     "count": 3
+    }
+   ],
+   "note": "把修复前会原样提交的载荷（value_id 全为 -1）喂给新 validate：旧校验只看属性名是否存在，新校验会按平台枚举阻断"
+  },
+  "current_config_presets_scenario": {
+   "presets": [
+    "{\"Core Components\": \"Motor\", \"Warranty\": \"1 Year\", \"Place of Origin\": \"China\", \"Model Number\": \"LS-600\", \"Weight (kg)\": \"600\", \"Unique Selling Point\": \"Fully hydraulic system\"}"
+   ],
+   "value_id_resolved": 341,
+   "validate_clean": 12,
+   "note": "回归期间真实 config 的 alibaba_attr_presets 被并发修改（出现 LS-600/600/Motor 等预设），对照统计统一使用「无预设」口径；本段仅记录当前真实配置下的结果"
+  }
+ },
+ "category_summary": [
+  {
+   "category_id": "202107201",
+   "name_en": "Pool",
+   "name_zh": "泳池",
+   "isleaf": 1,
+   "attr_defs": 19,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "sampled_products": 25,
+   "before_missing_required_products": 0,
+   "after_blocked_products": 17,
+   "after_unresolved_by_attr": {
+    "Type": 16,
+    "Place of Origin": 2,
+    "Material": 1
+   }
+  },
+  {
+   "category_id": "100001819",
+   "name_en": "Garden Sprinklers",
+   "name_zh": "园林洒水装置",
+   "isleaf": 1,
+   "attr_defs": 11,
+   "required_names": [
+    "Color",
+    "Place of Origin",
+    "Material"
+   ],
+   "sampled_products": 1,
+   "before_missing_required_products": 0,
+   "after_blocked_products": 0,
+   "after_unresolved_by_attr": {}
+  },
+  {
+   "category_id": "201730007",
+   "name_en": "Mesh Bags",
+   "name_zh": "网袋",
+   "isleaf": 1,
+   "attr_defs": 14,
+   "required_names": [
+    "Style",
+    "Logo/Pattern",
+    "Place of Origin",
+    "Material",
+    "Color"
+   ],
+   "sampled_products": 1,
+   "before_missing_required_products": 0,
+   "after_blocked_products": 0,
+   "after_unresolved_by_attr": {}
+  },
+  {
+   "category_id": "201139102",
+   "name_en": "Electric ATVs",
+   "name_zh": "电动ATV",
+   "isleaf": 1,
+   "attr_defs": 22,
+   "required_names": [
+    "Maximum Torque(Nm)",
+    "Maximum Speed",
+    "Driving Type",
+    "Charge Time(h)",
+    "Grade Ability",
+    "Driving Mileage",
+    "Transmission System",
+    "Power",
+    "Voltage",
+    "Place of Origin"
+   ],
+   "sampled_products": 1,
+   "before_missing_required_products": 0,
+   "after_blocked_products": 0,
+   "after_unresolved_by_attr": {}
+  },
+  {
+   "category_id": "2308",
+   "name_en": "Paper Product Making Machinery",
+   "name_zh": "纸制品加工机械",
+   "isleaf": 1,
+   "attr_defs": 17,
+   "required_names": [
+    "Product Type",
+    "Processing Type",
+    "Model Number",
+    "Voltage",
+    "Warranty",
+    "Production Capacity",
+    "Weight (kg)"
+   ],
+   "sampled_products": 1,
+   "before_missing_required_products": 1,
+   "after_blocked_products": 1,
+   "after_unresolved_by_attr": {
+    "Production Capacity": 1,
+    "Model Number": 1
+   }
+  },
+  {
+   "category_id": "201197701",
+   "name_en": "Other Construction Machinery Attachments",
+   "name_zh": "其他工程机械属具",
+   "isleaf": 1,
+   "attr_defs": 13,
+   "required_names": [
+    "Place of Origin",
+    "Model Number",
+    "Warranty",
+    "Weight",
+    "Suitable Excavator(ton)",
+    "Core Components"
+   ],
+   "sampled_products": 1,
+   "before_missing_required_products": 1,
+   "after_blocked_products": 1,
+   "after_unresolved_by_attr": {
+    "Suitable Excavator(ton)": 1,
+    "Model Number": 1
+   }
+  },
+  {
+   "category_id": "100007282",
+   "name_en": "Mine Drilling Rig",
+   "name_zh": "矿用钻机",
+   "isleaf": 1,
+   "attr_defs": 21,
+   "required_names": [
+    "Place of Origin",
+    "Model Number",
+    "Power (W)",
+    "Weight",
+    "Warranty",
+    "Core Components",
+    "Key Selling Points",
+    "Drilling Diameter",
+    "Drilling Depth"
+   ],
+   "sampled_products": 1,
+   "before_missing_required_products": 1,
+   "after_blocked_products": 1,
+   "after_unresolved_by_attr": {
+    "Core Components": 2,
+    "Drilling Diameter": 1,
+    "Drilling Depth": 1,
+    "Model Number": 1
+   }
+  },
+  {
+   "category_id": "4399",
+   "name_en": "Other Machinery & Industrial Equipment",
+   "name_zh": "其他机械与工业设备",
+   "isleaf": 1,
+   "attr_defs": 12,
+   "required_names": [
+    "Place of Origin",
+    "Model Number",
+    "Weight (kg)",
+    "Warranty",
+    "Power (W)",
+    "Voltage"
+   ],
+   "sampled_products": 1,
+   "before_missing_required_products": 1,
+   "after_blocked_products": 1,
+   "after_unresolved_by_attr": {
+    "Power (W)": 1,
+    "Voltage": 1,
+    "Model Number": 1
+   }
+  },
+  {
+   "category_id": "100010822",
+   "name_en": "Other Cranes",
+   "name_zh": "其他起重机",
+   "isleaf": 1,
+   "attr_defs": 19,
+   "required_names": [
+    "Core Components",
+    "Weight (kg)",
+    "Max. Lifting Load",
+    "Place of Origin",
+    "Model Number",
+    "Warranty"
+   ],
+   "sampled_products": 1,
+   "before_missing_required_products": 1,
+   "after_blocked_products": 1,
+   "after_unresolved_by_attr": {
+    "Max. Lifting Load": 1,
+    "Model Number": 1
+   }
+  }
+ ],
+ "products": [
+  {
+   "product_id": "220114598434958534",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 20,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 20,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 1,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Dry Container」不在平台候选值中）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Dry Container」不在平台候选值中；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Dry Container」不在平台候选值中（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Material=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked",
+   "ai_suggestion_sample": {
+    "product_id": "220114598434958534",
+    "category_id": "202107201",
+    "unresolved": [
+     "Type（商品原值「Dry Container」不在平台候选值中）"
+    ],
+    "elapsed_s": 2.2,
+    "result": {
+     "called": true,
+     "model": "qwen-plus",
+     "suggestions": {
+      "Type": {
+       "value_id": "190089532",
+       "value_name": "Swimming Pools",
+       "needs_confirm": false,
+       "source": "ai"
+      }
+     },
+     "notes": [],
+     "unresolved": [],
+     "error": "",
+     "fields": [
+      "Type"
+     ]
+    }
+   }
+  },
+  {
+   "product_id": "220114598434958538",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 19,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 19,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 9,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber / FRP(多选拆分)",
+     "Applicable People=Children / Adult / All(多选拆分)",
+     "Type=Above Ground Pools / Swimming Pools(多选拆分)",
+     "Color=Other(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 27,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 27
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958540",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 18,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 18,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 3,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Steel(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 2,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked",
+   "ai_suggestion_sample": {
+    "product_id": "220114598434958540",
+    "category_id": "202107201",
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "elapsed_s": 2.76,
+    "result": {
+     "called": true,
+     "model": "qwen-plus",
+     "suggestions": {
+      "Type": {
+       "value_id": "190089532",
+       "value_name": "Swimming Pools",
+       "needs_confirm": false,
+       "source": "ai"
+      }
+     },
+     "notes": [],
+     "unresolved": [],
+     "error": "",
+     "fields": [
+      "Type"
+     ]
+    }
+   }
+  },
+  {
+   "product_id": "220114598434958542",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 12,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 12,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 5,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Stainless Steel / Glass Fiber / FRP(多选拆分)",
+     "Applicable People=Adult / Children / All(多选拆分)",
+     "Type=Children's Pools / Above Ground Pools / Swimming Pools / Lap Pools(多选拆分)",
+     "Color=Other(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 27,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 27
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958544",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 15,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 15,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 4,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 2,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958548",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 15,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 15,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 5,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 2,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958550",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 11,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 11,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 3,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958552",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 10,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 10,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 2,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Container swimming pool」不在平台候选值中）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Container swimming pool」不在平台候选值中；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Container swimming pool」不在平台候选值中（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Material=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958554",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 13,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 13,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 5,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 9,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 9
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958556",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 15,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 15,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 3,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Blue(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 2,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958558",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 14,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 14,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 6,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Place of Origin（商品原值「Henan」不在平台候选值中）",
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Place of Origin：商品原值「Henan」不在平台候选值中；候选值：Andorra / United Arab Emirates / Afghanistan / Antigua and Barbuda / Anguilla / Albania …；请在属性预设中改填平台候选值",
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Place of Origin」的值「Henan」不在平台候选值中（候选示例：Andorra / United Arab Emirates / Afghanistan / Antigua and Barbuda / Anguilla / Albania …），请从平台枚举选择",
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 9,
+     "value_id_missing": 0,
+     "value_not_in_enum": 3,
+     "id_mismatch": 0,
+     "attr_id_filled": 9
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958560",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 14,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 14,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 2,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Material=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)",
+     "Type=Other(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958564",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 14,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 14,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 6,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Place of Origin（商品原值「Henan」不在平台候选值中）",
+     "Type（商品原值「Pool」不在平台候选值中）"
+    ],
+    "unresolved_reasons": [
+     "Place of Origin：商品原值「Henan」不在平台候选值中；候选值：Andorra / United Arab Emirates / Afghanistan / Antigua and Barbuda / Anguilla / Albania …；请在属性预设中改填平台候选值",
+     "Type：商品原值中「Pool」不在平台候选值中；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请选择平台候选值"
+    ],
+    "issues": [
+     "必填属性「Place of Origin」的值「Henan」不在平台候选值中（候选示例：Andorra / United Arab Emirates / Afghanistan / Antigua and Barbuda / Anguilla / Albania …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Type=Spa Pools / Inflatable Pools(多选拆分)",
+     "Material=Wood / Glass Fiber(多选拆分)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 12,
+     "value_id_missing": 0,
+     "value_not_in_enum": 2,
+     "id_mismatch": 0,
+     "attr_id_filled": 12
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958566",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 11,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 11,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 3,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958568",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 15,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 15,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 5,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 2,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958572",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 10,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 10,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 1,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Container swimming pool」不在平台候选值中）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Container swimming pool」不在平台候选值中；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Container swimming pool」不在平台候选值中（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Material=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958532",
+   "state": "draft",
+   "category_id": "100001819",
+   "category": {
+    "name_en": "Garden Sprinklers",
+    "name_zh": "园林洒水装置",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 11,
+   "required_count": 3,
+   "required_names": [
+    "Color",
+    "Place of Origin",
+    "Material"
+   ],
+   "raw_attributes": 7,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 7,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 1,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Plastic(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 4,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 4
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958546",
+   "state": "draft",
+   "category_id": "201730007",
+   "category": {
+    "name_en": "Mesh Bags",
+    "name_zh": "网袋",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 14,
+   "required_count": 5,
+   "required_names": [
+    "Style",
+    "Logo/Pattern",
+    "Place of Origin",
+    "Material",
+    "Color"
+   ],
+   "raw_attributes": 8,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 8,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 0,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Style=Other(value_id 补全)",
+     "Logo/Pattern=Other(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Mesh(value_id 补全)",
+     "Color=Other(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958114",
+   "state": "draft",
+   "category_id": "201139102",
+   "category": {
+    "name_en": "Electric ATVs",
+    "name_zh": "电动ATV",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 22,
+   "required_count": 10,
+   "required_names": [
+    "Maximum Torque(Nm)",
+    "Maximum Speed",
+    "Driving Type",
+    "Charge Time(h)",
+    "Grade Ability",
+    "Driving Mileage",
+    "Transmission System",
+    "Power",
+    "Voltage",
+    "Place of Origin"
+   ],
+   "raw_attributes": 14,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 14,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 0,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Maximum Torque(Nm)=60-80Nm(value_id 补全)",
+     "Maximum Speed=75-100Km/h(value_id 补全)",
+     "Driving Type=4Wd(value_id 补全)",
+     "Charge Time(h)=7-9h(value_id 补全)",
+     "Grade Ability=20-25°(value_id 补全)",
+     "Driving Mileage=≥90km(value_id 补全)",
+     "Transmission System=Chain Drive(value_id 补全)",
+     "Power=> 1000W(value_id 补全)",
+     "Voltage=60 V(value_id 补全)",
+     "Place of Origin=China(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 10,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 10
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958562",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 13,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 13,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 5,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 9,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 9
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958570",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 9,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 9,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 0,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Material=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)",
+     "Type=Above Ground Pools(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958574",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 10,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 10,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 0,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Material=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)",
+     "Type=Above Ground Pools(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958578",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 19,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 19,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 9,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Glass Fiber / FRP(多选拆分)",
+     "Applicable People=Children / Adult / All(多选拆分)",
+     "Type=Above Ground Pools / Swimming Pools(多选拆分)",
+     "Color=Blue / White(多选拆分)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 27,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 27
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958576",
+   "state": "draft",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 20,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 20,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 7,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Material=Stainless Steel / FRP / Acrylic(多选拆分)",
+     "Applicable People=Children / Adult(多选拆分)",
+     "Type=Children's Pools / Spa Pools / Public Pools / Above Ground Pools / Swimming Pools(多选拆分)",
+     "Color=Other(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 28,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 28
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958536",
+   "state": "offline",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 15,
+   "before": {
+    "unresolved": [],
+    "issues": [
+     "阶梯价为空（按数量定价必须有数量区间）"
+    ],
+    "anomalies": {
+     "has_name_no_id": 15,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 7,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [],
+    "unresolved_reasons": [],
+    "issues": [],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Applicable People=Children / Adult / All(多选拆分)",
+     "Type=Children's Pools / Lap Pools / Heated Pools / Residential Pools / Above Ground Pools / Swimming Pools(多选拆分)",
+     "Color=Other(value_id 补全)",
+     "Material=Glass Fiber / FRP(多选拆分)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 27,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 27
+    }
+   },
+   "status_after": "clean"
+  },
+  {
+   "product_id": "220114598434958530",
+   "state": "offline",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 19,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 19,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 6,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Material（商品原值「Container」不在平台候选值中）"
+    ],
+    "unresolved_reasons": [
+     "Material：商品原值「Container」不在平台候选值中；候选值：Silicone / Paper / Other / Wood / Iron / Nylon …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Material」的值「Container」不在平台候选值中（候选示例：Silicone / Paper / Other / Wood / Iron / Nylon …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Type=Swimming Pools(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 8,
+     "value_id_missing": 0,
+     "value_not_in_enum": 3,
+     "id_mismatch": 0,
+     "attr_id_filled": 8
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958528",
+   "state": "offline",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 13,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 13,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 3,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Open Top Container」不在平台候选值中）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Open Top Container」不在平台候选值中；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Open Top Container」不在平台候选值中（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Place of Origin=China(value_id 补全)",
+     "Color=Other(value_id 补全)",
+     "Material=Other(value_id 补全)",
+     "Applicable People=All(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 2,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598434958580",
+   "state": "offline",
+   "category_id": "202107201",
+   "category": {
+    "name_en": "Pool",
+    "name_zh": "泳池",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 5,
+   "required_names": [
+    "Place of Origin",
+    "Color",
+    "Material",
+    "Applicable People",
+    "Type"
+   ],
+   "raw_attributes": 11,
+   "before": {
+    "unresolved": [],
+    "issues": [],
+    "anomalies": {
+     "has_name_no_id": 8,
+     "has_id_no_name": 1,
+     "value_not_in_enum": 2,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Type（商品原值「Container swimming pool」不在平台候选值中）"
+    ],
+    "unresolved_reasons": [
+     "Type：商品原值「Container swimming pool」不在平台候选值中；候选值：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …；请在属性预设中改填平台候选值"
+    ],
+    "issues": [
+     "必填属性「Type」的值「Container swimming pool」不在平台候选值中（候选示例：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools / Other / Spa Pools …），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Place of Origin=China(value_id 补全)",
+     "Color=Blue(value_id 补全)",
+     "Material=Glass Fiber(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598435190952",
+   "state": "online",
+   "category_id": "2308",
+   "category": {
+    "name_en": "Paper Product Making Machinery",
+    "name_zh": "纸制品加工机械",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 17,
+   "required_count": 7,
+   "required_names": [
+    "Product Type",
+    "Processing Type",
+    "Model Number",
+    "Voltage",
+    "Warranty",
+    "Production Capacity",
+    "Weight (kg)"
+   ],
+   "raw_attributes": 26,
+   "before": {
+    "unresolved": [
+     "Model Number",
+     "Weight (kg)"
+    ],
+    "issues": [
+     "包装尺寸 package_size 未填写",
+     "包装重量 weight 未填写",
+     "必填属性缺失：Model Number",
+     "必填属性缺失：Weight (kg)"
+    ],
+    "anomalies": {
+     "has_name_no_id": 10,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 1,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Production Capacity（商品原值「25 pcs/min」不在平台候选值中）",
+     "Model Number"
+    ],
+    "unresolved_reasons": [
+     "Production Capacity：商品原值「25 pcs/min」不在平台候选值中；候选值：10 pcs/min / 200 m/min / Other / 50 m/min / 90 pcs/min / 40 Pcs/Min …；请在属性预设中改填平台候选值",
+     "Model Number：必填属性（自由填写），商品原值与预设都没有值，请补充属性预设"
+    ],
+    "issues": [
+     "必填属性缺失：Model Number",
+     "必填属性「Production Capacity」的值「25 pcs/min」不在平台候选值中（候选示例：10 pcs/min / 200 m/min / Other / 50 m/min / 90 pcs/min / 40 Pcs/Min …），请从平台枚举选择"
+    ],
+    "autofilled": [],
+    "payload_audit": {
+     "value_id_ok": 10,
+     "value_id_missing": 0,
+     "value_not_in_enum": 1,
+     "id_mismatch": 0,
+     "attr_id_filled": 10
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598435190950",
+   "state": "online",
+   "category_id": "201197701",
+   "category": {
+    "name_en": "Other Construction Machinery Attachments",
+    "name_zh": "其他工程机械属具",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 13,
+   "required_count": 6,
+   "required_names": [
+    "Place of Origin",
+    "Model Number",
+    "Warranty",
+    "Weight",
+    "Suitable Excavator(ton)",
+    "Core Components"
+   ],
+   "raw_attributes": 20,
+   "before": {
+    "unresolved": [
+     "Model Number",
+     "Suitable Excavator(ton)"
+    ],
+    "issues": [
+     "包装尺寸 package_size 未填写",
+     "包装重量 weight 未填写",
+     "必填属性缺失：Model Number",
+     "必填属性缺失：Suitable Excavator(ton)"
+    ],
+    "anomalies": {
+     "has_name_no_id": 10,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 0,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Suitable Excavator(ton)（类目属性没有候选值，无法确认取值）",
+     "Model Number"
+    ],
+    "unresolved_reasons": [
+     "Suitable Excavator(ton)：类目属性接口没有返回候选值，无法确认取值，请刷新类目后重试",
+     "Model Number：必填属性（自由填写），商品原值与预设都没有值，请补充属性预设"
+    ],
+    "issues": [
+     "必填属性缺失：Model Number"
+    ],
+    "autofilled": [],
+    "payload_audit": {
+     "value_id_ok": 6,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 6
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598435190944",
+   "state": "online",
+   "category_id": "100007282",
+   "category": {
+    "name_en": "Mine Drilling Rig",
+    "name_zh": "矿用钻机",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 21,
+   "required_count": 9,
+   "required_names": [
+    "Place of Origin",
+    "Model Number",
+    "Power (W)",
+    "Weight",
+    "Warranty",
+    "Core Components",
+    "Key Selling Points",
+    "Drilling Diameter",
+    "Drilling Depth"
+   ],
+   "raw_attributes": 28,
+   "before": {
+    "unresolved": [
+     "Model Number",
+     "Power (W)",
+     "Weight"
+    ],
+    "issues": [
+     "包装尺寸 package_size 未填写",
+     "包装重量 weight 未填写",
+     "必填属性缺失：Model Number",
+     "必填属性缺失：Power (W)",
+     "必填属性缺失：Weight",
+     "详情图片（detailImage）为空",
+     "商品卖点/详情文字（textDesc）为空"
+    ],
+    "anomalies": {
+     "has_name_no_id": 11,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 5,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Drilling Diameter（商品原值「75-400」不在平台候选值中）",
+     "Drilling Depth（商品原值「Max.150m」不在平台候选值中）",
+     "Core Components（商品原值「drill pipe」不在平台候选值中）",
+     "Core Components（商品原值「drill」不在平台候选值中）",
+     "Model Number"
+    ],
+    "unresolved_reasons": [
+     "Drilling Diameter：商品原值「75-400」不在平台候选值中；候选值：150 mm / 90 mm / 40 mm / Other / 180 mm / 500 mm …；请在属性预设中改填平台候选值",
+     "Drilling Depth：商品原值「Max.150m」不在平台候选值中；候选值：Max.25m / Other / Max.500m / Max.300m / Max.200m / Max.100m …；请在属性预设中改填平台候选值",
+     "Core Components：商品原值「drill pipe」不在平台候选值中；候选值：PLC / Pressure Vessel / Other / Gearbox / Pump / Engine …；请在属性预设中改填平台候选值",
+     "Core Components：商品原值「drill」不在平台候选值中；候选值：PLC / Pressure Vessel / Other / Gearbox / Pump / Engine …；请在属性预设中改填平台候选值",
+     "Model Number：必填属性（自由填写），商品原值与预设都没有值，请补充属性预设"
+    ],
+    "issues": [
+     "必填属性缺失：Model Number",
+     "必填属性「Core Components」的值「drill pipe」不在平台候选值中（候选示例：PLC / Pressure Vessel / Other / Gearbox / Pump / Engine …），请从平台枚举选择",
+     "必填属性「Drilling Diameter」的值「75-400」不在平台候选值中（候选示例：150 mm / 90 mm / 40 mm / Other / 180 mm / 500 mm …），请从平台枚举选择",
+     "必填属性「Drilling Depth」的值「Max.150m」不在平台候选值中（候选示例：Max.25m / Other / Max.500m / Max.300m / Max.200m / Max.100m …），请从平台枚举选择",
+     "详情图片（detailImage）为空",
+     "商品卖点/详情文字（textDesc）为空"
+    ],
+    "autofilled": [
+     "Drilling Diameter=400 mm(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 10,
+     "value_id_missing": 0,
+     "value_not_in_enum": 4,
+     "id_mismatch": 0,
+     "attr_id_filled": 10
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598435190870",
+   "state": "online",
+   "category_id": "4399",
+   "category": {
+    "name_en": "Other Machinery & Industrial Equipment",
+    "name_zh": "其他机械与工业设备",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 12,
+   "required_count": 6,
+   "required_names": [
+    "Place of Origin",
+    "Model Number",
+    "Weight (kg)",
+    "Warranty",
+    "Power (W)",
+    "Voltage"
+   ],
+   "raw_attributes": 16,
+   "before": {
+    "unresolved": [
+     "Model Number",
+     "Weight (kg)"
+    ],
+    "issues": [
+     "包装尺寸 package_size 未填写",
+     "包装重量 weight 未填写",
+     "必填属性缺失：Model Number",
+     "必填属性缺失：Weight (kg)"
+    ],
+    "anomalies": {
+     "has_name_no_id": 4,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 4,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Power (W)（商品原值「20kw」不在平台候选值中）",
+     "Voltage（商品原值「200-1000V」不在平台候选值中）",
+     "Model Number"
+    ],
+    "unresolved_reasons": [
+     "Power (W)：商品原值「20kw」不在平台候选值中；候选值：150 kw / 50 kW / Other / 750 W / 600 W / 700 W …；请在属性预设中改填平台候选值",
+     "Voltage：商品原值「200-1000V」不在平台候选值中；候选值：Other / 380 V / 220 V / 110 V / 440 V；请在属性预设中改填平台候选值",
+     "Model Number：必填属性（自由填写），商品原值与预设都没有值，请补充属性预设"
+    ],
+    "issues": [
+     "必填属性缺失：Model Number",
+     "必填属性「Power (W)」的值「20kw」不在平台候选值中（候选示例：150 kw / 50 kW / Other / 750 W / 600 W / 700 W …），请从平台枚举选择",
+     "必填属性「Voltage」的值「200-1000V」不在平台候选值中（候选示例：Other / 380 V / 220 V / 110 V / 440 V），请从平台枚举选择"
+    ],
+    "autofilled": [
+     "Power (W)=30 kW(value_id 补全)",
+     "Power (W)=40 kW(value_id 补全)"
+    ],
+    "payload_audit": {
+     "value_id_ok": 5,
+     "value_id_missing": 0,
+     "value_not_in_enum": 4,
+     "id_mismatch": 0,
+     "attr_id_filled": 5
+    }
+   },
+   "status_after": "blocked"
+  },
+  {
+   "product_id": "220114598435190544",
+   "state": "online",
+   "category_id": "100010822",
+   "category": {
+    "name_en": "Other Cranes",
+    "name_zh": "其他起重机",
+    "isleaf": 1
+   },
+   "schema_fields": [
+    "companyDesc",
+    "companyFaqDesc",
+    "companyImage",
+    "detailImage",
+    "saleType",
+    "scPrice",
+    "tariffsHsCode",
+    "textDesc"
+   ],
+   "attr_defs": 19,
+   "required_count": 6,
+   "required_names": [
+    "Core Components",
+    "Weight (kg)",
+    "Max. Lifting Load",
+    "Place of Origin",
+    "Model Number",
+    "Warranty"
+   ],
+   "raw_attributes": 26,
+   "before": {
+    "unresolved": [
+     "Weight (kg)",
+     "Max. Lifting Load",
+     "Model Number",
+     "Warranty"
+    ],
+    "issues": [
+     "包装尺寸 package_size 未填写",
+     "包装重量 weight 未填写",
+     "必填属性缺失：Weight (kg)",
+     "必填属性缺失：Max. Lifting Load",
+     "必填属性缺失：Model Number",
+     "必填属性缺失：Warranty",
+     "详情图片（detailImage）为空",
+     "商品卖点/详情文字（textDesc）为空"
+    ],
+    "anomalies": {
+     "has_name_no_id": 10,
+     "has_id_no_name": 0,
+     "value_not_in_enum": 0,
+     "value_id_mismatch": 0
+    }
+   },
+   "after": {
+    "unresolved": [
+     "Max. Lifting Load",
+     "Model Number"
+    ],
+    "unresolved_reasons": [
+     "Max. Lifting Load：必填属性（自由填写），商品原值与预设都没有值，请补充属性预设",
+     "Model Number：必填属性（自由填写），商品原值与预设都没有值，请补充属性预设"
+    ],
+    "issues": [
+     "必填属性缺失：Max. Lifting Load",
+     "必填属性缺失：Model Number",
+     "详情图片（detailImage）为空",
+     "商品卖点/详情文字（textDesc）为空"
+    ],
+    "autofilled": [],
+    "payload_audit": {
+     "value_id_ok": 9,
+     "value_id_missing": 0,
+     "value_not_in_enum": 0,
+     "id_mismatch": 0,
+     "attr_id_filled": 9
+    }
+   },
+   "status_after": "blocked"
+  }
+ ],
+ "ai_fallback_sample": {
+  "real_calls": 2,
+  "note": "真实 AI 只为「本地无法补齐」的字段请求；返回仅为建议，未写平台",
+  "calls": [
+   {
+    "product_id": "220114598434958534",
+    "category_id": "202107201",
+    "unresolved": [
+     "Type（商品原值「Dry Container」不在平台候选值中）"
+    ],
+    "elapsed_s": 2.2,
+    "result": {
+     "called": true,
+     "model": "qwen-plus",
+     "suggestions": {
+      "Type": {
+       "value_id": "190089532",
+       "value_name": "Swimming Pools",
+       "needs_confirm": false,
+       "source": "ai"
+      }
+     },
+     "notes": [],
+     "unresolved": [],
+     "error": "",
+     "fields": [
+      "Type"
+     ]
+    }
+   },
+   {
+    "product_id": "220114598434958540",
+    "category_id": "202107201",
+    "unresolved": [
+     "Type（商品原值「Pool」候选值存在歧义：Heated Pools / Residential Pools / Above Ground Pools / Lap Pools）"
+    ],
+    "elapsed_s": 2.76,
+    "result": {
+     "called": true,
+     "model": "qwen-plus",
+     "suggestions": {
+      "Type": {
+       "value_id": "190089532",
+       "value_name": "Swimming Pools",
+       "needs_confirm": false,
+       "source": "ai"
+      }
+     },
+     "notes": [],
+     "unresolved": [],
+     "error": "",
+     "fields": [
+      "Type"
+     ]
+    }
+   }
+  ]
+ },
+ "root_causes": [
+  "采集/复制商品的 attributes 全是 attribute_id=-1、value_id=-1：426 条「有值名无 value_id」（33 个样本），平台枚举属性缺 id 会被拒绝或丢失规格。",
+  "旧 autofill 只按「英文属性名精确相等」判断已有值：采集草稿大量使用中文名（重量（千克）/原产地）或已带 attrNameId，被误判为必填缺失（5 个在线商品 7 项）。",
+  "旧 autofill 遇到已有属性值不在平台枚举时静默保留；旧 validate 只查属性名存在，导致 14/33 商品「校验通过」但实际 value_id 全为 -1（假通过）。",
+  "多选属性在采集数据里被压成一个字段（\"Children, Adult, All\"、\"Glass Fiber, FRP\"），平台保存需要「同一 attribute_id 多行、每行一个 value_id」，旧逻辑无法展开。",
+  "平台候选值的中文在 transValues[].trans_value，旧逻辑只读 name_en/name，中文值匹配不到；且缺少确定性值别名（Mainland China→China、Fiberglass→Glass Fiber、Customized→Other）。",
+  "部分商品原值本身是错的/不属于该类目（Type=Dry Container/Pool、Place of Origin=Henan、Production Capacity=25 pcs/min、Core Components=drill），任何自动逻辑都不应编造 → 必须人工或 AI 建议后确认。"
+ ],
+ "changes": [
+  {
+   "file": "src/aeclone/services/alibaba_payload.py",
+   "items": [
+    "新增 resolve_attr_value/_value_entries/_norm/_is_missing_value_id：平台 values（JSON 字符串/valueList）按 name_en/name/中文(trans_value)/值别名/大小写解析 value_id；候选缺 id 时返回 value_id=None（不写空 id）；歧义不猜。",
+    "新增 VALUE_ALIASES（Mainland China→China、Fiberglass→Glass Fiber、Customized→Other 等）与 ATTRIBUTE_ALIASES（Origin→Place of Origin、Model/型号→Model Number、Power/功率→Power (W)）。",
+    "重写 autofill_required_attributes：按 attribute_id/英文名/中文名/别名挂接类目定义；补 value_id + attribute_id=attrNameId；多选拼接值拆成多行；预设按平台候选校验（显式 value_id 也回查平台）；无依据时只回退 Other 等通用值；unresolved 通过可选 reasons 返回可读中文原因。",
+    "validate_alibaba_save 必填属性新增 4 类可读阻断：缺失 / 值为空 / value_id 缺失 / 值不在平台候选值（含候选值示例与正确 id）；自由填写属性只校验非空。",
+    "build_alibaba_save 增加 save['_unresolved_reasons'] 供 UI 展示。"
+   ],
+   "sha256_16": "d069ab57f8d339fe"
+  },
+  {
+   "file": "src/aeclone/services/alibaba_ai.py",
+   "items": [
+    "新增 ai_suggest_attributes(product, defs, cfg, missing/max_fields/client)：复用 ApiClient（api_base/api_key/model_of(cfg,'text')），只对本地补不上的属性建议；逐字段 try/except；枚举属性必须命中平台候选+有 value_id 才返回；NO_FABRICATION 属性标 needs_confirm；只返回建议，绝不自动写平台。",
+    "map_attribute_suggestion 改为复用 resolve_attr_value（支持中文/别名/大小写），匹配不到不返回。"
+   ],
+   "sha256_16": "898ba6f3d98d1c64"
+  },
+  {
+   "file": "tests/test_alibaba_attributes.py",
+   "items": [
+    "新增 35 个离线用例：value_id 解析（含中文/别名/歧义/缺 id）、多选拆行、预设校验、AI 兜底（fake client）、validate 四类阻断、build 集成。"
+   ],
+   "tests": 35,
+   "sha256_16": "8ac10467c8e79d51"
+  }
+ ],
+ "regression": {
+  "tests": {
+   "tests/test_alibaba_attributes.py": "35/35 PASS",
+   "tests/test_alibaba_payload.py": "34/34 PASS",
+   "tests/test_alibaba_ai.py": "3/3 PASS",
+   "tests/test_alibaba_pipeline.py": "36/36 PASS",
+   "tests/test_publish_readiness.py": "13/13 PASS",
+   "tests/test_alibaba_scope.py": "PASS",
+   "tests/test_alibaba_score.py": "PASS",
+   "tests/test_alibaba_prompts.py": "29/29 PASS",
+   "tests/test_ui_alibaba_actions.py": "7/7 PASS"
+  },
+  "command": "PYTHONPATH=src AURORA_CONFIG_DIR=$(mktemp -d) .venv/bin/python tests/<test>.py"
+ },
+ "ui_recommendations": [
+  "属性卡片显示「必填 N / 已解析 value_id M / 待补 K」；待补项直接展开 _unresolved_reasons 的可读中文原因（含候选值前 6 个）与「需人工确认」标记。",
+  "每个待补项加「AI 建议」按钮：调用 ai_suggest_attributes（默认一次≤12 字段），结果展示为候选值标签 + needs_confirm；用户点「应用」才写入 overrides，不自动保存。",
+  "预演/保存前把 validate 新增阻断项高亮（必填值为空 / value_id 缺失 / 值不在平台枚举），每条给「复制候选值」/「去修改」入口。",
+  "按类目聚合批量清单（本店 24 个草稿里 Type 需人工修正 14 个），支持批量套用属性预设后再预演。",
+  "预演结果显示 _autofilled（本次补全 153 条 value_id）与剩余 reasons，避免用户误以为属性已全部正确。"
+ ],
+ "open_items": [
+  "本任务只读：未调用任何保存/发布接口（add.json 0 次），未做真实 op=1/2/3/5 写验证。",
+  "41 条平台枚举外值（必填 22 项 + 非必填若干）需人工确认或 AI 建议后应用；AI 建议未自动写回。",
+  "全店 5410 个在线商品（list.json attributes 字段全量分页）attributes 数量 8~46、最大 46，未观测到「上千条」商品；分析脚本已实现 >200 条时记录样本。",
+  "平台类目候选值最多 257 个/属性（Place of Origin 国家），属性集合异常主要是「值枚举大」而非「商品属性条数多」。",
+  "对照统计使用「无预设」配置口径；真实 config 的 alibaba_attr_presets 在回归窗口内被并发修改（出现 LS-600/600/Motor/China 等预设），已单独记录当前配置结果，未擅自改用户配置。",
+  "AI 真实调用共 2 次（qwen-plus，2.2s/2.8s），其余 AI 路径均为 fake client 离线验证。"
+ ],
+ "reproduce": {
+  "collect": "PYTHONPATH=src .venv/bin/python /tmp/attrs_regression.py collect --out /tmp/alibaba_attrs_cache.json",
+  "analyze_after": "PYTHONPATH=src .venv/bin/python /tmp/attrs_regression.py analyze --cache /tmp/alibaba_attrs_cache.json --out /tmp/attrs_after_final.json",
+  "ai_sample": "PYTHONPATH=src .venv/bin/python /tmp/attrs_regression.py ai-sample --cache /tmp/alibaba_attrs_cache.json --out /tmp/attrs_ai.json --limit 2",
+  "note": "遍历脚本在 /tmp（不写入仓库 tools/，遵守本任务写入范围）；只读接口，无写调用"
+ }
+}

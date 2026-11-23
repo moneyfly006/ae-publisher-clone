@@ -29,6 +29,7 @@ import time
 from ..integrations.amazon import AmazonError, parse_required_attrs
 from .amazon_payload import (
     OVERRIDE_KEYS, REQUIRED_COMMON, attribute_present, parse_product_attr,
+    has_contact_number, remove_contact_numbers,
 )
 from .amazon_pipeline import (
     OP_PUBLISH, OP_SAVE, _autofill_attributes_with_notes, prepare_save,
@@ -122,7 +123,7 @@ def _strip_forbidden(text: str, *, keep_numbers: bool = True) -> str:
     s = _CONTACT_RE.sub(" ", s)
     s = _CN_CONTACT_RE.sub(" ", s)
     s = _CN_PROMO_RE.sub(" ", s)
-    s = _PHONE_RE.sub(" ", s)
+    s = remove_contact_numbers(s)
     s = re.sub(r"[ \t]{2,}", " ", s)
     s = re.sub(r"\s+([,.;:!?])", r"\1", s)
     return re.sub(r"\s{2,}", " ", s).strip()
@@ -427,7 +428,7 @@ def policy_preflight(payload: dict, product: dict | None, cfg) -> dict:
             warnings.append("标题含 emoji/HTML")
             _act("sanitize_title")
         if (_PROMO_RE.search(title) or _EMAIL_RE.search(title) or _URL_RE.search(title)
-                or _MESSAGING_RE.search(title) or _PHONE_RE.search(title)
+                or _MESSAGING_RE.search(title) or has_contact_number(title)
                 or _CN_CONTACT_RE.search(title) or _CN_PROMO_RE.search(title)):
             warnings.append("标题含促销/联系方式/URL")
             _act("sanitize_title")
@@ -451,7 +452,7 @@ def policy_preflight(payload: dict, product: dict | None, cfg) -> dict:
             warnings.append(f"卖点 {i} 含 ±/●/HTML/emoji")
             _act("sanitize_bullets")
         if (_PROMO_RE.search(b) or _EMAIL_RE.search(b) or _URL_RE.search(b)
-                or _MESSAGING_RE.search(b) or _PHONE_RE.search(b)
+                or _MESSAGING_RE.search(b) or has_contact_number(b)
                 or _CN_CONTACT_RE.search(b) or _CN_PROMO_RE.search(b)):
             warnings.append(f"卖点 {i} 含促销/联系方式/URL")
             _act("sanitize_bullets")
@@ -467,7 +468,7 @@ def policy_preflight(payload: dict, product: dict | None, cfg) -> dict:
         _desc_text = strip_html(desc)
         if (_PROMO_RE.search(_desc_text) or _EMAIL_RE.search(_desc_text)
                 or _URL_RE.search(_desc_text) or _MESSAGING_RE.search(_desc_text)
-                or _PHONE_RE.search(_desc_text) or _CN_CONTACT_RE.search(_desc_text)
+                or has_contact_number(_desc_text) or _CN_CONTACT_RE.search(_desc_text)
                 or _CN_PROMO_RE.search(_desc_text)):
             warnings.append("描述含促销/联系方式/URL（可自动清洗）")
             _act("sanitize_description")

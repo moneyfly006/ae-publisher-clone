@@ -14,7 +14,8 @@ class PlatformTests(unittest.TestCase):
 
     def test_alibaba_has_trade_and_no_aliexpress_pages(self):
         labels = [p.label for p in ALIBABA.pages]
-        self.assertTrue(any("FOB" in x for x in labels))
+        self.assertIn("价格与贸易", labels)
+        self.assertTrue(ALIBABA.page(32).matches("FOB"))
         self.assertIn("类目与属性", labels)
         self.assertNotIn("变种与库存", labels)
 

@@ -67,6 +67,10 @@ class AlibabaRunResult:
     save_result: dict = field(default_factory=dict)
     ai_used: bool = False
     score: float = 0.0
+    initial_score: float | None = None
+    score_problems: list[str] = field(default_factory=list)
+    initial_score_problems: list[str] = field(default_factory=list)
+    score_actions: list[str] = field(default_factory=list)
     score_passed: bool = False
     score_fixes: list[str] = field(default_factory=list)
     publish_state: dict = field(default_factory=dict)
@@ -97,6 +101,9 @@ def forced_preview() -> bool:
 # ---------------- 内部工具 ----------------
 def _step(res: AlibabaRunResult, name: str, ok: bool, detail: str = "") -> None:
     res.steps.append(AlibabaStep(name, ok, detail))
+    from .progress import emit
+    emit("Alibaba · " + name, "完成" if ok else "失败", detail,
+         level="OK" if ok else "ERROR", product=res.product_id)
 
 
 def _fail(res: AlibabaRunResult, name: str, error: str) -> AlibabaRunResult:
@@ -287,11 +294,25 @@ def _top_up_keywords(kws: list[str], subject: str, plain_detail: str) -> list[st
     return kws[:MAX_KEYWORDS]
 
 
+def _keywords_unrelated(kws: list[str], subject: str, plain_detail: str) -> bool:
+    """关键词短语与本商品标题/详情完全无重叠 → 很可能套用了别的商品的全局预设。
+
+    用「短语」而不是单词判断：详情里出现 construction/equipment 这类泛词，
+    不代表 "construction equipment" 就是本商品关键词。
+    """
+    hay = re.sub(r"\s+", " ", f"{subject or ''} {plain_detail or ''}".lower())
+    phrases = [re.sub(r"\s+", " ", str(k).strip().lower()) for k in kws if str(k).strip()]
+    if not phrases:
+        return False
+    return not any(p in hay for p in phrases)
+
+
 # ---------------- 主流程 ----------------
 def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                         op: str = OP_SAVE, use_ai: bool = True,
                         client=None, text_pipeline=None,
-                        overrides: dict | None = None) -> AlibabaRunResult:
+                        overrides: dict | None = None, repair_score=False,
+                        before_submit=None) -> AlibabaRunResult:
     """AI 文案 → Alibaba 保存结构 → 校验 → 违禁词 → 预演/保存。
 
     参数
@@ -311,6 +332,9 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
     pid = str(product_id or "").strip()
     op = str(op or OP_SAVE)
     res = AlibabaRunResult(product_id=pid, op=op, preview=bool(dry_run))
+    from .progress import emit
+    from .collect_store import BudgetExceeded
+    emit("Alibaba · 任务", "开始", OP_LABELS.get(op, op), product=pid)
     try:
         if not pid:
             return _fail(res, "参数校验", "缺少 product_id")
@@ -325,6 +349,7 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         _step(res, "连接 Alibaba", True, "Cookie 可用，客户端已创建")
 
         # a. 商品详情
+        emit("Alibaba · 读取商品详情", "开始", product=pid)
         try:
             product = c.product_detail(pid)
         except Exception as e:  # noqa: BLE001
@@ -335,6 +360,7 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
               f"{str(product.get('subject') or '')[:60]} · 类目 {product.get('categoryId')}")
 
         # b. 类目 required attrs + schema（与保存用同一类目上下文）
+        emit("Alibaba · 读取类目规则", "开始", product=pid)
         ov = dict(overrides or {})
         cid, _full_cid = resolve_category(product, cfg, ov)
         req: list = []
@@ -355,13 +381,32 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         plain_source = _source_text(product)
         text_desc = str(product.get("textDesc") or "").strip()
         tp = None
+        _ai_preset = None
         if use_ai:
+            emit("Alibaba · AI 文案", "开始", "按 Alibaba 提示词处理标题与详情", product=pid)
             try:
+                from . import alibaba_prompts as _AP
+                _ai_preset = _AP.resolve_preset(
+                    str(getattr(cfg, "alibaba_ai_preset", "") or "")) or {}
+                _ai_preset = dict(_ai_preset)
+                for _key in ("title_prompt", "detail_prompt", "review_prompt", "keyword_prompt"):
+                    _custom = str(getattr(cfg, "alibaba_" + _key, "") or "").strip()
+                    if _custom:
+                        _ai_preset[_key] = _custom
                 if text_pipeline is not None:
                     tp = text_pipeline
                 else:
+                    from ..config import AppConfig
                     from .text_pipeline import TextPipeline
-                    tp = TextPipeline(cfg)
+                    # 关键：Alibaba 的标题/详情/关键词提示词与速卖通不同，不能在
+                    # 全局 cfg 上永久覆盖，也不能继续用速卖通默认提示词。
+                    # AppConfig 的浅拷贝共享 _d，套用预设会污染速卖通配置。
+                    _ai_cfg = AppConfig(cfg.as_dict() if hasattr(cfg, "as_dict") else dict(cfg))
+                    _AP.apply_to_cfg(_ai_cfg, _ai_preset)
+                    _kwp = str(_ai_preset.get("keyword_prompt") or "").strip()
+                    if _kwp:
+                        _ai_cfg.set("alibaba_keyword_prompt", _kwp)
+                    tp = TextPipeline(_ai_cfg)
             except Exception as e:  # noqa: BLE001
                 _step(res, "AI 文案", False, f"AI 服务初始化失败：{str(e)[:160]}")
                 res.ok = False
@@ -371,7 +416,13 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
             res.ai_used = True
             # 标题（Alibaba ≤128；make_title 内部按 125 控制，这里兜底截断到 128）
             try:
-                tr = tp.make_title(source_subject, _brands_from(product))
+                _mk_title = getattr(tp, "make_alibaba_title", None)
+                if callable(_mk_title):
+                    tr = _mk_title(source_subject,
+                                   prompt=str((_ai_preset or {}).get("title_prompt") or ""),
+                                   limit=MAX_SUBJECT, brands=_brands_from(product))
+                else:
+                    tr = tp.make_title(source_subject, _brands_from(product))
                 if _tr_ok(tr):
                     subject = clip_title(_tr_value(tr), MAX_SUBJECT)
                     detail = subject[:70] + (f"（{len(subject)} 字符，≤{MAX_SUBJECT}）"
@@ -413,7 +464,8 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                 res.ok = False
                 res.error = f"AI 详情调用异常：{str(e)[:160]}（保留商品原详情）"
         else:
-            _step(res, "AI 文案", True, "未启用 AI，使用商品原标题/详情")
+            _step(res, "AI 文案", True,
+                  "本次未调用 AI（AI开关关闭，或补齐模式已有全部文案）；保留商品原标题/详情")
 
         # AI 编造体检（只提醒不阻断）：原文没有的尺寸/材质/认证/绝对化词。
         if tp is not None:
@@ -474,6 +526,14 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
             _step(res, "关键词", True, warn)
         else:
             _step(res, "关键词", True, ", ".join(kws[:MAX_KEYWORDS]))
+        # 全局关键词预设套到不相关商品时不能静默：关键词与标题/详情无任何重叠，
+        # 通常意味着 alibaba_keywords 是别的品类的词（会拉低相关性评分）。
+        if _keywords_unrelated(kws, subject or source_subject,
+                               _plain_text(text_desc) or plain_source):
+            warn = ("关键词与本商品标题/详情无任何重叠，可能套用了别的商品的全局关键词；"
+                    "请在「设置 → Alibaba 刊登」改成本品类关键词，或为本商品单独填关键词")
+            res.warnings.append(warn)
+            _step(res, "关键词相关性", True, warn)
 
         # d. 构建 + 校验
         try:
@@ -486,15 +546,66 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         except Exception as e:  # noqa: BLE001
             return _fail(res, "构建保存载荷", f"build_alibaba_save 失败：{e}")
 
+        from .alibaba_score import PASS_SCORE, score_product
+        from .alibaba_score_repair import repair, score_problems
+        try:
+            issues = validate_alibaba_save(product, save, cfg, req, schema)
+            score = score_product(product, cfg, save=save, required_attrs=req)
+            res.initial_score = score.total
+            res.initial_score_problems = score_problems(score)
+            if repair_score and not dry_run and not score.passed:
+                emit("Alibaba · 低分二次处理", "开始", f"初评 {score.total:.2f}/5 · " +
+                     "；".join(res.initial_score_problems[:4]), product=pid)
+                save, score, issues, res.score_actions = repair(product, cfg, save_ov, save, score, issues, req, schema)
+                note = "；".join(res.score_actions) or "需要补充商品原始资料"
+                _step(res, "低分二次处理", score.passed,
+                      f"{res.initial_score:.2f} → {score.total:.2f}/5 · {note}")
+            res.score = score.total
+            res.score_passed = score.passed
+            res.score_problems = score_problems(score)
+            res.score_fixes = list(score.fixes[:8])
+        except BudgetExceeded:
+            raise
+        except Exception as e:  # noqa: BLE001
+            return _fail(res, "刊登预检", f"无法完成校验与评分：{e}")
+
+        if op == OP_SCHEDULE:
+            from .alibaba_payload import schedule_time_ms
+            _ms = schedule_time_ms(getattr(cfg, "alibaba_schedule_time", ""))
+            if _ms:
+                save["dxmScheduleTime"] = _ms
+                save["dxmScheduleTimeStr"] = str(getattr(cfg, "alibaba_schedule_time", ""))
+            else:
+                res.warnings.append(
+                    "定时发布未设置发布时间：平台按默认排期；可在「价格与贸易」填「定时发布时间」")
+
         res.subject = str(save.get("subject") or "")
         res.keywords = _keyword_list(save)
         res.text_chars = len(_plain_text(save.get("textDesc") or ""))
         res.category_id = str(save.get("categoryId") or "")
 
-        try:
-            issues = validate_alibaba_save(product, save, cfg, req, schema)
-        except Exception as e:  # noqa: BLE001
-            return _fail(res, "保存前校验", f"validate_alibaba_save 异常：{e}")
+        # 保存包生成后的「不静默」提示：属性自动补齐/全局覆盖/联系方式清理
+        # 都会改变商品数据，必须让用户看到并复核（缺依据的字段不能悄悄写）。
+        _autofill = [str(x) for x in (save.get("_autofilled") or [])]
+        if _autofill:
+            _step(res, "属性自动补齐", True, "；".join(_autofill)[:400])
+        for _a in _autofill:
+            if "请复核" in _a or "自动候选值" in _a:
+                res.warnings.append("属性自动候选值需复核：" + _a)
+        for _why in [str(x) for x in (save.get("_unresolved_reasons") or [])][:8]:
+            res.warnings.append("属性未补齐：" + _why)
+        _contact = [str(x) for x in (save.get("_contact_removed") or [])]
+        if _contact:
+            warn = ("详情/公司信息含站外联系方式，已自动移除："
+                    + "、".join(_contact[:6])
+                    + "（平台禁止站外联系；请确认清理后的正文通顺）")
+            res.warnings.append(warn)
+            _step(res, "联系方式清理", True, warn)
+        for _ow in [str(x) for x in (save.get("_overwrites") or [])][:6]:
+            warn = "全局配置与商品数据不一致：" + _ow + "；请确认后发布"
+            res.warnings.append(warn)
+            _step(res, "全局数据核对", True, warn)
+
         res.issues = list(issues)
         if issues:
             _step(res, "保存前校验", False, f"{len(issues)} 项未通过：" + "；".join(issues[:5]))
@@ -508,26 +619,13 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
             res.ok = True
 
         # 刊登评分门禁：op=2 提交审核/发布必须 ≥4.5；低分要指出缺什么。
-        try:
-            from .alibaba_score import PASS_SCORE, score_product
-            _sc = score_product(product, cfg, save=save, required_attrs=req)
-            res.score = round(_sc.total, 2)
-            res.score_passed = bool(_sc.passed)
-            res.score_fixes = list(_sc.fixes[:8])
-            _step(res, "刊登评分", _sc.passed,
-                  f"{_sc.total:.2f}/5（发布线 {PASS_SCORE:.1f}）")
-            for _f in _sc.fixes[:3]:
-                res.warnings.append("评分建议：" + _f)
-            if op == OP_PUBLISH and not _sc.passed:
-                res.ok = False
-                _why = "；".join((_sc.blockers + _sc.fixes)[:5])
-                res.error = (f"刊登评分 {_sc.total:.2f}/5 未达发布线 {PASS_SCORE:.1f}，"
-                             f"已阻止提交审核。需要修复：{_why}")
-                _step(res, "发布门禁", False, "评分未达标，已阻止提交审核")
-                res.preview = True
-                return res
-        except Exception as e:  # noqa: BLE001
-            _step(res, "刊登评分", True, f"评分跳过：{str(e)[:80]}")
+        _step(res, "刊登评分", score.passed, f"{score.total:.2f}/5（发布线 {PASS_SCORE:.1f}）")
+        res.warnings.extend("评分建议：" + fix for fix in score.fixes[:3])
+        if op == OP_PUBLISH and not score.passed:
+            why = "；".join((score.blockers + res.score_problems)[:5])
+            res.preview = True
+            return _fail(res, "发布门禁", f"刊登评分 {score.total:.2f}/5 未达发布线 {PASS_SCORE:.1f}，"
+                         f"已阻止提交审核。需要修复：{why}")
 
         # d2. 经营类目范围预检（只读；平台硬校验，提前提醒避免发布后才发现）
         if op == OP_PUBLISH:
@@ -596,6 +694,8 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         except Exception as e:  # noqa: BLE001
             return _fail(res, "授权校验", f"授权校验未通过：{e}")
 
+        if before_submit is not None:
+            before_submit()
         try:
             resp = c.save_product(product, save, op=op)
         except Exception as e:  # noqa: BLE001
@@ -620,6 +720,11 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         # 外层 code=0 不代表成功：实测发布缺发货期时返回
         # {"code":0,"data":{"msg":"发货期信息未填写","code":-1}}。
         if inner_code not in (None, 0, "0"):
+            if "CHK_VIDEO_PRODUCT_LINK_LIMIT" in msg:
+                return _fail(res, "保存到 Alibaba",
+                             "发布被平台拒绝（主视频复用超限）：同一主视频已被超过 20 个商品使用。"
+                             "保存接口没有视频字段，无法通过软件清除平台侧视频；"
+                             "请到 Alibaba 卖家中心给这些商品更换/删除主视频后再发布。")
             if "PUB_BIZCHECK_CAT_PUB_RESTRICT" in msg:
                 from .alibaba_scope import CUSTOMER_ADVICE
                 _cid = res.category_id or str(save.get("categoryId") or "")
@@ -664,6 +769,14 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                         break
             res.publish_state = _state
             _err = str(_state.get("errMsg") or "")
+            # 已提交成功、平台正在审核：不是失败；回读会一直带 AUDITING，
+            # 之前这里会误报「平台发布校验未通过」。
+            if "PRODUCT_IN_AUDITING" in _err or "审核中" in _err:
+                res.auditing = True
+                _step(res, "发布结果", True,
+                      "平台审核中（已提交成功；审核结果可在「发布队列」查看）")
+                _step(res, "完成", True, "商品已提交审核")
+                return res
             if _err or _state.get("dxmOfflineState") == "publishFail":
                 _hint = ""
                 if "CAT_PUB_RESTRICT" in _err or "经营类目" in _err:
@@ -680,6 +793,8 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
 
         _step(res, "完成", True, "商品已保存/提交")
         return res
+    except BudgetExceeded:
+        raise
     except Exception as e:  # noqa: BLE001
         return _fail(res, "流水线异常", f"{type(e).__name__}: {str(e)[:200]}")
 

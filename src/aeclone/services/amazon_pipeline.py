@@ -24,7 +24,7 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from ..integrations.amazon import parse_required_attrs
+from ..integrations.amazon import is_leaf_category, parse_required_attrs
 from .amazon_payload import (
     BULLET_MAX_ITEMS, DESCRIPTION_MAX_BYTES, REQUIRED_COMMON,
     SEARCH_TERMS_MAX_CHARS, TITLE_MAX, attribute_present, attribute_value_text,
@@ -92,6 +92,7 @@ class AmazonRunResult:
     ai_used: bool = False
     # 发布结果核实（op=2）
     publish_state: str = ""
+    publish_status: str = ""
     publish_error: str = ""
     publish_asin: str = ""
     publish_detail: str = ""
@@ -138,6 +139,9 @@ def _cfg_get(cfg, key: str, default=None):
 
 def _step(res: AmazonRunResult, name: str, ok: bool, detail: str = "") -> None:
     res.steps.append(AmazonStep(name, ok, detail))
+    from .progress import emit
+    emit("Amazon · " + name, "完成" if ok else "失败", detail,
+         level="OK" if ok else "ERROR", product=res.product_id)
 
 
 def _fail(res: AmazonRunResult, name: str, error: str) -> AmazonRunResult:
@@ -156,14 +160,31 @@ def _product_of(detail: dict) -> dict:
     """editSp 返回 data → product（兼容直接给 product 的桩）。"""
     if not isinstance(detail, dict):
         return {}
-    product = detail.get("product")
-    if isinstance(product, dict) and product:
-        return dict(product)
-    return dict(detail)
+    product = detail.get("product", detail)
+    return dict(product) if isinstance(product, dict) else {}
+
+
+def _verified_detail(detail, pid):
+    product = _product_of(detail)
+    if str(product.get("idStr") or product.get("id") or product.get("productId") or "") != pid:
+        raise ValueError("商品详情为空或与请求的商品 ID 不一致")
+    return product
 
 
 def _site_code(meta: dict) -> str:
     return str((meta or {}).get("code") or "")
+
+
+def _check_category_path(client, code, path):
+    try:
+        node = client.category_by_path(code, path)
+    except Exception as exc:
+        return {}, f"类目路径不属于站点 {code} 或校验失败：{_short(exc)}"
+    if not node:
+        return {}, f"类目路径不存在：{path}"
+    if not is_leaf_category(node):
+        return {}, "请选择末级类目：" + path
+    return node, ""
 
 
 def _fill_result(res: AmazonRunResult, payload: dict) -> None:
@@ -228,7 +249,7 @@ _MODEL_LABEL_RE = re.compile(
     r"\bmodel(?:\s*(?:no\.?|number|#))?\s*[:：]\s*([A-Za-z0-9][A-Za-z0-9_\-/\.]{1,40})",
     re.I)
 _REVIEW_HINTS = ("100521", "审查", "审核", "under review", "pending review", "in review")
-_ORIGIN_RE = re.compile(r"\b(china|chinese|cn|prc)\b", re.I)
+_ORIGIN_RE = re.compile(r"\b(?:made in|country of origin\s*[:：]?|origin\s*[:：])\s*(?:china|cn|prc)\b|中国制造|产地\s*[:：]\s*中国", re.I)
 
 
 def _extract_model(text) -> str:
@@ -244,7 +265,7 @@ def _extract_model(text) -> str:
 
 
 def _origin_code(text) -> str:
-    """标题/描述出现 China/CN/Chinese/PRC → ``CN``（Amazon country_of_origin 枚举）。"""
+    """识别文本中有明确产地含义的中国制造声明。"""
     return "CN" if _ORIGIN_RE.search(str(text or "")) else ""
 
 
@@ -285,9 +306,7 @@ AI_ATTRIBUTE_MAX_FIELDS = 6
 
 
 # 发布必填属性的确定性映射（错误驱动第二轮；无 template 也能补）
-DETERMINISTIC_BOOLEAN_DEFAULTS = ("contains_liquid_contents", "batteries_required",
-                                  "is_expiration_dated_product", "is_assembly_required")
-_ASSEMBLY_RE = re.compile(r"\bassembly\b|\bassemble\b|组装|拼装", re.I)
+_ASSEMBLY_RE = re.compile(r"\b(assembly required|requires assembly|requires no assembly|no assembly required)\b|无需组装|需要组装", re.I)
 # Amazon power_source_type 枚举（按标题/描述关键词，取最早出现的词）
 POWER_SOURCE_ENUM_MAP = (
     ("hydraulic", "hydraulic_powered"),
@@ -298,7 +317,6 @@ POWER_SOURCE_ENUM_MAP = (
     ("lithium", "Battery Powered"),
     ("electric", "electric"),
 )
-POWER_SOURCE_FALLBACK = "diesel_powered"
 _UNIT_TO_INCHES = {
     "mm": 1.0 / 25.4, "millimeter": 1.0 / 25.4, "millimeters": 1.0 / 25.4,
     "毫米": 1.0 / 25.4,
@@ -401,7 +419,9 @@ def _dims_from_text(text: str, marketplace_id: str = ""):
     if not unit:
         tail = str(text or "")[match.end():match.end() + 8]
         tail_match = _DIM_UNIT_SEARCH_RE.match(tail)
-        unit = tail_match.group(1) if tail_match else "mm"   # 默认按毫米（常见采集数据）
+        if not tail_match:
+            return None
+        unit = tail_match.group(1)
     values = [_to_inches(match.group(i), unit) for i in (1, 2, 3)]
     if not all(values):
         return None
@@ -417,40 +437,24 @@ def _dims_from_text(text: str, marketplace_id: str = ""):
 
 
 def _dimension_value(key: str, product: dict, existing: dict, text: str,
-                     template: dict, marketplace_id: str):
+                     marketplace_id: str):
     """item_dimensions / item_depth_width_height 的取值（返回 (items|None, note)）。"""
     attr_dims = _raw_dimension_items((existing or {}).get("item_dimensions"),
                                      marketplace_id)
     prod_dims = _dims_from_product(product, marketplace_id)
     text_dims = _dims_from_text(text, marketplace_id)
-    tpl_dims = _raw_dimension_items((template or {}).get(key), marketplace_id)
     if key == "item_dimensions":
         candidates = [("productAttr.item_dimensions", attr_dims),
                       ("product.itemDimensions", prod_dims),
-                      ("标题/描述尺寸", text_dims),
-                      ("同类模板", tpl_dims)]
+                      ("标题/描述尺寸", text_dims)]
     else:
         candidates = [("product.itemDimensions", prod_dims),
                       ("productAttr.item_dimensions", attr_dims),
-                      ("标题/描述尺寸", text_dims),
-                      ("同类模板", tpl_dims)]
+                      ("标题/描述尺寸", text_dims)]
     for source, items in candidates:
         if items:
             return items, f"{key}：来源 {source}"
     return None, f"{key}：无法自动补齐（无 item_dimensions/尺寸文本），需用户填写"
-
-
-def _template_value(raw):
-    """productAttr 里某属性的原始值 → 首个 item 的 value（便于套模板）。"""
-    value = raw
-    if isinstance(value, list):
-        if not value:
-            return None
-        first = value[0]
-        return first.get("value") if isinstance(first, dict) else first
-    if isinstance(value, dict) and "value" in value:
-        return value.get("value")
-    return value
 
 
 def _normalize_required(required) -> list[str]:
@@ -553,9 +557,11 @@ def _autofill_context(product: dict, cfg, overrides: dict) -> dict:
     if not model:
         model = _first_text(p, _PRODUCT_MODEL_KEYS)
     desc_text = strip_html(description)
-    origin = _origin_code(f"{title} {desc_text}") or _origin_code(sku)
+    source_origin = _first_text(p, ("countryOfOrigin", "country_of_origin"))
+    origin = (source_origin.upper() if re.fullmatch(r"[A-Za-z]{2}", source_origin) else
+              _origin_code(f"Country of origin: {source_origin}" if source_origin else f"{title} {desc_text}"))
     contact_cfg = str(_cfg_get(cfg, "amazon_manufacturer_contact", "") or "").strip()
-    contact = contact_cfg or f"{manufacturer or brand or 'Generic'}, {origin or 'CN'}"
+    contact = _first_text(p, ("manufacturerContactInformation", "manufacturer_contact_information")) or contact_cfg
     # 与保存包字段同名（key 是保存包的 camelCase 字段，见 _PAYLOAD_ATTRIBUTE_FIELDS）
     payload_values = {
         "title": title,
@@ -601,13 +607,11 @@ def _autofill_attributes_with_notes(product: dict, cfg, marketplace_id: str = ""
     for key in required_list:
         if attribute_present(existing, key):
             continue
-        tpl = _template_value(template.get(key))
         value = None
-        if key in DETERMINISTIC_BOOLEAN_DEFAULTS:
-            if key == "is_assembly_required":
-                value = bool(_ASSEMBLY_RE.search(text_ctx))
-            else:
-                value = False
+        if key == "is_assembly_required":
+            match = _ASSEMBLY_RE.search(text_ctx)
+            if match:
+                value = not any(word in match.group(0).casefold() for word in ("no assembly", "无需"))
         elif key == "model_number":
             value = (str(model or sku)[:40] if (model or sku) else None)
         elif key == "model_name":
@@ -617,46 +621,26 @@ def _autofill_attributes_with_notes(product: dict, cfg, marketplace_id: str = ""
             value = (sku or model or _first_text(p, ("partNumber", "part_number"))
                      or None)
         elif key == "country_of_origin":
-            if origin:
-                value = origin
-            elif isinstance(tpl, str) and tpl.strip():
-                value = tpl
-            else:
-                value = "CN"
-                notes.append("country_of_origin：标题/描述未找到产地依据，使用默认 CN")
+            value = origin
         elif key == "manufacturer_contact_information":
             value = contact
         elif key == "list_price":
             value = _list_price_value(p, ov, cfg, marketplace_id, template.get(key))
         elif key == "power_source_type":
-            enum_value, source = _power_source_enum(text_ctx)
-            if isinstance(tpl, str) and tpl.strip():
-                value = tpl
-            elif enum_value:
-                value = enum_value
-            else:
-                value = POWER_SOURCE_FALLBACK
-                notes.append(f"power_source_type：无明确依据，使用安全默认 "
-                             f"{POWER_SOURCE_FALLBACK}")
+            value = _first_text(p, ("powerSourceType", "power_source_type"))
+            if not value:
+                value, _ = _power_source_enum(text_ctx)
         elif key in ("item_dimensions", "item_depth_width_height"):
             value, dim_note = _dimension_value(
-                key, p, existing, text_ctx, template, marketplace_id)
+                key, p, existing, text_ctx, marketplace_id)
             if value is None and dim_note:
                 notes.append(dim_note)
-        elif key == "supplier_declared_dg_hz_regulation":
-            if isinstance(tpl, str) and tpl.strip():
-                value = tpl
-            else:
-                value = "not_applicable"
         elif key in _PAYLOAD_ATTRIBUTE_FIELDS:
             # 与保存包同名的属性：直接复用当前文案/品牌值（保真，不编造）
             raw_value = payload_values.get(_PAYLOAD_ATTRIBUTE_FIELDS[key])
             if key == "product_description":
                 raw_value = strip_html(raw_value) or raw_value
             value = str(raw_value or "").strip() or None
-        elif key == "item_package_quantity":
-            value = 1
-            notes.append("item_package_quantity：按单件包装默认 1，套装商品请手工修改")
         elif key == "externally_assigned_product_identifier":
             value = _first_text(p, ("standardProductId", "standard_product_id",
                                     "upc", "ean", "gtin")) or None
@@ -671,8 +655,9 @@ def _autofill_attributes_with_notes(product: dict, cfg, marketplace_id: str = ""
             value = _first_text(p, ("variationTheme", "variation_theme")) or None
             if not value:
                 notes.append("variation_theme：非变种商品可留空/需按平台变种设置")
-        else:
-            value = tpl
+        elif key in ("contains_liquid_contents", "batteries_required", "is_expiration_dated_product",
+                     "supplier_declared_dg_hz_regulation", "item_package_quantity"):
+            value = p.get(key)
         if value in (None, "", [], {}):
             if not any(n.startswith(f"{key}：") for n in notes):
                 notes.append(f"{key}：无法自动补齐，需用户填写")
@@ -695,26 +680,9 @@ def autofill_attributes(product: dict, cfg, marketplace_id: str = "",
 
     - ``required``：本次要补的属性名（来自上次发布失败 errMsg / schema），
       未显式传入时读 ``overrides["required_attributes"]``，默认 REQUIRED_COMMON；
-    - ``template``：同类目在线商品的 productAttr，用来套 enum/结构（如 list_price/dims）。
-
-    确定性映射（错误驱动第二轮，无 template 也能补）：
-    - 布尔：contains_liquid_contents / batteries_required / is_expiration_dated_product=False，
-      is_assembly_required=标题/描述含 assembly/组装；
-    - supplier_declared_dg_hz_regulation="not_applicable"（有模板以模板为准）；
-    - power_source_type：hydraulic_powered / diesel_powered / gasoline_powered /
-      Battery Powered / electric（取最早关键词；无依据 → diesel_powered 并在 notes 注明）；
-    - country_of_origin="CN"（文案有 China/CN 依据优先，否则默认 CN 并注明）；
-    - list_price=[{currency, value, marketplace_id}]（amount=库存标准价）；
-    - item_dimensions / item_depth_width_height：productAttr.item_dimensions →
-      product.itemDimensions/packageDimensions → 标题/描述尺寸正则（换算 inches）→ 模板；
-    - model_number/model_name/part_number：标题型号 → 商品型号字段 → SKU（不编造）；
-    - manufacturer_contact_information：cfg.amazon_manufacturer_contact 或
-      「制造商/品牌, 产地(默认 CN)」；
-    - item_name/product_description/bullet_point/generic_keyword/brand/manufacturer：
-      与保存包字段同名，直接复用当前文案/品牌；
-    - item_package_quantity 默认 1；color / variation_theme / 识别码只从商品真实字段取，
-      没有则 notes 提示用户填写；
-    - 其它未知属性：有模板用模板，否则 notes 提示「无法自动补齐，需用户填写」。
+    - ``template``：仅用于匹配 list_price 的结构，金额取当前商品标准价。
+    - 产地、动力类型、尺寸和联系方式从当前商品资料或显式配置补齐。
+      缺少依据的字段留空，并记录待补原因。
 
     返回 {属性名: 原始值}，由 ``build_amazon_payload`` 格式化成 productAttr JSON。
     """
@@ -796,8 +764,11 @@ def _classify_publish(raw: dict) -> dict:
     if low in ("publishing", "waitpublish"):
         return {"status": "processing", "ok": True,
                 "detail": f"已提交，平台处理中（{state}）"}
+    if low in ("auditing", "reviewing"):
+        return {"status": "reviewing", "ok": True, "detail": "已提交，平台审核中"}
     if low == "publishfail":
-        if any(h in err or h.lower() in err.lower() for h in _REVIEW_HINTS):
+        from .listing_failures import review_only
+        if review_only("amazon", err):
             return {"status": "reviewing", "ok": True,
                     "detail": "已提交，平台审核中（非软件失败）"}
         req = parse_required_attrs(err)
@@ -1020,7 +991,7 @@ def ai_generate_all(product: dict, cfg, marketplace_id: str = "",
 
 # ---------------- 只读准备 ----------------
 def prepare_save(product_id: str, cfg, overrides: dict | None = None,
-                 client=None) -> tuple[dict, dict, list[str], list[str]]:
+                 client=None, *, op=OP_SAVE) -> tuple[dict, dict, list[str], list[str]]:
     """只读：读详情 → 补齐缺失必填属性 → 组装保存包 → 校验。
 
     返回 (detail, payload, issues, warnings)；不调用任何写接口。
@@ -1035,10 +1006,14 @@ def prepare_save(product_id: str, cfg, overrides: dict | None = None,
     detail = c.product_detail(pid)
     if not detail:
         raise RuntimeError(f"读不到商品 {pid}（可能已删除/不属于当前店铺）")
-    product = _product_of(detail)
+    product = _verified_detail(detail, pid)
     ov = _merge_overrides(overrides)
-    mp = str(ov.get("marketplace_id") or product.get("marketPlaceId") or "")
-    shop_id = str(product.get("shopId") or _cfg_get(cfg, "amazon_shop_id", "") or "")
+    mp = str(ov.get("marketplace_id") or product.get("marketPlaceId") or _cfg_get(cfg, "amazon_site", "") or "")
+    if mp:
+        ov.setdefault("marketplace_id", mp)
+    shop_id = str(product.get("shopIdStr") or product.get("shopId") or "")
+    if shop_id in ("", "0", "-1"):
+        shop_id = str(_cfg_get(cfg, "amazon_shop_id", "") or "")
     currency = str(ov.get("currency") or "").strip()
     if not currency and mp and shop_id:
         try:
@@ -1065,7 +1040,12 @@ def prepare_save(product_id: str, cfg, overrides: dict | None = None,
     payload = build_amazon_payload(product, cfg, ov, currency=currency,
                                    notes=build_notes)
     meta = prompt_site_meta(str(payload.get("marketPlaceId") or mp))
-    issues = validate_amazon_payload(payload, product=product, site_meta=meta)
+    issues = validate_amazon_payload(payload, product=product, site_meta=meta, op=op)
+    path = str(ov.get("category_path") or "").strip()
+    if path and _site_code(meta):
+        _, category_issue = _check_category_path(c, _site_code(meta), path)
+        if category_issue:
+            issues.append(category_issue)
     warnings = build_warnings(payload, product=product)
     if filled:
         warnings.insert(0, "已自动补齐发布必填属性："
@@ -1083,7 +1063,7 @@ def prepare_save(product_id: str, cfg, overrides: dict | None = None,
 def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                        *, dry_run: bool = True, use_ai: bool = False,
                        op: str = OP_SAVE, client=None,
-                       confirm_write: bool = False) -> AmazonRunResult:
+                       confirm_write: bool = False, before_submit=None) -> AmazonRunResult:
     """读详情 → 站点/币种 → 类目 →（AI）→ 保存包 → 校验 → 违禁词 → 预演/保存。
 
     默认 ``dry_run=True``：只预演，绝不调用保存接口。
@@ -1118,21 +1098,23 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
         _step(res, "连接 Amazon", True, "Cookie 可用，客户端已创建")
         try:
             detail = c.product_detail(pid)
+            product = _verified_detail(detail, pid)
         except Exception as exc:  # noqa: BLE001
             return _fail(res, "读取商品详情", f"读取商品 {pid} 失败：{_short(exc)}")
-        product = _product_of(detail)
-        if not product:
-            return _fail(res, "读取商品详情", f"读不到商品 {pid}（接口返回空）")
         _step(res, "读取商品详情", True,
               f"{_short(product.get('title'), 60)} · 类目 {product.get('categoryId') or '未分类'}")
 
         # ② 站点 + 币种
         ov = _merge_overrides(overrides)
-        mp = str(ov.get("marketplace_id") or product.get("marketPlaceId") or "")
+        mp = str(ov.get("marketplace_id") or product.get("marketPlaceId") or _cfg_get(cfg, "amazon_site", "") or "")
+        if mp:
+            ov.setdefault("marketplace_id", mp)
         meta = prompt_site_meta(mp) if mp else {}
         res.site = mp
         res.site_code = _site_code(meta)
-        shop_id = str(product.get("shopId") or _cfg_get(cfg, "amazon_shop_id", "") or "")
+        shop_id = str(product.get("shopIdStr") or product.get("shopId") or "")
+        if shop_id in ("", "0", "-1"):
+            shop_id = str(_cfg_get(cfg, "amazon_shop_id", "") or "")
         currency = str(ov.get("currency") or "").strip()
         if not currency and mp and shop_id:
             try:
@@ -1152,21 +1134,14 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
         category_path = str(ov.get("category_path") or "").strip()
         site_code = res.site_code
         if category_path and site_code:
-            try:
-                node = c.category_by_path(site_code, category_path)
-            except Exception as exc:  # noqa: BLE001
-                msg = f"类目路径不属于站点 {site_code} 或校验失败：{_short(exc)}"
+            node, msg = _check_category_path(c, site_code, category_path)
+            if msg:
                 res.issues.append(msg)
                 _step(res, "类目校验", False, msg)
             else:
-                if node:
-                    name = str(node.get("chineseName") or node.get("categoryName") or "")
-                    _step(res, "类目校验", True,
-                          f"{category_path} → {name or node.get('categoryId') or '已确认'}")
-                else:
-                    msg = f"类目路径不存在：{category_path}"
-                    res.issues.append(msg)
-                    _step(res, "类目校验", False, msg)
+                name = str(node.get("chineseName") or node.get("categoryName") or "")
+                _step(res, "类目校验", True,
+                      f"{category_path} → {name or node.get('categoryId') or '已确认'}")
         else:
             cid = str(ov.get("category_id") or product.get("categoryId") or "").strip()
             _step(res, "类目校验", True,
@@ -1282,7 +1257,7 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
         # ⑥ 必填/合规校验
         try:
             issues = validate_amazon_payload(payload, product=product,
-                                             site_meta=prompt_site_meta(res.site))
+                                             site_meta=prompt_site_meta(res.site), op=op)
             warnings = build_warnings(payload, product=product)
         except Exception as exc:  # noqa: BLE001
             return _fail(res, "保存前校验", f"校验异常：{_short(exc)}")
@@ -1350,7 +1325,8 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
         try:
             from .amazon_publish import save_to_amazon
             # 复用步骤①创建的 client：注入 fake 时绝不新建真实客户端（防脚本误写事故）
-            saved = save_to_amazon(pid, cfg, overrides=ov, op=op, client=c)
+            submit_options = {"before_submit": before_submit} if before_submit else {}
+            saved = save_to_amazon(pid, cfg, overrides=ov, op=op, client=c, **submit_options)
         except ValueError as exc:
             return _fail(res, "保存到 Amazon", f"保存前校验未通过：{_short(exc, 300)}")
         except Exception as exc:  # noqa: BLE001
@@ -1388,6 +1364,7 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                 res.publish_detail = str(verified.get("detail") or "")
                 res.required_attrs = list(verified.get("required_attrs") or [])
                 status = str(verified.get("status") or "unknown")
+                res.publish_status = status
                 if status == "failed":
                     res.publish_error = str(verified.get("err_msg") or "")
                     res.ok = False
@@ -1412,6 +1389,9 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                          if res.required_attrs else ""))
             except Exception as exc:  # noqa: BLE001
                 msg = f"发布结果核实异常（保存已成功）：{_short(exc, 160)}"
+                res.ok = False
+                res.error = msg
+                res.publish_status = res.publish_state = "unknown"
                 res.warnings.append(msg)
                 _step(res, "发布结果核实", False, msg)
 

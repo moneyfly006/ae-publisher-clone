@@ -217,12 +217,12 @@ def make_backend():
         "autofill": dict(AUTOFILL),
     }
 
-    def prepare_save(pid, cfg, overrides=None):
+    def prepare_save(pid, cfg, overrides=None, *, client=None, op="1"):
         calls["prepare"].append({"pid": pid, "overrides": overrides})
         return ({"site": SITE_CODE}, {"title": "Fake Title"}, [], ["提醒"])
 
     def run_amazon_product(pid, cfg, overrides=None, dry_run=True, use_ai=False,
-                           op="1", confirm_write=False):
+                           op="1", confirm_write=False, client=None):
         calls["run"].append({"pid": pid, "overrides": overrides, "dry_run": dry_run,
                              "use_ai": use_ai, "op": op,
                              "confirm_write": confirm_write})
@@ -518,66 +518,75 @@ class AmazonPageTests(unittest.TestCase):
         self.app._switch_platform("amazon")
 
     # ---------- 导航 / 页面结构 ----------
-    def test_amazon_left_nav_has_seven_function_pages(self):
-        """task-21：左侧导航按功能拆 7 页；13 号完整工作台为隐藏内部路由。"""
-        indices = [p.index for p in AMAZON.pages]
-        self.assertEqual(indices, [0, 15, 16, 17, 18, 19, 20, 21, 10, 11, 13])
-        for i in range(15, 22):
+    def test_single_editor_keeps_scope_and_clears_other_product_form(self):
+        self.app.cfg.set("amazon_shop_id", "9408005")
+        self.app.cfg.set("amazon_site", MARKETPLACE)
+        with fake_backend({"autofill": {}}) as env, sync_threads():
+            original = env.client.product_detail
+
+            def field(label, cls=ft.TextField):
+                return find_control(self.app, cls, lambda c: c.label == label)
+
+            def detail(pid):
+                result = original(pid)
+                row = result["product"]
+                row["shopId"] = "other-shop" if pid == "outside" else "9408005"
+                if pid == "second":
+                    row.update(categoryId="", merchantShippingGroup="", switchFulfillmentTo="AFN")
+                return result
+
+            env.client.product_detail = detail
+            self.app._switch(16)
+            picker = field("或输入商品 ID")
+            self.assertFalse(self.app.content.controls[-1].visible)
+            picker.value = PRODUCT_ID
+            click(find_button(self.app, "按 ID 载入"))
+            self.assertTrue(self.app.content.controls[-1].visible)
+            model = field("型号（model_number）")
+            model.value = "first-model"
+            model.on_change(SimpleNamespace(control=model))
+            click(find_button(self.app, "换一件商品"))
+            picker.value = "outside"
+            click(find_button(self.app, "按 ID 载入"))
+            self.assertEqual(self.app._amz_form["id"], PRODUCT_ID)
+            picker.value = "second"
+            click(find_button(self.app, "按 ID 载入"))
+            self.assertEqual(self.app._amz_form["id"], "second")
+            self.assertEqual(model.value, "")
+            self.assertEqual(self.app.cfg.amazon_category_id, "")
+            self.assertEqual(field("配送方式", ft.Dropdown).value, "AFN")
+            self.assertTrue(field("数量").disabled)
+
+    def test_amazon_nav_has_three_steps_with_single_editor_in_overview(self):
+        for i in (15, 45, 21, 16):
             self.assertIn(i, {d.index for d in DESTINATIONS})
-        self.assertEqual(AMAZON.page(13).group, "__internal__")
-        # 分组顺序与速卖通风格一致
+        self.assertEqual(AMAZON.page(16).group, "__internal__")
         self.assertEqual(AMAZON.groups(),
-                         ["工作空间", "商品准备", "内容处理", "发布与运行", "运行", "工具"])
+                         ["工作空间", "自动处理", "发布与运行", "工具与设置"])
         nav = [b.content.controls[1].value for _, b in self.app.nav_buttons]
-        self.assertEqual(nav, ["概览", "连接与店铺", "采集箱商品", "站点与类目",
-                               "商品信息", "文案与 AI", "AI 图片", "发布与结果",
-                               "任务与日志", "设置"])
-        self.assertNotIn("Amazon 刊登", nav, "隐藏路由不应出现在左侧导航")
-        self.assertNotIn(13, [i for i, _ in self.app.nav_buttons])
-        # 侧栏按钮文案仍为「去 Amazon 刊登」（点击跳隐藏工作台 13）
+        self.assertEqual(nav, ["概览", "连接与店铺", "处理规则", "运行与结果", "任务与日志", "图片工作台", "设置"])
         self.app._sync_run_button()
-        self.assertEqual(self.app.btn_run_text.value, "去 Amazon 刊登")
+        self.assertEqual(self.app.btn_run_text.value, "自动处理采集箱")
         # 导航搜索按功能命中
-        for query, expect in (("五点", [19]), ("采集箱", [16]), ("发布失败", [16])):
+        for query, expect in (("五点", [45]), ("采集箱", [21]), ("发布失败", [21])):
             self.app._filter_navigation(query)
             self.assertEqual([i for i, b in self.app.nav_buttons if b.visible], expect,
                              f"搜索 {query} 命中异常")
         self.app._filter_navigation("")
 
     def test_amazon_function_pages_show_only_their_card(self):
-        """15–21 每个功能页只渲染对应的一张卡 + 引导页头。"""
-        expect = {
-            15: ("①", "连接与店铺"), 16: ("②", "采集箱商品"),
-            17: ("③", "站点与类目"), 18: ("④", "商品信息"),
-            19: ("⑤", "文案与 AI"), 20: ("⑥", "AI 图片"),
-            21: ("⑦", "发布与结果"),
-        }
+        expected = {15: "检测连接", 17: "自动补齐必填属性",
+                    18: "刷新运费模板", 34: "AI 生成 SKU", 19: "AI 生成五点",
+                    20: "处理并回填图片", 21: "开始自动处理"}
+        for index, action in expected.items():
+            self.app._switch(index)
+            self.assertEqual(self.app._current, index)
+            find_button(self.app, action)
+            if index != 21:
+                self.assertFalse(any(b.text == "保存到 Amazon" for b in buttons(self.app)))
+            if index != 19:
+                self.assertFalse(any(b.text == "AI 生成五点" for b in buttons(self.app)))
 
-        def numbered_cards():
-            out = []
-            for c in self.app.content.controls:
-                for x in walk([c]):
-                    if (isinstance(x, ft.Text) and x.value
-                            and x.value[0] in "①②③④⑤⑥⑦"
-                            and "→" not in x.value and "：" not in x.value):
-                        out.append(x.value)
-                        break
-            return out
-
-        for idx, (num, name) in expect.items():
-            with self.subTest(page=idx):
-                self.app._switch(idx)
-                self.assertEqual(self.app._page_idx, idx)
-                cards = numbered_cards()
-                self.assertEqual(len(cards), 1, f"页 {idx} 应只有 1 张卡，实际 {cards}")
-                self.assertTrue(cards[0].startswith(num), f"页 {idx} 卡编号错误：{cards[0]}")
-                self.assertIn(name, cards[0])
-                page_text = " ".join(texts(self.app))
-                self.assertIn(num, page_text)
-                # 引导副标题存在（含操作提示）
-                self.assertTrue(any(k in page_text for k in ("先", "填写", "浏览", "选择",
-                                                             "编辑", "查看", "保存")),
-                                f"页 {idx} 缺少操作引导")
 
     def test_hidden_route_13_renders_full_workbench(self):
         """13 号隐藏路由仍可 _switch(13) 渲染完整 7 卡（旧测试/深链兼容）。"""
@@ -586,7 +595,7 @@ class AmazonPageTests(unittest.TestCase):
         self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
         page_text = " ".join(texts(self.app))
         for title in ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
-                      "④ 商品信息", "⑤ 文案与 AI", "⑥ AI 图片", "⑦ 发布与结果"):
+                      "价格与物流", "⑤ 文案与 AI", "商品图片", "⑦ 发布与结果"):
             self.assertIn(title, page_text)
 
     def test_page_13_renders_in_dark_and_light_themes(self):
@@ -610,21 +619,20 @@ class AmazonPageTests(unittest.TestCase):
         self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
         all_text = texts(self.app)
         for title in ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
-                      "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
+                      "价格与物流",
                       "⑤ 文案与 AI",
-                      "⑥ AI 图片（图片只读，v1 备用）",
+                      "商品图片",
                       "⑦ 发布与结果"):
             self.assertIn(title, all_text)
         # 关键控件（契约 §4.3）
         self.assertIn("店铺", labels(self.app))
         self.assertIn("站点", labels(self.app))
-        for i in range(1, 6):
-            self.assertIn(f"卖点 {i}", labels(self.app))
+        self.assertIn("五点描述（每行一条）", labels(self.app))
         # 默认显示 5 行卖点；载入多卖点商品会扩展到最多 10 行（见 10 条回归用例）
-        self.assertEqual(len([l for l in labels(self.app) if l.startswith("卖点 ")]), 5)
+        self.assertEqual(len([l for l in labels(self.app) if l == "五点描述（每行一条）"]), 1)
         self.assertIn("标题", labels(self.app))
         self.assertIn("标准价", labels(self.app))
-        self.assertIn("Search Terms（≤250 字节）", labels(self.app))
+        self.assertIn("Search Terms（建议不超过 250 字节）", labels(self.app))
         # 发布必填属性输入框（task-9）
         for attr_label in ("型号（model_number）", "型号名称（model_name）",
                            "零件编号（part_number）",
@@ -632,12 +640,12 @@ class AmazonPageTests(unittest.TestCase):
             self.assertIn(attr_label, labels(self.app))
         for btn in ("读取本机 Cookie", "检测连接", "刷新", "上一页", "下一页",
                     "加载类目", "校验路径", "AI/平台推荐产品类型",
-                    "AI 生成标题", "AI 生成五点", "＋添加卖点", "AI 生成描述",
+                    "AI 生成标题", "AI 生成五点", "AI 生成描述",
                     "AI 生成关键词",
                     "AI 一键生成全部（付费）", "AI 生成 SKU", "刷新运费模板",
                     "查看 productAttr（只读）", "保存到 Amazon",
                     "查询发布结果", "自动补齐并重试发布", "自动发布（自动修复）",
-                    "自动补齐必填属性", "套用", "恢复内置", "复制提示词"):
+                    "自动补齐必填属性", "恢复内置", "复制提示词"):
             find_button(self.app, btn)
         # 预设下拉 6 类（5 文案 + 图片）
         for label in ("标题预设", "五点描述预设", "产品描述预设",
@@ -652,74 +660,21 @@ class AmazonPageTests(unittest.TestCase):
                                 for b in buttons(self.app)), label)
 
     def test_page_13_layout_groups_controls_by_function(self):
-        """task-19：7 卡按功能分组，控件归属正确、步骤条与卡片顺序一致。"""
         self.app._switch(13)
+        self.assertEqual(self.app._current, 13)
+        for action in ("检测连接", "自动补齐必填属性", "刷新运费模板", "AI 生成 SKU",
+                       "AI 生成五点", "保存到 Amazon", "自动发布（自动修复）"):
+            find_button(self.app, action)
+        self.app._switch(17)
+        find_button(self.app, "自动补齐必填属性")
+        self.assertNotIn("SKU", labels(self.app))
+        self.app._switch(34)
+        self.assertIn("SKU", labels(self.app))
+        self.assertNotIn("标准价", labels(self.app))
+        self.app._switch(19)
+        self.assertEqual(sum(1 for b in buttons(self.app) if b.text == "AI 生成五点"), 1)
+        self.assertFalse(any(b.text == "AI" for b in buttons(self.app)))
 
-        def first_title(card):
-            for x in walk([card]):
-                if (isinstance(x, ft.Text) and x.value
-                        and x.value[0] in "①②③④⑤⑥⑦" and "→" not in x.value):
-                    return x.value
-            return ""
-
-        cards = [c for c in self.app.content.controls if first_title(c)]
-        titles = [first_title(c) for c in cards]
-        self.assertEqual(len(titles), 7, f"应为 7 张功能卡：{titles}")
-        expected = ["① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
-                    "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
-                    "⑤ 文案与 AI", "⑥ AI 图片（图片只读，v1 备用）",
-                    "⑦ 发布与结果"]
-        self.assertEqual(titles, expected)
-
-        def texts_of(card):
-            return [str(x.value) for x in walk([card])
-                    if isinstance(x, ft.Text) and x.value]
-
-        def labels_of(card):
-            return [str(getattr(x, "label", "")) for x in walk([card])
-                    if getattr(x, "label", "")]
-
-        def btns_of(card):
-            return [str(getattr(x, "text", "")) for x in walk([card])
-                    if hasattr(x, "text")]
-
-        # ③ 类目：productAttr 只读查看移入本卡
-        self.assertIn("类目属性（只读）", texts_of(cards[2]))
-        self.assertTrue(any("查看 productAttr" in b for b in btns_of(cards[2])))
-        # ④ 商品信息：价格/必填属性/SKU AI；不含图片缩略图、不含文案预设
-        self.assertIn("标准价", labels_of(cards[3]))
-        self.assertIn("型号（model_number）", labels_of(cards[3]))
-        self.assertIn("自动补齐必填属性", btns_of(cards[3]))
-        self.assertFalse(any("图片：主图" in t for t in texts_of(cards[3])),
-                         "④ 商品信息不应再显示图片")
-        self.assertNotIn("标题预设", labels_of(cards[3]))
-        # ⑤ 文案与 AI：标题/五点/描述/关键词 + 文案预设合并到卡内
-        self.assertIn("标题", labels_of(cards[4]))
-        for preset_label in ("标题预设", "五点描述预设", "产品描述预设",
-                             "Search Terms预设", "SKU预设"):
-            self.assertIn(preset_label, labels_of(cards[4]),
-                          f"⑤ 文案卡缺少预设：{preset_label}")
-        self.assertTrue(any("AI 一键生成全部（付费）" == b
-                            for b in btns_of(cards[4])))
-        self.assertNotIn("图片预设", labels_of(cards[4]))
-        # ⑥ AI 图片：缩略图 + 图片预设（套用/恢复/复制）
-        self.assertTrue(any("图片：主图" in t for t in texts_of(cards[5])),
-                        "⑥ AI 图片卡缺少图片数量/缩略图")
-        self.assertIn("图片预设", labels_of(cards[5]))
-        self.assertTrue(any("复制提示词" == b for b in btns_of(cards[5])))
-        self.assertNotIn("保存到 Amazon", btns_of(cards[5]))
-        # ⑦ 发布与结果：保存/查询/自动重试/自动发布+选项/结果
-        for b in ("保存到 Amazon", "查询发布结果", "自动补齐并重试发布",
-                  "自动发布（自动修复）"):
-            self.assertIn(b, btns_of(cards[6]), f"⑦ 发布卡缺少：{b}")
-        self.assertIn("自动发布动作", labels_of(cards[6]))
-        self.assertFalse(any("标题预设" in l for l in labels_of(cards[6])))
-        # 步骤条与卡顺序一致（⑤ 在 ⑦ 之前，⑥ 在 ⑦ 之前）
-        steps = [t for t in texts(self.app)
-                 if "① 连接店铺/站点" in t and "⑦ 发布与结果" in t]
-        self.assertTrue(steps, "缺少新的 7 步步骤条")
-        self.assertLess(steps[0].index("⑤ 文案与 AI"), steps[0].index("⑦ 发布与结果"))
-        self.assertLess(steps[0].index("⑥ AI 图片"), steps[0].index("⑦ 发布与结果"))
 
     def test_amazon_page_has_no_dev_wording(self):
         """正式版：Amazon 13 页可见文本不得出现测试/开发措辞。"""
@@ -762,8 +717,8 @@ class AmazonPageTests(unittest.TestCase):
         self.assertEqual(self.app.cfg.amazon_test_product_id, PRODUCT_ID)
         title = find_control(self.app, ft.TextField, lambda c: getattr(c, "label", "") == "标题")
         self.assertEqual(title.value, "Fake Backhoe Title")
-        bullet1 = find_control(self.app, ft.TextField, lambda c: getattr(c, "label", "") == "卖点 1")
-        self.assertEqual(bullet1.value, "FEATURE one")
+        bullet1 = find_control(self.app, ft.TextField, lambda c: getattr(c, "label", "") == "五点描述（每行一条）")
+        self.assertEqual(bullet1.value.splitlines()[0], "FEATURE one")
         price = find_control(self.app, ft.TextField, lambda c: getattr(c, "label", "") == "标准价")
         self.assertEqual(price.value, "12.5")
         self.assertEqual(self.app.cfg.amazon_category_id, CATEGORY_ID)
@@ -820,7 +775,7 @@ class AmazonPageTests(unittest.TestCase):
             self.assertEqual(len(dd.options), 2)
             key = str(dd.options[0].key)
             dd.value = key
-            click(self._preset_buttons("套用")[0])
+            change(dd)
             prompt = mod.presets["title"][key]["prompt"]
             self.assertEqual(self.app.cfg.amazon_title_prompt, prompt)
             self.assertEqual(self.app.cfg.amazon_title_preset, key)
@@ -867,12 +822,12 @@ class AmazonPageTests(unittest.TestCase):
             self.app._switch(0)
             self.app._switch(13)
             self._load_product()
+            self.app._switch(13)  # Load the product site's isolated prompt profile.
             dd = self._preset_dropdown("图片预设")
             self.assertIsNotNone(dd)
             key = "main_white"
             dd.value = key
-            # 第 6 个「套用」= 图片卡（前 5 个是标题/五点/描述/Search Terms/SKU）
-            click(self._preset_buttons("套用")[5])
+            change(dd)
             self.assertEqual(self.app.cfg.amazon_image_prompt,
                              mod.presets["image"][key]["prompt"])
             self.assertIn(mod.presets["image"][key]["name"], " ".join(texts(self.app)))
@@ -900,11 +855,11 @@ class AmazonPageTests(unittest.TestCase):
             self.app._switch(13)
             dd = self._preset_dropdown("标题预设")
             self.assertTrue(dd.disabled, "预设库缺失时下拉应禁用")
-            click(self._preset_buttons("套用")[0])
+            change(dd)
         self.assertIn("预设库未就绪", snack(self.app))
-        self.assertIn("AI 提示词预设（文案：标题 / 五点 / 描述 / Search Terms / SKU）",
+        self.assertIn("文案提示词",
                       " ".join(texts(self.app)))
-        self.assertIn("⑥ AI 图片（图片只读，v1 备用）", " ".join(texts(self.app)))
+        self.assertIn("商品图片", " ".join(texts(self.app)))
 
     # ---------- ④ AI ----------
     def test_ai_generation_needs_switch_then_fills_fields(self):
@@ -945,51 +900,32 @@ class AmazonPageTests(unittest.TestCase):
             self.assertIn("付费", str(self.app.page.dialog.title.value))
             click(self.app.page.dialog.actions[1])
         self.assertTrue(env2.calls["ai_all"])
-        bullet1 = find_control(self.app, ft.TextField, lambda c: getattr(c, "label", "") == "卖点 1")
-        self.assertEqual(bullet1.value, "AI 卖点 1")
+        bullet1 = find_control(self.app, ft.TextField, lambda c: getattr(c, "label", "") == "五点描述（每行一条）")
+        self.assertEqual(bullet1.value.splitlines()[0], "AI 卖点 1")
         desc = find_control(self.app, ft.TextField, lambda c: "产品描述" in str(getattr(c, "label", "")))
         self.assertIn("AI 描述", desc.value)
 
     def test_ten_bullets_are_preserved_on_save(self):
-        """P0 回归：商品有 10 条卖点时，UI 显示 10 行且保存 overrides 保留 10 条。
-
-        真实采集箱商品多为 10 条卖点（schema maxItems=10）；只显示 5 行会在保存时
-        把第 6~10 条写丢，落到平台。
-        """
         self.app._switch(13)
         self._load_product()
-        bullet_fields = [c for c in controls(self.app)
-                         if isinstance(c, ft.TextField)
-                         and str(getattr(c, "label", "")).startswith("卖点 ")]
-        self.assertEqual(len(bullet_fields), 10,
-                         "载入 10 条卖点必须显示 10 行（不能截断成 5）")
-        self.assertEqual(bullet_fields[9].value, "FEATURE ten")
-        # 计数：n/700，>500 黄字，>700 红字
-        counters = [c for c in controls(self.app)
-                    if isinstance(c, ft.Text) and c.value and "/700" in str(c.value)]
-        self.assertEqual(len(counters), 10, "每条卖点应有 n/700 计数")
-        bullet_fields[0].value = "x" * 501
-        change(bullet_fields[0])
-        self.assertTrue(any(isinstance(c, ft.Text) and c.value == "501/700"
-                            and c.color == ui.WARN_C for c in controls(self.app)))
-        bullet_fields[0].value = "x" * 701
-        change(bullet_fields[0])
-        self.assertTrue(any(isinstance(c, ft.Text) and c.value == "701/700"
+        editor = find_control(self.app, ft.TextField,
+                              lambda c: c.label == "五点描述（每行一条）")
+        values = editor.value.splitlines()
+        self.assertEqual(len(values), 10)
+        self.assertEqual(values[-1], "FEATURE ten")
+        editor.value = "\n".join(["x" * 701, *values[1:]])
+        change(editor)
+        self.assertTrue(any(isinstance(c, ft.Text) and "701/700" in str(c.value)
                             and c.color == ui.DANGER_C for c in controls(self.app)))
-        bullet_fields[0].value = "FEATURE one"
-        change(bullet_fields[0])
-        # 保存 overrides 必须带全部 10 条（真实保存使用同一份 overrides 组装逻辑）
+        editor.value = "\n".join(values)
+        change(editor)
         self._real_mode()
         with fake_backend() as env, sync_threads():
             click(find_button(self.app, "保存到 Amazon"))
             click(self.app.page.dialog.actions[1])
         overrides = env.calls["run"][-1]["overrides"]
-        self.assertEqual(len(overrides["bullets"]), 10, overrides["bullets"])
-        self.assertEqual(overrides["bullets"][0], "FEATURE one")
-        self.assertEqual(overrides["bullets"][-1], "FEATURE ten")
-        # 到 10 行上限后「＋添加卖点」给出明确提示
-        click(find_button(self.app, "＋添加卖点"))
-        self.assertIn("最多 10 行", snack(self.app))
+        self.assertEqual(overrides["bullets"], values)
+
 
     # ---------- ⑥ 保存 / 发布 ----------
     def _load_product(self):
@@ -1082,6 +1018,33 @@ class AmazonPageTests(unittest.TestCase):
             self.assertEqual(overrides["bullets"][0], "FEATURE one")
 
     # ---------- 发布结果 / 必填属性 (task-9) ----------
+    def test_review_notice_does_not_hide_actionable_failure_in_editor(self):
+        self.app._switch(13)
+        self._load_product()
+        error = "code:100521,正在审查;code:90220,属性:country_of_origin"
+        with fake_backend({"verify": {"state": "publishFail", "err_msg": error}}), sync_threads():
+            click(find_button(self.app, "查询发布结果"))
+        self.assertTrue(any(isinstance(c, ft.Text) and c.value == "发布失败"
+                            and c.color == ui.DANGER_C for c in controls(self.app)))
+
+    def test_old_publish_lookup_cannot_restore_attributes_after_switching_product(self):
+        self.app.cfg.set("amazon_shop_id", "9408005")
+        self.app.cfg.set("amazon_site", MARKETPLACE)
+        with fake_backend() as env, sync_threads():
+            self.app._switch(16)
+            picker = find_control(self.app, ft.TextField, lambda c: c.label == "或输入商品 ID")
+            picker.value = PRODUCT_ID
+            click(find_button(self.app, "按 ID 载入"))
+            def lookup(*args, **kwargs):
+                click(find_button(self.app, "换一件商品"))
+                picker.value = "second"
+                click(find_button(self.app, "按 ID 载入"))
+                return {"state": "publishFail", "err_msg": "code:90220,属性:country_of_origin"}
+            env.pipeline.verify_publish = lookup
+            click(find_button(self.app, "查询发布结果"))
+        self.assertEqual(self.app._amz_form["id"], "second")
+        self.assertNotIn("country_of_origin", self.app._amz_missing_attrs)
+
     def _set_op2(self):
         op_dd = find_control(self.app, ft.Dropdown,
                              lambda c: getattr(c, "label", "") == "保存动作")
@@ -1387,63 +1350,29 @@ class AmazonPageTests(unittest.TestCase):
         self.assertIn("未就绪", joined)
 
     # ---------- 守卫 ----------
-    def test_overview_uses_amazon_counts_and_jumps_to_13(self):
+    def test_overview_opens_run_page(self):
         self.app._switch(0)
-        self.assertEqual({k for k in self.app.ov_tiles}, {"draft", "offline", "online",
-                                                          "publishFail"})
-        # 计数刷新后数字块更新（只读缓存）
-        self.app.amazon_counts = {"draft": 16, "offline": 5, "online": 142,
-                                  "publishFail": 21}
-        self.app._update_amazon_tiles()
-        self.assertEqual({k: v.value for k, v in self.app.ov_tiles.items()},
-                         {"draft": "16", "offline": "5", "online": "142",
-                          "publishFail": "21"})
-        # 点「去 Amazon 刊登」→ 13
-        click(find_button(self.app, "去 Amazon 刊登"))
-        self.assertEqual(self.app._page_idx, 13)
-        # 工作流入口都指向 13 / 10（不再出现 1、3 号 SMT 页）
-        self.app._switch(0)
-        workflow_targets = []
-        for ctrl in buttons(self.app):
-            if str(getattr(ctrl, "text", "")).startswith(("01  ", "02  ", "03  ", "04  ")):
-                workflow_targets.append(str(getattr(ctrl, "text", "")))
-        self.assertTrue(any("Amazon 刊登" in t for t in workflow_targets))
-        # 8 号发布队列在 Amazon 平台不可达 → 回概览
-        self.app._switch(8)
-        self.assertEqual(self.app._page_idx, 0)
+        labels = [str(getattr(c, "text", "")) for c in walk(self.app.content.controls)]
+        self.assertIn("去运行与结果", labels)
+        self.assertNotIn("选择商品", labels)
+        button = next(c for c in walk(self.app.content.controls) if getattr(c, "text", "") == "去运行与结果")
+        button.on_click(SimpleNamespace(control=button))
+        self.assertEqual(self.app._page_idx, 21)
+        self.assertTrue(any(getattr(c, "label", "") == "采集箱关键词（可选）" for c in walk(self.app.content.controls)))
 
     def test_amazon_platform_guards_block_smt_pipeline(self):
         self.app._switch(0)
         self.app._running = self.app._stop_requested = False
-        with patch.object(self.app, "_run_pipeline") as pipeline, \
-                patch.object(self.app, "_log") as log:
+        with patch("aeclone.ui.collect_workflow.launch") as launch, patch.object(self.app, "_run_pipeline") as pipeline:
             self.app._toggle_run()
-            self.assertEqual(self.app._page_idx, 13)
-            self.assertTrue(any(call.args and call.args[1] == "WARN"
-                                for call in log.call_args_list), "守卫必须写 WARN 日志")
-            pipeline.assert_not_called()
-            self.app._switch(0)
             self.app._start()
-            self.assertEqual(self.app._page_idx, 13)
-            pipeline.assert_not_called()
-            self.app._switch(0)
             self.app._on_key(SimpleNamespace(key="r", ctrl=True, meta=False))
-            self.assertEqual(self.app._page_idx, 13)
+            self.assertEqual(launch.call_count, 2)
+            self.assertTrue(all(c.args == (self.app, "amazon") for c in launch.call_args_list))
             pipeline.assert_not_called()
-        # 服务层兜底：即使被直接调用也不跑
         with patch.object(self.app, "_log") as log:
             self.app._run_pipeline()
-            self.assertTrue(any(call.args and call.args[1] == "ERROR"
-                                for call in log.call_args_list))
-        # SMT 写操作守卫（发布队列 / 重试发布 / 定时发布）
-        with patch.object(self.app, "_log") as log:
-            done = MagicMock()
-            self.app._publish_one("123", on_done=done)
-            done.assert_called_once()
-            self.app._retry_publish_failed()
-            self.app._run_scheduled(SimpleNamespace(product_id="1", title="t"))
-            self.assertEqual(self.app._page_idx, 13, "定时器在 Amazon 平台应跳 13 号页")
-            self.assertTrue(log.called, "SMT 写操作守卫必须写日志")
+            self.assertTrue(any(call.args[1] == "ERROR" for call in log.call_args_list))
 
     # ---------- 后端未就绪 / 空数据 ----------
     def test_page_and_callbacks_survive_missing_backend(self):

@@ -110,6 +110,11 @@ class FakeClient:
         self.schema_calls = []
         self.banned_texts = []
         self.saved = []          # [(product, save, op)]
+        self.online_categories = {"202107201": 3}   # 经营类目预检样本
+
+    def online_category_scope(self, max_pages=10, page_size=100):
+        return {"categories": dict(self.online_categories), "scanned": 300,
+                "total": 1000, "pages": 3}
 
     def product_detail(self, product_id):
         self.detail_calls.append(product_id)
@@ -231,7 +236,9 @@ class DryRunTests(unittest.TestCase):
         with clean_env():
             r = run_alibaba_product("pid-1", make_cfg(), client=client,
                                     text_pipeline=FakeTextPipeline())
-        self.assertTrue(r.ok, r.error)
+        # Alibaba 要求 3 个必填关键词：只有 1 个时保存必须被拦下（不能静默发布）。
+        self.assertFalse(r.ok)
+        self.assertIn("至少 3 个", str(r.error))
         self.assertEqual(r.keywords, ["fiberglass pool"])
         self.assertTrue(any("关键词仅 1 个" in w for w in r.warnings))
 
@@ -336,6 +343,7 @@ class SafetyGuardTests(unittest.TestCase):
             passed = True
             fixes = []
             blockers = []
+            items = []
 
         from unittest.mock import patch as _patch
         for op in (OP_SAVE, OP_PUBLISH, OP_MOVE_PENDING, OP_SCHEDULE):
@@ -499,6 +507,130 @@ class AiKeywordTests(unittest.TestCase):
         self.assertNotIn("–", out)
         self.assertNotIn("—", out)
         self.assertLessEqual(len(out), 128)
+
+
+class PublishStatePollTests(unittest.TestCase):
+    """op=2 提交后的状态回读：审核中不能误报失败；发布失败要报原因。"""
+
+    class _OkScore:
+        total = 4.8
+        passed = True
+        fixes = []
+        blockers = []
+        items = []
+
+    class _Client(FakeClient):
+        def __init__(self, mode):
+            super().__init__()
+            self.mode = mode
+            self.after_save = 0
+
+        def product_detail(self, product_id):
+            self.detail_calls.append(product_id)
+            p = dict(self.product)
+            if not self.saved:
+                return p
+            self.after_save += 1
+            if self.mode == "auditing":
+                err = ("systemError:PUB_BIZCHECK_PRODUCT_IN_AUDITING:"
+                       "您的产品目前正在审核中。请不要重新提交。") if self.after_save <= 1 else ""
+                p.update({"dxmState": "online", "dxmOfflineState": None,
+                          "productStatusType": None, "errMsg": err})
+            else:
+                p.update({"dxmState": "offline", "dxmOfflineState": "publishFail",
+                          "productStatusType": None,
+                          "errMsg": "PUB_BIZCHECK_CAT_PUB_RESTRICT 当前商品类目不在线上经营类目范围内"})
+            return p
+
+    def _run(self, mode):
+        from unittest.mock import patch as _patch
+        client = self._Client(mode)
+        with clean_env(AURORA_SKIP_LICENSE="1"), \
+                _patch("aeclone.services.alibaba_pipeline.time.sleep",
+                       lambda *a, **k: None), \
+                _patch("aeclone.services.alibaba_score.score_product",
+                       return_value=self._OkScore()):
+            return run_alibaba_product("pid-1", make_cfg(), dry_run=False, op="2",
+                                       client=client, text_pipeline=FakeTextPipeline())
+
+    def test_auditing_is_success_not_failure(self):
+        r = self._run("auditing")
+        self.assertTrue(r.ok, r.error)
+        self.assertTrue(r.auditing)
+        self.assertTrue(any(s.name == "发布结果" and s.ok for s in r.steps), r.steps)
+
+    def test_publish_fail_reports_reason(self):
+        r = self._run("fail")
+        self.assertFalse(r.ok)
+        self.assertIn("经营类目", r.error)
+        self.assertFalse(any(s.name == "发布结果" and s.ok for s in r.steps))
+
+
+class ScheduleOpTests(unittest.TestCase):
+    class _OkScore:
+        total = 4.8
+        passed = True
+        fixes = []
+        blockers = []
+        items = []
+
+    def test_schedule_time_parsed_to_ms(self):
+        from aeclone.services.alibaba_payload import schedule_time_ms
+        ms = schedule_time_ms("2030-01-01 09:00:00")
+        self.assertIsInstance(ms, int)
+        self.assertEqual(ms % 1000, 0)
+        self.assertIsNone(schedule_time_ms(""))
+        self.assertIsNone(schedule_time_ms("not-a-date"))
+
+    def test_op5_writes_dxm_schedule_time(self):
+        from unittest.mock import patch as _patch
+        client = FakeClient()
+        cfg = make_cfg()
+        cfg.set("alibaba_schedule_time", "2030-01-01 09:00:00")
+        with clean_env(AURORA_SKIP_LICENSE="1"), \
+                _patch("aeclone.services.alibaba_score.score_product",
+                       return_value=self._OkScore()):
+            r = run_alibaba_product("pid-1", cfg, dry_run=False, op=OP_SCHEDULE,
+                                    client=client, text_pipeline=FakeTextPipeline())
+        self.assertTrue(r.ok, r.error)
+        save = client.saved[-1][1]
+        self.assertIn("dxmScheduleTime", save)
+        self.assertGreater(save["dxmScheduleTime"], 10**12)
+
+
+class CategoryScopePreflightTests(unittest.TestCase):
+    class _OkScore:
+        total = 4.8
+        passed = True
+        fixes = []
+        blockers = []
+        items = []
+
+    def _run(self, client):
+        from unittest.mock import patch as _patch
+        with clean_env(AURORA_SKIP_LICENSE="1"), \
+                _patch("aeclone.services.alibaba_score.score_product",
+                       return_value=self._OkScore()):
+            return run_alibaba_product("pid-1", make_cfg(), dry_run=True, op="2",
+                                       client=client, text_pipeline=FakeTextPipeline())
+
+    def test_op2_reports_in_scope_category(self):
+        r = self._run(FakeClient())
+        step = next((s for s in r.steps if s.name == "类目经营范围"), None)
+        self.assertIsNotNone(step, [s.name for s in r.steps])
+        self.assertTrue(step.ok, step.detail)
+        self.assertTrue(r.scope.get("in_scope_guess"))
+
+    def test_op2_warns_when_category_missing_from_scope(self):
+        client = FakeClient()
+        client.online_categories = {"999": 5}
+        r = self._run(client)
+        step = next((s for s in r.steps if s.name == "类目经营范围"), None)
+        self.assertIsNotNone(step)
+        self.assertFalse(step.ok)
+        self.assertFalse(r.scope.get("in_scope_guess"))
+        self.assertTrue(any("经营类目" in w and "PUB_BIZCHECK" in w for w in r.warnings),
+                        r.warnings)
 
 
 class DetailLimitTests(unittest.TestCase):

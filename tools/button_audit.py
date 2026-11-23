@@ -30,22 +30,9 @@ def populate(app, index):
 
 def _cases():
     """按平台实际页面生成审计用例：Alibaba 平台没有价格页/变种页。"""
-    from aeclone.platforms import get_platform
-    ali = get_platform("alibaba")
-    exp = get_platform("aliexpress")
-    amz = get_platform("amazon")
-    ttk = get_platform("tiktok")
-    ali_ids = sorted({p.index for p in ali.pages})
-    exp_only = sorted({p.index for p in exp.pages} - set(ali_ids))
-    cases = [(idx, False, "alibaba") for idx in ali_ids]
-    cases += [(idx, False, "aliexpress") for idx in exp_only]
-    # Amazon 平台：遍历左侧导航全部可见页（含 15–21 功能页；13 为内部隐藏路由，不在导航）。
-    _amz_visible = sorted({p.index for p in amz.pages if not p.group.startswith("_")})
-    cases += [(idx, False, "amazon") for idx in _amz_visible if amz.page(idx)]
-    # TikTok 平台：遍历左侧导航全部可见功能页（0 + 15–21 + 10/11；
-    # 14 号为内部隐藏完整工作台，不在导航，另由 verify_tiktok_ui 覆盖）。
-    _ttk_visible = sorted({p.index for p in ttk.pages if not p.group.startswith("_")})
-    cases += [(idx, False, "tiktok") for idx in _ttk_visible if ttk.page(idx)]
+    from aeclone.platforms import PLATFORMS
+    cases = [(item.index, False, platform) for platform, pf in PLATFORMS.items()
+             if pf.implemented for item in pf.pages]
     cases += [(5, True, "alibaba"), (10, True, "alibaba")]
     return cases
 
@@ -84,6 +71,9 @@ def audit():
                 app.page.launched_urls.clear()
                 control = list(walk(app.content.controls))[position]
                 callback = getattr(control, event)
+                if title == "查看任务结果":
+                    stack.enter_context(patch.object(ft.Column, "scroll_to",
+                        lambda *a, **kw: native.append("scroll_to task results")))
                 try:
                     # 使用真实控件和合法当前值，避免把所有开关和下拉框都传成空字符串。
                     if event == "on_change" and isinstance(control, (ft.Switch, ft.Checkbox)):

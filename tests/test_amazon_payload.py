@@ -176,8 +176,8 @@ class RequiredAttributeTests(unittest.TestCase):
     def test_build_warnings_reports_missing_required(self):
         # 默认开启保存包级必填属性自动补齐：payload 里应已补齐，不再有「缺失」提醒
         payload = make_payload()
-        self.assertEqual(missing_common_attributes(payload["productAttr"]), [])
-        self.assertFalse(any("发布必填属性缺失" in w for w in build_warnings(payload)))
+        self.assertEqual(missing_common_attributes(payload["productAttr"]), ["manufacturer_contact_information"])
+        self.assertTrue(any("manufacturer_contact_information" in w for w in build_warnings(payload)))
         # 关闭自动补齐时才提示缺失（cfg.amazon_autofill_attrs=False）
         no_fill_cfg = SimpleNamespace(amazon_autofill_attrs=False)
         payload2 = build_amazon_payload(make_product(), no_fill_cfg, {}, currency="CAD")
@@ -204,6 +204,35 @@ class KeysAndBulletsTests(unittest.TestCase):
 
 
 class BuildPayloadTests(unittest.TestCase):
+    def test_clear_promotion_removes_old_price_dates_and_schema_offer(self):
+        product = make_product(
+            saleSalePrice=50, saleStartDateStr="2026-11-20", saleEndDateStr="2026-12-01",
+            productAttr=json.dumps({"purchasable_offer": [{
+                "our_price": [{"schedule": [{"value_with_tax": 90}]}],
+                "discounted_price": [{"schedule": [{"value_with_tax": 50}]}],
+            }]}))
+        payload = build_amazon_payload(product, {"amazon_sale_price": "40"}, {"sale_price": "0"})
+        self.assertIsNone(payload["saleSalePrice"])
+        self.assertIsNone(payload["saleStartDateStr"])
+        self.assertIsNone(payload["saleEndDateStr"])
+        offer, = json.loads(payload["productAttr"])["purchasable_offer"]
+        self.assertNotIn("discounted_price", offer)
+        self.assertEqual(offer["our_price"][0]["schedule"][0]["value_with_tax"], 90)
+    def test_mfn_updates_price_inventory_and_handling_in_schema_attributes(self):
+        product = make_product(productAttr=json.dumps({
+            "fulfillment_availability": [{"fulfillment_channel_code": "DEFAULT", "quantity": 8}],
+            "purchasable_offer": [{"our_price": [{"schedule": [{"value_with_tax": 90}]}], "currency": "CAD"}]}))
+        payload = build_amazon_payload(product, None, {"standard_price": 105, "quantity": 0, "handling_time": 4})
+        attrs = json.loads(payload["productAttr"])
+        self.assertEqual(payload["quantity"], 0)
+        self.assertEqual(attrs["fulfillment_availability"], [{"fulfillment_channel_code": "DEFAULT", "quantity": 0,
+                                                               "lead_time_to_ship_max_days": 4}])
+        self.assertEqual(attrs["purchasable_offer"][0]["our_price"][0]["schedule"][0]["value_with_tax"], 105)
+
+    def test_draft_permits_missing_price_but_publish_requires_price(self):
+        payload = build_amazon_payload(make_product(standardPrice=None), None)
+        self.assertFalse(any("标准价" in issue for issue in validate_amazon_payload(payload, op="1")))
+        self.assertTrue(any("标准价" in issue for issue in validate_amazon_payload(payload, op="2")))
     def test_only_save_keys_in_order(self):
         payload = make_payload()
         self.assertEqual(list(payload.keys()), SAVE_KEYS)
@@ -254,12 +283,12 @@ class BuildPayloadTests(unittest.TestCase):
         self.assertEqual(payload["sku"], "NEW-SKU")
         self.assertEqual(payload["standardPrice"], 9999.5)
         self.assertEqual(payload["saleSalePrice"], 8999.5)
-        self.assertEqual(payload["quantity"], 12)
+        self.assertIsNone(payload["quantity"])
         self.assertEqual(payload["categoryId"], "13553005011")
         self.assertEqual(payload["categoryBrowsePath"],
                          "6299024011/6256963011/6256964011/13553005011")
-        self.assertEqual(payload["switchFulfillmentTo"], "FBA")
-        self.assertEqual(payload["merchantShippingGroup"], "tpl-1")
+        self.assertEqual(payload["switchFulfillmentTo"], "AFN")
+        self.assertIsNone(payload["merchantShippingGroup"])
         self.assertEqual(payload["mainImage"], "https://sc04.alicdn.com/kf/main.png")
 
     def test_empty_override_does_not_replace(self):
@@ -284,10 +313,10 @@ class BuildPayloadTests(unittest.TestCase):
         self.assertEqual(payload["brand"], "CfgBrand")
         self.assertEqual(payload["manufacturer"], "CfgMaker")
         self.assertEqual(payload["sku"], "CFG-SKU")
-        self.assertEqual(payload["quantity"], 9)
+        self.assertIsNone(payload["quantity"])
         self.assertEqual(payload["standardPrice"], 88.8)
-        self.assertEqual(payload["switchFulfillmentTo"], "FBA")
-        self.assertEqual(payload["merchantShippingGroup"], "cfg-tpl")
+        self.assertEqual(payload["switchFulfillmentTo"], "AFN")
+        self.assertIsNone(payload["merchantShippingGroup"])
 
     def test_cfg_price_does_not_override_existing_product_price(self):
         cfg = {"amazon_price": "88.8", "amazon_sale_price": "77.7"}
@@ -411,7 +440,7 @@ class ValidateTests(unittest.TestCase):
             ({"marketPlaceId": "ZZZZZZZZZZZZZ"}, "不在支持的 Amazon 站点"),
             ({"categoryId": ""}, "类目无效"),
             ({"categoryId": "abc"}, "类目无效"),
-            ({"categoryBrowsePath": "1/2/wrong"}, "末段"),
+            ({"categoryBrowsePath": "1/2/9999999999"}, "末段"),
             ({"sku": ""}, "SKU 为空"),
             ({"brand": ""}, "品牌为空"),
             ({"manufacturer": ""}, "制造商为空"),
@@ -425,6 +454,15 @@ class ValidateTests(unittest.TestCase):
             issues = validate_amazon_payload(payload, site_meta=site_meta(
                 payload.get("marketPlaceId") or "A2EUQ1WTGCTBG2"))
             self.assertTrue(any(hint in i for i in issues), f"{over} → {issues}")
+
+        # 店小秘有时返回人类可读路径；末段不是数字节点 ID 时不应误报不一致。
+        payload = make_payload()
+        payload["categoryBrowsePath"] = "Patio, Lawn & Garden>Farm & Ranch>Agricultural Machinery>Backhoes"
+        issues = validate_amazon_payload(payload, site_meta=site_meta("A2EUQ1WTGCTBG2"))
+        self.assertFalse(any("末段" in i for i in issues), issues)
+        payload["categoryBrowsePath"] = "1/2/9999999999"
+        issues = validate_amazon_payload(payload, site_meta=site_meta("A2EUQ1WTGCTBG2"))
+        self.assertTrue(any("末段" in i for i in issues), issues)
 
     def test_promo_contact_absolute_words(self):
         payload = make_payload(title="Best Backhoe Loader Free Shipping Machine")

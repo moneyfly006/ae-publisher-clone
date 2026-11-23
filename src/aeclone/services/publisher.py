@@ -1860,10 +1860,10 @@ class Publisher:
             src = d / "m0.png"
             src.write_bytes(_rq.get(str(image_url), timeout=40).content)
             # 顺序很重要！店小秘/速卖通规定：
-            #   marketImg1 = 场景图，必须 ≥750x1000 且 3:4
+            #   marketImg1 = 场景图，必须 3:4 且最短边 ≥750（生成 800x1067，兼容 ≥800 主图门槛）
             #   marketImg2 = 白底图，必须 ≥800x800 且 1:1
             out = []
-            for i, size in enumerate(((750, 1000), (800, 800))):
+            for i, size in enumerate(((800, 1067), (800, 800))):
                 fp = d / f"mk{i}.jpg"
                 make_marketing(src, fp, size)
                 out.append(_up(fp))
@@ -2005,6 +2005,25 @@ class Publisher:
                 tpl = _cached_template_edit(self.dxm, _tid)
             except Exception:
                 tpl = None
+        # 平台主图不接受 webp：重试发布同样要先把目标商品 webp 主图/详情图转 JPG
+        try:
+            _wt = {"images": [x for x in str(target.get("imageURLs") or "").split(";") if x],
+                   "detail": str(target.get("detail") or "")}
+            self._fix_webp_images(_wt, res)
+            _changed = False
+            if _wt.get("images"):
+                _new_urls = ";".join(_wt["images"])
+                if _new_urls != str(target.get("imageURLs") or ""):
+                    target = dict(target); target["imageURLs"] = _new_urls; _changed = True
+            if _wt.get("detail") and _wt["detail"] != str(target.get("detail") or ""):
+                target = dict(target); target["detail"] = _wt["detail"]; _changed = True
+        except Exception as _we:  # noqa: BLE001
+            self._step_safe(res, "主图转JPG", False, str(_we)[:80])
+        _img_err = self._check_main_image_for_publish(
+            [x for x in str(target.get("imageURLs") or "").split(";") if x], res)
+        if _img_err:
+            return SaveResult(ok=False, message=_img_err)
+
         # User-triggered publication retries share the same free data repair checks.
         # Do not rerun AI or submit stale/ambiguous variant data unchanged.
         try:
@@ -2049,9 +2068,11 @@ class Publisher:
         except Exception:
             pass
 
+        _attr_ov = self._smt_attr_overrides(target, tpl, res)
         try:
             payload = build_save_payload(
                 target, tpl, action="publish",
+                overrides=_attr_ov or None,
                 custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None),
                 cargo_price=str(getattr(self.cfg, "declared_value", "") or "") or "50",
                 cfg=self.cfg)
@@ -2074,6 +2095,45 @@ class Publisher:
             return SaveResult(ok=True, published=True,
                               message=f"已在审核中（商品ID {pid}）：无需重复发布")
         return SaveResult(ok=False, message=f"发布失败：{_m2[:200]}")
+
+    def _check_main_image_for_publish(self, images, res=None) -> str:
+        """发布前校验主图可访问且确实是图片；返回中文错误（空=通过）。
+
+        实测 11 条历史发布失败为「主图处理出错：*.webp」——源图在店小秘 COS 已 404
+        或为 webp。webp 会在 _fix_webp_images 转换；源图 404 必须让用户换图，
+        不能带着坏图去提交平台。
+        """
+        import requests as _rq
+        urls = [str(u) for u in (images or []) if str(u).startswith("http")]
+        if not urls:
+            return ""
+        url = urls[0]
+        try:
+            r = _rq.get(url, timeout=20, stream=True)
+            if int(r.status_code) != 200:
+                return (f"主图链接失效（HTTP {r.status_code}）：{url[:110]}；"
+                        "请重新采集/替换主图后再发布")
+            chunk = b""
+            try:
+                chunk = r.raw.read(32) or b""
+            except Exception:
+                chunk = b""
+            ct = str(r.headers.get("content-type") or "").lower()
+            magic_ok = (chunk.startswith(b"\x89PNG") or chunk.startswith(b"\xff\xd8")
+                        or chunk.startswith(b"RIFF") or chunk.startswith(b"GIF8"))
+            if not (ct.startswith("image/") or magic_ok):
+                return (f"主图不是有效图片（content-type={ct or '未知'}）：{url[:110]}；"
+                        "请重新采集/替换主图后再发布")
+        except Exception as ex:  # noqa: BLE001
+            return f"主图无法访问（{str(ex)[:80]}）：{url[:110]}；请检查图片链接后再发布"
+        return ""
+
+    def _step_safe(self, res, name: str, ok: bool, detail: str = "") -> None:
+        """记录步骤；SaveResult（publish_only 重试路径）没有 steps 字段时忽略。"""
+        try:
+            add_step(res, name, ok, detail)
+        except Exception:
+            pass
 
     def _fix_webp_images(self, p: dict, res) -> None:
         """主图/详情图里的 .webp → JPG 再上传（平台主图不支持 webp）。"""
@@ -2101,7 +2161,7 @@ class Publisher:
             new = [_conv(u) for u in imgs]
             if new != imgs and any(x.lower().split("?")[0].endswith(".jpg") for x in new):
                 p["images"] = new
-                add_step(res, "主图转JPG", True, "webp 主图已转成 JPG 并重新上传")
+                self._step_safe(res, "主图转JPG", True, "webp 主图已转成 JPG 并重新上传")
         except Exception:
             pass
         try:
@@ -2124,7 +2184,7 @@ class Publisher:
                         changed = True
                 if changed:
                     p["detail"] = html
-                    add_step(res, "详情图压缩", True, "超过 5MB / webp 的详情图已压缩并重新上传")
+                    self._step_safe(res, "详情图压缩", True, "超过 5MB / webp 的详情图已压缩并重新上传")
         except Exception:
             pass
 
@@ -2324,6 +2384,181 @@ class Publisher:
             except Exception as ex2:  # noqa: BLE001
                 add_step(res, "视频上传", False, f"{str(ex)[:50]} / 兜底失败：{str(ex2)[:50]}")
 
+    def _smt_attr_overrides(self, target: dict, tpl: dict | None, res) -> dict:
+        """保存/发布前补齐速卖通类目必填属性（只补缺失、不覆盖已有；纯本地规则）。
+
+        - ``cfg.smt_attr_autofill`` 默认 True，可关闭；
+        - 类目属性定义来自店小秘只读接口 ``category_attributes``；
+        - 只返回 ``aeopAeProductPropertys`` 覆盖项，失败不阻断保存（add_step 记录原因）。
+        """
+        if not bool(getattr(self.cfg, "smt_attr_autofill", True)):
+            return {}
+        if self.dxm is None or not isinstance(target, dict):
+            return {}
+        try:
+            from .smt_attributes import parse_product_attributes, repair_product_attributes
+            cid = str(target.get("categoryId") or "").strip()
+            if not cid or cid in ("0", "-1", "None", "null"):
+                return {}
+            try:
+                attrs = self.dxm.category_attributes(cid) or []
+            except Exception as ex:  # noqa: BLE001
+                add_step(res, "属性补全", False, f"读取类目属性失败，跳过：{str(ex)[:60]}")
+                return {}
+            if not attrs:
+                return {}
+            tpl_props = None
+            if tpl:
+                raw = tpl.get("aeopAeProductPropertys") or tpl.get("productProperties")
+                if raw:
+                    try:
+                        tpl_props = parse_product_attributes(raw)
+                    except Exception:
+                        tpl_props = None
+            rep = repair_product_attributes(target, attrs, template_props=tpl_props)
+            new_json = (rep.get("payload") or {}).get("aeopAeProductPropertys")
+            if not new_json:
+                return {}
+            before = rep.get("before") or {}
+            after = rep.get("after") or {}
+            missing = rep.get("missing") or []
+            detail = (f"系统属性 {before.get('system_attributes', '?')}→"
+                      f"{after.get('system_attributes', '?')}；"
+                      f"自定义属性 {after.get('custom_attributes', '?')}")
+            if missing:
+                _r = str((missing[0] or {}).get("reason") or "").strip()
+                detail += f"；仍缺必填 {len(missing)} 项" + (f"（{_r[:40]}）" if _r else "")
+            else:
+                detail += "；必填已齐"
+            add_step(res, "属性补全", True, detail)
+            return {"aeopAeProductPropertys": str(new_json)}
+        except Exception as ex:  # noqa: BLE001
+            add_step(res, "属性补全", False, f"跳过（{str(ex)[:60]}）")
+            return {}
+
+    def _smt_freight_choices(self, target: dict) -> list[dict]:
+        try:
+            sid = str(target.get("shopId") or getattr(self.cfg, "store_id", "") or "")
+            return self.dxm.freight_templates(sid) if self.dxm is not None and sid else []
+        except Exception:
+            return []
+
+    def _smt_safe_freight_id(self, target: dict) -> str:
+        choices = self._smt_freight_choices(target)
+        ids = {str(x.get("templateId") or ""): str(x.get("templateName") or "") for x in choices}
+        configured = str(getattr(self.cfg, "smt_freight_template_id", "") or "").strip()
+        if configured and configured in ids:
+            return configured
+        for tid, name in ids.items():
+            if tid == "1000" or "new seller" in name.casefold() or "新卖家" in name:
+                return tid
+        return next((tid for tid in ids if tid), "")
+
+    def _smt_shipping_preflight(self, target: dict, res, tpl: dict | None = None) -> bool:
+        """运费模板预审：选模板时沿用模板物流，失败商品才切安全模板。"""
+        if not isinstance(target, dict) or self.dxm is None:
+            return False
+        state = str(target.get("dxmOfflineState") or "") or str(target.get("productStatusType") or "")
+        err = str(target.get("errMsg") or "")
+        _tpl_freight = str((tpl or {}).get("freightTemplateId") or "").strip()
+        if not _tpl_freight and tpl:
+            try:
+                import json as _j
+                _ts = tpl.get("aeopAeProductSKUs")
+                if isinstance(_ts, str):
+                    _ts = _j.loads(_ts)
+                if isinstance(_ts, list) and _ts:
+                    _tpl_freight = str((_ts[0] or {}).get("freightTemplateId") or "").strip()
+            except Exception:
+                _tpl_freight = ""
+        if _tpl_freight:
+            # 模板商品优先：把模板的运费模板写到目标商品及 SKU，不再自动换安全模板。
+            target["freightTemplateId"] = _tpl_freight
+            try:
+                import json as _j
+                skus = target.get("aeopAeProductSKUs")
+                if isinstance(skus, str):
+                    skus = _j.loads(skus or "[]")
+                if isinstance(skus, list):
+                    for sku in skus:
+                        if isinstance(sku, dict):
+                            sku["freightTemplateId"] = _tpl_freight
+                    target["aeopAeProductSKUs"] = _j.dumps(skus, ensure_ascii=False)
+            except Exception:
+                pass
+            add_step(res, "运费模板预审", True, f"沿用模板商品运费模板 {_tpl_freight}")
+            return True
+        safe = self._smt_safe_freight_id(target)
+        if not safe:
+            add_step(res, "运费模板预审", False, "店铺没有可用运费模板，无法自动切换")
+            return False
+        old = str(target.get("freightTemplateId") or "")
+        choices = {str(x.get("templateId") or "") for x in self._smt_freight_choices(target)}
+        # 发布失败，或现有模板不在店铺模板列表里：自动切换到安全模板。
+        should_switch = (state == "publishFail" or "DAILY_TPL" in err or "运费模板" in err
+                         or (choices and old and old not in choices))
+        if should_switch and old != safe:
+            target["freightTemplateId"] = safe
+            try:
+                import json as _j, copy as _c
+                skus = target.get("aeopAeProductSKUs")
+                if isinstance(skus, str):
+                    skus = _j.loads(skus or "[]")
+                if isinstance(skus, list):
+                    for sku in skus:
+                        if isinstance(sku, dict):
+                            sku["freightTemplateId"] = safe
+                    target["aeopAeProductSKUs"] = _j.dumps(skus, ensure_ascii=False)
+            except Exception:
+                pass
+            add_step(res, "运费模板预审", True,
+                     f"发布失败商品自动切换运费模板：{old or '空'} → {safe}")
+        if not should_switch:
+            add_step(res, "运费模板预审", True, f"沿用运费模板 {old or '空'}（预审通过）")
+        # 产地缺失/冲突是此错误的常见伴随项；交给现有属性补全在下一步处理。
+        try:
+            raw = str(target.get("aeopAeProductPropertys") or "[]")
+            import json as _j
+            attrs = _j.loads(raw) if isinstance(raw, str) else raw
+            origin = next((a for a in attrs if isinstance(a, dict) and
+                           str(a.get("attrName") or a.get("attrNameId") or "").casefold()
+                           in ("origin", "219", "place of origin")), None)
+            if not origin or not str(origin.get("attrValue") or origin.get("attrValueId") or "").strip():
+                add_step(res, "产地预审", False, "商品缺少产地（Origin），会自动用类目安全值补齐")
+        except Exception:
+            pass
+        return True
+
+    def _smt_retry_freight(self, payload: dict, target: dict, res):
+        """API 报 DAILY_TPL 时，用安全模板重试一次保存。"""
+        safe = self._smt_safe_freight_id(target)
+        if not safe or str(payload.get("freightTemplateId") or "") == safe:
+            return None
+        try:
+            import copy as _c
+            retry = _c.deepcopy(payload)
+            retry["freightTemplateId"] = safe
+            try:
+                import json as _j
+                skus = retry.get("aeopAeProductSKUs")
+                if isinstance(skus, str):
+                    skus = _j.loads(skus or "[]")
+                if isinstance(skus, list):
+                    for sku in skus:
+                        if isinstance(sku, dict):
+                            sku["freightTemplateId"] = safe
+                    retry["aeopAeProductSKUs"] = _j.dumps(skus, ensure_ascii=False)
+            except Exception:
+                pass
+            resp = self.dxm.save_product_via_api(retry)
+            if isinstance(resp, dict) and resp.get("code") == 0:
+                add_step(res, "运费模板自动修复", True,
+                         f"发布失败：已自动切换运费模板 {safe} 并重试成功")
+                return resp
+        except Exception:
+            pass
+        return None
+
     def _save_via_api(self, p: dict, res, action: str, ship, images: list[str] | None):
         """用 add.json 的 API 直存路径保存（绕开 DOM）。
 
@@ -2338,6 +2573,11 @@ class Publisher:
             return None
 
         pid = str(p.get("id", ""))
+        if str(action or "") == "publish":
+            _img_err = self._check_main_image_for_publish(images or p.get("images"), res)
+            if _img_err:
+                add_step(res, "主图校验", False, _img_err[:160])
+                return SaveResult(ok=False, message=_img_err)
         try:
             target = self.dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
             tpl = None
@@ -2386,6 +2626,17 @@ class Publisher:
                          f"计算价 ¥{_pf:.2f} 超过速卖通上限 999999，已截断为 999999")
             overrides = build_ai_overrides(target, p, self.cfg, images=_imgs, ship=ship,
                                            template=tpl)
+            # 类目必填属性补全（只补缺失；AI 已改属性时以 AI 值为基础再补）
+            try:
+                _merged_target = dict(target)
+                if isinstance(overrides, dict) and overrides.get("aeopAeProductPropertys"):
+                    _merged_target["aeopAeProductPropertys"] = overrides["aeopAeProductPropertys"]
+                _attr_ov = self._smt_attr_overrides(_merged_target, tpl, res)
+                if _attr_ov:
+                    overrides = dict(overrides or {})
+                    overrides.update(_attr_ov)
+            except Exception as _attr_ex:  # noqa: BLE001
+                add_step(res, "属性补全", False, f"跳过（{str(_attr_ex)[:60]}）")
 
             # 营销图是发布必填项：没有就本地裁切补上（免费，不做会报「请补充营销图」）
             try:
@@ -2418,6 +2669,7 @@ class Publisher:
                     add_step(res, "详情", True, f"描述图已压缩，详情长度 {len(_new_detail)}")
             except Exception as _ex:  # noqa: BLE001
                 add_step(res, "描述图压缩", False, str(_ex)[:80])
+            self._smt_shipping_preflight(target, res, tpl)
             payload = build_save_payload(
                 target, tpl, action=action, overrides=overrides,
                 custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None),
@@ -2439,6 +2691,12 @@ class Publisher:
             # 发布模式（op=2）被拒时降级为「保存」（op=1）：商品先落到待发布，
             # 用户可在店小秘里手动发布。常见于 SKU 缺速卖通侧信息
             # （isv.13CHK_SKU_FREIGHT_TEMPLATE_NULL）。
+            # 运费模板错误：先自动换店铺安全模板重试，再考虑降级保存。
+            if "DAILY_TPL" in _msg or "运费模板" in _msg:
+                _r = self._smt_retry_freight(payload, target, res)
+                if _r is not None:
+                    return SaveResult(ok=True, published=True,
+                                      message="发布成功（运费模板已自动修复）")
             if action == "publish":
                 try:
                     _fallback = dict(payload)
@@ -2462,6 +2720,11 @@ class Publisher:
             _msg = ((resp.get("data") or {}).get("msg") if isinstance(resp.get("data"), dict)
                     else str(resp.get("msg") or ""))
             if is_failure_msg(_msg):
+                if "DAILY_TPL" in _msg or "运费模板" in _msg:
+                    _r = self._smt_retry_freight(payload, target, res)
+                    if _r is not None:
+                        return SaveResult(ok=True, published=True,
+                                          message="发布成功（运费模板已自动修复）")
                 add_step(res, "API 直存", False, f"保存失败：{_msg[:200]}")
                 return SaveResult(ok=False, message=f"保存失败：{_msg[:200]}")
             _pid2 = ""
@@ -3057,8 +3320,15 @@ class Publisher:
                     import tempfile as _tf, requests as _rq
                     from pathlib import Path as _Pm
                     d_m = _Pm(_tf.mkdtemp())
-                    src = d_m / "m0.png"
-                    src.write_bytes(_rq.get(str(p["images"][0]), timeout=30).content)
+                    _src0 = str(p["images"][0])
+                    if _src0.startswith(("http://", "https://")):
+                        src = d_m / "m0.png"
+                        src.write_bytes(_rq.get(_src0, timeout=30).content)
+                    else:
+                        # 本地/临时图片路径：不能交给 requests；直接使用本地文件。
+                        src = _Pm(_src0)
+                        if not src.is_file():
+                            raise ValueError("主图本地文件不存在，无法生成营销图")
 
                     if _msrc == "local":
                         # 店小秘「一键生成」同款：本地裁切/补白，免费、秒出
@@ -3066,7 +3336,7 @@ class Publisher:
                         from .hosting import upload as _host_m
                         _mk = []
                         # 3:4 场景图在前（marketImg1），1:1 白底图在后（marketImg2）
-                        for _i, _sz in enumerate(((750, 1000), (800, 800))):
+                        for _i, _sz in enumerate(((800, 1067), (800, 800))):
                             _out = d_m / f"mk{_i}.jpg"
                             make_marketing(src, _out, _sz)
                             _mk.append(_host_m(_out))
@@ -3247,6 +3517,13 @@ class Publisher:
                 if self._aborted():
                     return self._halt(res, "主图视频")
                 self._prepare_video(p, res, product, dry_run)
+
+                # 主图/详情图 webp → JPG（平台主图不接受 webp；实测 11 次发布失败根因）
+                if not dry_run and p.get("images"):
+                    try:
+                        self._fix_webp_images(p, res)
+                    except Exception as ex:  # noqa: BLE001
+                        add_step(res, "主图转JPG", False, str(ex)[:80])
 
                 # API 直存（唯一保存路径，无 DOM 模拟、支持并发）
                 if self._aborted():

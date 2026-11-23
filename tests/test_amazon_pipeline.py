@@ -175,7 +175,7 @@ class ConstantsTests(unittest.TestCase):
             self.assertTrue(hasattr(cfg, key), key)
         self.assertEqual(cfg.amazon_fulfillment, "MFN")
         self.assertEqual(cfg.amazon_bullet_count, 5)
-        self.assertFalse(cfg.amazon_use_ai)
+        self.assertIsInstance(cfg.amazon_use_ai, bool)  # 安装预设可选择 AI 默认值
         self.assertEqual(cfg.amazon_list_state, "draft")
 
     def test_op_constants_and_labels(self):
@@ -346,6 +346,13 @@ class RunDryRunTests(EnvIsolatedCase):
         self.assertEqual(len(fake.category_queries), 1)
         self.assertIn("类目校验", res.log())
 
+    def test_prepare_save_rejects_a_parent_category_before_confirmation(self):
+        fake = FakeClient()
+        fake.category_by_path = lambda *args: {"categoryId": "13553005011", "leafCategory": "false"}
+        _, _, issues, _ = prepare_save("220114595363182310", AppConfig(), client=fake,
+                                       overrides={"category_path": "6299024011/13553005011"})
+        self.assertTrue(any("末级类目" in issue for issue in issues), issues)
+
     def test_bad_category_override_blocks(self):
         fake = FakeClient()
         res = run_amazon_product(
@@ -493,10 +500,9 @@ class RealSavePathTests(EnvIsolatedCase):
         self.assertEqual(sent_attr["model_number"][0]["value"], "WY-QHCA-LTM-1")
         self.assertEqual(sent_attr["part_number"][0]["value"], "WY-QHCA-LTM-1")
         self.assertEqual(sent_attr["model_name"][0]["value"], "WY-QHCA-LTM-1")
-        self.assertEqual(sent_attr["manufacturer_contact_information"][0]["value"],
-                         "Generic, CN")
+        self.assertNotIn("manufacturer_contact_information", sent_attr)
         self.assertEqual(
-            missing_common_attributes(sent["productAttr"]), [])
+            missing_common_attributes(sent["productAttr"]), ["manufacturer_contact_information"])
 
     def test_real_save_failure_message(self):
         class SaveFail(FakeClient):
@@ -527,7 +533,7 @@ class AutofillAttributesTests(unittest.TestCase):
         self.assertEqual(filled["model_number"], "HW20-28")
         self.assertEqual(filled["model_name"], "HW20-28")
         self.assertEqual(filled["part_number"], "WY-QHCA-LTM-1")
-        self.assertEqual(filled["manufacturer_contact_information"], "Generic, CN")
+        self.assertNotIn("manufacturer_contact_information", filled)
 
     def test_existing_and_override_not_overwritten(self):
         product = _hw_detail()["product"]
@@ -558,7 +564,7 @@ class AutofillAttributesTests(unittest.TestCase):
         self.assertEqual(filled["manufacturer_contact_information"],
                          "ACME Ltd, Shenzhen, CN")
 
-    def test_template_used_for_enum_and_dims_and_list_price(self):
+    def test_template_only_supplies_price_shape(self):
         template = {
             "power_source_type": [{"value": "diesel",
                                    "marketplace_id": "A2EUQ1WTGCTBG2"}],
@@ -577,10 +583,9 @@ class AutofillAttributesTests(unittest.TestCase):
             required=["power_source_type", "item_depth_width_height",
                       "supplier_declared_dg_hz_regulation", "list_price"],
             template=template)
-        self.assertEqual(filled["power_source_type"], "diesel")
-        self.assertEqual(filled["item_depth_width_height"][0]["length"]["value"], "102")
-        self.assertEqual(filled["supplier_declared_dg_hz_regulation"],
-                         "not_applicable")
+        self.assertEqual(filled["power_source_type"], "diesel_powered")
+        self.assertNotIn("item_depth_width_height", filled)
+        self.assertNotIn("supplier_declared_dg_hz_regulation", filled)
         # list_price 以模板结构为准，amount=商品库存标准价，currency=站点币种
         self.assertEqual(filled["list_price"][0]["value"],
                          {"currency": "CAD", "amount": 15999.0})
@@ -606,7 +611,8 @@ class AutofillAttributesTests(unittest.TestCase):
         filled = autofill_attributes(_hw_detail()["product"], AppConfig(),
                                      "A2EUQ1WTGCTBG2", required=required,
                                      template=template)
-        self.assertEqual(set(filled), set(required))
+        self.assertEqual(set(filled), set(required) - {"item_depth_width_height", "supplier_declared_dg_hz_regulation",
+                                                     "manufacturer_contact_information"})
         self.assertEqual(filled["country_of_origin"], "CN")
         self.assertEqual(filled["model_number"], "HW20-28")
 
@@ -622,17 +628,17 @@ class AutofillAttributesTests(unittest.TestCase):
 class DeterministicAttributeMappingTests(unittest.TestCase):
     """task-8 收尾：错误驱动第二轮确定性映射（无 template 也能补）。"""
 
-    def test_boolean_defaults(self):
+    def test_missing_booleans_are_not_invented(self):
         product = _hw_detail()["product"]
         product["productAttr"] = "{}"
         filled = autofill_attributes(
             product, AppConfig(), "A2EUQ1WTGCTBG2",
             required=["contains_liquid_contents", "batteries_required",
                       "is_expiration_dated_product", "is_assembly_required"])
-        self.assertIs(filled["contains_liquid_contents"], False)
-        self.assertIs(filled["batteries_required"], False)
-        self.assertIs(filled["is_expiration_dated_product"], False)
-        self.assertIs(filled["is_assembly_required"], False)
+        self.assertNotIn("contains_liquid_contents", filled)
+        self.assertNotIn("batteries_required", filled)
+        self.assertNotIn("is_expiration_dated_product", filled)
+        self.assertNotIn("is_assembly_required", filled)
 
     def test_is_assembly_required_true_when_title_mentions_assembly(self):
         product = _hw_detail()["product"]
@@ -657,31 +663,30 @@ class DeterministicAttributeMappingTests(unittest.TestCase):
                                          required=["power_source_type"])
             self.assertEqual(filled["power_source_type"], expected, title)
 
-    def test_power_source_fallback_notes_default(self):
+    def test_unknown_power_source_goes_to_notes(self):
         product = _hw_detail()["product"]
         product["title"] = "Heavy Duty Construction Machine"
         filled, notes = _autofill_attributes_with_notes(
             product, AppConfig(), "A2EUQ1WTGCTBG2",
             required=["power_source_type"], template={})
-        self.assertEqual(filled["power_source_type"], "diesel_powered")
-        self.assertTrue(any("安全默认 diesel_powered" in n for n in notes))
+        self.assertNotIn("power_source_type", filled)
+        self.assertTrue(any("需用户填写" in n for n in notes))
 
-    def test_supplier_default_not_applicable(self):
+    def test_unknown_dangerous_goods_classification_is_unset(self):
         filled = autofill_attributes(_hw_detail()["product"], AppConfig(),
                                      "A2EUQ1WTGCTBG2",
                                      required=["supplier_declared_dg_hz_regulation"])
-        self.assertEqual(filled["supplier_declared_dg_hz_regulation"],
-                         "not_applicable")
+        self.assertNotIn("supplier_declared_dg_hz_regulation", filled)
 
-    def test_country_default_cn_with_note(self):
+    def test_unknown_origin_goes_to_notes(self):
         product = _hw_detail()["product"]
         product["description"] = "<p>Heavy duty backhoe loader.</p>"
         product["title"] = "5 Ton Diesel Wheeled Backhoe Loader HW20-28"
         filled, notes = _autofill_attributes_with_notes(
             product, AppConfig(), "A2EUQ1WTGCTBG2",
             required=["country_of_origin"], template={})
-        self.assertEqual(filled["country_of_origin"], "CN")
-        self.assertTrue(any("默认 CN" in n for n in notes))
+        self.assertNotIn("country_of_origin", filled)
+        self.assertTrue(any("需用户填写" in n for n in notes))
 
     def test_list_price_default_format(self):
         filled = autofill_attributes(_hw_detail()["product"], AppConfig(),
@@ -720,12 +725,12 @@ class DeterministicAttributeMappingTests(unittest.TestCase):
         self.assertEqual(item["height"], {"value": "110", "unit": "inches"})
         self.assertEqual(item["marketplace_id"], "A2EUQ1WTGCTBG2")
 
-    def test_item_dimensions_regex_without_unit_defaults_mm(self):
+    def test_dimensions_without_units_are_unset(self):
         product = _hw_detail()["product"]
         product["description"] = "<p>Dimension: 6200x1960x2800 Make:Hengwang for transport.</p>"
         filled = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
                                      required=["item_dimensions"])
-        self.assertEqual(filled["item_dimensions"][0]["length"]["value"], "244")
+        self.assertNotIn("item_dimensions", filled)
 
     def test_item_dimensions_missing_goes_to_notes(self):
         product = _hw_detail()["product"]
@@ -746,9 +751,8 @@ class DeterministicAttributeMappingTests(unittest.TestCase):
                                       "country_of_origin"]}
         filled = autofill_attributes(product, AppConfig(), "A2EUQ1WTGCTBG2",
                                      overrides=ov)
-        self.assertEqual(set(filled), {"contains_liquid_contents",
-                                       "power_source_type", "country_of_origin"})
-        self.assertIs(filled["contains_liquid_contents"], False)
+        self.assertEqual(set(filled), {"power_source_type", "country_of_origin"})
+        self.assertNotIn("contains_liquid_contents", filled)
         self.assertEqual(filled["power_source_type"], "diesel_powered")
         self.assertEqual(filled["country_of_origin"], "CN")
 
@@ -852,7 +856,7 @@ class PublishVerifyTests(EnvIsolatedCase):
         self.assertEqual(attr["model_number"][0]["value"], "HW20-28")
         self.assertEqual(attr["model_number"][0]["language_tag"], "en_CA")
         self.assertEqual(attr["part_number"][0]["value"], "WY-QHCA-LTM-1")
-        self.assertTrue(attr["manufacturer_contact_information"][0]["value"])
+        self.assertNotIn("manufacturer_contact_information", attr)
 
     def test_run_op2_publish_failed_records_required_and_notes(self):
         os.environ["AURORA_SKIP_LICENSE"] = "1"

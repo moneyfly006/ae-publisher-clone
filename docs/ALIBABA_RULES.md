@@ -153,3 +153,24 @@ JSON 数组/对象统一以**字符串**形式放在字段里。
 - 必填：泳池 5 项；灌装机 10 项；涂层机械 6 项。
 - 自动补齐：Color=Blue（预设）、Material/Applicable People=Other。
 - FOB 干跑：`fob_price` 载荷生成 + 校验 0 问题。
+
+---
+
+## 10. 发布/审核硬规则（2026-11-22 实测，详见 ALIBABA_PUBLISH_RULES.md）
+
+`op=1` 保存成功 **不等于** 能发布；`op=2` 的真实规则：
+
+1. **发布是异步的**：`data.code=0` 只代表已提交；随后 `edit.json.errMsg` 会给出审核结果。
+   `PUB_BIZCHECK_PRODUCT_IN_AUDITING`（审核中）应判为「已提交成功」，重复提交会被平台拒绝。
+2. **经营类目范围**：`PUB_BIZCHECK_CAT_PUB_RESTRICT` = 店铺经营大类未包含该类目，
+   需卖家中心 → 店铺管理 → 管理公司信息 → 经营类目开通；软件用在线商品类目样本做预检+提醒。
+3. **textDesc 只收纯文本且 ≤2000 字符/1000 汉字**；HTML（含 style/img/script）会被拒
+   「不能输入HTML脚本」。保存前必须 `text_desc_plain()`。
+4. **发货期必填**：`wholesaleTrade.deliver_periods=[{"quantity":N,"process_period":D}]`；
+   缺失报「发货期信息未填写」。
+5. **重量/长宽高/物流属性全填或全清**：只填重量尺寸不填 `logisticsProperty` 会被拒；
+   普货示例 `general_cargo_0`，同时填 `shipping_line_template_id`。
+6. **发布门禁**：`op=2` 要求刊登评分 ≥4.5（`services/alibaba_score.py`），
+   评分覆盖类目属性/标题/关键词/详情/图片/视频/价格贸易/合规，不达标列出修复项。
+
+真实结果：机械类目商品已提交并进入审核；泳池类目因经营类目未开通被平台拒绝（评分 4.8 仍拒）。

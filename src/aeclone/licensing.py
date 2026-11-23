@@ -70,7 +70,8 @@ def issue_token(machine_code: str, platforms: dict[str, list[str]],
 
 def _parse_date(s: str) -> float:
     try:
-        return time.mktime(time.strptime(str(s).strip()[:10], "%Y-%m-%d"))
+        # A date-only entitlement remains valid through that local calendar day.
+        return time.mktime(time.strptime(str(s).strip()[:10] + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
     except Exception:
         return 0.0
 
@@ -93,10 +94,28 @@ class Entitlements:
         return [] if self.expired else list(self.platforms)
 
 
+def _legacy_migration_allowed(cfg) -> bool:
+    """旧设备授权客户在迁移期临时开通全部平台。
+
+    账号绑定后仍保留该标记，保证迁移客户不被账号套餐立刻降权；
+    管理员可通过清空 license_legacy_all / 重新下发 token 回收。
+    """
+    try:
+        if bool(getattr(cfg, "license_legacy_all", False)):
+            return True
+        if bool(getattr(cfg, "license_account_bound", False)):
+            return True
+        if str(getattr(cfg, "license_identity", "") or "").strip():
+            return True
+        return (bool(getattr(cfg, "license_cache_ok", False))
+                and getattr(cfg, "license_cache_legacy", True) is not False)
+    except Exception:
+        return False
+
+
 def _legacy_all_platforms(cfg) -> dict[str, list[str]]:
-    """旧客户兼容：已授权旧 license 的，默认开通 aliexpress + alibaba 的基础功能。"""
-    return {pid: list(feats) for pid, feats in PLATFORM_FEATURES.items()
-            if pid in ("alibaba", "aliexpress")}
+    """迁移期：旧授权客户临时开通全部平台全部功能。"""
+    return {pid: list(feats) for pid, feats in PLATFORM_FEATURES.items()}
 
 
 def load_entitlements(cfg, now: float | None = None,
@@ -125,19 +144,41 @@ def load_entitlements(cfg, now: float | None = None,
         offline_days = (now - cached_ts) / 86400 if cached_ts else 0
         expired = bool(payload.get("expires_at") and
                        now > _parse_date(payload["expires_at"]))
+        legacy_expiry = str(getattr(cfg, "license_cache_expiry", "") or "")
+        legacy_valid = ((bool(getattr(cfg, "license_cache_ok", False))
+                         and getattr(cfg, "license_cache_legacy", True) is not False
+                         and (not legacy_expiry or now <= _parse_date(legacy_expiry)))
+                        or _legacy_migration_allowed(cfg))
         if cached_ts and offline_days > grace_days:
+            if legacy_valid:
+                return Entitlements(platforms={pid: set(fs) for pid, fs in _legacy_all_platforms(cfg).items()},
+                                    expires_at=legacy_expiry, source="legacy")
             return Entitlements(expires_at=str(payload.get("expires_at") or ""),
                                 machine_code=str(payload.get("machine_code") or ""),
                                 source="token-offline-expired", expired=True)
-        platforms = {pid: set(v) for pid, v in (payload.get("platforms") or {}).items()}
+        feature_dates = payload.get("feature_expiries") or {}
+        if feature_dates:
+            platforms = {
+                pid: {f for f in features if now <= _parse_date(feature_dates.get(pid, {}).get(f, ""))}
+                for pid, features in (payload.get("platforms") or {}).items()
+            }
+            platforms = {pid: features for pid, features in platforms.items() if features}
+            expired = not bool(platforms)
+        else:
+            platforms = {pid: set(v) for pid, v in (payload.get("platforms") or {}).items()}
+        # A purchased account package must not remove an existing device license.
+        if legacy_valid:
+            for pid, features in _legacy_all_platforms(cfg).items():
+                platforms.setdefault(pid, set()).update(features)
+            expired = False
         return Entitlements(platforms=platforms,
                             expires_at=str(payload.get("expires_at") or ""),
                             machine_code=str(payload.get("machine_code") or ""),
                             source="token", expired=expired)
 
-    if bool(getattr(cfg, "license_cache_ok", False)):
+    if _legacy_migration_allowed(cfg):
         return Entitlements(platforms={k: set(v) for k, v in _legacy_all_platforms(cfg).items()},
-                            source="legacy")
+                            source="legacy-migration")
     return Entitlements(source="none")
 
 

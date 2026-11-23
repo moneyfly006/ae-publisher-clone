@@ -316,5 +316,539 @@
     "verified_at": "2026-11-21T00:18:54.380346",
     "signature": "PASS",
     "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "amazon-autopublish",
+    "build": "dist/verified-amazon-autopublish-20261122-040319/AuroraList.app",
+    "tests": [],
+    "sha256": "d5023a550e03e4857b51121ad974f60b7d6d1a23b588cf5be5af4da20407f8bb",
+    "verified_at": "2026-11-22T04:03:41.492731",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "all-platforms-final",
+    "build": "dist/verified-all-platforms-final-20261122-041130/AuroraList.app",
+    "tests": [],
+    "sha256": "d427f727b46e3ab3bf33c041153fb44882a55cc5c4f25630ffc0c297a26b30b5",
+    "verified_at": "2026-11-22T04:11:52.914872",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "smt-sku-fix",
+    "build": "dist/verified-smt-sku-fix-20261122-042204/AuroraList.app",
+    "tests": [],
+    "sha256": "98cb05a35beacaf5eaeccad7cf974148b9b76657c35ea78354f92e3d85c4787c",
+    "verified_at": "2026-11-22T04:22:26.949078",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "smt-sku-fix2",
+    "build": "dist/verified-smt-sku-fix2-20261122-042301/AuroraList.app",
+    "tests": [],
+    "sha256": "455126416c218998b36c292e9f83157a70a3fa0f6e8d2fe5ed00705701aed221",
+    "verified_at": "2026-11-22T04:23:23.061042",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "amazon-nav-split",
+    "build": "dist/verified-amazon-nav-split-20261122-133042/AuroraList.app",
+    "tests": [],
+    "sha256": "f12ad9db93a17d4fc0a0bc6da4e8c01422ae3a7b90bae285360716288dcd4c87",
+    "verified_at": "2026-11-22T13:31:08.555328",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-alibaba-workflow",
+    "build": "dist/verified-ui-alibaba-workflow-20261122-134012/AuroraList.app",
+    "tests": [
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "102f9fae23a0cee3d51d041238ed52bfd17e7415234598606b79ac03aee9aceb",
+    "verified_at": "2026-11-22T13:40:33.396767",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-amazon-workflow",
+    "build": "dist/verified-ui-amazon-workflow-20261122-134449/AuroraList.app",
+    "tests": [
+      "tests/test_platform_workflows.py",
+      "tests/test_amazon_prompts.py"
+    ],
+    "sha256": "dc012a68852fd0e042952a2af1f87e7140b24a278f44a8573d9202a9c2e071ba",
+    "verified_at": "2026-11-22T13:45:12.228767",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-tiktok-workflow",
+    "build": "dist/verified-ui-tiktok-workflow-20261122-134613/AuroraList.app",
+    "tests": [
+      "tests/test_tiktok_payload.py",
+      "tests/test_tiktok_prompts.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "8259893b9bc7ed6734c81fd40d74bfbb381cb32234b6370a6c55157d14dc3461",
+    "verified_at": "2026-11-22T13:46:35.058736",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-shopee-workflow",
+    "build": "dist/verified-ui-shopee-workflow-20261122-135848/AuroraList.app",
+    "tests": [
+      "tests/test_shopee_workflow.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "15a849bd4d40ae9cc59e1c696c6e29fa6f486895fd9c6d5492ad829670904622",
+    "verified_at": "2026-11-22T13:59:09.909563",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-alibaba-editor",
+    "build": "dist/verified-ui-alibaba-editor-20261122-140435/AuroraList.app",
+    "tests": [
+      "tests/test_alibaba_editor.py",
+      "tests/test_alibaba_payload.py",
+      "tests/test_alibaba_pipeline.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "fcdfa64b4ef9f490d1c4d1d7947f5a77e7c8327994e1ed59a0a5635067e7477f",
+    "verified_at": "2026-11-22T14:04:59.843563",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-amazon-editor-final",
+    "build": "dist/verified-ui-amazon-editor-final-20261122-141539/AuroraList.app",
+    "tests": [
+      "tests/test_platform_workflows.py",
+      "tests/test_amazon_ui_page.py",
+      "tests/test_amazon_payload.py"
+    ],
+    "sha256": "9589f7b85a5171d2f1d214fc19e29654399ac0565aab1560e2c6ad6b66175051",
+    "verified_at": "2026-11-22T14:16:07.381802",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-alibaba-complete",
+    "build": "dist/verified-ui-alibaba-complete-20261122-141847/AuroraList.app",
+    "tests": [
+      "tests/test_alibaba_editor.py",
+      "tests/test_alibaba_payload.py",
+      "tests/test_alibaba_pipeline.py",
+      "tests/test_media_actions.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "4ccbcf7b1d1cb61a7b43ba402e29b9c549771b55949bfab50e4107cfe2ff1da1",
+    "verified_at": "2026-11-22T14:19:15.605591",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-tiktok-complete",
+    "build": "dist/verified-ui-tiktok-complete-20261122-141939/AuroraList.app",
+    "tests": [
+      "tests/test_tiktok_ui_page.py",
+      "tests/test_tiktok_payload.py",
+      "tests/test_tiktok_pipeline.py",
+      "tests/test_media_actions.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "6c94cacdb1b0d420056d91491823d00c2a80e4eae7daafb75e1b2189e89e9bae",
+    "verified_at": "2026-11-22T14:20:02.694836",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-shopee-complete",
+    "build": "dist/verified-ui-shopee-complete-20261122-142110/AuroraList.app",
+    "tests": [
+      "tests/test_shopee_workflow.py",
+      "tests/test_media_actions.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "6b9b614f51945c74696d43dc4d02c1ccf12607c8da1c5adf5fe1b89a14c9a5ee",
+    "verified_at": "2026-11-22T14:21:35.082715",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-workflows-final",
+    "build": "dist/verified-ui-workflows-final-20261122-142212/AuroraList.app",
+    "tests": [
+      "tests/test_platform_workflows.py",
+      "tests/test_alibaba_editor.py",
+      "tests/test_shopee_workflow.py",
+      "tests/test_media_actions.py",
+      "tests/test_amazon_ui_page.py",
+      "tests/test_tiktok_ui_page.py"
+    ],
+    "sha256": "6e61ee97c918617405334264d74e314179efd34c1cac2066740c383b8e2179df",
+    "verified_at": "2026-11-22T14:22:42.257874",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "auto-alibaba",
+    "build": "dist/verified-auto-alibaba-20261122-144756/AuroraList.app",
+    "tests": [
+      "tests/test_collect_automation.py",
+      "tests/test_alibaba_payload.py",
+      "tests/test_alibaba_pipeline.py"
+    ],
+    "sha256": "9412264a476ca5c4211e8dfedca82bfb39196aae831b754299ccc2fa1c3bf9ae",
+    "verified_at": "2026-11-22T14:48:18.959103",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "auto-amazon",
+    "build": "dist/verified-auto-amazon-20261122-144918/AuroraList.app",
+    "tests": [
+      "tests/test_collect_automation.py",
+      "tests/test_amazon_pipeline.py",
+      "tests/test_amazon_payload.py"
+    ],
+    "sha256": "5531f35e9e241d1593d4f983993cd6ce27795314a4ba7b145f380d1ebba9a4e0",
+    "verified_at": "2026-11-22T14:49:39.895906",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "auto-tiktok",
+    "build": "dist/verified-auto-tiktok-20261122-145028/AuroraList.app",
+    "tests": [
+      "tests/test_collect_ui.py",
+      "tests/test_collect_automation.py",
+      "tests/test_tiktok_pipeline.py"
+    ],
+    "sha256": "01534c1ddd290d157dafa9e9e4a3d3707e94fc1e5c37c7d30a3d0c4b24915d0c",
+    "verified_at": "2026-11-22T14:50:50.878328",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "auto-shopee",
+    "build": "dist/verified-auto-shopee-20261122-145116/AuroraList.app",
+    "tests": [
+      "tests/test_collect_automation.py",
+      "tests/test_collect_ui.py",
+      "tests/test_shopee_workflow.py"
+    ],
+    "sha256": "783a7faf8e4c65935e4e2d41ce9494a3233badef84a683976b259c66582f449a",
+    "verified_at": "2026-11-22T14:51:38.508161",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "auto-workflows-final",
+    "build": "dist/verified-auto-workflows-final-20261122-145516/AuroraList.app",
+    "tests": [
+      "tests/test_collect_automation.py",
+      "tests/test_collect_ui.py",
+      "tests/test_alibaba_pipeline.py",
+      "tests/test_amazon_pipeline.py",
+      "tests/test_tiktok_pipeline.py",
+      "tests/test_shopee_workflow.py"
+    ],
+    "sha256": "53fc46214d7c6e76d93620d60e3984bbaa1e16e302dfb5fee553c791ed679b99",
+    "verified_at": "2026-11-22T14:55:41.602618",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "auto-workflows-release",
+    "build": "dist/verified-auto-workflows-release-20261122-145644/AuroraList.app",
+    "tests": [
+      "tests/test_collect_automation.py",
+      "tests/test_collect_ui.py",
+      "tests/test_alibaba_pipeline.py",
+      "tests/test_amazon_pipeline.py",
+      "tests/test_tiktok_pipeline.py",
+      "tests/test_shopee_workflow.py"
+    ],
+    "sha256": "3e4ad0c97cd87c89a5ea37ec7d684be0e680ee044d625489a247c7512c24dc46",
+    "verified_at": "2026-11-22T14:57:08.960114",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "recovery-audit",
+    "build": "dist/verified-recovery-audit-20261122-153145/AuroraList.app",
+    "tests": [
+      "tests/test_listing_recovery.py",
+      "tests/test_collect_ui.py",
+      "tests/test_amazon_payload.py",
+      "tests/test_amazon_pipeline.py",
+      "tests/test_collect_automation.py",
+      "tests/test_alibaba_pipeline.py"
+    ],
+    "sha256": "a7579c56be93624c8460b1fbea78958afeec1b5f4d16d2b4048113169f686e79",
+    "verified_at": "2026-11-22T15:32:10.501149",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "comprehensive-ai-alibaba",
+    "build": "dist/verified-comprehensive-ai-alibaba-20261122-154150/AuroraList.app",
+    "tests": [
+      "tests/test_collect_ai.py",
+      "tests/test_listing_recovery.py",
+      "tests/test_navigation_operations.py",
+      "tests/test_collect_ui.py"
+    ],
+    "sha256": "51c0f0fa09aaa556a4e697720492a191ac65c624b9278c7b12e7c64ad2464b2f",
+    "verified_at": "2026-11-22T15:42:14.997188",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "comprehensive-ai-amazon",
+    "build": "dist/verified-comprehensive-ai-amazon-20261122-155908/AuroraList.app",
+    "tests": [
+      "tests/test_collect_ai.py",
+      "tests/test_amazon_pipeline.py",
+      "tests/test_amazon_payload.py",
+      "tests/test_navigation_operations.py"
+    ],
+    "sha256": "d2592a7432a7e8873a441c2a63cc6d91bcf64bf77eddf0dce9f26aa0c7830814",
+    "verified_at": "2026-11-22T15:59:32.750687",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "comprehensive-ai-tiktok",
+    "build": "dist/verified-comprehensive-ai-tiktok-20261122-160216/AuroraList.app",
+    "tests": [
+      "tests/test_collect_ai.py",
+      "tests/test_tiktok_pipeline.py",
+      "tests/test_tiktok_payload.py",
+      "tests/test_navigation_operations.py"
+    ],
+    "sha256": "330761701405805e4683b4f6bd30c68358784b066e5cdb817caa0565644a096f",
+    "verified_at": "2026-11-22T16:02:44.736301",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "comprehensive-ai-shopee",
+    "build": "dist/verified-comprehensive-ai-shopee-20261122-160244/AuroraList.app",
+    "tests": [
+      "tests/test_collect_ai.py",
+      "tests/test_shopee_workflow.py",
+      "tests/test_collect_ui.py",
+      "tests/test_navigation_operations.py"
+    ],
+    "sha256": "e9cbca82ae28cc6423a7075b71fc61ceb4009a455c79eb45d14f1952b605a441",
+    "verified_at": "2026-11-22T16:03:11.137391",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "comprehensive-ai-final",
+    "build": "dist/verified-comprehensive-ai-final-20261122-160804/AuroraList.app",
+    "tests": [
+      "tests/test_collect_ai.py",
+      "tests/test_listing_recovery.py",
+      "tests/test_collect_ui.py",
+      "tests/test_navigation_operations.py",
+      "tests/test_platform_workflows.py",
+      "tests/test_shopee_workflow.py"
+    ],
+    "sha256": "95a669db9e759bb06ea2e2e27f26817e9686b4047aa4951f64b3e2a7900ae650",
+    "verified_at": "2026-11-22T16:08:37.681249",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-dedup-alibaba",
+    "build": "dist/verified-ui-dedup-alibaba-20261122-163039/AuroraList.app",
+    "tests": [
+      "tests/test_ui_function_dedup.py",
+      "tests/test_alibaba_editor.py"
+    ],
+    "sha256": "4ff13b121e48054f2a9289a6882abd28dfce6631c9805c5021c3b35e8eb25721",
+    "verified_at": "2026-11-22T16:31:04.857713",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-dedup-amazon",
+    "build": "dist/verified-ui-dedup-amazon-20261122-163201/AuroraList.app",
+    "tests": [
+      "tests/test_ui_function_dedup.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "307a4186ceba199749e0594737da4c7952ecaf25fe48d720d036d94d10cc77d9",
+    "verified_at": "2026-11-22T16:32:44.785888",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-dedup-tiktok",
+    "build": "dist/verified-ui-dedup-tiktok-20261122-163320/AuroraList.app",
+    "tests": [
+      "tests/test_ui_function_dedup.py",
+      "tests/test_tiktok_ui_page.py"
+    ],
+    "sha256": "0ca26a68817be26aaf0a7805a26013ba8a12ebd638579fc74555a4c97232898d",
+    "verified_at": "2026-11-22T16:34:06.538978",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "ui-dedup-shopee-final",
+    "build": "dist/verified-ui-dedup-shopee-final-20261122-163456/AuroraList.app",
+    "tests": [
+      "tests/test_ui_function_dedup.py",
+      "tests/test_collect_ui.py",
+      "tests/test_shopee_workflow.py"
+    ],
+    "sha256": "eacc26bc3d1f5efb775fb6d8511f81879cfbb8bdfd45be2d46200659a8fd9b70",
+    "verified_at": "2026-11-22T16:35:25.181494",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "followup-data-media",
+    "build": "dist/verified-followup-data-media-20261122-165738/AuroraList.app",
+    "tests": [
+      "tests/test_collect_ai.py",
+      "tests/test_media_actions.py",
+      "tests/test_collect_ui.py",
+      "tests/test_shopee_workflow.py",
+      "tests/test_ui_function_dedup.py"
+    ],
+    "sha256": "c97c23c06b018546b24125f0806c478b115511d4c5e36ad4819c208103c52c59",
+    "verified_at": "2026-11-22T16:58:08.321439",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "runtime-presets",
+    "build": "dist/verified-runtime-presets-20261122-173057/AuroraList.app",
+    "tests": [
+      "tests/test_collect_runtime.py",
+      "tests/test_collect_automation.py",
+      "tests/test_listing_recovery.py",
+      "tests/test_collect_ui.py"
+    ],
+    "sha256": "155c433c0c7cecef1058ce4bda66de1df9eaeea5c4a3ee7c0ccd278672c9c324",
+    "verified_at": "2026-11-22T17:31:31.664689",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "allopt-alibaba",
+    "build": "dist/verified-allopt-alibaba-20261122-184518/AuroraList.app",
+    "tests": [
+      "tests/test_collect_optimization.py",
+      "tests/test_alibaba_editor.py",
+      "tests/test_collect_ui.py"
+    ],
+    "sha256": "9c80e13c5ffff832fb8452b5bb2e70199cc8d009c2b13911539463f210bdab86",
+    "verified_at": "2026-11-22T18:45:48.672457",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "allopt-amazon",
+    "build": "dist/verified-allopt-amazon-20261122-184739/AuroraList.app",
+    "tests": [
+      "tests/test_collect_optimization.py",
+      "tests/test_platform_workflows.py",
+      "tests/test_collect_ai.py"
+    ],
+    "sha256": "ee9ca2d36752be2a9e9a63f6206680609a1291218e21f0906712201377e249ac",
+    "verified_at": "2026-11-22T18:48:11.989914",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "allopt-tiktok",
+    "build": "dist/verified-allopt-tiktok-20261122-185009/AuroraList.app",
+    "tests": [
+      "tests/test_collect_optimization.py",
+      "tests/test_tiktok_ui_page.py",
+      "tests/test_collect_runtime.py"
+    ],
+    "sha256": "b782b2f8db62e1c58489739c3424534d2f5a21bda62942a92d2ebb0f6d6adce1",
+    "verified_at": "2026-11-22T18:50:48.990180",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "allopt-shopee-final",
+    "build": "dist/verified-allopt-shopee-final-20261122-185149/AuroraList.app",
+    "tests": [
+      "tests/test_collect_optimization.py",
+      "tests/test_shopee_workflow.py",
+      "tests/test_collect_runtime.py",
+      "tests/test_platform_workflows.py",
+      "tests/test_ui_function_dedup.py"
+    ],
+    "sha256": "ae596b0eb0ff7a97c14a41782e6043efd6016543fad0942156d565d5545970ea",
+    "verified_at": "2026-11-22T18:52:20.821381",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "allopt-delivery-final",
+    "build": "dist/verified-allopt-delivery-final-20261122-192715/AuroraList.app",
+    "tests": [
+      "tests/test_collect_optimization.py",
+      "tests/test_collect_ui.py",
+      "tests/test_collect_runtime.py",
+      "tests/test_listing_recovery.py",
+      "tests/test_collect_ai.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "ba3b6b990baa9c9b252a8ac79c3758f2fbe52c27ec7cb4343b47a4f7f07b6d62",
+    "verified_at": "2026-11-22T19:28:06.355505",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "dock-identity",
+    "build": "dist/verified-dock-identity-20261122-194530/AuroraList.app",
+    "tests": [
+      "tests/test_macos_app.py"
+    ],
+    "sha256": "1f01ae4f8c8c1bf1aba13755488a08c3a559f2aecb9d5e73cdcd50cc3a389469",
+    "verified_at": "2026-11-22T19:46:05.612933",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "license-center-compat",
+    "build": "dist/verified-license-center-compat-20261122-222255/AuroraList.app",
+    "tests": [
+      "tests/test_license_compatibility.py",
+      "tests/test_license_server.py"
+    ],
+    "sha256": "2504500c2c9dfb52577e58ca025ee7fe65f57012a33169aaec446da86236bb97",
+    "verified_at": "2026-11-22T22:23:18.412572",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  {
+    "issue": "license-center-delivery",
+    "build": "dist/verified-license-center-delivery-20261122-222539/AuroraList.app",
+    "tests": [
+      "tests/test_license_compatibility.py",
+      "tests/test_collect_ui.py"
+    ],
+    "sha256": "5be55c79a28d1b4e558060a34e9a434f1772c165b607419000126fe32655f857",
+    "verified_at": "2026-11-22T22:26:05.180142",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
   }
 ]

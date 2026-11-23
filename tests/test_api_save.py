@@ -651,6 +651,22 @@ def t32_sku_freight_from_template():
     assert skus[0].get("freightTemplateId") == "50200232032", skus
 
 
+def t35_template_freight_overrides_target():
+    print("\n[测试35] 选模板商品时，商品级和 SKU 级运费模板都以模板为准")
+    prod = _product(freightTemplateId="OLD-TARGET")
+    prod["aeopAeProductSKUs"] = json.dumps([
+        {"id": "1:2", "skuPrice": "100.0", "ipmSkuStock": 50,
+         "freightTemplateId": "OLD-TARGET-SKU"},
+    ])
+    tpl = _template()
+    tpl["freightTemplateId"] = "TPL-NEW"
+    tpl["aeopAeProductSKUs"] = json.dumps([{"freightTemplateId": "TPL-NEW-SKU"}])
+    skus = A.merge_skus(prod, tpl)
+    assert skus[0].get("freightTemplateId") == "TPL-NEW", skus
+    payload = A.build_save_payload(prod, tpl, action="save_only")
+    assert str(payload.get("freightTemplateId")) == "TPL-NEW", payload.get("freightTemplateId")
+
+
 def t33_duplicate_sku_props_merged():
     """重复规格必须明确报错，不能静默删掉七条不同的SKU。"""
     props = [{"skuPropertyId": 14, "propertyValueId": 350686},
@@ -706,7 +722,7 @@ if __name__ == "__main__":
              t26_market_image_mapping_order,
              t27_sku_cargo_price_filled, t28_sku_logistic_attr_from_template,
              t29_sku_variation_theme_from_template,
-             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id, t32_sku_freight_from_template, t33_duplicate_sku_props_merged, t34_payload_sanitizer]
+             t30_standard_but_missing_plug_variant, t31_system_attr_deduped_by_id, t32_sku_freight_from_template, t33_duplicate_sku_props_merged, t34_payload_sanitizer, t35_template_freight_overrides_target]
     ok = fail = 0
     for t in tests:
         try:

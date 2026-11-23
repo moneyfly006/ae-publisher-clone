@@ -23,7 +23,7 @@ import hashlib
 import os
 
 # 与 license.py 保持一致的内置公钥（服务端可覆盖）
-from ..license import PUBLIC_KEY_PEM, machine_id, verify_voucher
+from ..license import PUBLIC_KEY_PEM, identity_candidates, machine_id, verify_voucher
 
 # 测试/CI 用：跳过核心层校验（只允许显式设置）
 _ENV_SKIP = "AURORA_SKIP_LICENSE"
@@ -85,10 +85,10 @@ def check(cfg) -> tuple[bool, str]:
 
     ident = v.get("identity") or ""
     # 凭证必须绑定本机（兼容旧格式：16 位短码 / 完整哈希）
-    full = machine_id()
-    short = full[:16].upper()
-    if ident and ident not in (full, short, f"{short[:8]}-{short[8:16]}"):
+    allowed = set(identity_candidates())
+    if ident and ident not in allowed:
         return False, "授权凭证与本机不匹配（可能被拷贝到其他电脑）"
+    short = machine_id()[:16].upper()
 
     try:
         pem = str(getattr(cfg, "license_public_key", "") or "") or PUBLIC_KEY_PEM

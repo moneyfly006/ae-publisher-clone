@@ -207,6 +207,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
 
     def test_schema_required_attrs_autofilled_before_first_publish(self):
         fake = FakeClient(
+            product=make_product(contains_liquid_contents=False, supplier_declared_dg_hz_regulation="not_applicable"),
             publish_results=self._online(),
             schema=["contains_liquid_contents", "power_source_type",
                     "supplier_declared_dg_hz_regulation"])
@@ -235,7 +236,8 @@ class AutoPublishFlowTests(EnvIsolatedCase):
 
     def test_b_class_attrs_fixed_in_second_round(self):
         err = "发布失败:code:90220,属性:contains_liquid_contents;"
-        fake = FakeClient(publish_results=[self._fail(err), self._online("B0B")])
+        fake = FakeClient(product=make_product(contains_liquid_contents=False),
+                          publish_results=[self._fail(err), self._online("B0B")])
         res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
                               wait_seconds=0)
         self.assertTrue(res.ok, res)
@@ -293,7 +295,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
 
     def test_max_rounds_stops(self):
         err = "发布失败:code:90220,属性:contains_liquid_contents;"
-        fake = FakeClient(publish_results=self._fail(err))
+        fake = FakeClient(product=make_product(contains_liquid_contents=False), publish_results=self._fail(err))
         res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
                               max_rounds=2, wait_seconds=0)
         self.assertFalse(res.ok)

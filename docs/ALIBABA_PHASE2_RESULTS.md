@@ -132,3 +132,5 @@
 - 新增 `tests/test_ui_alibaba_actions.py`（5 项）：预演按钮、保存二次确认（取消不写入）、AI 生成并保存（use_ai=True、dry_run=False）、按 ID 打开、平台启动守卫。
 
 > 平台 UI 匹配（Alibaba 去除速卖通专属 UI、其他平台不受影响）见 [PLATFORM_UI_MATCH.md](PLATFORM_UI_MATCH.md)。
+
+> 真实发布/审核、评分门禁与经营类目预检见 [ALIBABA_PUBLISH_RESULT.md](ALIBABA_PUBLISH_RESULT.md)、[ALIBABA_SCORING.md](ALIBABA_SCORING.md)、[ALIBABA_PUBLISH_RULES.md](ALIBABA_PUBLISH_RULES.md)。

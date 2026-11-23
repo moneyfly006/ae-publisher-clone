@@ -346,13 +346,12 @@ class AutofillRoundtripTests(EnvIsolatedCase):
         self.assertTrue(res.ok, res.error)
         payload, _op = fake.saved[0]
         sent = parse_product_attr(payload.get("productAttr"))
-        for key in ("model_number", "part_number", "model_name",
-                    "manufacturer_contact_information"):
+        for key in ("model_number", "part_number", "model_name"):
             self.assertIn(key, sent, f"保存包缺少自动补齐属性 {key}")
+        self.assertNotIn("manufacturer_contact_information", sent)
         readback = fake.product_detail(PID_2)["product"]
         got = parse_product_attr(readback.get("productAttr"))
-        for key in ("model_number", "part_number", "model_name",
-                    "manufacturer_contact_information"):
+        for key in ("model_number", "part_number", "model_name"):
             self.assertEqual(got.get(key), sent.get(key), f"回读丢属性 {key}")
         self.assertEqual(readback_drift(payload, readback), {})
 

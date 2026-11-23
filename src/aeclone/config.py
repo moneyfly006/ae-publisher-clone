@@ -7,6 +7,7 @@ import threading
 from pathlib import Path
 
 APP_NAME = "AuroraList"
+_SAVE_LOCK = threading.RLock()
 
 DEFAULTS: dict = {
     # ---- 基础 / API ----
@@ -18,6 +19,7 @@ DEFAULTS: dict = {
     "license_enforce": True,                              # 未授权时禁止开始上架
     "license_identity": "",                               # 可选：已有设备授权 ID
     "license_cache_ok": False,                            # 上次授权结果（避免每次启动阻塞网络）
+    "license_cache_legacy": True,                         # 区分原设备授权与套餐账号的兼容凭证
     "license_cache_expiry": "",
     "license_cache_ts": 0,
     "license_public_key": "",                             # 可选：服务端换公钥时覆盖内置公钥
@@ -30,10 +32,16 @@ DEFAULTS: dict = {
     "license_token_ts": 0,
     "license_platforms": "",
     "license_account_email": "",
+    "license_account_bound": False,                        # 已完成旧授权→账号迁移
+    "license_account_save_password": False,                # 用户勾选“保存密码”
+    "license_account_password": "",                        # 加密后的密码，不是明文
+    "license_legacy_all": False,                           # 旧授权迁移期：全部平台可用
+    "license_migration_prompted_at": 0,                    # 上次提醒绑定账号的时间
     "heartbeat_interval": 120,                               # 开发/过渡：手动覆盖（alibaba:listing+ai_text）
     "active_platform": "alibaba",
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
     "log_auto_follow": True,                              # 日志总是跳到最新
+    "auto_report_errors": True,                            # 出现 ERROR 日志立即上报授权后台
     "ai_image_enable": True,                              # AI 图片处理总开关
     "main_as_detail": False,                              # 主图同时作为详情图
     "write_main_images_to_product": True,                 # AI 主图写回商品
@@ -365,6 +373,7 @@ DEFAULTS: dict = {
     "start_page": 0,
     # ---------------- Alibaba（国际站）刊登预设 ----------------
     "alibaba_cookies": "",
+    "aliexpress_cookies": "",
     "alibaba_shop_id": "9466975",   # 预置：ICBU 店铺（可在「Alibaba 连接」页切换）
     "alibaba_shop_name": "zzyugong",
     "alibaba_recommended_seeded": False,
@@ -450,7 +459,7 @@ DEFAULTS: dict = {
     "amazon_image_preset": "",
     "amazon_presets_version": "",
     "amazon_last_status": "",
-    "amazon_manufacturer_contact": "",   # 发布必填 manufacturer_contact_information；空=自动 "品牌, CN"
+    "amazon_manufacturer_contact": "",   # 发布必填；从商品或配置读取真实联系方式
     "amazon_publish_wait": 60,           # op=2 发布后轮询发布状态的最长秒数（0=只查一次）
     "amazon_autofill_attrs": True,       # 保存/发布前自动补齐缺失的必填属性（只补缺失，不覆盖已有）
     # ---- 真实发布自动修复闭环（services/amazon_auto.py） ----
@@ -502,11 +511,61 @@ DEFAULTS: dict = {
     "tiktok_key_features_prompt": "",
     "tiktok_search_terms_prompt": "",
     "tiktok_last_status": "",
+    # Shopee 使用独立配置与保存端点；不得复用速卖通店铺/模板。
+    "shopee_mode": "global",
+    "shopee_cookies": "",
+    "shopee_shop_id": "",
+    "shopee_site": "global",
+    "shopee_test_product_id": "",
+    "shopee_title_prompt": "",
+    "shopee_description_prompt": "",
+    # Alibaba 提示词单独存储，保护速卖通已有文案配置。
+    "alibaba_title_prompt": "",
+    "alibaba_detail_prompt": "",
+    "alibaba_sku_prompt": "",
+    "alibaba_review_text_prompt": "",
     "window_size": "1280x800",
     "ui_theme": "dark",             # dark | light
     "image_retry_times": 1,         # 图片接口 5xx 自动重试次数（0=不重试）      # 启动窗口大小（小 1100x760 / 中 1280x800 / 大 1512x945）
 
 }
+
+
+
+# Defaults for automatic source collection; never borrow single-item editor values.
+for _platform in ("alibaba", "amazon", "tiktok", "shopee"):
+    from .collect_defaults import PARAMETERS as _RUNTIME_PARAMETERS
+    DEFAULTS.update({
+        _platform + "_collect_keyword": "",
+        _platform + "_collect_limit": 10,
+        _platform + "_collect_selected_ids": "[]",
+        _platform + "_collect_op": "1",
+        _platform + "_collect_ai": False,
+        _platform + "_collect_ai_mode": "missing",
+        _platform + "_collect_ai_fields": json.dumps({
+            "alibaba": ["title", "description", "keywords"],
+            "amazon": ["title", "bullets", "description", "search_terms"],
+            "tiktok": ["title", "description", "key_features", "search_terms"],
+            "shopee": ["title", "description"],
+        }[_platform]),
+        _platform + "_collect_ai_sku": False,
+        _platform + "_collect_ai_attributes": False,
+        _platform + "_collect_sku_prompt": "",
+        _platform + "_collect_attribute_prompt": "",
+        _platform + "_collect_auto_repair": True,
+        _platform + "_collect_max_attempts": 2,
+        _platform + "_collect_images": False,
+        _platform + "_collect_image_indices": "1",
+        _platform + "_collect_image_rules": "",
+        _platform + "_collect_image_prompt": "将商品图处理为纯白背景棚拍图。保持商品形状、结构、颜色、材质和比例，不新增文字或物件。",
+        _platform + "_collect_overrides": "{}",
+        _platform + "_collect_ai_max_calls": 100,
+        _platform + "_collect_ai_budget": 0.0,
+        _platform + "_collect_text_call_price": 0.0,
+        _platform + "_collect_image_call_price": 0.0,
+        _platform + "_collect_ai_cache": True,
+        **{_platform + "_collect_" + suffix: spec[1] for suffix, spec in _RUNTIME_PARAMETERS.items()},
+    })
 
 
 def config_dir() -> Path:
@@ -561,10 +620,7 @@ class AppConfig:
             if old in src and new not in src:
                 src[new] = src[old]
         d = {**DEFAULTS, **src}
-        # 旧版英文营销图提示词 → 迁移成机械类目中文提示词
-        _mp = str(d.get("marketing_image_prompt") or "")
-        if _mp.strip().lower().startswith("create a marketing lifestyle image"):
-            d["marketing_image_prompt"] = DEFAULTS["marketing_image_prompt"]
+        # 升级不覆盖用户自定义提示词：只补缺失的新键，不再按前缀自动改值。
         # 营销图来源：老配置没有该键 → 默认本地（免费）
         if "marketing_source" not in src:
             d["marketing_source"] = "local"
@@ -605,12 +661,8 @@ class AppConfig:
             cls.loaded_from = "new"
             return cls()
         cfg = cls._load_file(p)
-        try:
-            _cur = str(getattr(cfg, "detail_prompt", "") or "")
-            if _cur.startswith("你是一名专业工业设备外贸营销专家。在保持原有文字基础之上"):
-                cfg.set("detail_prompt", DEFAULTS["detail_prompt"])
-        except Exception:
-            pass
+        # 升级/启动不得改写用户已保存的提示词。旧默认值迁移已移除，
+        # 用户自定义提示词、Cookie、店铺和任务设置全部以 config.json 为准。
         return cfg
 
     @classmethod
@@ -644,12 +696,24 @@ class AppConfig:
             return cfg
 
     def save(self) -> None:
+        """Serialize concurrent autosaves before replacing the shared temporary file."""
+        with _SAVE_LOCK:
+            self._save_atomic()
+
+    def _save_atomic(self) -> None:
         """原子写：先写临时文件，再替换；保留一份 .bak 防止断电损坏。"""
         import os as _os
         import shutil as _sh
         p = self.path()
-        p.parent.mkdir(parents=True, exist_ok=True)
         data = json.dumps(self._d, ensure_ascii=False, indent=2)
+        previous = getattr(self, "_last_saved_state", None)
+        if previous and previous[:2] == (str(p), data):
+            try:
+                if p.stat().st_mtime_ns == previous[2]:
+                    return
+            except OSError:
+                pass
+        p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(".tmp")
         tmp.write_text(data, encoding="utf-8")
         try:
@@ -658,6 +722,7 @@ class AppConfig:
         except Exception:
             pass
         _os.replace(tmp, p)
+        object.__setattr__(self, "_last_saved_state", (str(p), data, p.stat().st_mtime_ns))
 
 
 _lock = threading.Lock()

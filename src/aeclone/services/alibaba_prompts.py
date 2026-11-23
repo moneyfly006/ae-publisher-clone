@@ -553,7 +553,7 @@ PRESETS: dict[str, dict] = {
                 "详情必须是 HTML 片段（<h3>/<p>/<ul>/<table>），不要 Markdown、"
                 "不要 ``` 代码块、不要整页 <html>/<body>。",
                 _NO_FABRICATION_NOTE,
-                "图片用 <img data-detail-img=\"N\"> 占位，由 TextPipeline 替换为合规图标签。",
+                "详情用纯文本分节输出，不要 HTML 标签；详情图由 detailImage 字段单独携带。",
             ],
             "images": _IMAGE_NOTE,
         },
@@ -576,7 +576,7 @@ PRESETS: dict[str, dict] = {
         "detail_prompt": (
             "你是 Alibaba.com 国际站英文详情页文案专家。基于商品原始信息重写英文 HTML"
             "详情片段：产品概述 → 规格表 → 结构材质 → 场景 → 定制/售后；"
-            "只写原文数据；图片用 <img data-detail-img=\"N\"> 占位；" + _DETAIL_TAIL
+            "只写原文数据；详情用纯文本输出；" + _DETAIL_TAIL
         ),
         "sku_prompt": (
             "你是 Alibaba 国际站 SKU 命名与变体整理专家。输入：每行一个原始 SKU"

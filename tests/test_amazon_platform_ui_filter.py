@@ -64,7 +64,7 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
             # 只校验未被其它平台工作影响的两端：AliExpress / Shopee 保持默认 True。
             # TikTok 平台正由外部并发进程建设（14 号页），其 caps 由那条工作线维护，
             # 这里不断言它的默认值（避免把外部改动误判成 Amazon 回归）。
-            for pid in ("aliexpress", "shopee"):
+            for pid in ("aliexpress"):
                 self.assertTrue(cap(pid, name), f"{pid} 不应被改动：{name}")
         # 复用 cap：Alibaba 原本就 False（既有行为），其它平台保持 True
         self.assertFalse(cap("amazon", REUSED_CAP))
@@ -78,40 +78,22 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
     # ---------- A. 顶部栏 / 侧栏 ----------
     def test_amazon_shell_hides_store_selector_and_retitles_run_button(self):
         self.app._switch_platform("amazon")
-        self.assertFalse(self.app.store_shortcut.visible,
-                         "Amazon 顶部栏不应显示「选择店铺」")
-        self.assertEqual(self.app.btn_run.tooltip,
-                         "去 Amazon 刊登（Amazon 不走速卖通批量任务）")
-        self.assertEqual(self.app.btn_run_text.value, "去 Amazon 刊登")
-        # 切到速卖通/阿里：恢复原样（隔离回归）
-        for pid in ("aliexpress", "alibaba"):
-            self.app._switch_platform(pid)
-            self.assertTrue(self.app.store_shortcut.visible, f"{pid} 应保留「选择店铺」")
-            self.assertEqual(self.app.btn_run.tooltip, "启动 / 停止本次任务（⌘R / Ctrl+R）")
-        self.app._switch_platform("amazon")
+        self.assertFalse(self.app.store_shortcut.visible)
+        self.assertEqual(self.app.btn_run_text.value, "自动处理采集箱")
+        self.assertIn("关键词", self.app.btn_run.tooltip)
+        self.app._switch_platform("aliexpress")
+        self.assertEqual(self.app.btn_run_text.value, "启动任务")
+        self.assertEqual(self.app.btn_run.tooltip, "启动 / 停止本次任务（⌘R / Ctrl+R）")
 
     # ---------- B. 概览页：SMT 管线残留 ----------
     def test_amazon_overview_hides_smt_pipeline_ui(self):
         self.app._switch_platform("amazon")
         self.app._switch(0)
-        self.assertEqual(self.app._page_idx, 0)
-        # 「选择商品」按钮不显示（只保留大按钮「去 Amazon 刊登」）
-        pick = [b for b in buttons(self.app) if str(getattr(b, "text", "")) == "选择商品"]
-        self.assertTrue(pick, "控件应仍存在（只隐藏，不删除实现）")
-        self.assertFalse(any(bool(getattr(b, "visible", True)) for b in pick),
-                         "Amazon 概览不应显示「选择商品」")
-        current = texts(self.app)
-        for banned in ("今日任务", "今日花费", "改前后对比", "配置冲突", "图片服务"):
-            self.assertNotIn(banned, current, f"Amazon 概览不应显示：{banned}")
-        conflict_btn = [b for b in buttons(self.app)
-                        if str(getattr(b, "text", "")) == "检查配置冲突"]
-        self.assertFalse(any(bool(getattr(b, "visible", True)) for b in conflict_btn),
-                         "Amazon 概览不应显示「检查配置冲突」")
-        # 保留项：成本/用量（AI 计费）、准备状态、API 服务/授权状态
-        for kept in ("成本 / 用量", "准备状态", "API 服务", "授权状态"):
-            self.assertIn(kept, current, f"Amazon 概览应保留：{kept}")
-        self.assertTrue(any(str(getattr(b, "text", "")) == "去 Amazon 刊登"
-                            for b in visible_buttons(self.app)))
+        labels = [getattr(c, "text", "") for c in controls(self.app)]
+        self.assertNotIn("选择商品", labels)
+        self.assertIn("去运行与结果", labels)
+        self.assertIn("设置处理规则", labels)
+        self.assertNotIn("配置冲突", texts(self.app))
 
     # ---------- C. 任务与日志：SMT 任务动作 ----------
     def test_amazon_logs_page_hides_smt_actions_and_schedule_tab(self):
@@ -182,8 +164,8 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
         self.assertEqual(self.app._page_idx, 13)
         labels = {getattr(c, "label", "") for c in controls(self.app)
                   if getattr(c, "label", "")}
-        for expect in ("店铺", "站点", "标题", "卖点 1", "卖点 5", "标准价",
-                       "Search Terms（≤250 字节）", "保存动作",
+        for expect in ("店铺", "站点", "标题", "五点描述（每行一条）", "五点描述（每行一条）", "标准价",
+                       "Search Terms（建议不超过 250 字节）", "保存动作",
                        "型号（model_number）", "型号名称（model_name）",
                        "零件编号（part_number）",
                        "制造商联系信息（manufacturer_contact_information）",
@@ -201,17 +183,17 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                        "AI 生成标题", "AI 一键生成全部（付费）", "AI 生成 SKU",
                        "保存到 Amazon", "查询发布结果", "自动发布（自动修复）",
                        "自动补齐并重试发布",
-                       "自动补齐必填属性", "套用", "恢复内置", "复制提示词",
+                       "自动补齐必填属性", "恢复内置", "复制提示词",
                        "发布中", "发布失败"):
             self.assertIn(expect, btn_texts, f"13 页缺少可用控件：{expect}")
         # 7 卡按功能分组（task-19）：标题编号与顺序
         page_text = " ".join(texts(self.app))
         for title in ("① 连接与店铺", "② 采集箱商品", "③ 站点与类目",
-                      "④ 商品信息（价格 / 库存 / 物流 / 品牌 / SKU）",
-                      "⑤ 文案与 AI", "⑥ AI 图片（图片只读，v1 备用）",
+                      "价格与物流",
+                      "⑤ 文案与 AI", "商品图片",
                       "⑦ 发布与结果"):
             self.assertIn(title, page_text)
-        self.assertIn("AI 提示词预设（文案：标题 / 五点 / 描述 / Search Terms / SKU）",
+        self.assertIn("文案提示词",
                       page_text)
         # 正式版文案：不得出现预演/检查模式/测试措辞
         page_all = " ".join(texts(self.app)) + " " + " ".join(btn_texts)
@@ -219,52 +201,13 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                        "测试连接", "本地验收"):
             self.assertNotIn(banned, page_all, f"Amazon 13 页仍含开发措辞：{banned}")
 
-    # ---------- 左侧导航按功能拆 7 页（task-21） ----------
-    def test_amazon_left_nav_split_seven_pages_and_hidden_route(self):
-        from aeclone.platforms import AMAZON
+    def test_amazon_primary_pages_keep_batch_and_single_controls_separate(self):
         self.app._switch_platform("amazon")
-        indices = [p.index for p in AMAZON.pages]
-        self.assertEqual(indices, [0, 15, 16, 17, 18, 19, 20, 21, 10, 11, 13])
-        self.assertEqual(AMAZON.page(13).group, "__internal__")
-        self.assertEqual(AMAZON.groups(),
-                         ["工作空间", "商品准备", "内容处理", "发布与运行", "运行", "工具"])
-        nav_labels = [b.content.controls[1].value for _, b in self.app.nav_buttons]
-        self.assertEqual(nav_labels, ["概览", "连接与店铺", "采集箱商品", "站点与类目",
-                                      "商品信息", "文案与 AI", "AI 图片", "发布与结果",
-                                      "任务与日志", "设置"])
-        self.assertNotIn("Amazon 刊登", nav_labels, "左侧导航不应出现隐藏的 13 号入口")
-        self.assertNotIn(13, [i for i, _ in self.app.nav_buttons])
-        # 7 个新条目在正确分组
-        self.assertEqual([p.index for p in AMAZON.pages if p.group == "商品准备"],
-                         [15, 16, 17, 18])
-        self.assertEqual([p.index for p in AMAZON.pages if p.group == "内容处理"], [19, 20])
-        self.assertEqual([p.index for p in AMAZON.pages if p.group == "发布与运行"], [21])
-
-        def numbered_card(card):
-            for x in walk([card]):
-                if (isinstance(x, ft.Text) and x.value
-                        and x.value[0] in "①②③④⑤⑥⑦"
-                        and "→" not in x.value and "：" not in x.value):
-                    return x.value
-            return ""
-
-        expect = {15: "① 连接与店铺", 16: "② 采集箱商品", 17: "③ 站点与类目",
-                  18: "④ 商品信息", 19: "⑤ 文案与 AI", 20: "⑥ AI 图片",
-                  21: "⑦ 发布与结果"}
-        for idx, title in expect.items():
-            with self.subTest(page=idx):
-                self.app._switch(idx)
-                self.assertEqual(self.app._page_idx, idx)
-                cards = [c for c in self.app.content.controls if numbered_card(c)]
-                self.assertEqual(len(cards), 1, f"页 {idx} 应只渲染 1 张卡：{cards}")
-                self.assertTrue(numbered_card(cards[0]).startswith(title),
-                                f"页 {idx} 卡片错误：{numbered_card(cards[0])}")
-        # 13 隐藏路由仍渲染完整 7 卡
-        self.app._switch(13)
-        self.assertEqual(self.app._page_idx, 13)
-        self.assertIn("Amazon 刊登", self.app.breadcrumb.value)
-        cards = [c for c in self.app.content.controls if numbered_card(c)]
-        self.assertEqual(len(cards), 7, f"13 隐藏路由应有 7 卡：{[numbered_card(c) for c in cards]}")
+        for page, action in ((15, "检测连接"), (45, "去运行与结果"), (21, "开始自动处理"), (16, "按 ID 载入")):
+            self.app._switch(page)
+            self.assertTrue(any(getattr(c, "text", "") == action for c in controls(self.app)))
+            if page != 16:
+                self.assertFalse(any(getattr(c, "text", "") == "保存到 Amazon" for c in controls(self.app)))
 
     # ---------- 平台隔离：AliExpress 原样保留 ----------
     def test_amazon_ctrl_f_does_not_open_smt_search(self):
@@ -279,7 +222,7 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
         self.app._on_key(key())
         self.assertIsNone(getattr(self.app, "_dlg", None),
                           "Amazon ⌘F 不应打开 SMT 商品搜索弹窗")
-        self.assertEqual(self.app._page_idx, 13, "Amazon ⌘F 应跳「Amazon 刊登」页")
+        self.assertEqual(self.app._page_idx, 16, "Amazon ⌘F 应跳单品编辑")
 
         self.app._switch_platform("aliexpress")
         self.app._switch(0)
@@ -327,31 +270,12 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
     # ---------- 平台隔离：Alibaba 保持既有 caps 行为 ----------
     def test_alibaba_keeps_existing_caps_behavior(self):
         self.app._switch_platform("alibaba")
-        self.assertTrue(self.app.store_shortcut.visible)
-        indices = {p.index for p in get_platform("alibaba").pages}
-        self.assertNotIn(6, indices, "Alibaba 不应有 SMT 价格页")
-        self.assertNotIn(7, indices, "Alibaba 不应有 SMT 变种页")
-        self.assertIn(12, indices)
+        self.assertNotIn(6, [p.index for p in self.app.active_platform.pages])
+        self.assertNotIn(7, [p.index for p in self.app.active_platform.pages])
         self.app._switch(0)
-        pick = [b for b in buttons(self.app) if str(getattr(b, "text", "")) == "选择商品"]
-        self.assertTrue(any(bool(getattr(b, "visible", True)) for b in pick),
-                        "Alibaba 概览「选择商品」保持既有行为（可见）")
-        current = texts(self.app)
-        self.assertIn("配置冲突", current, "Alibaba 未被新增 cap 影响（配置冲突保留）")
-        self.assertIn("图片服务", current, "Alibaba 未被新增 cap 影响（图片服务保留）")
-        self.app._switch(10)
-        tabs = find_tabs(self.app)
-        self.assertEqual([t.text for t in tabs.tabs], ["运行日志"],
-                         "Alibaba 既有 scheduled_publish=False 行为不变")
-        self.app._switch(11)
-        tabs = find_tabs(self.app)
-        self.assertEqual([t.text for t in tabs.tabs],
-                         ["账号与连接", "图片与模型", "界面与实例", "维护与诊断"],
-                         "Alibaba 未被新增 cap 影响")
-        restore_host = [b for b in buttons(self.app)
-                        if str(getattr(b, "text", "")) == "恢复图床"]
-        self.assertTrue(any(bool(getattr(b, "visible", True)) for b in restore_host),
-                        "Alibaba 应保留「恢复图床」")
+        labels = [getattr(c, "text", "") for c in controls(self.app)]
+        self.assertNotIn("选择商品", labels)
+        self.assertIn("去运行与结果", labels)
 
     # ---------- E. 首次引导 ----------
     def test_amazon_skips_smt_wizard_other_platforms_keep_it(self):

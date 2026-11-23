@@ -92,6 +92,7 @@ class RuntimeVerification(unittest.TestCase):
             wm = Path(root) / "watermark.png"
             Image.new("RGBA", (20, 20), "red").save(wm)
             app = build_app()
+            app._switch_platform("aliexpress")
             app._switch(5)
             app._on_watermark_file(NS(files=[NS(path=str(wm))]))
             self.assertEqual(app._current, 5)
@@ -120,6 +121,7 @@ class RuntimeVerification(unittest.TestCase):
     def test_ai_headers_have_consistent_unoutlined_restore_action(self):
         with sandbox():
             app = build_app()
+            app._switch_platform("aliexpress")
             for index in (3, 4, 5):
                 app._switch(index)
                 restore = [c for c in walk(app.content.controls)

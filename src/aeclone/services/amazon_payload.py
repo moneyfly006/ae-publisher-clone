@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import math
 import re
 
 from .amazon_prompts import (
@@ -45,6 +46,7 @@ OVERRIDE_KEYS = (
     "standard_price", "sale_price", "quantity", "category_id", "category_path",
     "marketplace_id", "currency", "fulfillment", "handling_time", "shipping_template",
     "attributes", "required_attributes",
+    "main_image", "extra_images", "native_fields",
 )
 
 # 发布（op=2）实测必填的通用属性（不同类目还会有额外项，见 errMsg/schema）
@@ -68,6 +70,34 @@ _SCRIPT_BLOCK_RE = re.compile(r"<(script|style)\b[^>]*>[\s\S]*?</\1>", re.I)
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.I)
 _PHONE_RE = re.compile(r"(?<![\d.])[+]?\d[\d\s\-()]{7,}\d(?![\d.])")
+
+
+def contact_number_matches(text):
+    """Distinguish real contact numbers from dimensions and production ranges."""
+    from .alibaba_payload import _looks_like_contact_number
+    for match in _PHONE_RE.finditer(str(text or "")):
+        fragment = match.group(0).strip()
+        after = text[match.end():match.end() + 20]
+        before = text[max(0, match.start() - 20):match.start()]
+        if "+" not in fragment:
+            if re.fullmatch(r"\d{1,6}\s*-\s*\d{1,6}", fragment) and re.match(
+                    r"\s*(?:mm|cm|kg|kw|pcs|pieces|units|tons?|rpm|hours?|days?|m\b)", after, re.I):
+                continue
+            if re.search(r"[xX*×]\s*$", before) or re.match(r"\s*[xX*×]", after):
+                continue
+        if _looks_like_contact_number(fragment):
+            yield match
+
+
+def has_contact_number(text):
+    return next(contact_number_matches(str(text or "")), None) is not None
+
+
+def remove_contact_numbers(text):
+    value = str(text or "")
+    for match in reversed(list(contact_number_matches(value))):
+        value = value[:match.start()] + " " + value[match.end():]
+    return value
 # 促销 / 绝对化 / 医疗词（可按 site_meta["promo_whitelist"] 放行）
 _PROMO_RE = re.compile(
     r"(?:\bbest\b|\bcheapest\b|\blowest\s+price\b|\bfree\s+shipping\b|\bhot\s+sale\b|"
@@ -102,7 +132,7 @@ def _to_float(value):
         f = float(str(value).strip())
     except Exception:
         return None
-    if f != f:  # NaN
+    if not math.isfinite(f):
         return None
     return f
 
@@ -470,6 +500,27 @@ def _images(product: dict, main=None) -> tuple[str, str, str]:
     return main_image, extra_str, draft
 
 
+def _sync_offer_prices(attributes, payload, overrides):
+    changed = False
+    offers = attributes.get("purchasable_offer")
+    if not isinstance(offers, list) or not offers or not isinstance(offers[0], dict):
+        return changed
+    offer = offers[0]
+    if overrides.get("sale_price") == 0 and "discounted_price" in offer:
+        del offer["discounted_price"]
+        changed = True
+    for key, native, group in (("standard_price", "standardPrice", "our_price"),
+                               ("sale_price", "saleSalePrice", "discounted_price")):
+        if overrides.get(key) in (None, "") or payload[native] is None:
+            continue
+        prices = offer.get(group)
+        schedules = prices[0].get("schedule") if isinstance(prices, list) and prices and isinstance(prices[0], dict) else None
+        if isinstance(schedules, list) and schedules and isinstance(schedules[0], dict):
+            schedules[0]["value_with_tax"] = payload[native]
+            changed = True
+    return changed
+
+
 # ---------------- 保存包构造 ----------------
 def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
                          *, currency: str = "",
@@ -490,8 +541,9 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     out: dict = {key: None for key in SAVE_KEYS}
 
     # 基础标识
-    out["id"] = _text(p.get("id") or p.get("productId") or p.get("idStr"))
-    out["shopId"] = _text(p.get("shopId") or _cfg_value(cfg, "amazon_shop_id", "") or "")
+    out["id"] = _text(p.get("idStr") or p.get("id") or p.get("productId"))
+    shop_id = _text(p.get("shopIdStr") or p.get("shopId"))
+    out["shopId"] = shop_id if shop_id not in ("", "0", "-1") else _text(_cfg_value(cfg, "amazon_shop_id", ""))
     out["titleDifferentiation"] = p.get("titleDifferentiation")
     out["audience"] = _text(p.get("audience"), "all") or "all"
     out["fullCid"] = _text(p.get("fullCid"))
@@ -508,6 +560,12 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     out["isVariation"] = _to_int(p.get("isVariation"), 0)
     out["skuTitle"] = _to_int(p.get("skuTitle"), 0)
     out["gpsrSafetyAttestation"] = _to_int(p.get("gpsrSafetyAttestation"), 0)
+    native = ov.get("native_fields") or {}
+    for key in ("titleDifferentiation", "sourceUrl", "standardProductType", "standardProductId",
+                "conditionType", "conditionValue", "saleStartDateStr", "saleEndDateStr",
+                "gpsrManufacturerReference", "dsaResponsiblePartyAddress", "gpsrSafetyAttestation"):
+        if key in native:
+            out[key] = native[key]
 
     # 站点 / 币种
     new_mp = _text(_override(ov, "marketplace_id", p.get("marketPlaceId")))
@@ -560,11 +618,16 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     sale_price = _override(ov, "sale_price", None)
     if sale_price is None:
         sale_price = p.get("saleSalePrice")
-    if _to_float(sale_price) in (None, 0.0) and _has_cfg(cfg, "amazon_sale_price"):
+    if "sale_price" in ov and _to_float(ov["sale_price"]) == 0:
+        ov["sale_price"] = 0
+        sale_price = 0
+    elif _to_float(sale_price) in (None, 0.0) and _has_cfg(cfg, "amazon_sale_price"):
         sale_price = _cfg_value(cfg, "amazon_sale_price")
     out["saleSalePrice"] = _price(sale_price)
-    out["saleStartDateStr"] = p.get("saleStartDateStr")
-    out["saleEndDateStr"] = p.get("saleEndDateStr")
+    out["saleStartDateStr"] = native.get("saleStartDateStr", p.get("saleStartDateStr"))
+    out["saleEndDateStr"] = native.get("saleEndDateStr", p.get("saleEndDateStr"))
+    if ov.get("sale_price") == 0:
+        out["saleStartDateStr"] = out["saleEndDateStr"] = None
     qty = _override(ov, "quantity", None)
     if qty is None:
         qty = p.get("quantity")
@@ -573,7 +636,19 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     out["quantity"] = _to_int(qty, 0)
 
     # 图片
-    main_image, extra_str, draft = _images(p)
+    image_product = dict(p)
+    if "main_image" in ov:
+        image_product["mainImage"] = str(ov["main_image"] or "")
+    if "extra_images" in ov:
+        extra = [str(x).strip() for x in ov["extra_images"] if str(x).strip()]
+        if len(extra) > 8:
+            raise ValueError("Amazon 图片最多 9 张（1 张主图和 8 张附图）")
+        image_product["extraImagesStr"] = ";".join(extra)
+        image_product["extraImages"] = extra
+        image_product["draftImgUrl"] = "|".join(extra)
+    main_image, extra_str, draft = _images(image_product)
+    if "main_image" in ov and not ov["main_image"]:
+        main_image = ""
     out["mainImage"] = main_image
     out["extraImagesStr"] = extra_str
     out["draftImgUrl"] = draft
@@ -582,11 +657,15 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     fulfillment = _text(_override(ov, "fulfillment", p.get("switchFulfillmentTo")))
     if not fulfillment:
         fulfillment = _text(_cfg_value(cfg, "amazon_fulfillment", ""), "MFN") or "MFN"
+    if fulfillment == "FBA":
+        fulfillment = "AFN"
     out["switchFulfillmentTo"] = fulfillment
     shipping = _text(_override(ov, "shipping_template", p.get("merchantShippingGroup")))
     if not shipping:
         shipping = _text(_cfg_value(cfg, "amazon_shipping_template", ""))
-    out["merchantShippingGroup"] = shipping
+    out["merchantShippingGroup"] = None if fulfillment == "AFN" else shipping
+    if fulfillment == "AFN":
+        out["quantity"] = None
 
     # 产品属性：切站点时深度重写 marketplace 字段；overrides["attributes"] 合并/覆盖；
     # 缺失的发布必填属性自动补齐（确定性映射，只补缺失，不覆盖已有）。
@@ -612,6 +691,79 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     else:
         # 无需改写时保持原样回写（真实写 #1 的 productAttr 往返一致）
         out["productAttr"] = _product_attr_payload(raw_attr, "")
+
+    # The platform may read schema attributes instead of top-level editor fields.
+    # Keep the two representations consistent; otherwise an edited title still
+    # submits the old item_name and repeatedly receives code 100470.
+    if _attr_json_ok(raw_attr):
+        current = parse_product_attr(out["productAttr"])
+        synced = {}
+        pairs = (("item_name", "title", "title"), ("product_description", "description", "description"),
+                 ("bullet_point", "bulletPoint", "bullets"), ("generic_keyword", "searchTerms", "search_terms"),
+                 ("brand", "brand", "brand"), ("manufacturer", "manufacturer", "manufacturer"))
+        required = required_attribute_names(cfg, ov)
+        for attr, native_key, override_key in pairs:
+            if attr not in current and override_key not in ov and attr not in required:
+                continue
+            value = out.get(native_key)
+            if not value:
+                continue
+            if attr == "bullet_point":
+                value = [entry for bullet in split_bullets(value) for entry in
+                         format_attribute_value(bullet, new_mp, language_tag_for(new_mp))]
+            old = current.get(attr)
+            desired = format_attribute_value(value, new_mp, language_tag_for(new_mp))
+            if old != desired:
+                synced[attr] = value
+        images_synced = False
+        if "main_image" in ov or "extra_images" in ov:
+            urls = [main_image, *extra_str.split(";")]
+            locators = ["main_product_image_locator", *(f"other_product_image_locator_{i}" for i in range(1, 9))]
+            if any(key in current for key in locators):
+                for i, key in enumerate(locators):
+                    url = urls[i] if i < len(urls) else ""
+                    old = current.get(key)
+                    if not url:
+                        images_synced |= key in current
+                        current.pop(key, None)
+                        continue
+                    template = old[0] if isinstance(old, list) and old and isinstance(old[0], dict) else {}
+                    current[key] = [dict(template, media_location=url, marketplace_id=new_mp)]
+                    images_synced |= current[key] != old
+        if synced:
+            current = merge_attributes(current, synced, new_mp, language_tag_for(new_mp))
+        offer_synced = _sync_offer_prices(current, out, ov)
+        availability_synced = False
+        if fulfillment == "MFN" and ov.get("handling_time") not in (None, ""):
+            days = _to_float(ov["handling_time"])
+            if days is None or days < 0 or not days.is_integer():
+                raise ValueError("备货天数必须为大于等于 0 的整数")
+            availability = current.get("fulfillment_availability") or []
+            if not isinstance(availability, list) or (availability and not isinstance(availability[0], dict)):
+                raise ValueError("原商品配送属性格式异常，无法更新备货天数")
+            entry = dict(availability[0] if availability else {"fulfillment_channel_code": "DEFAULT"})
+            entry["lead_time_to_ship_max_days"] = int(days)
+            current["fulfillment_availability"] = [entry, *availability[1:]]
+            availability_synced = True
+        availability = current.get("fulfillment_availability")
+        if isinstance(availability, list) and availability and isinstance(availability[0], dict):
+            if fulfillment == "MFN" and ov.get("quantity") not in (None, ""):
+                availability[0]["quantity"] = out["quantity"]
+                availability_synced = True
+            if fulfillment == "MFN" and ov.get("fulfillment"):
+                availability[0]["fulfillment_channel_code"] = "DEFAULT"
+                availability_synced = True
+            if fulfillment == "AFN" and ov.get("fulfillment") and p.get("switchFulfillmentTo") not in ("AFN", "FBA"):
+                current.pop("fulfillment_availability", None)
+                current.pop("merchant_shipping_group", None)
+                availability_synced = True
+        if fulfillment == "MFN" and ov.get("shipping_template") and "merchant_shipping_group" in current:
+            current = merge_attributes(current, {"merchant_shipping_group": shipping}, new_mp, language_tag_for(new_mp))
+            availability_synced = True
+        if synced or images_synced or offer_synced or availability_synced:
+            out["productAttr"] = json.dumps(current, ensure_ascii=False)
+            if notes is not None and synced:
+                notes.append("已同步编辑字段与平台属性：" + "、".join(sorted(synced)))
 
     if notes is not None:
         if filled:
@@ -659,7 +811,7 @@ def _promo_hits(text: str, whitelist: tuple[str, ...] = ()) -> list[str]:
         hits.append("邮箱")
     if _URL_RE.search(s):
         hits.append("网址")
-    if _PHONE_RE.search(s):
+    if has_contact_number(s):
         hits.append("电话")
     allow = {str(w).strip().lower() for w in whitelist if str(w).strip()}
     return [h for h in hits if h.lower() not in allow]
@@ -679,7 +831,7 @@ def _scan_copy_fields(payload: dict) -> list[tuple[str, str]]:
 
 
 def validate_amazon_payload(payload: dict, *, product: dict | None = None,
-                            site_meta: dict | None = None) -> list[str]:
+                            site_meta: dict | None = None, op: str = OP_DEFAULT) -> list[str]:
     """返回「阻断项」列表；空列表=可保存。规则见 docs §6（schema 硬上限）。"""
     p = payload or {}
     issues: list[str] = []
@@ -744,6 +896,14 @@ def validate_amazon_payload(payload: dict, *, product: dict | None = None,
                       f"（{len(desc.encode('utf-8'))}）")
     if _BAD_DESC_TAG_RE.search(desc):
         issues.append("产品描述含 <script>/<style>/<iframe> 等危险标签")
+    from .platform_media import has_inline_media
+    if has_inline_media(desc):
+        issues.append("Amazon 普通产品描述仅支持文字内容，请将图片移到商品图片栏")
+    else:
+        entries = parse_product_attr(p.get("productAttr")).get("product_description")
+        if isinstance(entries, list) and any(isinstance(entry, dict) and has_inline_media(entry.get("value"))
+                                             for entry in entries):
+            issues.append("Amazon 产品描述属性含有嵌入媒体，请在产品描述中移除图片后保存")
 
     # 5) Search Terms（schema: maxLength=500 / maxUtf8ByteLength=2000）
     terms = str(p.get("searchTerms") or "")
@@ -769,8 +929,12 @@ def validate_amazon_payload(payload: dict, *, product: dict | None = None,
     if not cid or cid.lower() in ("none", "null") or not cid.isdigit():
         issues.append(f"类目无效：{cid or '空'}")
     path = str(p.get("categoryBrowsePath") or "").strip()
-    if cid and path and path.rsplit("/", 1)[-1] != cid:
-        issues.append("categoryBrowsePath 末段与 categoryId 不一致")
+    # Amazon/店小秘有时返回人类可读路径（...>Backhoes），有时返回节点 ID 路径
+    # （1/2/3）；只有末段是数字节点 ID 时才拿它和 categoryId 比较，避免误杀。
+    if cid and path:
+        leaf = path.replace(">", "/").rsplit("/", 1)[-1].strip()
+        if leaf.isdigit() and leaf != cid:
+            issues.append("categoryBrowsePath 末段与 categoryId 不一致")
 
     # 8) SKU / 品牌 / 制造商
     if not str(p.get("sku") or "").strip():
@@ -788,6 +952,8 @@ def validate_amazon_payload(payload: dict, *, product: dict | None = None,
     # 10) 价格
     std = p.get("standardPrice")
     sale = p.get("saleSalePrice")
+    if str(op) == "2" and std is None:
+        issues.append("提交发布前请填写大于 0 的标准价")
     if std is not None:
         std_f = _to_float(std)
         if std_f is None or std_f <= 0:
@@ -869,8 +1035,7 @@ def build_warnings(payload: dict, *, product: dict | None = None) -> list[str]:
     if missing_required:
         warns.append(
             "发布必填属性缺失：" + "、".join(missing_required)
-            + "（自动补齐默认按 SKU/标题/品牌/模板推导；仍缺的需在 productAttr "
-              "手动填写，否则发布会失败）")
+            + "（请在「类目与属性」中补充真实资料）")
 
     if product:
         old_mp = str(product.get("marketPlaceId") or "").strip()

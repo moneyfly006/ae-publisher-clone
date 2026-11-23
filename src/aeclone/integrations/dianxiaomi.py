@@ -46,6 +46,14 @@ ENDPOINTS = {
     "product_detail": "/api/smtProduct/edit.json",  # 编辑器加载（接口返回可能为 HTML，需兜底）
     "template_search": "/api/smtAdjustPrice/list.json",   # 实测：区域调价模板列表
     "attribute_template": "/api/smtAttributeTemplate/list.json",
+    # ---- 类目属性 / 属性模板（2026-11-22 从编辑器 chunk add-BtOtTaRm.js +
+    #      service-CB1wEnI_.js 逆向；均为只读查询，不保存）----
+    "category_attributes": "/api/smtCategory/attributeList.json",        # POST {categoryId}
+    "category_child_attributes": "/api/smtCategory/childAttributeList.json",  # 级联子属性（参数待抓包校正）
+    "category_detail": "/api/smtCategory/getByCategoryId.json",          # POST {categoryId}
+    "category_history": "/api/smtCategory/getHistoryCategory.json",      # POST {categoryId}
+    "attribute_template_by_category": "/api/smtAttributeTemplate/getTemplateListByCategory.json",
+    "attribute_template_detail": "/api/smtAttributeTemplate/getTemplateById.json",
     # ---- 图片空间清理（从相册页 chunk 逆向得到，ISSUES #5）----
     "album_list": "/api/album/list.json",                    # 图片/文件分页列表
     "album_file_counts": "/api/album/getFileTypeCounts.json",  # 图片/PDF 数量与占用
@@ -435,7 +443,9 @@ class DianxiaomiClient:
                 sid = k
             if sid == 0:
                 continue
-            out.append({"id": str(sid), "name": v.get("name") or str(sid)})
+            out.append({"id": str(sid), "name": v.get("name") or str(sid),
+                        "platform": str(v.get("platform") or ""),
+                        "seller_login_id": str(v.get("sellerLoginId") or "")})
         return out
 
     def vip_info(self) -> dict:
@@ -505,6 +515,24 @@ class DianxiaomiClient:
                      "productStatusType": "auditing"},
     }
 
+    def shop_info(self, shop_id) -> dict:
+        """店铺同步信息（含运费模板列表）：/api/smtShopInfoSync/list.json。"""
+        sid = str(shop_id or "").strip()
+        if not sid:
+            return {}
+        try:
+            r = self._request("post", self.base + "/api/smtShopInfoSync/list.json",
+                              data={"shopId": sid}, timeout=self.timeout)
+            d = self._parse(r)
+            return (d.get("data") or {}) if isinstance(d, dict) else {}
+        except Exception:
+            return {}
+
+    def freight_templates(self, shop_id) -> list[dict]:
+        """店小秘 SMT 运费模板（只读）。"""
+        rows = self.shop_info(shop_id).get("freightTemplateList") or []
+        return [r for r in rows if isinstance(r, dict)]
+
     def product_page(self, page: int = 1, size: int = 100, shop_id=None,
                      status: str | None = None, keyword: str | None = None) -> tuple[list[dict], dict]:
         params: dict = {"pageNo": page, "pageSize": size, "total": 0,
@@ -542,6 +570,55 @@ class DianxiaomiClient:
             page += 1
         return out
 
+    def product_by_id(self, product_id: str) -> dict | None:
+        """按商品 ID 直接查详情（模板选择器 ID 搜索用）。"""
+        pid = str(product_id or "").strip()
+        if not pid:
+            return None
+        try:
+            d = self._get("product_detail", {"id": pid})
+            p = ((d.get("data") or {}).get("product") or {})
+            if not isinstance(p, dict) or not p:
+                return None
+            item = self._map_item(p)
+            if not item.get("id"):
+                item["id"] = pid
+            return item
+        except Exception:
+            return None
+
+    def products_by_ids(self, ids: list[str], shop_id=None,
+                        statuses=("draft", "editingRequired", "publishFail", "offline")) -> list[dict]:
+        """按 ID 取商品（不依赖列表分页/前 N 条），用于「只处理选中商品」。"""
+        want = {str(x) for x in (ids or []) if str(x).strip()}
+        if not want:
+            return []
+        found: dict[str, dict] = {}
+        for st in statuses:
+            try:
+                for page in range(1, 21):
+                    items, meta = self.product_page(page, 100, shop_id, st)
+                    if not items:
+                        break
+                    for it in items:
+                        pid = str(it.get("id") or "")
+                        if pid in want and pid not in found:
+                            found[pid] = it
+                    if len(found) >= len(want):
+                        break
+                    if page >= int(meta.get("total_pages") or 1):
+                        break
+            except Exception:
+                continue
+            if len(found) >= len(want):
+                break
+        # 仍是没找到的：按 ID 直接查详情（可覆盖跨状态/不在前 N 页）
+        for pid in want - set(found):
+            one = self.product_by_id(pid)
+            if one:
+                found[pid] = one
+        return [found[k] for k in want if k in found]
+
     def search_products(self, keyword: str, shop_id=None, status: str = "draft",
                         limit: int = 200) -> list[dict]:
         """按关键词找产品。
@@ -565,20 +642,26 @@ class DianxiaomiClient:
                 return hits[:limit]
         except Exception:
             pass
-        # 2) 本地兜底：扫采集箱标题
+        # 2) 本地兜底：标题或商品 ID，翻完当前状态全部页
         low = kw.lower()
         out = []
-        for page in range(1, 6):
+        for page in range(1, 21):
             items, meta = self.product_page(page, 100, shop_id, status)
             if not items:
                 break
             for it in items:
-                if low in str(it.get("title") or "").lower():
+                if (low in str(it.get("title") or "").lower()
+                        or low == str(it.get("id") or "").lower()):
                     out.append(it)
                     if len(out) >= limit:
                         return out
-            if len(items) < 100:
+            if page >= int(meta.get("total_pages") or 1):
                 break
+        # 3) ID 兜底：列表里找不到时直接查详情
+        if not out and kw.isdigit():
+            hit = self.product_by_id(kw)
+            if hit:
+                out.append(hit)
         return out
 
     def batch_publish(self, ids: list[str]) -> dict:
@@ -766,6 +849,55 @@ class DianxiaomiClient:
         data = self._get("attribute_template", params)
         page_obj = ((data.get("data") or {}).get("page") or {})
         return page_obj.get("list") or []
+
+    # ---------- 类目属性（只读查询；2026-11-22 逆向，见 ENDPOINTS 注释）----------
+    def product_detail(self, product_id) -> dict:
+        """读取商品详情里的 ``data.product``（不保存、不改动）。"""
+        data = self._get("product_detail", {"id": str(product_id)})
+        return (data.get("data") or {}).get("product") or {}
+
+    def category_attributes(self, category_id) -> list[dict]:
+        """类目属性定义（``/api/smtCategory/attributeList.json``，POST {categoryId}）。
+
+        每项含 ``arrtNameId`` / ``nameEn`` / ``nameZh`` / ``required`` / ``sku`` /
+        ``values``（JSON 字符串，枚举值含 ``id`` 与 ``names.en`` / ``names.zh``）。
+        """
+        cid = str(category_id or "").strip()
+        if not cid or cid in ("0", "-1", "None", "null"):
+            return []
+        data = self._post("category_attributes", {"categoryId": cid})
+        inner = data.get("data") if isinstance(data, dict) else None
+        return inner if isinstance(inner, list) else []
+
+    def category_detail(self, category_id) -> dict:
+        """类目详情（名称/路径/是否叶子/是否需要欧盟联系人等）。"""
+        cid = str(category_id or "").strip()
+        if not cid:
+            return {}
+        data = self._post("category_detail", {"categoryId": cid})
+        inner = data.get("data") if isinstance(data, dict) else None
+        return inner if isinstance(inner, dict) else {}
+
+    def category_child_attributes(self, payload: dict | None = None) -> list[dict]:
+        """级联子属性（如 Condition=Used 后的二级属性）。
+
+        店小秘参数名尚未抓包确认，这里原样透传 ``payload``，返回 ``data`` 列表；
+        调用方自行按接口实际参数组织（只读查询，不影响保存）。
+        """
+        data = self._post("category_child_attributes", payload or {})
+        inner = data.get("data") if isinstance(data, dict) else None
+        return inner if isinstance(inner, list) else []
+
+    def attribute_templates_by_category(self, shop_id=None, category_id="") -> list[dict]:
+        """按类目取属性模板列表（``getTemplateListByCategory``）。"""
+        payload: dict = {"categoryId": str(category_id or "")}
+        if shop_id:
+            payload["shopId"] = str(shop_id)
+        data = self._post("attribute_template_by_category", payload)
+        inner = data.get("data") if isinstance(data, dict) else None
+        if isinstance(inner, dict):
+            return inner.get("attributeTemplateList") or []
+        return inner if isinstance(inner, list) else []
 
     def video_callback(self, file_id: str, file_name: str, file_size: int) -> Any:
         return self._post("video_callback", {"fileId": file_id, "fileName": file_name, "fileSize": file_size})

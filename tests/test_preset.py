@@ -38,6 +38,24 @@ chk("预设已合并进 DEFAULTS",
     f"price_mode={DEFAULTS.get('price_mode')}")
 chk("倍率来自预设", str(DEFAULTS.get("price_multiplier")) == str(data.get("price_multiplier")))
 chk("API Key 仍为空", not DEFAULTS.get("api_key"))
+# 打包默认平台必须是 alibaba（个人「上次停留的平台」不得进安装包）
+chk("默认平台为 alibaba", str(data.get("active_platform") or "alibaba") == "alibaba",
+    f"active_platform={data.get('active_platform')!r}")
+chk("运行时默认平台为 alibaba", DEFAULTS.get("active_platform") == "alibaba",
+    f"DEFAULTS={DEFAULTS.get('active_platform')!r}")
+
+# 隐私硬约束：任何 Cookie / token / 店铺 ID 都不得进安装包。
+# 2026-11-22 事故：amazon_cookies（真实 968 字符 Cookie）被导出进预设。
+import re  # noqa: E402
+
+_SENSITIVE_KEY = re.compile(
+    r"(cookie|token|secret|password|api_key|shop_id|store_id|store_name)", re.I)
+leaked_keys = sorted(k for k in data if _SENSITIVE_KEY.search(k))
+chk("不含任何 Cookie/token/店铺 ID 键", not leaked_keys, str(leaked_keys[:8]))
+_COOKIE_VALUE = re.compile(r"(JSESSIONID=|dxm_i=|dxm_t=|_dxm_ad_client_id=|sessionid)",
+                           re.I)
+leaked_values = sorted(k for k, v in data.items() if _COOKIE_VALUE.search(str(v or "")))
+chk("预设值不含 Cookie 内容", not leaked_values, str(leaked_values[:8]))
 
 print("=" * 60)
 print(f"结果: {ok} 通过, {fail} 失败")

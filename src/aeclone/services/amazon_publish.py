@@ -82,7 +82,7 @@ def _require_license(cfg) -> None:
 
 
 def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False,
-                   op=OP_SAVE, client=None) -> dict:
+                   op=OP_SAVE, client=None, before_submit=None) -> dict:
     """执行 Amazon 保存；返回 ``{"result","issues","warnings","payload","product_id"}``。
 
     这是所有真实写入的唯一收口：预演/验收环境、授权不通过、校验 issues 都会在这里拦住。
@@ -103,9 +103,11 @@ def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False,
     c = client if client is not None else make_client(cfg)
     # 延迟 import：避免 amazon_pipeline ↔ amazon_publish 模块级循环依赖
     from .amazon_pipeline import prepare_save
-    detail, payload, issues, warnings = prepare_save(pid, cfg, overrides, client=c)
+    detail, payload, issues, warnings = prepare_save(pid, cfg, overrides, client=c, op=op)
     if issues and not allow_invalid:
         raise ValueError("保存前校验未通过：" + "；".join(issues))
+    if before_submit:
+        before_submit()
     try:
         result = c.save_product(payload, op=op)
     except AmazonError:

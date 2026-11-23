@@ -22,6 +22,23 @@ from pathlib import Path
 import requests
 
 BASE = "https://www.dianxiaomi.com/api"
+
+# 打包版里 certifi 的 cacert.pem 路径可能失效（"Could not find a suitable TLS CA
+# certificate bundle"）；优先用 certifi，文件不存在时退回系统 CA，避免整批读取失败。
+def _ca_bundle():
+    try:
+        import certifi
+        p = certifi.where()
+        if p and Path(p).is_file():
+            return p
+    except Exception:
+        pass
+    for _p in ("/etc/ssl/cert.pem", "/usr/local/etc/openssl/cert.pem",
+               "/opt/homebrew/etc/openssl@3/cert.pem",
+               "/opt/homebrew/etc/ca-certificates/cert.pem"):
+        if Path(_p).is_file():
+            return _p
+    return True   # 交给 requests 默认逻辑（系统 CA）
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 SAVE_NAME = "alibabaSave.txt"
@@ -48,18 +65,21 @@ class AlibabaClient:
             cookies = {}
         self.timeout = timeout
         self.s = requests.Session()
+        self.verify = _ca_bundle()
         self.s.cookies.update(cookies or {})
         self.s.headers.update({"User-Agent": UA,
                                "X-Requested-With": "XMLHttpRequest"})
 
     # ---------- 基础请求 ----------
     def _get(self, path: str, params: dict | None = None) -> dict:
-        r = self.s.get(BASE + path, params=params, timeout=self.timeout)
+        r = self.s.get(BASE + path, params=params, timeout=self.timeout,
+                       verify=self.verify)
         r.raise_for_status()
         return self._json(r)
 
     def _post(self, path: str, data=None, files=None) -> dict:
-        r = self.s.post(BASE + path, data=data, files=files, timeout=self.timeout)
+        r = self.s.post(BASE + path, data=data, files=files,
+                        timeout=self.timeout, verify=self.verify)
         r.raise_for_status()
         return self._json(r)
 
@@ -83,12 +103,31 @@ class AlibabaClient:
         # ICBU 列表接口的分页参数是 pageNo（不是 page）：传 page 会一直返回第 1 页。
         params = {"pageNo": page, "pageSize": page_size}
         if dxm_state:
-            params["dxmState"] = dxm_state
+            # 店小秘 Alibaba 列表的「待发布/发布失败」不是单一 dxmState：
+            # 必须 dxmState=offline + dxmOfflineState=...，否则返回 0 条。
+            if dxm_state == "waitPublish":
+                params["dxmState"] = "offline"
+                params["dxmOfflineState"] = "waitPublish"
+            elif dxm_state == "publishFail":
+                params["dxmState"] = "offline"
+                params["dxmOfflineState"] = "publishFail"
+            else:
+                params["dxmState"] = dxm_state
         if shop_id:
             params["shopId"] = shop_id
         if search:
             params["searchValue"] = search
         return self._get("/alibabaIcbuProduct/list.json", params)
+
+    def publish_fail_products(self, page: int = 1, page_size: int = 100) -> dict:
+        """店小秘 Alibaba「发布失败」列表（实测筛选参数）。
+
+        列表接口用 dxmState=offline + dxmOfflineState=publishFail；row 自带 errMsg，
+        可直接读出平台拒绝原因（如经营类目/主视频复用/资料缺失）。
+        """
+        return self._get("/alibabaIcbuProduct/list.json", {
+            "pageNo": page, "pageSize": page_size,
+            "dxmState": "offline", "dxmOfflineState": "publishFail"})
 
     def online_category_scope(self, max_pages: int = 10, page_size: int = 100) -> dict:
         """扫描在线商品列表的 categoryId，近似判断「经营类目范围」。
@@ -128,9 +167,13 @@ class AlibabaClient:
         return out
 
     def shops(self) -> list[dict]:
-        d = self._post("/alibabaIcbuShopInfoSync/list.json", data={})
-        data = d.get("data") or {}
-        return data.get("shopInfoList") or data.get("list") or []
+        # ShopInfoSync/list returns freight templates/history, not account shops.
+        data = self._get("/userIn.json").get("data") or {}
+        shops = data.get("shopMap") or {}
+        rows = shops.values() if isinstance(shops, dict) else shops
+        return [dict(row, id=str(row.get("id") or row.get("shopId") or ""))
+                for row in rows if isinstance(row, dict)
+                and str(row.get("platform") or "").lower() in ("alibaba", "alibabaicbu", "icbu")]
 
     # ---------- 类目 / 属性 ----------
     def categories(self, parent_id: str | None = None) -> list[dict]:

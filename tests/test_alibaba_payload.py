@@ -325,11 +325,47 @@ class AlibabaDeliverPeriodTests(unittest.TestCase):
 
     def test_deliver_periods_defaults_to_lead_time(self):
         from aeclone.services.alibaba_payload import build_alibaba_save
-        cfg = _cfg(alibaba_lead_time=20)
+        cfg = _cfg(alibaba_lead_time=20, alibaba_process_period="")
         save = build_alibaba_save(_pool_product(), cfg)
         trade = json.loads(save["wholesaleTrade"])
         self.assertEqual(trade["deliver_periods"][0]["process_period"], 20)
         self.assertGreaterEqual(trade["deliver_periods"][0]["quantity"], 1)
+
+
+class AlibabaTextDescTests(unittest.TestCase):
+    def test_build_strips_html_from_text_desc(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        cfg = _cfg(alibaba_category_id="202107201")
+        save = build_alibaba_save(_pool_product(), cfg, {
+            "text_desc": "<h3>Title</h3><p>Hello <b>world</b></p><script>x</script>"})
+        desc = save["textDesc"]
+        self.assertNotIn("<", desc, "平台 textDesc 不接受 HTML")
+        self.assertIn("Title", desc)
+        self.assertIn("Hello", desc)
+        self.assertNotIn("x</", desc)
+
+    def test_validate_rejects_over_2000_chars(self):
+        from aeclone.services.alibaba_payload import validate_alibaba_save
+        product = _pool_product()
+        save = {"categoryId": "202107201", "subject": "x" * 60,
+                "textDesc": "y" * 2500, "mainImage": "https://x/a.jpg",
+                "priceType": "ladder_price", "bulkDiscountPrices": [],
+                "wholesaleTrade": "{}", "attributes": "[]"}
+        issues = validate_alibaba_save(product, save, _cfg(), [], [])
+        self.assertTrue(any("2000" in i for i in issues), issues)
+
+
+class AlibabaCompanyFieldsTests(unittest.TestCase):
+    def test_company_desc_and_faq_written_to_payload(self):
+        from aeclone.services.alibaba_payload import build_alibaba_save
+        cfg = _cfg(alibaba_category_id="202107201",
+                   alibaba_company_desc="We are a factory. " * 20,
+                   alibaba_company_faq="Q: MOQ? A: 1 set.")
+        save = build_alibaba_save(_pool_product(), cfg)
+        self.assertIn("companyDesc", save)
+        self.assertIn("We are a factory", save["companyDesc"])
+        self.assertIn("companyFaqDesc", save)
+        self.assertIn("MOQ", save["companyFaqDesc"])
 
 
 class AlibabaPriceTypePreserveTests(unittest.TestCase):

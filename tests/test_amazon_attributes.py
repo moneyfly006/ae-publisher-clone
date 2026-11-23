@@ -4,7 +4,7 @@
 1. ``build_amazon_payload`` / ``prepare_save`` 对缺失的 4 个发布必填属性自动补齐进
    ``payload.productAttr``（只补缺失、不覆盖已有；``cfg.amazon_autofill_attrs=False`` 可关）；
 2. 确定性映射：SKU/标题型号/商品属性 → model_number / model_name / part_number；
-   manufacturer_contact_information 默认「品牌/制造商, CN」；
+   manufacturer_contact_information 使用源商品或实际配置的联系方式；
 3. 扩充映射：item_name / product_description / bullet_point / generic_keyword /
    brand / manufacturer / item_package_quantity / country_of_origin 等；
 4. ``ai_suggest_attributes`` AI 兜底（mock）：逐字段隔离失败、跳过结构敏感属性、
@@ -157,15 +157,14 @@ def _attr_value(payload, key):
 class PayloadAutofillTests(unittest.TestCase):
     """保存包阶段自动补齐（默认开）。"""
 
-    def test_default_build_fills_four_required_common(self):
+    def test_default_build_reports_missing_contact(self):
         payload = build_amazon_payload(make_product(), AppConfig(), {}, currency="CAD")
         attr = parse_product_attr(payload["productAttr"])
-        self.assertEqual(missing_common_attributes(payload["productAttr"]), [])
+        self.assertEqual(missing_common_attributes(payload["productAttr"]), ["manufacturer_contact_information"])
         self.assertEqual(attr["model_number"][0]["value"], "WY-QHCA-LTM-6")
         self.assertEqual(attr["part_number"][0]["value"], "WY-QHCA-LTM-6")
         self.assertEqual(attr["model_name"][0]["value"], "WY-QHCA-LTM-6")
-        self.assertEqual(attr["manufacturer_contact_information"][0]["value"],
-                         "Generic, CN")
+        self.assertNotIn("manufacturer_contact_information", attr)
         # 新补的属性带站点语言/站点标识
         self.assertEqual(attr["model_number"][0]["language_tag"], "en_CA")
         self.assertEqual(attr["model_number"][0]["marketplace_id"], SITE)
@@ -194,8 +193,7 @@ class PayloadAutofillTests(unittest.TestCase):
                             "part_number": "OVERRIDE-PN"}}, currency="CAD")
         self.assertEqual(_attr_value(payload, "model_number"), "OVERRIDE-MODEL")
         self.assertEqual(_attr_value(payload, "part_number"), "OVERRIDE-PN")
-        self.assertEqual(_attr_value(payload, "manufacturer_contact_information"),
-                         "Generic, CN")
+        self.assertIsNone(_attr_value(payload, "manufacturer_contact_information"))
 
     def test_complete_product_attr_is_written_back_verbatim(self):
         raw = json.dumps({key: [{"value": f"X-{key}", "marketplace_id": SITE}]
@@ -249,17 +247,15 @@ class PayloadAutofillTests(unittest.TestCase):
         payload4 = build_amazon_payload(product4, AppConfig(), {}, currency="CAD")
         self.assertEqual(_attr_value(payload4, "model_number"), "107465057539")
 
-    def test_manufacturer_contact_default_and_cfg_override(self):
+    def test_manufacturer_contact_requires_source_or_cfg_override(self):
         # 默认「品牌/制造商, CN」
         product = make_product(brand="Hengwang", manufacturer="Hengwang Factory")
         payload = build_amazon_payload(product, AppConfig(), {}, currency="CAD")
-        self.assertEqual(_attr_value(payload, "manufacturer_contact_information"),
-                         "Hengwang Factory, CN")
+        self.assertIsNone(_attr_value(payload, "manufacturer_contact_information"))
         # manufacturer 空 → 用品牌
         product2 = make_product(brand="Hengwang", manufacturer="")
         payload2 = build_amazon_payload(product2, AppConfig(), {}, currency="CAD")
-        self.assertEqual(_attr_value(payload2, "manufacturer_contact_information"),
-                         "Hengwang, CN")
+        self.assertIsNone(_attr_value(payload2, "manufacturer_contact_information"))
         # cfg 显式覆盖优先
         cfg = AppConfig()
         cfg.set("amazon_manufacturer_contact", "ACME Ltd, Shenzhen, CN")
@@ -267,7 +263,7 @@ class PayloadAutofillTests(unittest.TestCase):
         self.assertEqual(_attr_value(payload3, "manufacturer_contact_information"),
                          "ACME Ltd, Shenzhen, CN")
 
-    def test_country_of_origin_from_text_then_default(self):
+    def test_country_of_origin_requires_evidence(self):
         product = make_product(title="Wheeled Backhoe Loader Made in China")
         payload = build_amazon_payload(
             product, AppConfig(), {"required_attributes": ["country_of_origin"]},
@@ -277,8 +273,8 @@ class PayloadAutofillTests(unittest.TestCase):
             make_product(title="Heavy Duty Backhoe Loader",
                          description="<p>Heavy duty machine.</p>"),
             AppConfig(), SITE, required=["country_of_origin"], template={})
-        self.assertEqual(filled["country_of_origin"], "CN")
-        self.assertTrue(any("默认 CN" in n for n in notes))
+        self.assertNotIn("country_of_origin", filled)
+        self.assertTrue(any("需用户填写" in n for n in notes))
 
     def test_payload_mirror_attributes_and_package_quantity(self):
         required = ["item_name", "product_description", "bullet_point",
@@ -293,7 +289,7 @@ class PayloadAutofillTests(unittest.TestCase):
                          "backhoe loader diesel construction machine")
         self.assertEqual(filled["brand"], "Generic")
         self.assertEqual(filled["manufacturer"], "Generic")
-        self.assertEqual(filled["item_package_quantity"], 1)
+        self.assertNotIn("item_package_quantity", filled)
         self.assertTrue(any("item_package_quantity" in n for n in notes))
 
     def test_unfillable_and_no_evidence_attributes_go_to_notes(self):
@@ -326,10 +322,9 @@ class PrepareSaveAutofillTests(EnvIsolatedCase):
             "220114595363181900", AppConfig(), client=fake)
         self.assertEqual(issues, [])
         self.assertEqual(len(payload), 39)
-        self.assertEqual(missing_common_attributes(payload["productAttr"]), [])
+        self.assertEqual(missing_common_attributes(payload["productAttr"]), ["manufacturer_contact_information"])
         self.assertEqual(_attr_value(payload, "model_number"), "WY-QHCA-LTM-6")
-        self.assertEqual(_attr_value(payload, "manufacturer_contact_information"),
-                         "Generic, CN")
+        self.assertIsNone(_attr_value(payload, "manufacturer_contact_information"))
         self.assertTrue(any("已自动补齐发布必填属性" in w for w in warnings), warnings)
         self.assertEqual(fake.saved, [])   # 只读，不写
 
@@ -456,7 +451,7 @@ class RunAutofillTests(EnvIsolatedCase):
         payload, op = fake.saved[0]
         self.assertEqual(op, OP_SAVE)
         self.assertEqual(len(payload), 39)
-        self.assertEqual(missing_common_attributes(payload["productAttr"]), [])
+        self.assertEqual(missing_common_attributes(payload["productAttr"]), ["manufacturer_contact_information"])
         self.assertEqual(_attr_value(payload, "model_number"), "WY-QHCA-LTM-6")
         self.assertEqual(fake.template_queries, [])   # op=1 不拉在线模板
         self.assertTrue(any("已自动补齐发布必填属性" in w for w in res.warnings))

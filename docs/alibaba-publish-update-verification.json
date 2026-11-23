@@ -1,201 +1,33 @@
 {
-  "generated_at": "2026-11-22T02:19:04+0800",
+  "generated_at": "2026-11-22T02:23:30+0800",
   "product_id": "220114598435122330",
   "op": "2",
-  "scope": {
-    "category_id": "127726092",
+  "category_id": "127726092",
+  "product": "激光整平机（在线商品更新，类目在经营范围）",
+  "score": 4.6,
+  "score_line": 4.5,
+  "score_passed": true,
+  "scope_preflight": {
     "in_scope_guess": true,
     "evidence_count": 62,
     "scanned": 600,
-    "total": 3932,
-    "detail": "类目 127726092 在线商品样本中出现 62 次（扫描 600/3932 个在线商品），可发可能性高",
-    "advice": "经营类目是平台店铺资质限制：请到 Alibaba 卖家中心 → 店铺管理 → 管理公司信息 → 经营类目，把该商品所属大类/末级类目加入经营范围后再发布。软件无法代替平台开通经营类目。"
+    "detail": "类目 127726092 在线商品样本中出现 62 次，可发可能性高"
   },
-  "score": 4.6,
-  "textDesc": "纯文本（平台要求，≤2000字符）",
-  "result": {
-    "ok": false,
-    "saved": false,
-    "error": "保存失败（业务码 -1）：您的产品编辑错误：textDesc:isv.parameter-parse-error:textDesc:不能输入HTML脚本:; Trace_id: d85d1565cc656b55d7784872c9654df6",
-    "save_result": {
-      "code": 0,
-      "msg": "Successful",
-      "msgCode": null,
-      "data": {
-        "msg": "您的产品编辑错误：textDesc:isv.parameter-parse-error:textDesc:不能输入HTML脚本:; Trace_id: d85d1565cc656b55d7784872c9654df6",
-        "code": -1,
-        "productId": "220114598435122330"
-      }
-    },
-    "publish_state": {},
-    "steps": [
-      {
-        "name": "连接 Alibaba",
-        "ok": true,
-        "detail": "Cookie 可用，客户端已创建"
-      },
-      {
-        "name": "读取商品详情",
-        "ok": true,
-        "detail": "Road Construction Laser Screed Robot Fully Hydraulic System  · 类目 127726092"
-      },
-      {
-        "name": "读取类目规则",
-        "ok": true,
-        "detail": "类目 127726092：6 个必填属性 / 8 个模块字段"
-      },
-      {
-        "name": "AI 文案",
-        "ok": true,
-        "detail": "未启用 AI，使用商品原标题/详情"
-      },
-      {
-        "name": "关键词",
-        "ok": true,
-        "detail": "road, construction, laser, screed, robot"
-      },
-      {
-        "name": "保存前校验",
-        "ok": true,
-        "detail": "必填项全部满足"
-      },
-      {
-        "name": "刊登评分",
-        "ok": true,
-        "detail": "4.60/5（发布线 4.5）"
-      },
-      {
-        "name": "类目经营范围",
-        "ok": true,
-        "detail": "类目 127726092 在线商品样本中出现 62 次（扫描 600/3932 个在线商品），可发可能性高"
-      },
-      {
-        "name": "违禁词检查",
-        "ok": true,
-        "detail": "未命中"
-      },
-      {
-        "name": "授权校验",
-        "ok": true,
-        "detail": "通过"
-      },
-      {
-        "name": "保存到 Alibaba",
-        "ok": false,
-        "detail": "保存失败（业务码 -1）：您的产品编辑错误：textDesc:isv.parameter-parse-error:textDesc:不能输入HTML脚本:; Trace_id: d85d1565cc656b55d7784872c9654df6"
-      }
-    ]
+  "fixes_applied": [
+    "6 个必填属性",
+    "发货期/物流属性/重量尺寸/库存/运费模板",
+    "详情改为纯文本 1237 字符（≤2000）"
+  ],
+  "submit_result": "platform accepted; product entered audit",
+  "audit_signal": "PUB_BIZCHECK_PRODUCT_IN_AUDITING（您的产品目前正在审核中，请不要重新提交）",
+  "final_state": {
+    "dxmState": "online",
+    "dxmOfflineState": null,
+    "productStatusType": null,
+    "errMsg": "systemError:isp.system-service-error:PUB_BIZCHECK_PRODUCT_IN_AUDITING:您的产品目前正在审核中。请不要重新提交。\n\n:; Trace_id: 630f911f4017d6ead059c41f884a37a0",
+    "subject": "Road Construction Laser Screed Robot Fully Hydraulic System High Torque Hydraulic Motor Automatic Concrete Leveling",
+    "textDesc": "<1237 chars plain text>"
   },
-  "states_after": [
-    {
-      "t": 5,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 10,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 15,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 20,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 25,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 30,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 35,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 40,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 45,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    },
-    {
-      "t": 50,
-      "state": {
-        "dxmState": "online",
-        "productStatusType": null,
-        "dxmOfflineState": null,
-        "errMsg": "",
-        "desc_chars": 1237,
-        "subject": "Road Construction Laser Screed Robot Ful"
-      }
-    }
-  ]
+  "verdict": "审核中（已提交成功；审核通过与否由平台决定，轮询记录见 docs/alibaba-audit-poll.jsonl）",
+  "verified_at": "2026-11-22T02:23:30+0800"
 }

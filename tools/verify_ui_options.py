@@ -7,21 +7,21 @@ from ui_sandbox import sandbox, build_app, walk, label
 import flet as ft
 
 def _page_platforms():
-    """按平台实际页面生成遍历表：Alibaba 平台没有价格页/变种页。"""
-    from aeclone.platforms import get_platform
-    mapping = {}
-    for p in get_platform("alibaba").pages:
-        mapping[p.index] = "alibaba"
-    for p in get_platform("aliexpress").pages:
-        mapping.setdefault(p.index, "aliexpress")
-    return mapping
+    """按平台实际页面生成遍历表（每个平台独立审计，页面号可重复）。"""
+    from aeclone.platforms import PLATFORMS
+    out = []
+    for pid, pf in PLATFORMS.items():
+        if not pf.implemented:
+            continue
+        for p in pf.pages:
+            out.append((p.index, pid))
+    return out
 
 
 def main():
     results=[]
     page_platform = _page_platforms()
-    for page in sorted(page_platform):
-        platform_id = page_platform[page]
+    for page, platform_id in sorted(page_platform):
         with sandbox():
             app=build_app()
             if platform_id != "alibaba":
