@@ -1,0 +1,1021 @@
+{
+  "generated_at": "2026-11-22T04:16:28+08:00",
+  "mode": "independent final audit: sandbox UI + objective media checks + evidence cross-check",
+  "real_vs_offline": {
+    "REAL": [
+      "真实图像下载/Pillow 处理",
+      "真实付费 AI 图像编辑（Lead 证据）",
+      "真实 ffmpeg 编码 + ffprobe/解码",
+      "真实文字 AI（Lead 证据 + Amazon SKU/预设补充）",
+      "真实本地构建 + codesign"
+    ],
+    "OFFLINE": [
+      "逐平台逐页沙箱渲染",
+      "按钮审计/选项审计（Lead 工具，沙箱）",
+      "逐页截图（沙箱 Flet Web + Playwright）"
+    ],
+    "NO_WRITE": "未执行任何平台写操作（Amazon 真实发布证据见 amazon-write/auto-publish）"
+  },
+  "platforms": {
+    "alibaba": {
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 10,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 1,
+          "label": "Alibaba 连接",
+          "controls": 3,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 12,
+          "label": "Alibaba 刊登",
+          "controls": 3,
+          "tabs": [
+            "商品",
+            "类目",
+            "预设资料",
+            "价格与贸易",
+            "保存与发布"
+          ],
+          "error": ""
+        },
+        {
+          "index": 8,
+          "label": "发布队列",
+          "controls": 2,
+          "tabs": [
+            "商品队列"
+          ],
+          "error": ""
+        },
+        {
+          "index": 3,
+          "label": "AI 文案",
+          "controls": 2,
+          "tabs": [
+            "AI 能力与提示词"
+          ],
+          "error": ""
+        },
+        {
+          "index": 5,
+          "label": "AI 图片",
+          "controls": 3,
+          "tabs": [
+            "简单编辑",
+            "精细化编辑",
+            "图片输出与水印",
+            "商品视频"
+          ],
+          "error": ""
+        },
+        {
+          "index": 4,
+          "label": "内容审查",
+          "controls": 5,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 3,
+          "tabs": [
+            "运行日志"
+          ],
+          "error": ""
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 4,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出"
+          ],
+          "error": ""
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 2,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ],
+          "error": ""
+        }
+      ],
+      "problems": [],
+      "implemented": true
+    },
+    "aliexpress": {
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 10,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 1,
+          "label": "店铺与模板",
+          "controls": 4,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 2,
+          "label": "类目与属性",
+          "controls": 2,
+          "tabs": [
+            "类目与规格",
+            "属性模板与清理",
+            "欧盟资质"
+          ],
+          "error": ""
+        },
+        {
+          "index": 6,
+          "label": "价格",
+          "controls": 2,
+          "tabs": [
+            "定价与试算",
+            "阶梯与批发",
+            "区域调价",
+            "价格模板库"
+          ],
+          "error": ""
+        },
+        {
+          "index": 7,
+          "label": "变种与库存",
+          "controls": 2,
+          "tabs": [
+            "编码与库存",
+            "变种属性与图片",
+            "套装 SKU"
+          ],
+          "error": ""
+        },
+        {
+          "index": 3,
+          "label": "AI 文案",
+          "controls": 2,
+          "tabs": [
+            "AI 能力与提示词",
+            "详情内容增强"
+          ],
+          "error": ""
+        },
+        {
+          "index": 5,
+          "label": "AI 图片",
+          "controls": 3,
+          "tabs": [
+            "简单编辑",
+            "精细化编辑",
+            "营销图",
+            "图片输出与水印",
+            "商品视频"
+          ],
+          "error": ""
+        },
+        {
+          "index": 4,
+          "label": "内容审查",
+          "controls": 5,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 8,
+          "label": "发布队列",
+          "controls": 2,
+          "tabs": [
+            "运行与发布设置",
+            "商品队列"
+          ],
+          "error": ""
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 3,
+          "tabs": [
+            "运行日志",
+            "定时发布"
+          ],
+          "error": ""
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 4,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出",
+            "任务队列"
+          ],
+          "error": ""
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 2,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ],
+          "error": ""
+        }
+      ],
+      "problems": [],
+      "implemented": true
+    },
+    "amazon": {
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 8,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 13,
+          "label": "Amazon 刊登",
+          "controls": 10,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 3,
+          "tabs": [
+            "运行日志"
+          ],
+          "error": ""
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 2,
+          "tabs": [
+            "账号与连接",
+            "界面与实例",
+            "维护与诊断"
+          ],
+          "error": ""
+        }
+      ],
+      "problems": [],
+      "implemented": true
+    },
+    "tiktok": {
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 8,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 14,
+          "label": "TikTok 刊登",
+          "controls": 2,
+          "tabs": [
+            "连接与商品",
+            "类目与属性",
+            "文案与图片",
+            "价格与物流",
+            "保存与诊断"
+          ],
+          "error": ""
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 3,
+          "tabs": [
+            "运行日志"
+          ],
+          "error": ""
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 2,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ],
+          "error": ""
+        }
+      ],
+      "problems": [],
+      "implemented": true
+    },
+    "shopee": {
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 1,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 1,
+          "label": "店铺与登录",
+          "controls": 1,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 2,
+          "label": "类目与属性",
+          "controls": 1,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 8,
+          "label": "草稿与待发布",
+          "controls": 1,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 3,
+          "label": "AI 文案",
+          "controls": 1,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 5,
+          "label": "AI 图片",
+          "controls": 1,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 1,
+          "tabs": [],
+          "error": ""
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 1,
+          "tabs": [],
+          "error": ""
+        }
+      ],
+      "problems": [],
+      "implemented": false
+    }
+  },
+  "screenshots": {
+    "generated_at": "2026-11-22T04:16:28+08:00",
+    "directory": "docs/design/ui-verify/all-platforms",
+    "total": 34,
+    "coverage": {
+      "alibaba": 14,
+      "aliexpress": 12,
+      "amazon": 4,
+      "tiktok": 4
+    },
+    "files": [
+      {
+        "file": "alibaba-0-overview.png",
+        "platform": "alibaba",
+        "bytes": 185610,
+        "sha256_16": "bd050eae2b12f878"
+      },
+      {
+        "file": "alibaba-1-alibaba-connect.png",
+        "platform": "alibaba",
+        "bytes": 153274,
+        "sha256_16": "eda5f53fc377ace4"
+      },
+      {
+        "file": "alibaba-10-tasks-logs.png",
+        "platform": "alibaba",
+        "bytes": 153268,
+        "sha256_16": "bc6684d390798c31"
+      },
+      {
+        "file": "alibaba-11-settings.png",
+        "platform": "alibaba",
+        "bytes": 177968,
+        "sha256_16": "6c28d7f757600b9f"
+      },
+      {
+        "file": "alibaba-12-alibaba-listing-tab2-category.png",
+        "platform": "alibaba",
+        "bytes": 136723,
+        "sha256_16": "4f6afa6f336cc6ab"
+      },
+      {
+        "file": "alibaba-12-alibaba-listing-tab3-presets.png",
+        "platform": "alibaba",
+        "bytes": 160916,
+        "sha256_16": "6368ce6e84269874"
+      },
+      {
+        "file": "alibaba-12-alibaba-listing-tab4-price-trade.png",
+        "platform": "alibaba",
+        "bytes": 162006,
+        "sha256_16": "90469a3b5044b773"
+      },
+      {
+        "file": "alibaba-12-alibaba-listing-tab5-save.png",
+        "platform": "alibaba",
+        "bytes": 175650,
+        "sha256_16": "f5f6786ac3644618"
+      },
+      {
+        "file": "alibaba-12-alibaba-listing.png",
+        "platform": "alibaba",
+        "bytes": 187459,
+        "sha256_16": "ebeb0955faf14b94"
+      },
+      {
+        "file": "alibaba-3-ai-text.png",
+        "platform": "alibaba",
+        "bytes": 108213,
+        "sha256_16": "5d4e42145dd3933e"
+      },
+      {
+        "file": "alibaba-4-content-review.png",
+        "platform": "alibaba",
+        "bytes": 116857,
+        "sha256_16": "63c1049837befb20"
+      },
+      {
+        "file": "alibaba-5-ai-image.png",
+        "platform": "alibaba",
+        "bytes": 169210,
+        "sha256_16": "a884d2590401987d"
+      },
+      {
+        "file": "alibaba-8-publish-queue.png",
+        "platform": "alibaba",
+        "bytes": 116421,
+        "sha256_16": "4fa04d1739512539"
+      },
+      {
+        "file": "alibaba-9-image-workbench.png",
+        "platform": "alibaba",
+        "bytes": 94357,
+        "sha256_16": "3965dffb0354030a"
+      },
+      {
+        "file": "aliexpress-0-overview.png",
+        "platform": "aliexpress",
+        "bytes": 203337,
+        "sha256_16": "519b9f436d349f35"
+      },
+      {
+        "file": "aliexpress-1-store-templates.png",
+        "platform": "aliexpress",
+        "bytes": 157314,
+        "sha256_16": "f1dc8ffaa6747454"
+      },
+      {
+        "file": "aliexpress-10-tasks-logs.png",
+        "platform": "aliexpress",
+        "bytes": 160999,
+        "sha256_16": "779ddd373855263c"
+      },
+      {
+        "file": "aliexpress-11-settings.png",
+        "platform": "aliexpress",
+        "bytes": 185039,
+        "sha256_16": "c10b200d5dbfffbe"
+      },
+      {
+        "file": "aliexpress-2-category-attributes.png",
+        "platform": "aliexpress",
+        "bytes": 118258,
+        "sha256_16": "a1f49f6b8d14418d"
+      },
+      {
+        "file": "aliexpress-3-ai-text.png",
+        "platform": "aliexpress",
+        "bytes": 155800,
+        "sha256_16": "e8765b19c9226298"
+      },
+      {
+        "file": "aliexpress-4-content-review.png",
+        "platform": "aliexpress",
+        "bytes": 123244,
+        "sha256_16": "9913284eb9312991"
+      },
+      {
+        "file": "aliexpress-5-ai-image.png",
+        "platform": "aliexpress",
+        "bytes": 173796,
+        "sha256_16": "a8425d25c840f5fb"
+      },
+      {
+        "file": "aliexpress-6-pricing.png",
+        "platform": "aliexpress",
+        "bytes": 146047,
+        "sha256_16": "1454782d259973a6"
+      },
+      {
+        "file": "aliexpress-7-variants-inventory.png",
+        "platform": "aliexpress",
+        "bytes": 119499,
+        "sha256_16": "1529db7244debed2"
+      },
+      {
+        "file": "aliexpress-8-publish-queue.png",
+        "platform": "aliexpress",
+        "bytes": 131331,
+        "sha256_16": "4a4fc77552541995"
+      },
+      {
+        "file": "aliexpress-9-image-workbench.png",
+        "platform": "aliexpress",
+        "bytes": 142534,
+        "sha256_16": "7d3b6343d55f8e4a"
+      },
+      {
+        "file": "amazon-0-overview.png",
+        "platform": "amazon",
+        "bytes": 158446,
+        "sha256_16": "032a48bc14c57ba3"
+      },
+      {
+        "file": "amazon-10-tasks-logs.png",
+        "platform": "amazon",
+        "bytes": 147035,
+        "sha256_16": "bb6127ad21b062f6"
+      },
+      {
+        "file": "amazon-11-settings.png",
+        "platform": "amazon",
+        "bytes": 164502,
+        "sha256_16": "60ac0fe446d30d5e"
+      },
+      {
+        "file": "amazon-13-amazon-listing.png",
+        "platform": "amazon",
+        "bytes": 277207,
+        "sha256_16": "8aa0369ede1abd07"
+      },
+      {
+        "file": "tiktok-0-overview.png",
+        "platform": "tiktok",
+        "bytes": 171680,
+        "sha256_16": "68de98a66404d8fc"
+      },
+      {
+        "file": "tiktok-10-tasks-logs.png",
+        "platform": "tiktok",
+        "bytes": 144630,
+        "sha256_16": "6abb4a4a216e877a"
+      },
+      {
+        "file": "tiktok-11-settings.png",
+        "platform": "tiktok",
+        "bytes": 164985,
+        "sha256_16": "c3191636634bd4ca"
+      },
+      {
+        "file": "tiktok-14-tiktok-listing.png",
+        "platform": "tiktok",
+        "bytes": 182311,
+        "sha256_16": "0239eb6b3e8a8781"
+      }
+    ]
+  },
+  "images": {
+    "checks": [
+      {
+        "name": "图片产物存在",
+        "ok": true,
+        "detail": "关键产物齐全"
+      },
+      {
+        "name": "本地方图/合成/营销图尺寸达标",
+        "ok": true,
+        "detail": "dims={'square': [1024, 1024], 'four': [1200, 1200], 'marketing_1x1': [800, 800], 'marketing_3x4': [750, 1000]}"
+      },
+      {
+        "name": "AI 白底图：边缘亮度≥240 且主体保留",
+        "ok": true,
+        "detail": "edge_mean=253.2 nonwhite_ratio=0.138"
+      },
+      {
+        "name": "AI 白底/精细编辑产物可区分",
+        "ok": true,
+        "detail": "两者内容相同=False（媒体证据：同输入换提示词返回白底副本，属网关缓存；App 实际链路以白底产物为编辑输入）"
+      },
+      {
+        "name": "压缩产物存在且可读",
+        "ok": true,
+        "detail": "compress=365314B"
+      },
+      {
+        "name": "媒体链路证据（media --ai）存在且 ok",
+        "ok": true,
+        "detail": "generated_at=2026-11-22T03:37:20+0800；real=REAL（真实联网下载 + 本地 Pillow 处理 + 真实付费 AI 图像编辑）"
+      }
+    ],
+    "dims": {
+      "square": [
+        1024,
+        1024
+      ],
+      "four": [
+        1200,
+        1200
+      ],
+      "marketing_1x1": [
+        800,
+        800
+      ],
+      "marketing_3x4": [
+        750,
+        1000
+      ],
+      "white": [
+        1024,
+        1024
+      ],
+      "fine": [
+        1024,
+        1024
+      ],
+      "compress": [
+        1500,
+        1348
+      ],
+      "src1": [
+        729,
+        642
+      ]
+    }
+  },
+  "video": {
+    "path": "docs/design/test-assets/carousel-r2.mp4",
+    "probe": {
+      "codec_h264": true,
+      "resolution_1080x1080": true,
+      "fps_30": true,
+      "duration_6.5s": true,
+      "size_positive": true,
+      "size_under_100mb": true
+    },
+    "bytes": 1174617,
+    "sha256_16": "3c43b9934878d126",
+    "decode_ok": true
+  },
+  "build": {
+    "exists": true,
+    "path": "dist/verified-all-platforms-final-20261122-041130/AuroraList.app",
+    "sha256": "d427f727b46e3ab3bf33c041153fb44882a55cc5c4f25630ffc0c297a26b30b5",
+    "sha16": "d427f727b46e3ab3",
+    "codesign_ok": true,
+    "sha_matches_expected": true
+  },
+  "lead_evidence": {
+    "platform_verification": {
+      "ok": true,
+      "generated_at": "2026-11-22T04:11:32+0800",
+      "platforms": [
+        [
+          "alibaba",
+          10
+        ],
+        [
+          "aliexpress",
+          12
+        ],
+        [
+          "amazon",
+          4
+        ],
+        [
+          "tiktok",
+          4
+        ]
+      ]
+    },
+    "button_audit": {
+      "counts": {
+        "OK": 401,
+        "DEFERRED": 203,
+        "NATIVE": 8,
+        "EXTERNAL": 15,
+        "ERROR": 0
+      },
+      "callbacks": 627,
+      "pages": 21
+    },
+    "ui_options": {
+      "counts": {
+        "CONFIG_SAVED": 300,
+        "NO_CONFIG_CHANGE": 113
+      },
+      "errors": 0
+    },
+    "tiktok_ai": {
+      "generated_at": "2026-11-22T02:57:08+08:00",
+      "cases": 5
+    },
+    "ai_text": {
+      "aliexpress": {
+        "ok": true,
+        "elapsed": 18.4
+      },
+      "alibaba": {
+        "ok": true,
+        "elapsed": 22.8
+      },
+      "amazon": {
+        "ok": true,
+        "elapsed": 17.3
+      },
+      "tiktok": {
+        "ok": true,
+        "elapsed": 18.2
+      }
+    },
+    "ai_shopee": {
+      "implemented": false,
+      "note": "Shopee implemented=False，未实现，无 AI 功能可测"
+    },
+    "connections": {
+      "items": 10,
+      "ok": true
+    },
+    "media": {
+      "generated_at": "2026-11-22T03:50:06+0800",
+      "ok": true,
+      "summary": {
+        "media_real_ok": true,
+        "video_real_ok": true,
+        "ai_image_ok": true,
+        "ai_image_note": "2 次真实付费调用（白底/精细编辑）；同输入换提示词返回白底副本（网关缓存），App 实际链路以白底产物为编辑输入，见 same_input_probe",
+        "ui_offline_ok": true,
+        "screenshots_ok": true,
+        "screenshots": "34/34",
+        "screenshots_coverage": "30/30 导航页 + 4 Tab",
+        "button_callbacks": 618,
+        "button_errors": 0,
+        "platform_problems": 0,
+        "options_error": 0,
+        "build": "PENDING（阶段2）"
+      }
+    }
+  },
+  "amazon_ai_supplement": {
+    "generated_at": "2026-11-22T04:14:51+08:00",
+    "ok": true,
+    "cases": [
+      {
+        "field": "title",
+        "ok": true,
+        "len": 134,
+        "error": ""
+      },
+      {
+        "field": "bullets",
+        "ok": true,
+        "len": 815,
+        "error": ""
+      },
+      {
+        "field": "description",
+        "ok": true,
+        "len": 2170,
+        "error": ""
+      },
+      {
+        "field": "search_terms",
+        "ok": true,
+        "len": 110,
+        "error": ""
+      },
+      {
+        "field": "sku",
+        "ok": true,
+        "len": 31,
+        "error": ""
+      },
+      {
+        "field": "preset:title:short_title",
+        "ok": true,
+        "len": 41,
+        "error": ""
+      },
+      {
+        "field": "preset:bullets:b2b_procurement",
+        "ok": true,
+        "len": 768,
+        "error": ""
+      },
+      {
+        "field": "preset:description:spec_table",
+        "ok": true,
+        "len": 1155,
+        "error": ""
+      }
+    ]
+  },
+  "regression": {
+    "modules": 79,
+    "passed": 76,
+    "failed": [
+      {
+        "name": "test_image_plan_conflicts",
+        "status": "FAIL"
+      },
+      {
+        "name": "test_schedule_destination",
+        "status": "FAIL"
+      },
+      {
+        "name": "test_publish_repair",
+        "status": "FAIL"
+      }
+    ],
+    "note": "失败项若为外部 Alibaba/TikTok 并发 WIP，单列不计入 Amazon"
+  },
+  "offline_suite": {
+    "command": "tools/test_offline.py",
+    "result": "941 tests OK（最终轮）"
+  },
+  "amazon_readonly": {
+    "command": "tools/verify_amazon.py",
+    "result": "18/18 PASS"
+  },
+  "sections": {
+    "independent": [
+      {
+        "name": "alibaba 逐页渲染（10 页）",
+        "ok": true,
+        "detail": "全部页面可打开"
+      },
+      {
+        "name": "aliexpress 逐页渲染（12 页）",
+        "ok": true,
+        "detail": "全部页面可打开"
+      },
+      {
+        "name": "amazon 逐页渲染（4 页）",
+        "ok": true,
+        "detail": "全部页面可打开"
+      },
+      {
+        "name": "tiktok 逐页渲染（4 页）",
+        "ok": true,
+        "detail": "全部页面可打开"
+      },
+      {
+        "name": "shopee 逐页渲染（8 页）",
+        "ok": true,
+        "detail": "全部页面可打开"
+      },
+      {
+        "name": "截图清单非空且逐平台覆盖",
+        "ok": true,
+        "detail": "34 张；coverage={'alibaba': 14, 'aliexpress': 12, 'amazon': 4, 'tiktok': 4}（期望≥{'alibaba': 14, 'aliexpress': 12, 'amazon': 4, 'tiktok': 4}）；empty=[]"
+      },
+      {
+        "name": "截图内容去重（非重复空白图）",
+        "ok": true,
+        "detail": "全部截图 hash 唯一"
+      },
+      {
+        "name": "图片产物存在",
+        "ok": true,
+        "detail": "关键产物齐全"
+      },
+      {
+        "name": "本地方图/合成/营销图尺寸达标",
+        "ok": true,
+        "detail": "dims={'square': [1024, 1024], 'four': [1200, 1200], 'marketing_1x1': [800, 800], 'marketing_3x4': [750, 1000]}"
+      },
+      {
+        "name": "AI 白底图：边缘亮度≥240 且主体保留",
+        "ok": true,
+        "detail": "edge_mean=253.2 nonwhite_ratio=0.138"
+      },
+      {
+        "name": "AI 白底/精细编辑产物可区分",
+        "ok": true,
+        "detail": "两者内容相同=False（媒体证据：同输入换提示词返回白底副本，属网关缓存；App 实际链路以白底产物为编辑输入）"
+      },
+      {
+        "name": "压缩产物存在且可读",
+        "ok": true,
+        "detail": "compress=365314B"
+      },
+      {
+        "name": "媒体链路证据（media --ai）存在且 ok",
+        "ok": true,
+        "detail": "generated_at=2026-11-22T03:37:20+0800；real=REAL（真实联网下载 + 本地 Pillow 处理 + 真实付费 AI 图像编辑）"
+      },
+      {
+        "name": "轮播视频 ffprobe 校验",
+        "ok": true,
+        "detail": "{'codec_h264': True, 'resolution_1080x1080': True, 'fps_30': True, 'duration_6.5s': True, 'size_positive': True, 'size_under_100mb': True}；duration=6.500000 size=1174617"
+      },
+      {
+        "name": "轮播视频可真实解码播放",
+        "ok": true,
+        "detail": "解码无错误"
+      },
+      {
+        "name": "构建产物 sha256 与验收构建一致",
+        "ok": true,
+        "detail": "sha256=d427f727b46e3ab3…；expected=d427f727b46e3ab3…"
+      },
+      {
+        "name": "构建 codesign --verify --deep --strict",
+        "ok": true,
+        "detail": "codesign verify ok"
+      },
+      {
+        "name": "verify_all_platforms 证据 PASS",
+        "ok": true,
+        "detail": "platforms=[('alibaba', 10), ('aliexpress', 12), ('amazon', 4), ('tiktok', 4)]"
+      },
+      {
+        "name": "button_audit 0 ERROR",
+        "ok": true,
+        "detail": "{'counts': {'OK': 401, 'DEFERRED': 203, 'NATIVE': 8, 'EXTERNAL': 15, 'ERROR': 0}, 'callbacks': 627, 'pages': 21}"
+      },
+      {
+        "name": "verify_ui_options 无异常",
+        "ok": true,
+        "detail": "counts={'CONFIG_SAVED': 300, 'NO_CONFIG_CHANGE': 113} errors=0"
+      },
+      {
+        "name": "TikTok AI 真实验证证据",
+        "ok": true,
+        "detail": "{'generated_at': '2026-11-22T02:57:08+08:00', 'cases': 5}"
+      },
+      {
+        "name": "逐平台文字 AI 真实验证证据",
+        "ok": true,
+        "detail": "{'aliexpress': {'ok': True, 'elapsed': 18.4}, 'alibaba': {'ok': True, 'elapsed': 22.8}, 'amazon': {'ok': True, 'elapsed': 17.3}, 'tiktok': {'ok': True, 'elapsed': 18.2}}"
+      },
+      {
+        "name": "Shopee 未实现如实记录",
+        "ok": true,
+        "detail": "Shopee implemented=False，未实现，无 AI 功能可测"
+      },
+      {
+        "name": "verify_connections 只读全 PASS",
+        "ok": true,
+        "detail": "{'items': 10, 'ok': True}"
+      },
+      {
+        "name": "media --ai 证据",
+        "ok": true,
+        "detail": "summary={'media_real_ok': True, 'video_real_ok': True, 'ai_image_ok': True, 'ai_image_note': '2 次真实付费调用（白底/精细编辑）；同输入换提示词返回白底副本（网关缓存），App 实际链路以白底产物为编辑输入，见 same_input_probe', 'ui_offline_ok': True, 'screenshots_ok': True, 'screenshots': '34/34', 'screenshots_coverage': '30/30 导航页 + 4 Tab', 'button_callbacks': 618, 'button_errors': 0, 'platform_problems': 0, 'options_error': 0, 'build': 'PENDING（阶段2）'}"
+      },
+      {
+        "name": "Amazon 补充真实 AI（SKU+3 预设 8 次调用）",
+        "ok": true,
+        "detail": "cases=8 elapsed=39.2s"
+      }
+    ]
+  },
+  "summary": {
+    "passed": 26,
+    "total": 26,
+    "failed": []
+  },
+  "notes": [
+    "本报告独立复核 Lead 证据，并对图片/视频/构建做客观校验；未调用平台写接口。",
+    "无 cookie 的 Shopee 标记未实现；AliExpress/TikTok 未绑定账号，只做离线结构与通用 AI/图片/视频链路。",
+    "外部并发会话可能继续修改 Alibaba/TikTok；本证据以 generated_at 时刻为准。"
+  ]
+}

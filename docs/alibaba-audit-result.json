@@ -1,0 +1,16 @@
+{
+  "product_id": "220114598435122330",
+  "elapsed_sec": 3613.4,
+  "last": {
+    "t": 3583.4,
+    "dxmState": "online",
+    "productStatusType": null,
+    "dxmOfflineState": null,
+    "errMsg": "",
+    "subject": "Road Construction Laser Screed Robot Fully Hydraul",
+    "desc_chars": 1237,
+    "mainVideoId": null
+  },
+  "log": "/Users/apple/Projects/alibaba-lister/docs/alibaba-audit-poll.jsonl",
+  "generated_at": "2026-11-22T03:40:42+0800"
+}

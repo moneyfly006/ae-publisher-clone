@@ -1,0 +1,718 @@
+{
+  "generated_at": "2026-11-22T04:17:16+08:00",
+  "mode": "offline/read-only audit (FakeClient, no network, no real write)",
+  "sections": {
+    "auto": [
+      {
+        "name": "首轮成功（reviewing=已提交非失败）",
+        "ok": true,
+        "detail": "ok=True saved=True rounds=1"
+      },
+      {
+        "name": "B 类缺属性 → 第二轮补齐后提交",
+        "ok": true,
+        "detail": "rounds=2 saves=2 req=['model_number', 'part_number', 'model_name', 'manufacturer_contact_information', 'item_name']"
+      },
+      {
+        "name": "100470 标题重复 → 自动去重",
+        "ok": true,
+        "detail": "title2='Backhoe Loader HW20-28 Construction Machine' rounds=2"
+      },
+      {
+        "name": "描述促销/联系方式 → 清洗成功",
+        "ok": true,
+        "detail": "desc2='<p>5 Ton Diesel Backhoe Loader HW20-28 for Construction.</p><ul><li>Heavy duty frame: strong steel body</li><li>Diesel e'"
+      },
+      {
+        "name": "价格/库存缺失 → 阻断且不发布",
+        "ok": true,
+        "detail": "blockers=['价格缺失或≤0（不自动编造，需用户填写）', '库存为 0（不自动编造，需用户填写）'] saves=0"
+      },
+      {
+        "name": "max_rounds 用尽安全停止",
+        "ok": true,
+        "detail": "rounds=2 saves=2 detail=已达到最大自动修复轮次，发布仍未成功"
+      },
+      {
+        "name": "CI 护栏（AURORA_TEST 拒绝真实发布）",
+        "ok": true,
+        "detail": "blockers=['AURORA_NO_SAVE/AURORA_TEST 生效：已拒绝真实发布（CI 护栏）'] saves=0"
+      },
+      {
+        "name": "唯一写入口 save_to_amazon（无直连 save_product）",
+        "ok": true,
+        "detail": "auto_publish 仅经 save_to_amazon 写"
+      }
+    ],
+    "policy": [
+      {
+        "name": "干净 payload 无阻断",
+        "ok": true,
+        "detail": "blockers=[]"
+      },
+      {
+        "name": "标题同词>2 → 自动修复动作",
+        "ok": true,
+        "detail": "actions=['dedupe_title_words']"
+      },
+      {
+        "name": "标题促销/联系方式/URL → 自动修复动作",
+        "ok": true,
+        "detail": "actions=['sanitize_title']"
+      },
+      {
+        "name": "标题全大写 → 自动修复动作",
+        "ok": true,
+        "detail": "actions=['sanitize_title']"
+      },
+      {
+        "name": "标题 emoji → 自动修复动作",
+        "ok": true,
+        "detail": "actions=['sanitize_title']"
+      },
+      {
+        "name": "五点 HTML/促销 → 自动修复动作",
+        "ok": true,
+        "detail": "actions=['sanitize_bullets']"
+      },
+      {
+        "name": "描述促销/联系方式 → 自动修复动作",
+        "ok": true,
+        "detail": "actions=['sanitize_description']"
+      },
+      {
+        "name": "Search Terms 超长/标点/促销 → 自动修复动作",
+        "ok": true,
+        "detail": "actions=['sanitize_search_terms']"
+      },
+      {
+        "name": "SKU 非法字符 → 自动修复动作",
+        "ok": true,
+        "detail": "actions=['sanitize_sku']"
+      },
+      {
+        "name": "价格缺失 → 阻断（不编造）",
+        "ok": true,
+        "detail": "blockers=['价格缺失或≤0（不自动编造，需用户填写）']"
+      },
+      {
+        "name": "库存为 0 → 阻断（不编造）",
+        "ok": true,
+        "detail": "blockers=['库存为 0（不自动编造，需用户填写）']"
+      },
+      {
+        "name": "主图缺失 → 阻断",
+        "ok": true,
+        "detail": "blockers=['主图缺失或不是 http(s) 地址']"
+      },
+      {
+        "name": "schema 必填（strict）→ 阻断",
+        "ok": true,
+        "detail": "blockers=['类目 schema 必填属性缺失：material']"
+      },
+      {
+        "name": "修复动作无编造参数/认证/价格",
+        "ok": true,
+        "detail": "actions=['dedupe_title_words', 'sanitize_bullets', 'sanitize_description', 'sanitize_search_terms', 'sanitize_sku', 'sanitize_title']"
+      }
+    ],
+    "ui": [
+      {
+        "name": "页面无预演/发布前检查/检查模式文案",
+        "ok": true,
+        "detail": "0 泄漏"
+      },
+      {
+        "name": "自动发布按钮/3 下拉/4 开关齐全",
+        "ok": true,
+        "detail": "button=自动发布；drops=['自动发布动作', '最多自动修复轮数', '发布后等待（秒）']；switches=['使用 AI（会调用付费 API，默认关闭）', '自动补齐必填属性', '自动修正标题重复/超长/违规词', '自动清理描述促销/联系方式/HTML', '自动 AI 重写违规文案（付费）']"
+      },
+      {
+        "name": "AURORA_TEST 下自动发布安全拒绝（无预演字样）",
+        "ok": true,
+        "detail": "reject=True preview_leak=False"
+      },
+      {
+        "name": "价格/库存为空 → 阻断（不弹确认）",
+        "ok": true,
+        "detail": "price_block=True"
+      },
+      {
+        "name": "自动发布二次确认弹窗（动作/轮数/等待/修复）",
+        "ok": true,
+        "detail": "dialog_texts=['Amazon 刊登', '采集箱商品 → 站点/类目 → 五点描述与 AI 文案 → 保存与发布（自动修复）', '① 连接店铺/站点  →  ② 选采集箱商品  →  ③ 选类目  →  ④ 标题/五点/描述 + AI  →  ④b AI 提示词预设  →  ⑤ 价格/库存/物流  →  ⑥ 保存与发布（含自动修复）  →  ⑦ 图片提示词', '① 连接与店铺', 'Cookie 优先级：本页填写 → 店铺与登录手动 Cookie → 本机浏览器登录态。检测连接会显示登录/店铺/站点/计数（只读）。', 'Cookie 来源：未检测（点「读取本机 Cookie」或粘贴）', '留空时优先用「店铺与登录」的手动 Cookie，再回退本机浏览器登录态（与后端一致）', '未检测：点「检测连接」登录并读取店铺/站点/计数']"
+      },
+      {
+        "name": "自动发布结果按轮渲染（阻断/修复记录/原因）",
+        "ok": true,
+        "detail": "keys=['保存草稿 / 移入待发布 / 保存并发布（真实提交）；保存会二次确认并列出商品/标题/站点/op/校验问题。发布失败可点「自动发布（自动修复）」按轮自动补齐/修正后重发。', '自动发布（自动修复）', '自动发布（自动修复）', '自动发布动作', '最多自动修复轮数', \"自动发布完成：发布失败 · 轮数 [{'round': 1, 'op': '2', 'publish_state': '', 'status': 'blocked', 'fixes': ['autofill:model_number,model_name'], 'blockers': ['标准校验：产品描述含促销/联系方式：电话'], 'warnings': [], 'elapsed': 0.2, 'saved': False}]\", '自动发布结果', '轮数：1 · 耗时：0.2s']"
+      },
+      {
+        "name": "13 页全按钮矩阵（mock 网络）",
+        "ok": true,
+        "detail": "46 个可见控件点击；ERROR=0"
+      }
+    ],
+    "platform": [
+      {
+        "name": "AliExpress/Alibaba/Amazon 页面可渲染",
+        "ok": true,
+        "detail": "三平台渲染正常"
+      },
+      {
+        "name": "Amazon 正式版文案无测试/预演痕迹",
+        "ok": true,
+        "detail": "0 泄漏"
+      }
+    ],
+    "lead": [
+      {
+        "name": "证据含 blocked 修复前记录 + 提交成功记录",
+        "ok": true,
+        "detail": "runs=3 blocked=1 submitted=2"
+      },
+      {
+        "name": "reviewing = 已提交非失败",
+        "ok": true,
+        "detail": "220114595363181900=reviewing；220114595363181652=reviewing"
+      },
+      {
+        "name": "blocked 商品修复后重跑成功",
+        "ok": true,
+        "detail": "blocked=['220114595363181900'] submitted=['220114595363181652', '220114595363181900']"
+      },
+      {
+        "name": "自动修复记录可见（autofill/sanitize_description）",
+        "ok": true,
+        "detail": "autofill=['220114595363181900', '220114595363181900', '220114595363181652']；sanitize=['220114595363181900']"
+      },
+      {
+        "name": "实时只读状态与 reviewing 一致",
+        "ok": true,
+        "detail": "live={'220114595363181900': 'publishFail', '220114595363181652': 'publishFail'}（reviewing 在实时列表显示 publishFail/100521）"
+      }
+    ],
+    "screenshot": [
+      {
+        "name": "自动发布截图",
+        "ok": true,
+        "detail": "amazon-auto-publish.png (570714 bytes)",
+        "observed": {
+          "path": "docs/design/amazon-auto-publish.png",
+          "bytes": 570714,
+          "sha256": "84afd4a795b5635b"
+        }
+      }
+    ]
+  },
+  "summary": {
+    "passed": 37,
+    "total": 37,
+    "failed": []
+  },
+  "auto_publish": {
+    "first_success": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "product_id": "220114595363181900",
+        "op": "2",
+        "saved": true,
+        "saved_round": 1,
+        "attempts": 1,
+        "rounds": [
+          {
+            "round": 1,
+            "op": "2",
+            "publish_state": "reviewing",
+            "status": "reviewing",
+            "err": "code:100521",
+            "fixes": [
+              "autofill:manufacturer_contact_information,model_name,model_number,part_number"
+            ],
+            "blockers": [],
+            "warnings": [],
+            "elapsed": 0.0,
+            "saved": true,
+            "asin": ""
+          }
+        ],
+        "fix_log": [],
+        "blockers": [],
+        "warnings": [],
+        "attribute_notes": [],
+        "final_state": "reviewing",
+        "publish_status": "reviewing",
+        "publish_error": "",
+        "asin": "",
+        "detail": "已提交，平台审核中",
+        "required_attrs": [
+          "model_number",
+          "part_number",
+          "model_name",
+          "manufacturer_contact_information"
+        ],
+        "elapsed": 0.0
+      }
+    },
+    "b_class": {
+      "ok": true,
+      "result": {
+        "ok": true,
+        "product_id": "220114595363181900",
+        "op": "2",
+        "saved": true,
+        "saved_round": 2,
+        "attempts": 2,
+        "rounds": [
+          {
+            "round": 1,
+            "op": "2",
+            "publish_state": "publishFail",
+            "status": "failed",
+            "err": "code:90220,属性:item_name",
+            "fixes": [
+              "autofill:manufacturer_contact_information,model_name,model_number,part_number"
+            ],
+            "blockers": [],
+            "warnings": [],
+            "elapsed": 0.0,
+            "saved": true,
+            "asin": ""
+          },
+          {
+            "round": 2,
+            "op": "2",
+            "publish_state": "reviewing",
+            "status": "reviewing",
+            "err": "code:100521",
+            "fixes": [
+              "autofill:item_name,manufacturer_contact_information,model_name,model_number,part_number"
+            ],
+            "blockers": [],
+            "warnings": [],
+            "elapsed": 0.0,
+            "saved": true,
+            "asin": ""
+          }
+        ],
+        "fix_log": [
+          "attrs:item_name"
+        ],
+        "blockers": [],
+        "warnings": [],
+        "attribute_notes": [],
+        "final_state": "reviewing",
+        "publish_status": "reviewing",
+        "publish_error": "",
+        "asin": "",
+        "detail": "已提交，平台审核中",
+        "required_attrs": [
+          "model_number",
+          "part_number",
+          "model_name",
+          "manufacturer_contact_information",
+          "item_name"
+        ],
+        "elapsed": 0.0
+      },
+      "saves": [
+        {
+          "product_id": "220114595363181900",
+          "op": "2",
+          "overrides": {
+            "attributes": {
+              "model_number": "AUTO-MODEL_NUMBER",
+              "part_number": "AUTO-PART_NUMBER",
+              "model_name": "AUTO-MODEL_NAME",
+              "manufacturer_contact_information": "AUTO-MANUFACTURER_CON"
+            },
+            "required_attributes": [
+              "model_number",
+              "part_number",
+              "model_name",
+              "manufacturer_contact_information"
+            ]
+          },
+          "client_injected": true
+        },
+        {
+          "product_id": "220114595363181900",
+          "op": "2",
+          "overrides": {
+            "attributes": {
+              "model_number": "AUTO-MODEL_NUMBER",
+              "part_number": "AUTO-PART_NUMBER",
+              "model_name": "AUTO-MODEL_NAME",
+              "manufacturer_contact_information": "AUTO-MANUFACTURER_CON",
+              "item_name": "AUTO-ITEM_NAME"
+            },
+            "required_attributes": [
+              "model_number",
+              "part_number",
+              "model_name",
+              "manufacturer_contact_information",
+              "item_name"
+            ]
+          },
+          "client_injected": true
+        }
+      ]
+    },
+    "title_dedupe": {
+      "ok": true,
+      "second_title": "Backhoe Loader HW20-28 Construction Machine"
+    },
+    "desc_sanitize": {
+      "ok": true,
+      "second_desc": "<p>5 Ton Diesel Backhoe Loader HW20-28 for Construction.</p><ul><li>Heavy duty frame: strong steel body</li><li>Diesel engine: 75 kW power</li><li>4x4 drive: all terrain traction</li></ul><p>Please re"
+    },
+    "price_block": {
+      "ok": true,
+      "blockers": [
+        "价格缺失或≤0（不自动编造，需用户填写）",
+        "库存为 0（不自动编造，需用户填写）"
+      ]
+    },
+    "max_rounds": {
+      "ok": true,
+      "result": {
+        "ok": false,
+        "product_id": "220114595363181900",
+        "op": "2",
+        "saved": true,
+        "saved_round": 2,
+        "attempts": 2,
+        "rounds": [
+          {
+            "round": 1,
+            "op": "2",
+            "publish_state": "publishFail",
+            "status": "failed",
+            "err": "code:100470,标题重复 [loader]",
+            "fixes": [
+              "autofill:manufacturer_contact_information,model_name,model_number,part_number",
+              "dedupe_title_words"
+            ],
+            "blockers": [],
+            "warnings": [],
+            "elapsed": 0.0,
+            "saved": true,
+            "asin": ""
+          },
+          {
+            "round": 2,
+            "op": "2",
+            "publish_state": "publishFail",
+            "status": "failed",
+            "err": "code:100470,标题重复 [loader]",
+            "fixes": [
+              "autofill:manufacturer_contact_information,model_name,model_number,part_number"
+            ],
+            "blockers": [],
+            "warnings": [],
+            "elapsed": 0.0,
+            "saved": true,
+            "asin": ""
+          }
+        ],
+        "fix_log": [
+          "fix_title_repetition"
+        ],
+        "blockers": [],
+        "warnings": [],
+        "attribute_notes": [],
+        "final_state": "publishFail",
+        "publish_status": "failed",
+        "publish_error": "code:100470,标题重复 [loader]",
+        "asin": "",
+        "detail": "已达到最大自动修复轮次，发布仍未成功",
+        "required_attrs": [
+          "model_number",
+          "part_number",
+          "model_name",
+          "manufacturer_contact_information"
+        ],
+        "elapsed": 0.0
+      }
+    },
+    "ci_guard": {
+      "ok": true,
+      "blockers": [
+        "AURORA_NO_SAVE/AURORA_TEST 生效：已拒绝真实发布（CI 护栏）"
+      ]
+    },
+    "write_path": {
+      "ok": true
+    }
+  },
+  "policy_preflight": [
+    {
+      "name": "clean payload 无阻断",
+      "ok": true,
+      "detail": {
+        "blockers": [],
+        "warnings": [],
+        "autofix_actions": []
+      }
+    },
+    {
+      "name": "标题同词>2",
+      "ok": true,
+      "detail": {
+        "actions": [
+          "dedupe_title_words"
+        ],
+        "warnings": [
+          "标题同词超过 2 次：loader"
+        ]
+      }
+    },
+    {
+      "name": "标题促销/联系方式/URL",
+      "ok": true,
+      "detail": {
+        "actions": [
+          "sanitize_title"
+        ],
+        "warnings": [
+          "标题含促销/联系方式/URL",
+          "非中文站点标题含中文"
+        ]
+      }
+    },
+    {
+      "name": "标题全大写",
+      "ok": true,
+      "detail": {
+        "actions": [
+          "sanitize_title"
+        ],
+        "warnings": [
+          "标题全大写（可自动修正大小写）"
+        ]
+      }
+    },
+    {
+      "name": "标题 emoji",
+      "ok": true,
+      "detail": {
+        "actions": [
+          "sanitize_title"
+        ],
+        "warnings": [
+          "标题含 emoji/HTML"
+        ]
+      }
+    },
+    {
+      "name": "五点 HTML/促销",
+      "ok": true,
+      "detail": {
+        "actions": [
+          "sanitize_bullets"
+        ],
+        "warnings": [
+          "卖点 1 含 ±/●/HTML/emoji",
+          "卖点 1 含促销/联系方式/URL",
+          "卖点 2 含促销/联系方式/URL",
+          "卖点 3 含促销/联系方式/URL"
+        ]
+      }
+    },
+    {
+      "name": "描述促销/联系方式",
+      "ok": true,
+      "detail": {
+        "actions": [
+          "sanitize_description"
+        ],
+        "warnings": [
+          "描述含促销/联系方式/URL（可自动清洗）",
+          "描述含中文（非中文站点，可自动清洗）",
+          "描述含促销/联系方式/URL/医疗绝对化表述（可自动清洗）",
+          "描述含中文（非中文站点）"
+        ]
+      }
+    },
+    {
+      "name": "Search Terms 超长/标点/促销",
+      "ok": true,
+      "detail": {
+        "actions": [
+          "sanitize_search_terms"
+        ],
+        "warnings": [
+          "Search Terms 超长（可自动截断）",
+          "Search Terms 含标点/非法字符（可自动清洗）",
+          "Search Terms 含促销词（可自动清洗）"
+        ]
+      }
+    },
+    {
+      "name": "SKU 非法字符",
+      "ok": true,
+      "detail": {
+        "actions": [
+          "sanitize_sku"
+        ],
+        "warnings": [
+          "SKU 超长或含非法字符（可自动清洗）"
+        ]
+      }
+    },
+    {
+      "name": "价格缺失",
+      "ok": true,
+      "detail": [
+        "价格缺失或≤0（不自动编造，需用户填写）"
+      ]
+    },
+    {
+      "name": "库存为 0",
+      "ok": true,
+      "detail": [
+        "库存为 0（不自动编造，需用户填写）"
+      ]
+    },
+    {
+      "name": "主图缺失",
+      "ok": true,
+      "detail": [
+        "主图缺失或不是 http(s) 地址"
+      ]
+    },
+    {
+      "name": "schema 必填 strict",
+      "ok": true,
+      "detail": [
+        "类目 schema 必填属性缺失：material"
+      ]
+    },
+    {
+      "name": "无编造参数/认证/价格",
+      "ok": true,
+      "detail": [
+        "dedupe_title_words",
+        "sanitize_bullets",
+        "sanitize_description",
+        "sanitize_search_terms",
+        "sanitize_sku",
+        "sanitize_title"
+      ]
+    }
+  ],
+  "ui": {
+    "controls": {
+      "labels": [
+        "店铺",
+        "站点",
+        "顶级类目",
+        "最近使用类目",
+        "卖点数量",
+        "标题预设",
+        "五点描述预设",
+        "产品描述预设",
+        "Search Terms预设",
+        "SKU预设",
+        "配送方式",
+        "运费模板",
+        "图片预设",
+        "保存动作",
+        "自动发布动作",
+        "最多自动修复轮数",
+        "发布后等待（秒）"
+      ],
+      "switches": [
+        "使用 AI（会调用付费 API，默认关闭）",
+        "自动补齐必填属性",
+        "自动修正标题重复/超长/违规词",
+        "自动清理描述促销/联系方式/HTML",
+        "自动 AI 重写违规文案（付费）"
+      ]
+    },
+    "confirm_dialog": {
+      "ok": true,
+      "texts": [
+        "Amazon 刊登",
+        "采集箱商品 → 站点/类目 → 五点描述与 AI 文案 → 保存与发布（自动修复）",
+        "① 连接店铺/站点  →  ② 选采集箱商品  →  ③ 选类目  →  ④ 标题/五点/描述 + AI  →  ④b AI 提示词预设  →  ⑤ 价格/库存/物流  →  ⑥ 保存与发布（含自动修复）  →  ⑦ 图片提示词",
+        "① 连接与店铺",
+        "Cookie 优先级：本页填写 → 店铺与登录手动 Cookie → 本机浏览器登录态。检测连接会显示登录/店铺/站点/计数（只读）。",
+        "Cookie 来源：未检测（点「读取本机 Cookie」或粘贴）",
+        "留空时优先用「店铺与登录」的手动 Cookie，再回退本机浏览器登录态（与后端一致）",
+        "未检测：点「检测连接」登录并读取店铺/站点/计数",
+        "② 采集箱商品",
+        "采集箱(draft) / 待发布(offline) / 在线(online)；点行或「编辑」载入商品详情到下方表单（只读拉取，不写平台）。"
+      ]
+    },
+    "round_render": {
+      "ok": true
+    }
+  },
+  "button_matrix": {
+    "total": 46,
+    "errors": []
+  },
+  "platform_isolation": {
+    "failures": [],
+    "leaks": []
+  },
+  "lead_evidence": {
+    "path": "docs/amazon-auto-publish-verification.json",
+    "runs": [
+      {
+        "when": "2026-11-22T03:58:44",
+        "product_id": "220114595363181900",
+        "blocked": true,
+        "autofill": true,
+        "sanitize_description": false,
+        "verify_state": "draft",
+        "verify_status": "not_submitted",
+        "ui_done": "自动发布完成：状态未知（点「查询发布结果」核实） · 轮数 [{'round': 1, 'op': '2', 'publish_state': '', 'status': 'blocked', 'err': '', 'fixes': ['autofill:manufacturer"
+      },
+      {
+        "when": "2026-11-22T04:00:57",
+        "product_id": "220114595363181900",
+        "blocked": false,
+        "autofill": true,
+        "sanitize_description": true,
+        "verify_state": "publishFail",
+        "verify_status": "reviewing",
+        "ui_done": "自动发布完成：平台审核中（非软件失败，等待平台审核结果） · 轮数 [{'round': 1, 'op': '2', 'publish_state': 'publishFail', 'status': 'reviewing', 'err': 'code:100521,我们正在审查"
+      },
+      {
+        "when": "2026-11-22T04:02:08",
+        "product_id": "220114595363181652",
+        "blocked": false,
+        "autofill": true,
+        "sanitize_description": false,
+        "verify_state": "publishFail",
+        "verify_status": "reviewing",
+        "ui_done": "自动发布完成：平台审核中（非软件失败，等待平台审核结果） · 轮数 [{'round': 1, 'op': '2', 'publish_state': 'publishFail', 'status': 'reviewing', 'err': 'code:100521,我们正在审查"
+      }
+    ],
+    "checks": [],
+    "summary": {
+      "runs": 3,
+      "submitted": 2,
+      "blocked_before_fix": 1,
+      "note": "2 个商品通过程序 UI「自动发布（自动修复）」真实提交并进入平台审核；第 1 条 blocked 为修复前记录"
+    },
+    "live": {
+      "ok": true,
+      "detail": "live={'220114595363181900': 'publishFail', '220114595363181652': 'publishFail'}（reviewing 在实时列表显示 publishFail/100521）"
+    }
+  },
+  "screenshot": {
+    "ok": true,
+    "path": "docs/design/amazon-auto-publish.png",
+    "bytes": 570714
+  },
+  "notes": [
+    "独立实现：真实写收口被 patch 为记录器，验证编排；不触达网络/不写平台。",
+    "CI 护栏场景在 AURORA_TEST=1 下验证 auto_publish 直接拒绝。",
+    "reviewing 视为「已提交，平台审核中」（非软件失败）。",
+    "Lead 证据 blocked 记录为修复前；同商品后续已提交成功。"
+  ]
+}

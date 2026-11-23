@@ -1,0 +1,396 @@
+{
+  "generated_at": "2026-11-22T04:16:49+08:00",
+  "mode": "read-only",
+  "status": "PASS",
+  "base": "https://www.dianxiaomi.com",
+  "account": {
+    "account": "QINGHEMAOYI",
+    "puid": 2728813,
+    "expected_account": "QINGHEMAOYI",
+    "expected_puid": 2728813,
+    "shop_id": "9408005",
+    "shop_name": "QingHe"
+  },
+  "cookie": {
+    "source": "cookies.txt",
+    "source_kind": "default .tmp-probe/cookies.txt",
+    "count": 9,
+    "content_logged": false
+  },
+  "checks": [
+    {
+      "name": "userIn 登录 / 店铺",
+      "ok": true,
+      "detail": "code=0 account=QINGHEMAOYI puid=2728813 店铺=QingHe merchantId=A26OV9RTCAYJMS 默认站点=ATVPDKIKX0DER",
+      "observed": {
+        "account": "QINGHEMAOYI",
+        "puid": 2728813,
+        "shop_id": 9408005,
+        "shop_name": "QingHe",
+        "merchant_id": "A26OV9RTCAYJMS",
+        "default_marketplace": "ATVPDKIKX0DER",
+        "shop_ids": [
+          "0",
+          "9408005"
+        ]
+      }
+    },
+    {
+      "name": "getCountryByShopId 站点解析",
+      "ok": true,
+      "detail": "站点 4 个：美国 US USD ATVPDKIKX0DER (en_US) · 加拿大 CA CAD A2EUQ1WTGCTBG2 (en_CA) · 墨西哥 MX MXN A1AM78C64UM0Y8 (es_MX) · 巴西 BR BRL A2Q3Y263D00KWC (pt_BR)",
+      "observed": {
+        "sites": [
+          {
+            "country": "美国",
+            "currency": "USD",
+            "code": "US",
+            "marketplace": "ATVPDKIKX0DER",
+            "lang": "en_US"
+          },
+          {
+            "country": "加拿大",
+            "currency": "CAD",
+            "code": "CA",
+            "marketplace": "A2EUQ1WTGCTBG2",
+            "lang": "en_CA"
+          },
+          {
+            "country": "墨西哥",
+            "currency": "MXN",
+            "code": "MX",
+            "marketplace": "A1AM78C64UM0Y8",
+            "lang": "es_MX"
+          },
+          {
+            "country": "巴西",
+            "currency": "BRL",
+            "code": "BR",
+            "marketplace": "A2Q3Y263D00KWC",
+            "lang": "pt_BR"
+          }
+        ],
+        "markeyPlaceLang": {
+          "A1AM78C64UM0Y8": "es_MX",
+          "A2Q3Y263D00KWC": "pt_BR",
+          "A2EUQ1WTGCTBG2": "en_CA",
+          "ATVPDKIKX0DER": "en_US"
+        },
+        "strCountry": "美国,na,USD,US,ATVPDKIKX0DER#加拿大,na,CAD,CA,A2EUQ1WTGCTBG2#墨西哥,na,MXN,MX,A1AM78C64UM0Y8#巴西,na,BRL,BR,A2Q3Y263D00KWC"
+      }
+    },
+    {
+      "name": "pageList 采集箱(draft) 计数",
+      "ok": true,
+      "detail": "code=0 totalSize=10（基线 16，实时漂移） pageNo=1 rows=12",
+      "observed": {
+        "state": "draft",
+        "total_size": 10,
+        "expected": 16,
+        "rows_on_page": 12,
+        "page_no": 1,
+        "total_page": 1
+      }
+    },
+    {
+      "name": "pageList 待发布(offline) 计数",
+      "ok": true,
+      "detail": "code=0 totalSize=5（基线 5，一致） pageNo=1 rows=5",
+      "observed": {
+        "state": "offline",
+        "total_size": 5,
+        "expected": 5,
+        "rows_on_page": 5,
+        "page_no": 1,
+        "total_page": 1
+      }
+    },
+    {
+      "name": "pageList 在线(online) 计数",
+      "ok": true,
+      "detail": "code=0 totalSize=142（基线 142，一致） pageNo=1 rows=20",
+      "observed": {
+        "state": "online",
+        "total_size": 142,
+        "expected": 142,
+        "rows_on_page": 20,
+        "page_no": 1,
+        "total_page": 8
+      }
+    },
+    {
+      "name": "pageList leftStat 待发布/发布失败",
+      "ok": true,
+      "detail": "leftStat.waitPublish=5（基线 5）· publishFail=27（基线 21，实时值）",
+      "observed": {
+        "leftStat": {
+          "waitPublish": "5",
+          "publishFail": "27",
+          "publishing": 0
+        },
+        "baseline_publish_fail": 21
+      }
+    },
+    {
+      "name": "editSp 商品详情",
+      "ok": true,
+      "detail": "code=0 site=CA 字段数=164（期望 164） bulletPoint=1012字符±=5段 description=2672字符 productAttr=34键 缺字段=无",
+      "observed": {
+        "site": "CA",
+        "field_count": 164,
+        "missing_fields": [],
+        "title": "5 Ton Diesel Wheeled Backhoe Loader 4x4 HW20-28 with 75 kW Engine, 1 m³ Bucket, 2600 mm Digging Depth, High Load Moment ",
+        "bullets": [
+          "5 Ton Capacity Backhoe Loader: Designed for heavy-duty road construction and agricultural tasks, this diesel-powered wheeled backhoe loader delivers robust performance with a 5-ton operating capacity and 75 kW (100.58 hp) Yunnei engine.",
+          "4x4 Wheeled Chassis: All-terrain 4x4 wheel drive system provides enhanced traction and stability on uneven Canadian terrain, including gravel roads, muddy fields, and snow-affected job sites.",
+          "High Load Moment Design: Engineered for superior lifting and digging leverage, supporting maximum digging depth of 2600 mm, digging radius up to 4600 mm, and unloading height of 2300 mm.",
+          "Hydraulic System by Trusted Brands: Features Bosch Rexroth hydraulic cylinders, Kawasaki hydraulic pump, and Hengli hydraulic valves for precise, responsive, and durable hydraulic control.",
+          "Compact Articulated Frame: Ultra-maneuverable articulated design achieves a minimum turning radius of 4500 mm, ideal for tight spaces in barns, urban construction zones, and residential landscaping projects."
+        ],
+        "description_html": true,
+        "productAttr_keys": 34,
+        "productType": "OUTDOOR_LIVING",
+        "categoryId": "13553005011",
+        "categoryBrowsePath": "6299024011/6256963011/6256964011/13553005011"
+      }
+    },
+    {
+      "name": "getProductAttrById 类目属性",
+      "ok": true,
+      "detail": "code=0 属性=34键 覆盖样例键=['is_assembly_required', 'batteries_required', 'item_dimensions', 'item_package_dimensions']",
+      "observed": {
+        "attribute_count": 34,
+        "sample_keys_present": [
+          "is_assembly_required",
+          "batteries_required",
+          "item_dimensions",
+          "item_package_dimensions"
+        ],
+        "data_is_json_string": true
+      }
+    },
+    {
+      "name": "类目树逐级（parentId=内部 id）",
+      "ok": true,
+      "detail": "逐级 Automotive(内部id=166,子=17) → Automotive Care(内部id=161682,子=12) → Automotive Pest Repellents(内部id=161685,子=15) → Pest Repellent Garments(内部id=161688,子=3) · 顶层=17",
+      "observed": {
+        "levels": [
+          {
+            "depth": 0,
+            "parentId": "0",
+            "count": 17,
+            "first_id": 166,
+            "categoryId": "6948390011",
+            "categoryName": "Automotive",
+            "chineseName": "汽车",
+            "nodePath": "Automotive",
+            "childIds": 131
+          },
+          {
+            "depth": 1,
+            "parentId": "166",
+            "count": 12,
+            "first_id": 161682,
+            "categoryId": "6303827011",
+            "categoryName": "Automotive Care",
+            "chineseName": "汽车护理",
+            "nodePath": "Automotive/Automotive Care",
+            "childIds": 157
+          },
+          {
+            "depth": 2,
+            "parentId": "161682",
+            "count": 15,
+            "first_id": 161685,
+            "categoryId": "23708128011",
+            "categoryName": "Automotive Pest Repellents",
+            "chineseName": "汽车驱虫剂",
+            "nodePath": "Automotive/Automotive Care/Automotive Pest Repellents",
+            "childIds": 35
+          },
+          {
+            "depth": 3,
+            "parentId": "161685",
+            "count": 3,
+            "first_id": 161688,
+            "categoryId": "23708130011",
+            "categoryName": "Pest Repellent Garments",
+            "chineseName": "驱虫服装",
+            "nodePath": "Automotive(汽车)/Automotive Care(汽车护理)/Automotive Pest Repellents(汽车驱虫剂)/Pest Repellent Garments(驱虫服装)",
+            "childIds": 0
+          }
+        ]
+      }
+    },
+    {
+      "name": "getCategoryBySiteNodePath 路径校验",
+      "ok": true,
+      "detail": "code=0 categoryId=13553005011 nodePathId=6299024011/6256963011/6256964011/13553005011 中文名=反铲 · 非法路径 data=null=True",
+      "observed": {
+        "valid": {
+          "categoryId": "13553005011",
+          "nodePathId": "6299024011/6256963011/6256964011/13553005011",
+          "categoryName": "Backhoes",
+          "chineseName": "反铲",
+          "leafCategory": 1
+        },
+        "invalid_path_data_null": true
+      }
+    },
+    {
+      "name": "listHistory 最近使用类目",
+      "ok": true,
+      "detail": "code=0 最近使用类目=5 条",
+      "observed": {
+        "count": 5,
+        "sample": [
+          {
+            "categoryId": "9709494011",
+            "categoryName": "砖块(Bricks)",
+            "num": 12
+          },
+          {
+            "categoryId": "7239740011",
+            "categoryName": "讲台和讲台(Lecterns & Podiums)",
+            "num": 8
+          },
+          {
+            "categoryId": "6256970011",
+            "categoryName": "防滑转向(Skid Steers)",
+            "num": 7
+          },
+          {
+            "categoryId": "13333837011",
+            "categoryName": "工业绣花机(Industrial Embroidery Machines)",
+            "num": 5
+          },
+          {
+            "categoryId": "7205686011",
+            "categoryName": "岩心钻头(Core Drills)",
+            "num": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "gerProductTypes 产品类型（站点代码）",
+      "ok": true,
+      "detail": "code=0 产品类型=1604 个（含 OUTDOOR_LIVING=True）",
+      "observed": {
+        "count": 1604,
+        "has_outdoor_living": true,
+        "sample": [
+          "3D_PRINTER",
+          "ABDOMINAL_EXERCISER",
+          "ABIS_BOOK",
+          "ABIS_MUSIC",
+          "ABRASIVES",
+          "ABRASIVE_BELTS",
+          "ABRASIVE_BRUSH",
+          "ABRASIVE_SHEETS"
+        ]
+      }
+    },
+    {
+      "name": "gerProductTypes 传 marketPlaceId 返回空",
+      "ok": true,
+      "detail": "code=0 传 marketPlaceId 返回空数组=True（契约注意项）",
+      "observed": {
+        "data": []
+      }
+    },
+    {
+      "name": "currency 币种",
+      "ok": true,
+      "detail": "code=0 currency=CAD（期望 CAD）",
+      "observed": {
+        "currency": "CAD",
+        "marketPlaceId": "A2EUQ1WTGCTBG2",
+        "shopId": "9408005"
+      }
+    },
+    {
+      "name": "logistics 运费模板",
+      "ok": true,
+      "detail": "code=0 运费模板=1 个",
+      "observed": {
+        "count": 1,
+        "sample": [
+          {
+            "templateId": "legacy-template-id",
+            "templateName": "Migrated Template"
+          }
+        ]
+      }
+    },
+    {
+      "name": "brand 品牌",
+      "ok": true,
+      "detail": "code=0 品牌=0 个（可为空）",
+      "observed": {
+        "count": 0,
+        "data_is_list": true
+      }
+    },
+    {
+      "name": "amazonCheckBannedWord 违禁词",
+      "ok": true,
+      "detail": "code=0 data=null（data 可为 null；仅提示，不阻断）",
+      "observed": {
+        "data": null,
+        "data_is_null": true
+      }
+    },
+    {
+      "name": "productTypePredictCatesByItemName 类型预测",
+      "ok": true,
+      "detail": "code=0 itemName='Backhoe Loader' productType=NON_RIDING_TOY_VEHICLE",
+      "observed": {
+        "data": {
+          "productType": "NON_RIDING_TOY_VEHICLE",
+          "amaoznCategorySearchVos": null
+        }
+      }
+    }
+  ],
+  "summary": {
+    "passed": 18,
+    "total": 18,
+    "failed": 0,
+    "failed_checks": []
+  },
+  "safety": {
+    "write_endpoints_never_called": true,
+    "forbidden_write_suffix_checked": true,
+    "allowed_readonly_endpoints": [
+      "GET /api/userIn.json",
+      "POST /api/amazonProduct/getCountryByShopId.json",
+      "POST /api/amazonProduct/pageList.json",
+      "GET /api/amazonProductSp/editSp.json",
+      "POST /api/amazonProductSp/getProductAttrById.json",
+      "POST /api/amazonProductSp/list.json",
+      "POST /api/amazonProductSp/getCategoryBySiteNodePath.json",
+      "POST /api/amazonProductSp/listHistory.json",
+      "POST /api/amazonProductSp/gerProductTypes.json",
+      "POST /api/amazon/currency/list.json",
+      "POST /api/amazon/logistics/getLogisticsTemplates.json",
+      "POST /api/amazon/brand/getBrands.json",
+      "POST /api/bannedWord/amazonCheckBannedWord.json",
+      "POST /api/amazonProductSp/productTypePredictCatesByItemName.json"
+    ],
+    "request_count": 21,
+    "blocked_attempts": [],
+    "cache_hits": 1
+  },
+  "notes": [
+    "独立实现：不 import 后端 aeclone 模块，全部走 requests + 只读白名单。",
+    "唯一写入口由 FORBIDDEN_WRITE_SUFFIX 拼接判定，代码内断言永不调用；没有任何写开关。",
+    "Cookie 内容不写入本报告，控制台仅打印前 6 位脱敏片段。"
+  ],
+  "limitations": [
+    "违禁词接口 data 允许为 null：本轮只能证明端点可调用，不能证明具体词库命中规则。",
+    "产品类型预测为 best-effort：长标题会返回 code=-1『预测失败』，本轮用短词验证可用路径。",
+    "品牌列表可为空；空列表视为端点正常（未做品牌备案）。",
+    "核验只读，不验证保存/发布写链路（真实写证据见 docs/amazon-write-verification.json）。"
+  ]
+}

@@ -105,12 +105,19 @@ def sandbox(*, threads=False, external_calls=None):
                                                      "AURORA_CONFIG_DIR": "",
                                                      "AURORA_PAGE_FILE": "", "AURORA_THEME": "dark"}))
         data = deepcopy(config.DEFAULTS)
+        # 页面构建测试需要能进入真实页面（而不是授权锁定页）。授权校验属于
+        # licensing/测试，不应让 UI 回归全部退化成 _render_locked；这里用
+        # license_platforms 覆盖，仅影响隔离环境，不代表服务端授权状态。
+        from aeclone.licensing import PLATFORM_FEATURES
         data.update(api_key="", manual_cookies={}, license_signature="", license_voucher="",
+                    license_platforms=",".join(
+                        f"{pid}:{'+'.join(feats)}" for pid, feats in PLATFORM_FEATURES.items()),
                     license_cache_ok=False, license_cache_ts=0, store_id="", store_name="",
                     template_product_id="", template_library="{}", price_template_library="{}",
                     template_product_title="", template_image_url="", template_snapshot="",
                     template_values="",
                     image_ai_jobs="[]", detail_local_images="[]", ui_theme="dark", start_page=0,
+                    amazon_use_ai=False, tiktok_use_ai=False,
                     onboarded=True)
         cfg = config.AppConfig(data)
         stack.enter_context(patch.object(config, "_cache", cfg))
@@ -133,9 +140,23 @@ def sandbox(*, threads=False, external_calls=None):
         yield cfg
 
 
-def build_app(page=None):
+def build_app(page=None, *, eager_editors=True):
     app = ui.App(page or FakePage())
     # 实际服务状态明确保留为未连接，不伪装为授权或 API 成功。
     app.api_state = {"ok": False, "detail": "离线验证环境"}
     app.license_state = {"ok": False, "message": "未连接授权服务"}
+    if eager_editors:
+        original = app._switch
+        def switch(index):
+            original(index)
+            from aeclone.ui.collect_workflow import SECTIONS
+            if app._page_idx in SECTIONS.get(app.active_platform.id, {}):
+                tabs = next((c for c in walk(app.content.controls) if isinstance(c, ft.Tabs)), None)
+                if tabs is not None and tabs.on_change and [tab.text for tab in tabs.tabs] == [
+                        "自动处理设置", "单品高级编辑"]:
+                    selected = tabs.selected_index
+                    tabs.selected_index = 1
+                    tabs.on_change(SimpleNamespace(control=tabs))
+                    tabs.selected_index = selected
+        app._switch = switch
     return app

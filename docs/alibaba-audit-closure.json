@@ -1,0 +1,71 @@
+{
+  "product_id": "220114598435122330",
+  "op": "2",
+  "result_ok": true,
+  "saved": true,
+  "auditing": true,
+  "error": "",
+  "publish_state": {},
+  "steps": [
+    {
+      "name": "连接 Alibaba",
+      "ok": true,
+      "detail": "Cookie 可用，客户端已创建"
+    },
+    {
+      "name": "读取商品详情",
+      "ok": true,
+      "detail": "Road Construction Laser Screed Robot Fully Hydraulic System  · 类目 127726092"
+    },
+    {
+      "name": "读取类目规则",
+      "ok": true,
+      "detail": "类目 127726092：6 个必填属性 / 8 个模块字段"
+    },
+    {
+      "name": "AI 文案",
+      "ok": true,
+      "detail": "未启用 AI，使用商品原标题/详情"
+    },
+    {
+      "name": "关键词",
+      "ok": true,
+      "detail": "road, construction, laser, screed, robot"
+    },
+    {
+      "name": "保存前校验",
+      "ok": true,
+      "detail": "必填项全部满足"
+    },
+    {
+      "name": "刊登评分",
+      "ok": true,
+      "detail": "4.60/5（发布线 4.5）"
+    },
+    {
+      "name": "类目经营范围",
+      "ok": true,
+      "detail": "类目 127726092 在线商品样本中出现 28 次（扫描 600/4416 个在线商品），可发可能性高"
+    },
+    {
+      "name": "违禁词检查",
+      "ok": true,
+      "detail": "未命中"
+    },
+    {
+      "name": "授权校验",
+      "ok": true,
+      "detail": "通过"
+    },
+    {
+      "name": "保存到 Alibaba",
+      "ok": true,
+      "detail": "商品已在平台审核中，无需重复提交"
+    },
+    {
+      "name": "发布结果",
+      "ok": true,
+      "detail": "审核中（平台拒绝重复提交，视为已提交成功）"
+    }
+  ]
+}

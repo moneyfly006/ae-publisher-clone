@@ -1,0 +1,78 @@
+{
+  "generated_at": "2026-11-22T02:43:07+0800",
+  "op": "3/5 real verification",
+  "op3": {
+    "product_id": "220114598434958528",
+    "before": "draft (采集箱)",
+    "response": {
+      "code": 0,
+      "msg": "Successful",
+      "data": {
+        "msg": "操作成功，请到「待发布产品」中查看！",
+        "code": 0
+      }
+    },
+    "after": {
+      "dxmState": "offline",
+      "dxmOfflineState": "waitPublish"
+    },
+    "verdict": "op=3 真实生效：采集箱 -> 待发布"
+  },
+  "op5": {
+    "product_id": "220114598434958530",
+    "before": "draft",
+    "response": {
+      "data": {
+        "msg": "产品已提交发布，请到「 定时发布」中查看!",
+        "code": 0
+      }
+    },
+    "after": {
+      "dxmState": "offline",
+      "dxmOfflineState": "publishingTiming"
+    },
+    "note": "未填时间也可提交，平台默认排期"
+  },
+  "op5_with_time": {
+    "product_id": "220114598434958536",
+    "before": "draft",
+    "payload": {
+      "dxmScheduleTime": 1893459600000,
+      "dxmScheduleTimeStr": "2030-01-01 09:00:00"
+    },
+    "after": {
+      "dxmState": "offline",
+      "dxmOfflineState": "publishingTiming",
+      "dxmScheduleTime": 1893459600000
+    },
+    "verdict": "op=5 + dxmScheduleTime 真实生效（定时发布列表）"
+  },
+  "audit": {
+    "product_id": "220114598435122330",
+    "state": "online",
+    "errMsg": "PUB_BIZCHECK_PRODUCT_IN_AUDITING",
+    "verdict": "仍在平台审核（轮询中）"
+  },
+  "list_placement": {
+    "waitPublish": [
+      "220114598434958528"
+    ],
+    "publishingTiming": [
+      "220114598434958530",
+      "220114598434958536"
+    ],
+    "publishFail": [
+      "220114598434958580"
+    ]
+  },
+  "cleanup": {
+    "deleted_probe_drafts": [
+      "220114598435134022",
+      "220114598435134024",
+      "220114598435134028",
+      "220114598435134030",
+      "220114598435133164"
+    ],
+    "note": "用 /alibabaIcbuProduct/delete.json 清理了测试探测草稿"
+  }
+}

@@ -1,0 +1,345 @@
+<?php
+declare(strict_types=1);
+
+/* 新授权中心（套餐/支付/订单/用户端授权）嵌入原后台 */
+
+function shop_pdo(): PDO
+{
+    static $pdo = null;
+    if ($pdo instanceof PDO) return $pdo;
+    $path = getenv('SHOP_LICENSE_DB') ?: '/www/wwwroot/license.moneyfly.club/public/shop/data/license.db';
+    $pdo = new PDO('sqlite:' . $path, null, null, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
+    $pdo->exec('PRAGMA busy_timeout = 5000');
+    return $pdo;
+}
+
+function shop_key(): string { return 'aurora-list-platform-license-v1'; }
+
+function shop_canonical($v): string
+{
+    if (is_array($v)) {
+        $isList = array_keys($v) === range(0, count($v) - 1);
+        if ($isList) {
+            $parts = [];
+            foreach ($v as $x) $parts[] = shop_canonical($x);
+            return '[' . implode(',', $parts) . ']';
+        }
+        ksort($v);
+        $parts = [];
+        foreach ($v as $k => $x) {
+            $parts[] = json_encode((string)$k, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . ':' . shop_canonical($x);
+        }
+        return '{' . implode(',', $parts) . '}';
+    }
+    if (is_string($v)) return json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if (is_bool($v)) return $v ? 'true' : 'false';
+    if ($v === null) return 'null';
+    return (string)$v;
+}
+
+function shop_sign(array $payload): string
+{
+    return hash_hmac('sha256', shop_canonical($payload), shop_key());
+}
+
+function shop_issue_token(string $machine, array $platforms, string $expires): string
+{
+    $payload = [
+        'machine_code' => $machine,
+        'platforms' => array_map(function ($f) { sort($f); return array_values(array_unique($f)); }, $platforms),
+        'expires_at' => $expires,
+        'issued_at' => time(),
+    ];
+    return json_encode(['payload' => $payload, 'sig' => shop_sign($payload)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
+function shop_setting(string $k, string $default = ''): string
+{
+    $st = shop_pdo()->prepare('SELECT v FROM settings WHERE k=?');
+    $st->execute([$k]);
+    $r = $st->fetch();
+    return $r ? (string)$r['v'] : $default;
+}
+
+function shop_set_setting(string $k, string $v): void
+{
+    shop_pdo()->prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')
+        ->execute([$k, $v]);
+}
+
+function shop_platform_map(): array
+{
+    return [
+        'alibaba' => ['listing', 'category', 'trade', 'ai_text', 'ai_image', 'audit'],
+        'aliexpress' => ['listing', 'category', 'pricing', 'variants', 'ai_text', 'ai_image', 'audit'],
+        'amazon' => ['listing', 'category', 'ai_text', 'ai_image', 'audit', 'fba'],
+        'tiktok' => ['listing', 'ai_text', 'ai_image'],
+        'shopee' => ['listing', 'ai_text', 'ai_image'],
+    ];
+}
+
+function shop_issue_for_order(int $orderId): ?array
+{
+    $db = shop_pdo();
+    $st = $db->prepare('SELECT * FROM orders WHERE id=?'); $st->execute([$orderId]);
+    $o = $st->fetch(); if (!$o) return null;
+    $st = $db->prepare('SELECT * FROM packages WHERE id=?'); $st->execute([$o['package_id']]);
+    $p = $st->fetch(); if (!$p) return null;
+    $platforms = json_decode((string)$p['platforms'], true) ?: [];
+    $features = json_decode((string)$p['features'], true) ?: [];
+    $map = shop_platform_map(); $plats = [];
+    foreach ($platforms as $pid) {
+        $feat = array_values(array_intersect($features, $map[$pid] ?? []));
+        if ($feat) $plats[$pid] = $feat;
+    }
+    $st = $db->prepare('SELECT * FROM licenses WHERE user_id=? AND revoked=0 ORDER BY id DESC LIMIT 1');
+    $st->execute([$o['user_id']]); $prev = $st->fetch();
+    $base = max(time(), $prev ? (strtotime((string)$prev['expires_at']) ?: time()) : time());
+    $expires = date('Y-m-d', $base + ((int)$p['days']) * 86400);
+    $machine = $prev ? (string)$prev['machine_code'] : '';
+    $token = shop_issue_token($machine, $plats, $expires);
+    $db->prepare('INSERT INTO licenses(user_id,order_id,machine_code,token,expires_at,platforms,created_at) VALUES(?,?,?,?,?,?,?)')
+        ->execute([$o['user_id'], $orderId, $machine, $token, $expires,
+                   json_encode($plats, JSON_UNESCAPED_UNICODE), time()]);
+    return ['token' => $token, 'expires_at' => $expires];
+}
+
+/* ---------- 套餐 ---------- */
+function page_shop_packages(): void
+{
+    require_admin();
+    $rows = shop_pdo()->query('SELECT * FROM packages ORDER BY sort,id')->fetchAll();
+    foreach ($rows as &$r) {
+        $r['platforms_arr'] = json_decode((string)$r['platforms'], true) ?: [];
+        $r['features_arr'] = json_decode((string)$r['features'], true) ?: [];
+        $r['price'] = ((int)$r['price_cents']) / 100;
+    }
+    render('shop_packages', ['title' => '套餐管理', 'rows' => $rows]);
+}
+
+function page_shop_packages_save(): void
+{
+    require_admin(); csrf_check();
+    $id = (int)($_POST['id'] ?? 0);
+    if (isset($_POST['delete_id'])) {
+        shop_pdo()->prepare('DELETE FROM packages WHERE id=?')->execute([(int)$_POST['delete_id']]);
+        audit('删除套餐', 'package:' . (int)$_POST['delete_id']);
+        flash('ok', '套餐已删除');
+        redirect('/admin/shop-packages');
+    }
+    if ($id > 0) {
+        $st = shop_pdo()->prepare('UPDATE packages SET name=?, platforms=?, features=?, price_cents=?, days=?, active=?, device_limit=? WHERE id=?');
+        $st->execute([
+            trim((string)($_POST['name'] ?? '')),
+            json_encode(array_values(array_filter(array_map('trim', explode(',', (string)($_POST['platforms'] ?? ''))))), JSON_UNESCAPED_UNICODE),
+            json_encode(array_values(array_filter(array_map('trim', explode(',', (string)($_POST['features'] ?? ''))))), JSON_UNESCAPED_UNICODE),
+            (int)round(((float)($_POST['price'] ?? 0)) * 100),
+            (int)($_POST['days'] ?? 365),
+            (int)($_POST['active'] ?? 1),
+            max(1, (int)($_POST['device_limit'] ?? 1)),
+            $id,
+        ]);
+        audit('修改套餐', 'package:' . $id);
+        flash('ok', '套餐已保存');
+    } else {
+        $st = shop_pdo()->prepare('INSERT INTO packages(name,platforms,features,price_cents,days,active,sort,description,created_at,device_limit) VALUES(?,?,?,?,?,?,?,?,?,?)');
+        $st->execute([
+            trim((string)($_POST['name'] ?? '新套餐')),
+            json_encode(array_values(array_filter(array_map('trim', explode(',', (string)($_POST['platforms'] ?? 'alibaba'))))), JSON_UNESCAPED_UNICODE),
+            json_encode(array_values(array_filter(array_map('trim', explode(',', (string)($_POST['features'] ?? 'listing,category'))))), JSON_UNESCAPED_UNICODE),
+            (int)round(((float)($_POST['price'] ?? 0)) * 100),
+            (int)($_POST['days'] ?? 365), 1, 99, '', time(), max(1, (int)($_POST['device_limit'] ?? 1)),
+        ]);
+        audit('新增套餐', 'package:new');
+        flash('ok', '套餐已新增');
+    }
+    redirect('/admin/shop-packages');
+}
+
+/* ---------- 支付 / 邮件设置 ---------- */
+function page_shop_pay(): void
+{
+    require_admin(); require_owner();
+    $keys = ['site_name', 'epay_gateway', 'epay_pid', 'epay_key', 'epay_type', 'allow_mock_pay',
+             'announcement', 'require_verify', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass',
+             'smtp_secure', 'smtp_from', 'debug_codes'];
+    $s = [];
+    foreach ($keys as $k) $s[$k] = shop_setting($k);
+    if ($s['site_name'] === '') $s['site_name'] = 'AuroraList 授权中心';
+    render('shop_pay', ['title' => '套餐支付设置', 's' => $s]);
+}
+
+function page_shop_pay_save(): void
+{
+    require_admin(); require_owner(); csrf_check();
+    $keys = ['site_name', 'epay_gateway', 'epay_pid', 'epay_key', 'epay_type', 'allow_mock_pay',
+             'announcement', 'require_verify', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass',
+             'smtp_secure', 'smtp_from', 'debug_codes'];
+    foreach ($keys as $k) {
+        if (array_key_exists($k, $_POST)) shop_set_setting($k, (string)$_POST[$k]);
+    }
+    audit('修改支付/邮件设置', 'shop:settings');
+    flash('ok', '设置已保存');
+    redirect('/admin/shop-pay');
+}
+
+/* ---------- 订单 ---------- */
+function page_shop_orders(): void
+{
+    require_admin();
+    $rows = shop_pdo()->query('SELECT o.*, u.email, p.name AS package_name FROM orders o
+        LEFT JOIN users u ON u.id=o.user_id LEFT JOIN packages p ON p.id=o.package_id
+        ORDER BY o.id DESC LIMIT 200')->fetchAll();
+    render('shop_orders', ['title' => '套餐订单', 'rows' => $rows]);
+}
+
+function page_shop_order_paid(int $id): void
+{
+    require_admin(); csrf_check();
+    if ($id <= 0) { flash('bad', '订单不存在'); redirect('/admin/shop-orders'); }
+    shop_pdo()->prepare("UPDATE orders SET status='paid', paid_at=? WHERE id=?")->execute([time(), $id]);
+    shop_issue_for_order($id);
+    if (function_exists('invite_reward_for_order')) invite_reward_for_order($id);
+    audit('手动开通套餐订单', 'order:' . $id);
+    flash('ok', '订单已标记支付并开通授权');
+    redirect('/admin/shop-orders');
+}
+
+/* ---------- 用户 / 授权 ---------- */
+function page_shop_users(): void
+{
+    require_admin();
+    $rows = shop_pdo()->query('SELECT u.id,u.email,u.name,u.created_at,
+        (SELECT COUNT(*) FROM licenses l WHERE l.user_id=u.id AND l.revoked=0) AS lic_count,
+        (SELECT expires_at FROM licenses l WHERE l.user_id=u.id AND l.revoked=0 ORDER BY l.id DESC LIMIT 1) AS expires_at,
+        (SELECT COUNT(*) FROM orders o WHERE o.user_id=u.id AND o.status=\'paid\') AS paid_orders
+        FROM users u ORDER BY u.id DESC LIMIT 200')->fetchAll();
+    render('shop_users', ['title' => '套餐用户', 'rows' => $rows]);
+}
+
+function page_shop_licenses(): void
+{
+    require_admin();
+    $rows = shop_pdo()->query('SELECT l.*, u.email FROM licenses l LEFT JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 200')->fetchAll();
+    render('shop_licenses', ['title' => '套餐授权', 'rows' => $rows]);
+}
+
+function page_shop_license_revoke(int $id): void
+{
+    require_admin(); csrf_check();
+    shop_pdo()->prepare('UPDATE licenses SET revoked=1 WHERE id=?')->execute([$id]);
+    audit('吊销套餐授权', 'license:' . $id);
+    flash('ok', '授权已吊销');
+    redirect('/admin/shop-licenses');
+}
+
+/* ---------- 套餐用户详情 / 管理 ---------- */
+function page_shop_user_detail(int $id): void
+{
+    require_admin();
+    $st = shop_pdo()->prepare('SELECT * FROM users WHERE id=?'); $st->execute([$id]);
+    $u = $st->fetch();
+    if (!$u) { flash('bad', '用户不存在'); redirect('/admin/shop-users'); }
+    $st = shop_pdo()->prepare('SELECT * FROM licenses WHERE user_id=? ORDER BY id DESC'); $st->execute([$id]);
+    $licenses = $st->fetchAll();
+    $st = shop_pdo()->prepare('SELECT o.*, p.name AS package_name FROM orders o LEFT JOIN packages p ON p.id=o.package_id WHERE o.user_id=? ORDER BY o.id DESC LIMIT 50');
+    $st->execute([$id]);
+    $orders = $st->fetchAll();
+    render('shop_user_detail', ['title' => '套餐用户：' . $u['email'], 'u' => $u, 'licenses' => $licenses,
+                                'orders' => $orders, 'platforms' => shop_platform_map()]);
+}
+
+function page_shop_user_update(int $id): void
+{
+    require_admin(); csrf_check();
+    $email = trim(strtolower((string)($_POST['email'] ?? '')));
+    $name = trim((string)($_POST['name'] ?? ''));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { flash('bad', '邮箱格式不正确'); redirect('/admin/shop-users/' . $id); }
+    $st = shop_pdo()->prepare('SELECT id FROM users WHERE email=? AND id<>?'); $st->execute([$email, $id]);
+    if ($st->fetch()) { flash('bad', '邮箱已被其他用户使用'); redirect('/admin/shop-users/' . $id); }
+    if (function_exists('ops_migrate_extra')) { ops_migrate_extra(); }
+    $tags = trim((string)($_POST['tags'] ?? ''));
+    $note = trim((string)($_POST['note'] ?? ''));
+    shop_pdo()->prepare('UPDATE users SET email=?, name=?, tags=?, note=? WHERE id=?')->execute([$email, $name, $tags, $note, $id]);
+    audit('修改套餐用户信息', 'user:' . $id, '', $email);
+    flash('ok', '用户信息已保存');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_password(int $id): void
+{
+    require_admin(); csrf_check();
+    $pass = (string)($_POST['password'] ?? '');
+    if (strlen($pass) < 6) { flash('bad', '密码至少 6 位'); redirect('/admin/shop-users/' . $id); }
+    shop_pdo()->prepare('UPDATE users SET pass=? WHERE id=?')
+        ->execute([password_hash($pass, PASSWORD_DEFAULT), $id]);
+    audit('重置套餐用户密码', 'user:' . $id);
+    flash('ok', '密码已重置');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_grant(int $id): void
+{
+    require_admin(); csrf_check();
+    $st = shop_pdo()->prepare('SELECT * FROM users WHERE id=?'); $st->execute([$id]);
+    if (!$st->fetch()) { flash('bad', '用户不存在'); redirect('/admin/shop-users'); }
+    $platform = (string)($_POST['platform'] ?? 'alibaba');
+    $days = max(1, (int)($_POST['days'] ?? 30));
+    $map = shop_platform_map();
+    // 开通平台 = 该平台全部功能（不做功能子集）
+    if ($platform === 'all') {
+        $plats = $map;
+    } elseif (isset($map[$platform])) {
+        $plats = [$platform => $map[$platform]];
+    } else {
+        flash('bad', '平台不存在'); redirect('/admin/shop-users/' . $id);
+        return;
+    }
+    // 复用该用户已有授权的机器码（如有）
+    $st = shop_pdo()->prepare('SELECT machine_code FROM licenses WHERE user_id=? AND revoked=0 ORDER BY id DESC LIMIT 1');
+    $st->execute([$id]); $prev = $st->fetch();
+    $machine = $prev ? (string)$prev['machine_code'] : '';
+    $expires = date('Y-m-d', max(time(), strtotime(date('Y-m-d')) + $days * 86400));
+    $token = shop_issue_token($machine, $plats, $expires);
+    shop_pdo()->prepare('INSERT INTO licenses(user_id,order_id,machine_code,token,expires_at,platforms,created_at) VALUES(?,?,?,?,?,?,?)')
+        ->execute([$id, 0, $machine, $token, $expires, json_encode($plats, JSON_UNESCAPED_UNICODE), time()]);
+    audit('手动开通平台全权限', 'user:' . $id, $platform . ' / ' . $days . 'd');
+    flash('ok', '已手动开通：' . $platform . '，' . $days . ' 天');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_balance(int $id): void
+{
+    require_admin(); csrf_check();
+    $amount = (int)round(((float)($_POST['amount'] ?? 0)) * 100);
+    $reason = trim((string)($_POST['reason'] ?? '后台调整'));
+    if ($amount !== 0) user_balance_add($id, $amount, $reason);
+    if (isset($_POST['auto_renew'])) user_auto_renew($id, (string)$_POST['auto_renew'] === '1');
+    audit('调整用户余额', 'user:' . $id, (string)$amount);
+    flash('ok', '余额/自动续费已更新');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_revoke(int $id): void
+{
+    require_admin(); csrf_check();
+    shop_pdo()->prepare('UPDATE licenses SET revoked=1 WHERE user_id=? AND revoked=0')->execute([$id]);
+    audit('取消套餐用户全部授权', 'user:' . $id);
+    flash('ok', '该用户的授权已全部取消');
+    redirect('/admin/shop-users/' . $id);
+}
+
+function page_shop_user_delete(int $id): void
+{
+    require_admin(); csrf_check();
+    foreach (['licenses', 'orders', 'heartbeats'] as $t) {
+        shop_pdo()->prepare("DELETE FROM $t WHERE user_id=?")->execute([$id]);
+    }
+    shop_pdo()->prepare('DELETE FROM users WHERE id=?')->execute([$id]);
+    audit('删除套餐用户', 'user:' . $id);
+    flash('ok', '用户及其授权/订单已删除');
+    redirect('/admin/shop-users');
+}

@@ -1,0 +1,117 @@
+{
+  "generated_at": "2026-11-22T03:11:28+0800",
+  "text": {
+    "aliexpress": {
+      "title_ok": true,
+      "title": "Industrial Concrete Laser Screed Machine – 6m Width, Auto-Leveling, GPS/Laser Guidance for Road & Fl",
+      "detail_ok": true,
+      "detail_chars": 3208,
+      "elapsed": 18.4,
+      "errors": [
+        "",
+        ""
+      ]
+    },
+    "alibaba": {
+      "ok": true,
+      "score": 4.75,
+      "ai_used": true,
+      "subject": "Laser Screed Concrete Leveling Machine - Automatic Self-Propelled Laser-Guided Screeding Equipment f",
+      "elapsed": 22.8,
+      "error": "",
+      "steps": [
+        {
+          "name": "连接 Alibaba",
+          "ok": true,
+          "detail": "Cookie 可用，客户端已创建"
+        },
+        {
+          "name": "读取商品详情",
+          "ok": true,
+          "detail": "Machinery Sample Laser Screed Concrete Leveling Machine for  · 类目 127726092"
+        },
+        {
+          "name": "读取类目规则",
+          "ok": true,
+          "detail": "类目 127726092：6 个必填属性 / 8 个模块字段"
+        },
+        {
+          "name": "AI 标题",
+          "ok": true,
+          "detail": "Laser Screed Concrete Leveling Machine - Automatic Self-Propelled Lase"
+        },
+        {
+          "name": "AI 详情",
+          "ok": true,
+          "detail": "纯文本 2000 字符（已从 5941 截断，平台上限 2000） · 平台 textDesc 仅收纯文本"
+        },
+        {
+          "name": "AI 编造体检",
+          "ok": true,
+          "detail": "未发现明显编造"
+        },
+        {
+          "name": "AI 关键词",
+          "ok": true,
+          "detail": "laser screed machine, concrete leveling equipment, self propelled laser screed, automatic concrete screed, laser guided "
+        },
+        {
+          "name": "关键词",
+          "ok": true,
+          "detail": "laser screed machine, concrete leveling equipment, self propelled laser screed, automatic concrete screed, laser guided "
+        },
+        {
+          "name": "保存前校验",
+          "ok": true,
+          "detail": "必填项全部满足"
+        },
+        {
+          "name": "刊登评分",
+          "ok": true,
+          "detail": "4.75/5（发布线 4.5）"
+        },
+        {
+          "name": "违禁词检查",
+          "ok": true,
+          "detail": "未命中"
+        },
+        {
+          "name": "预演",
+          "ok": true,
+          "detail": "op=1（保存草稿）· 载荷 34 个字段；dry-run 未调用保存接口"
+        },
+        {
+          "name": "完成",
+          "ok": true,
+          "detail": "预演完成（未保存商品）"
+        }
+      ]
+    },
+    "amazon": {
+      "title": "OEM Concrete Laser Screed for Road Construction and Floor Leveling - High Efficiency and Durable",
+      "bullets": 5,
+      "description_chars": 1657,
+      "search_terms": "concrete laser screed road construction floor leveling screeding tool equipment ",
+      "notes": [
+        "标题：已生成（96 字符）",
+        "五点描述：已生成 5 条",
+        "产品描述：已生成（1659 字节 HTML）",
+        "Search Terms：已生成（104 字符 / 104 字节）"
+      ],
+      "elapsed": 17.3
+    },
+    "tiktok": {
+      "title": "Industrial Concrete Laser Screed Machine for Road Construction and Floor Leveling",
+      "features": 5,
+      "description_chars": 1815,
+      "search_terms": 9,
+      "notes": [
+        "标题：已生成（81 字符）",
+        "产品描述：已生成（1815 字符 HTML）",
+        "五点描述：已生成 5 条",
+        "搜索关键词：已生成 9 个关键词"
+      ],
+      "elapsed": 18.2
+    }
+  }
+}

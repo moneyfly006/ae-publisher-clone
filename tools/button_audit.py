@@ -28,12 +28,22 @@ def populate(app, index):
         app.scheduler.add("ui-test-product", time.time() + 3600, "验证定时发布")
 
 
+def _cases():
+    """按平台实际页面生成审计用例：Alibaba 平台没有价格页/变种页。"""
+    from aeclone.platforms import PLATFORMS
+    cases = [(item.index, False, platform) for platform, pf in PLATFORMS.items()
+             if pf.implemented for item in pf.pages]
+    cases += [(5, True, "alibaba"), (10, True, "alibaba")]
+    return cases
+
+
 def audit():
     results = []
-    cases = [(index, False) for index in range(12)] + [(5, True), (10, True)]
-    for index, populated in cases:
+    for index, populated, platform_id in _cases():
         with sandbox():
             app = build_app()
+            if platform_id != "alibaba":
+                app._switch_platform(platform_id)
             if populated:
                 populate(app, index)
             app._switch(index)
@@ -51,6 +61,8 @@ def audit():
                     stack.enter_context(patch.object(ft.FilePicker, name,
                         lambda *a, _name=name, **kw: native.append(_name)))
                 app = build_app()
+                if platform_id != "alibaba":
+                    app._switch_platform(platform_id)
                 if populated:
                     populate(app, index)
                 app._switch(index)
@@ -59,6 +71,9 @@ def audit():
                 app.page.launched_urls.clear()
                 control = list(walk(app.content.controls))[position]
                 callback = getattr(control, event)
+                if title == "查看任务结果":
+                    stack.enter_context(patch.object(ft.Column, "scroll_to",
+                        lambda *a, **kw: native.append("scroll_to task results")))
                 try:
                     # 使用真实控件和合法当前值，避免把所有开关和下拉框都传成空字符串。
                     if event == "on_change" and isinstance(control, (ft.Switch, ft.Checkbox)):
@@ -68,11 +83,13 @@ def audit():
                     external.extend(app.page.launched_urls)
                     outcome = ("NATIVE" if native else "EXTERNAL" if external else
                                "DEFERRED" if deferred else "OK")
-                    results.append(dict(page=index, label=title, event=event, status=outcome,
+                    results.append(dict(page=index, platform=platform_id, label=title,
+                                        event=event, status=outcome,
                                         scenario="populated" if populated else "default",
                                         detail=", ".join(native or external or deferred)))
                 except Exception as ex:
-                    results.append(dict(page=index, label=title, event=event, status="ERROR",
+                    results.append(dict(page=index, platform=platform_id, label=title,
+                                        event=event, status="ERROR",
                                         scenario="populated" if populated else "default",
                                         detail=f"{type(ex).__name__}: {ex}"))
     return results
@@ -85,7 +102,8 @@ def main():
     results = audit()
     counts = {status: sum(r["status"] == status for r in results)
               for status in ("OK", "DEFERRED", "NATIVE", "EXTERNAL", "ERROR")}
-    print(f"12 页 / {len(results)} 个回调: {counts}")
+    pages = sorted({(r["page"], r.get("platform", "")) for r in results})
+    print(f"{len(pages)} 页 / {len(results)} 个回调: {counts}")
     for result in results:
         if result["status"] == "ERROR":
             print(f"  页{result['page']} {result['label']}: {result['detail']}")

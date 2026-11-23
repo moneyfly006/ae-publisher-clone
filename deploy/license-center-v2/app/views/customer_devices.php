@@ -1,0 +1,4 @@
+<div class="page-intro"><p>账号设备与历史授权分开管理。解绑不删除授权记录，原设备授权与原日志入口继续保留。</p><a class="btn ghost" href="/admin/userdata">原设备运行数据</a></div>
+<div class="card table-card"><div class="table-scroll"><table><thead><tr><th>用户</th><th>机器码</th><th>绑定状态</th><th>最近绑定变更</th><th>操作</th></tr></thead><tbody>
+<?php foreach($rows as $r): ?><tr><td><?= e($r['email']) ?></td><td class="mono"><?= e($r['machine_code']) ?></td><td><span class="badge <?= $r['active']?'ok':'muted' ?>"><?= $r['active']?'已绑定':'已解绑' ?></span></td><td><?= e(date('Y-m-d H:i',(int)$r['updated_at'])) ?></td><td><a href="/admin/shop-users/<?= (int)$r['user_id'] ?>">用户详情</a> · <a href="/admin/customer-logs?user_id=<?= (int)$r['user_id'] ?>">日志</a></td></tr><?php endforeach; ?>
+<?php if(!$rows): ?><tr><td colspan="5" class="empty">暂无绑定设备，用户首次登录软件后自动显示。</td></tr><?php endif; ?></tbody></table></div></div>

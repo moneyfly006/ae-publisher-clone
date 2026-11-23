@@ -45,7 +45,87 @@ def _run(cmd: list[str], timeout: int = 5) -> str:
             return ""
 
 
+def _clean_component(value: str) -> str:
+    value = str(value or "").strip().strip('"').strip()
+    low = value.lower()
+    if not value or low in {
+        "none", "null", "unknown", "default string", "system serial number",
+        "to be filled by o.e.m.", "not applicable", "not specified",
+        "00000000-0000-0000-0000-000000000000",
+        "03000200-0400-0500-0006-000700080009",
+    }:
+        return ""
+    return value
+
+
+def _identity_components() -> list[str]:
+    """Collect multiple stable hardware identifiers.
+
+    A cloned VM/image often has the same MachineGuid/machine-id but different
+    BIOS/board serial, so combine several identifiers instead of trusting one.
+    """
+    system = platform.system()
+    values: list[str] = []
+    if system == "Windows":
+        out = _run(["reg", "query", r"HKLM\SOFTWARE\Microsoft\Cryptography", "/v", "MachineGuid"])
+        for line in out.splitlines():
+            if "MachineGuid" in line:
+                values.append(_clean_component(line.split()[-1]))
+                break
+        for cmd in (
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             "(Get-CimInstance Win32_ComputerSystemProduct).UUID"],
+            ["wmic", "csproduct", "get", "UUID", "/value"],
+        ):
+            out = _run(cmd, timeout=8)
+            if not out:
+                continue
+            if "=" in out:
+                out = out.split("=", 1)[-1].strip()
+            if _clean_component(out):
+                values.append(_clean_component(out))
+                break
+        out = _run(["reg", "query", r"HKLM\SYSTEM\CurrentControlSet\Services\Disk\Enum", "/v", "0"])
+        # Disk Enum changes with disk reorder; do not use as a primary identifier.
+    elif system == "Darwin":
+        out = _run(["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"])
+        if not out:
+            out = _run(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"])
+        for line in out.splitlines():
+            if "IOPlatformUUID" in line:
+                values.append(_clean_component(line.split("=")[-1]))
+            elif "IOPlatformSerialNumber" in line:
+                values.append(_clean_component(line.split("=")[-1]))
+            elif '"model"' in line or '"board-id"' in line:
+                values.append(_clean_component(line.split("=")[-1]))
+    else:
+        for path in ("/etc/machine-id", "/var/lib/dbus/machine-id",
+                     "/sys/class/dmi/id/product_uuid", "/sys/class/dmi/id/board_serial",
+                     "/sys/class/dmi/id/product_serial"):
+            try:
+                with open(path, encoding="utf-8", errors="ignore") as fh:
+                    values.append(_clean_component(fh.read().strip()))
+            except OSError:
+                continue
+    # Last resort: hostname/arch are weak and can duplicate in cloned environments.
+    if not any(values):
+        values = [str(platform.node()), str(platform.machine()), system]
+    # Deduplicate, keep order; no transient MAC here (adapter changes would reissue licenses).
+    out = []
+    seen = set()
+    for v in values:
+        if v and v.lower() not in seen:
+            seen.add(v.lower())
+            out.append(v)
+    return out
+
+
 def _raw_identity() -> str:
+    """New composite identity; unique across common cloned VM templates."""
+    return "|".join(_identity_components())
+
+
+def _legacy_raw_identity() -> str:
     system = platform.system()
     raw = ""
     if system == "Windows":
@@ -78,13 +158,31 @@ def _raw_identity() -> str:
 
 
 def machine_id() -> str:
-    """64 位十六进制设备指纹（服务端 identity 用）。"""
+    """New composite device hash (multi-hardware identifiers)."""
     return hashlib.sha256(_raw_identity().encode()).hexdigest()
 
 
+def legacy_machine_id() -> str:
+    """Old single-identifier hash, kept only for license compatibility."""
+    return hashlib.sha256(_legacy_raw_identity().encode()).hexdigest()
+
+
+def _fmt_id(full: str) -> str:
+    raw = str(full or "")[:16].upper()
+    return f"{raw[:8]}-{raw[8:16]}" if raw else ""
+
+
 def machine_code(fmt: bool = True) -> str:
-    """给用户看的机器码：XXXXXXXX-XXXXXXXX（与授权后台现有登记格式一致）。"""
+    """给用户看的机器码：XXXXXXXX-XXXXXXXX（新算法，多硬件组合）。"""
     raw = machine_id()[:16].upper()
+    if not fmt:
+        return raw
+    return f"{raw[:8]}-{raw[8:16]}"
+
+
+def legacy_machine_code(fmt: bool = True) -> str:
+    """旧机器码（兼容已登记设备）。"""
+    raw = legacy_machine_id()[:16].upper()
     if not fmt:
         return raw
     return f"{raw[:8]}-{raw[8:16]}"
@@ -124,10 +222,44 @@ def _identity_candidates() -> list[str]:
     """
     full = machine_id()
     short = full[:16].upper()
-    # 顺序：后台现有格式（8-8）→ 无横线 → 完整哈希
-    out = [machine_code(), short, full]
+    lfull = legacy_machine_id()
+    lshort = lfull[:16].upper()
+    # 新格式优先；旧格式保留，避免已登记设备升级后失效。
+    out = [machine_code(), short, full,
+           legacy_machine_code(), lshort, lfull]
     seen = set()
     return [x for x in out if x and not (x in seen or seen.add(x))]
+
+
+def identity_candidates() -> list[str]:
+    """Public alias: new identity + legacy formats accepted by the server."""
+    return _identity_candidates()
+
+
+def canonical_server(server: str) -> str:
+    """归一化授权服务器地址（兼容旧版 ali.moneyfly.club/license 别名）。
+
+    旧地址在服务端是 308 跳转，而且 Location 不带原 query（api.php?action=... 会丢），
+    是「授权 404 / 未知操作」的根因。正式授权中心是 license.moneyfly.club。
+    """
+    raw = str(server or "").strip()
+    if not raw:
+        return raw
+    try:
+        from urllib.parse import urlparse
+        p = urlparse(raw if "://" in raw else "https://" + raw)
+        host = (p.hostname or "").lower()
+        path = (p.path or "/").rstrip("/")
+        if host == "ali.moneyfly.club" and path in ("/license", ""):
+            return "https://license.moneyfly.club"
+    except Exception:
+        pass
+    return raw.rstrip("/")
+
+
+def shop_url(server: str = "") -> str:
+    """授权中心（用户端商城）地址，供界面「去授权网站开通」使用。"""
+    return canonical_server(server or "https://license.moneyfly.club").rstrip("/") + "/shop/"
 
 
 def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
@@ -139,6 +271,7 @@ def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
     - public_key_pem：服务端凭证公钥（可覆盖内置公钥）。
     """
     import platform
+    server = canonical_server(server)
     last = {}
     tried = []
     candidates = [identity_override.strip()] if identity_override else []
@@ -196,6 +329,9 @@ def verify(server: str, client_type: str = CLIENT_TYPE, timeout: int = 10,
                     "voucher": voucher, "signature": signature,
                     "tried": tried,
                 }
+            if r.status_code == 404 and not msg:
+                msg = ("授权服务器地址无效（404）：请在「设置 → 账号与连接」把授权服务器"
+                       "改为 https://license.moneyfly.club")
             last = {
                 "ok": False, "authorized": False,
                 "message": msg or (f"授权服务器返回 HTTP {r.status_code}" if r.status_code >= 400 else "未授权"),

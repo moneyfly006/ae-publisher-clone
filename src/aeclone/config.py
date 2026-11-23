@@ -7,6 +7,7 @@ import threading
 from pathlib import Path
 
 APP_NAME = "AuroraList"
+_SAVE_LOCK = threading.RLock()
 
 DEFAULTS: dict = {
     # ---- 基础 / API ----
@@ -18,6 +19,7 @@ DEFAULTS: dict = {
     "license_enforce": True,                              # 未授权时禁止开始上架
     "license_identity": "",                               # 可选：已有设备授权 ID
     "license_cache_ok": False,                            # 上次授权结果（避免每次启动阻塞网络）
+    "license_cache_legacy": True,                         # 区分原设备授权与套餐账号的兼容凭证
     "license_cache_expiry": "",
     "license_cache_ts": 0,
     "license_public_key": "",                             # 可选：服务端换公钥时覆盖内置公钥
@@ -26,8 +28,20 @@ DEFAULTS: dict = {
     "license_expiry": "",
     "license_voucher_ts": 0,
     "license_client_type": "local",
+    "license_token": "",                                   # 平台+功能包授权 token
+    "license_token_ts": 0,
+    "license_platforms": "",
+    "license_account_email": "",
+    "license_account_bound": False,                        # 已完成旧授权→账号迁移
+    "license_account_save_password": False,                # 用户勾选“保存密码”
+    "license_account_password": "",                        # 加密后的密码，不是明文
+    "license_legacy_all": False,                           # 旧授权迁移期：全部平台可用
+    "license_migration_prompted_at": 0,                    # 上次提醒绑定账号的时间
+    "heartbeat_interval": 120,                               # 开发/过渡：手动覆盖（alibaba:listing+ai_text）
+    "active_platform": "alibaba",
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
     "log_auto_follow": True,                              # 日志总是跳到最新
+    "auto_report_errors": True,                            # 出现 ERROR 日志立即上报授权后台
     "ai_image_enable": True,                              # AI 图片处理总开关
     "main_as_detail": False,                              # 主图同时作为详情图
     "write_main_images_to_product": True,                 # AI 主图写回商品
@@ -116,6 +130,7 @@ DEFAULTS: dict = {
     "template_library": "{}",
     "auto_detect_category": True,                        # 自动识别类目：优先用商品自带 categoryId
     "apply_template_on_save": True,
+    "smt_attr_autofill": True,                           # 保存/发布前补齐速卖通类目必填属性（只补缺失，不覆盖已有）
     # AI 主图生成 / 指定图片编辑
     "main_image_generate_enable": False,
     "main_image_generate_prompt": "电商主图：{title}，让 {subject} 居中并占画面约 80%，纯白背景（#FFFFFF），柔和棚拍光，阴影自然，细节清晰，颜色准确，1:1 正方形，画册级质感。不要文字、不要水印、不要 Logo、不要多余道具、不要人物、不要边框。",
@@ -356,11 +371,200 @@ DEFAULTS: dict = {
     "product_id": "",
     # 启动时默认打开的页面（0=概览 … 12=预览）
     "start_page": 0,
+    # ---------------- Alibaba（国际站）刊登预设 ----------------
+    "alibaba_cookies": "",
+    "alibaba_shop_id": "9466975",   # 预置：ICBU 店铺（可在「Alibaba 连接」页切换）
+    "alibaba_shop_name": "zzyugong",
+    "alibaba_recommended_seeded": False,
+    "alibaba_test_product_id": "",
+    "alibaba_last_category_required": "",
+    "alibaba_ai_preset": "machinery_industrial",   # 上次使用的 Alibaba 行业提示词预设
+    "alibaba_keyword_prompt": "",            # 空=用 TextPipeline 内置英文关键词提示词
+    "alibaba_group_id": "",
+    "alibaba_group_name": "",
+    "alibaba_category_id": "127726092",
+    "alibaba_batch_category_id": "127726092",   # 批量处理目标类目（与单个商品选择分开）
+    "alibaba_category_name": "其他混凝土机械 / Other Concrete Machinery",
+    "alibaba_full_cid": "201943703,1326,100010658,127726092",
+    "alibaba_keywords": "",
+    "alibaba_company_name": "",
+    "alibaba_company_desc": "We are a professional machinery manufacturer with 15 years of experience. Our factory supports OEM/ODM orders and provides installation and after-sales service.",
+    "alibaba_company_faq": "Q: What is the MOQ? A: One set. Q: How long is the delivery time? A: 15-30 days.",
+    "alibaba_company_website": "",
+    "alibaba_min_order_quantity": 1,
+    "alibaba_unit_type": "Piece",
+    "alibaba_price_tiers": "",
+    "alibaba_price_type": "",
+    # 用户在 UI 显式选过定价方式才置 1；否则保存时保留商品原有 priceType
+    # （避免默认 ladder_price 把 sku_price/fob_price 商品静默改成阶梯价）。
+    "alibaba_price_type_explicit": "",
+    "alibaba_sale_type": "normal",
+    "alibaba_batch_number": "",
+    "alibaba_fob_currency": "USD",
+    "alibaba_fob_min_price": "",
+    "alibaba_fob_max_price": "",
+    "alibaba_freight_template_id": "2055583029",   # 运费模板 ID（发布时与重量/尺寸一起校验）
+    "alibaba_logistics_property": "general_cargo_0",  # 物流属性；实测 online 商品用 general_cargo_0
+    "alibaba_op": 1,
+    "alibaba_package_size": "300X200X200",
+    "alibaba_weight": "500",
+    "alibaba_hs_code": "84791000",
+    "alibaba_stock": "5",
+    "alibaba_payment_terms": "T/T",
+    "alibaba_trade_terms": "FOB",
+    "alibaba_port": "Shanghai",
+    "alibaba_lead_time": 30,          # 发货期天数（写入 deliver_periods.process_period）
+    "alibaba_deliver_quantity": "1",  # 发货期起订量（deliver_periods.quantity）
+    "alibaba_process_period": "15",
+    "alibaba_schedule_time": "",      # op=5 定时发布时间（本地 YYYY-MM-DD HH:MM）
+    "alibaba_attr_presets": "{\"Core Components\":\"Motor\",\"Warranty\":\"1 Year\",\"Place of Origin\":\"China\",\"Model Number\":\"LS-600\",\"Weight (kg)\":\"600\",\"Unique Selling Point\":\"Fully hydraulic system\"}",
+    # ---------------- Amazon（亚马逊）刊登预设 ----------------
+    "amazon_cookies": "",
+    "amazon_shop_id": "",
+    "amazon_shop_name": "",
+    "amazon_site": "",              # marketPlaceId（如 A2EUQ1WTGCTBG2）
+    "amazon_site_code": "",         # 站点代码（US/CA/MX/BR…）
+    "amazon_site_name": "",
+    "amazon_test_product_id": "",
+    "amazon_list_state": "draft",
+    "amazon_category_id": "",
+    "amazon_category_path": "",     # nodePath a/b/c
+    "amazon_category_name": "",
+    "amazon_last_category_required": "",
+    "amazon_price": "",
+    "amazon_sale_price": "",
+    "amazon_quantity": 0,
+    "amazon_fulfillment": "MFN",    # MFN/FBA
+    "amazon_handling_time": 2,
+    "amazon_shipping_template": "",
+    "amazon_brand": "",
+    "amazon_manufacturer": "",
+    "amazon_sku": "",
+    "amazon_bullet_count": 5,       # AI 生成条数（5）；加载已有商品最多 10 条，保存不得截断
+    "amazon_op": 1,
+    "amazon_use_ai": False,
+    "amazon_ai_preset": "generic",
+    "amazon_title_prompt": "",        # 空=内置
+    "amazon_bullet_prompt": "",
+    "amazon_description_prompt": "",
+    "amazon_search_terms_prompt": "",
+    "amazon_sku_prompt": "",
+    "amazon_image_prompt": "",
+    "amazon_title_preset": "",
+    "amazon_bullet_preset": "",
+    "amazon_description_preset": "",
+    "amazon_search_terms_preset": "",
+    "amazon_sku_preset": "",
+    "amazon_image_preset": "",
+    "amazon_presets_version": "",
+    "amazon_last_status": "",
+    "amazon_manufacturer_contact": "",   # 发布必填；从商品或配置读取真实联系方式
+    "amazon_publish_wait": 60,           # op=2 发布后轮询发布状态的最长秒数（0=只查一次）
+    "amazon_autofill_attrs": True,       # 保存/发布前自动补齐缺失的必填属性（只补缺失，不覆盖已有）
+    # ---- 真实发布自动修复闭环（services/amazon_auto.py） ----
+    "amazon_auto_max_rounds": 3,         # 发布失败自动修复重发的最多轮次
+    "amazon_auto_wait": 90,              # 每轮发布后轮询发布状态的最长秒数
+    "amazon_auto_fix_attrs": True,       # 自动补齐缺失必填属性后重发
+    "amazon_auto_fix_title": True,       # 标题重复/超长/违规自动修复
+    "amazon_auto_fix_description": True, # 描述/卖点/关键词违规自动清洗
+    "amazon_auto_ai_fix": False,         # 内容违规时用 AI 重写描述（付费，默认关）
+    # ---------------- TikTok Shop 刊登预设（契约 §3.7） ----------------
+    "tiktok_cookies": "",
+    "tiktok_shop_id": "",
+    "tiktok_shop_name": "",
+    "tiktok_site": "",               # GB/US/…（L7 站点代码）
+    "tiktok_site_name": "",
+    "tiktok_list_state": "draft",
+    "tiktok_test_product_id": "",
+    "tiktok_category_id": "",
+    "tiktok_category_name": "",
+    "tiktok_category_path": "",      # nodePathId a/b/c
+    "tiktok_category_list": "[]",    # JSON
+    "tiktok_title": "",
+    "tiktok_description": "",
+    "tiktok_key_features": "[]",     # JSON（US/4Seller）
+    "tiktok_search_terms": "[]",     # JSON（US/4Seller）
+    "tiktok_images": "[]",           # JSON：主图 URL 列表（第 1 张=主图）
+    "tiktok_video_id": "",
+    "tiktok_source_url": "",
+    "tiktok_product_type": 1,        # 0 单品 / 1 多变种
+    "tiktok_price": "",
+    "tiktok_stock": 0,
+    "tiktok_sku": "",
+    "tiktok_weight": "",
+    "tiktok_length": "",
+    "tiktok_width": "",
+    "tiktok_height": "",
+    "tiktok_dimension_unit": "CENTIMETER",
+    "tiktok_warehouse_id": "",
+    "tiktok_brand_id": "",
+    "tiktok_manufacturer_id": "",
+    "tiktok_responsible_person_id": "",
+    "tiktok_product_attributes": "",
+    "tiktok_op": 1,
+    "tiktok_save_mode": "",
+    "tiktok_use_ai": False,
+    "tiktok_key_feature_count": 5,
+    "tiktok_title_prompt": "",
+    "tiktok_description_prompt": "",
+    "tiktok_key_features_prompt": "",
+    "tiktok_search_terms_prompt": "",
+    "tiktok_last_status": "",
+    # Shopee 使用独立配置与保存端点；不得复用速卖通店铺/模板。
+    "shopee_mode": "global",
+    "shopee_cookies": "",
+    "shopee_shop_id": "",
+    "shopee_site": "global",
+    "shopee_test_product_id": "",
+    "shopee_title_prompt": "",
+    "shopee_description_prompt": "",
+    # Alibaba 提示词单独存储，保护速卖通已有文案配置。
+    "alibaba_title_prompt": "",
+    "alibaba_detail_prompt": "",
+    "alibaba_sku_prompt": "",
+    "alibaba_review_text_prompt": "",
     "window_size": "1280x800",
     "ui_theme": "dark",             # dark | light
     "image_retry_times": 1,         # 图片接口 5xx 自动重试次数（0=不重试）      # 启动窗口大小（小 1100x760 / 中 1280x800 / 大 1512x945）
 
 }
+
+
+
+# Defaults for automatic source collection; never borrow single-item editor values.
+for _platform in ("alibaba", "amazon", "tiktok", "shopee"):
+    from .collect_defaults import PARAMETERS as _RUNTIME_PARAMETERS
+    DEFAULTS.update({
+        _platform + "_collect_keyword": "",
+        _platform + "_collect_limit": 10,
+        _platform + "_collect_selected_ids": "[]",
+        _platform + "_collect_op": "1",
+        _platform + "_collect_ai": False,
+        _platform + "_collect_ai_mode": "missing",
+        _platform + "_collect_ai_fields": json.dumps({
+            "alibaba": ["title", "description", "keywords"],
+            "amazon": ["title", "bullets", "description", "search_terms"],
+            "tiktok": ["title", "description", "key_features", "search_terms"],
+            "shopee": ["title", "description"],
+        }[_platform]),
+        _platform + "_collect_ai_sku": False,
+        _platform + "_collect_ai_attributes": False,
+        _platform + "_collect_sku_prompt": "",
+        _platform + "_collect_attribute_prompt": "",
+        _platform + "_collect_auto_repair": True,
+        _platform + "_collect_max_attempts": 2,
+        _platform + "_collect_images": False,
+        _platform + "_collect_image_indices": "1",
+        _platform + "_collect_image_rules": "",
+        _platform + "_collect_image_prompt": "将商品图处理为纯白背景棚拍图。保持商品形状、结构、颜色、材质和比例，不新增文字或物件。",
+        _platform + "_collect_overrides": "{}",
+        _platform + "_collect_ai_max_calls": 100,
+        _platform + "_collect_ai_budget": 0.0,
+        _platform + "_collect_text_call_price": 0.0,
+        _platform + "_collect_image_call_price": 0.0,
+        _platform + "_collect_ai_cache": True,
+        **{_platform + "_collect_" + suffix: spec[1] for suffix, spec in _RUNTIME_PARAMETERS.items()},
+    })
 
 
 def config_dir() -> Path:
@@ -498,12 +702,24 @@ class AppConfig:
             return cfg
 
     def save(self) -> None:
+        """Serialize concurrent autosaves before replacing the shared temporary file."""
+        with _SAVE_LOCK:
+            self._save_atomic()
+
+    def _save_atomic(self) -> None:
         """原子写：先写临时文件，再替换；保留一份 .bak 防止断电损坏。"""
         import os as _os
         import shutil as _sh
         p = self.path()
-        p.parent.mkdir(parents=True, exist_ok=True)
         data = json.dumps(self._d, ensure_ascii=False, indent=2)
+        previous = getattr(self, "_last_saved_state", None)
+        if previous and previous[:2] == (str(p), data):
+            try:
+                if p.stat().st_mtime_ns == previous[2]:
+                    return
+            except OSError:
+                pass
+        p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(".tmp")
         tmp.write_text(data, encoding="utf-8")
         try:
@@ -512,6 +728,7 @@ class AppConfig:
         except Exception:
             pass
         _os.replace(tmp, p)
+        object.__setattr__(self, "_last_saved_state", (str(p), data, p.stat().st_mtime_ns))
 
 
 _lock = threading.Lock()

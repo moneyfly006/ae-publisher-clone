@@ -1,0 +1,17 @@
+{
+ "generated_at": "2026-11-22T12:44:35+0800",
+ "product_id": "220114600917618094",
+ "action": "publish_only",
+ "license_bypass": "AURORA_SKIP_LICENSE=1 (smoke only)",
+ "ok": true,
+ "message": "只发布成功（商品ID 220114600917618094）：产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！",
+ "error": "",
+ "elapsed": 5.9,
+ "steps": [],
+ "state": {
+  "id": "220114600917618094",
+  "status": "",
+  "err": "",
+  "audit_reason": ""
+ }
+}

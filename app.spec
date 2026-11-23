@@ -15,6 +15,10 @@ for pkg in ("flet", "flet_desktop"):
     except Exception:
         pass
 
+if sys.platform == "darwin":
+    # The branded, unpacked helper below replaces this stock archive.
+    flet_datas = [(src, dst) for src, dst in flet_datas if not src.endswith("flet-macos.tar.gz")]
+
 # certifi 根证书：打包后 requests 需要它做 TLS 校验；漏了会报
 # "Could not find a suitable TLS CA certificate bundle"
 cert_datas, cert_bins, cert_hidden = [], [], []
@@ -88,13 +92,20 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleName": "AuroraList",
             "CFBundleDisplayName": "AuroraList",
-            "CFBundleShortVersionString": "1.0.5",
-            "CFBundleVersion": "1.0.5",
+            "CFBundleShortVersionString": "1.0.6",
+            "CFBundleVersion": "1.0.6",
             "NSHighResolutionCapable": True,
             "LSApplicationCategoryType": "public.app-category.productivity",
             "LSMinimumSystemVersion": "11.0",
-            # 让 AuroraList 显示 Dock（用户设计的图标 + 正确名字）。
-            # Flet.app 会在启动时被设成 LSUIElement，不再单独出现一个图标。
-            "LSUIElement": False,
+            # Python 进程负责服务；原生窗口组件负责唯一的 Dock 图标和菜单。
+            "LSUIElement": True,
         },
     )
+    # Put the signed native window in the installation itself. No first-launch
+    # extraction or edits to ~/.flet (which can belong to another application).
+    import flet_desktop
+    import subprocess
+    from aeclone.macos_app import prepare_native_view
+    native_archive = Path(flet_desktop.__file__).parent / "app/flet-macos.tar.gz"
+    prepare_native_view(native_archive, Path(app.name) / "Contents/Helpers", Path("assets/icon.icns"))
+    subprocess.run(["/usr/bin/codesign", "--force", "--deep", "--sign", "-", app.name], check=True)

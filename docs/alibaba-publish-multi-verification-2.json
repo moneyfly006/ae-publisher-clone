@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-11-22T02:31:16+0800",
+  "feature": "alibaba_clear_video_publish",
+  "products": [
+    {
+      "product_id": "220114598435127728",
+      "score": 4.6,
+      "dry_ok": true,
+      "publish_ok": false,
+      "saved": false,
+      "auditing": false,
+      "error": "发布被平台拒绝（主视频复用超限）：同一主视频已被超过 20 个商品使用。处理：到「价格与贸易」勾选「发布时清除主视频」后重发，或给该商品换一个独立主视频；视频可在平台侧重新上传。",
+      "after": {
+        "dxmState": "online",
+        "errMsg": "systemError:isp.system-service-error:CHK_VIDEO_PRODUCT_LINK_LIMIT:主视频已在过多商品中使用。请减少至 20 个以内。:; Trace_id: 7fa7dc18fb691118be8a216a058d73f0",
+        "mainVideoId": null
+      }
+    },
+    {
+      "product_id": "220114598435128538",
+      "score": 4.6,
+      "dry_ok": true,
+      "publish_ok": false,
+      "saved": false,
+      "auditing": false,
+      "error": "发布被平台拒绝（主视频复用超限）：同一主视频已被超过 20 个商品使用。处理：到「价格与贸易」勾选「发布时清除主视频」后重发，或给该商品换一个独立主视频；视频可在平台侧重新上传。",
+      "after": {
+        "dxmState": "online",
+        "errMsg": "systemError:isp.system-service-error:CHK_VIDEO_PRODUCT_LINK_LIMIT:主视频已在过多商品中使用。请减少至 20 个以内。:; Trace_id: bccd9689c6a2ce8f46116797ac71a43e",
+        "mainVideoId": null
+      }
+    },
+    {
+      "product_id": "220114598435128522",
+      "score": 4.6,
+      "dry_ok": true,
+      "publish_ok": false,
+      "saved": false,
+      "auditing": false,
+      "error": "发布被平台拒绝（主视频复用超限）：同一主视频已被超过 20 个商品使用。处理：到「价格与贸易」勾选「发布时清除主视频」后重发，或给该商品换一个独立主视频；视频可在平台侧重新上传。",
+      "after": {
+        "dxmState": "online",
+        "errMsg": "systemError:isp.system-service-error:CHK_VIDEO_PRODUCT_LINK_LIMIT:主视频已在过多商品中使用。请减少至 20 个以内。:; Trace_id: f5d8ae9cd9d7a9a03853d72ae2ed7af0",
+        "mainVideoId": null
+      }
+    }
+  ],
+  "publish_fail_list_after": [
+    "220114598434958580"
+  ]
+}

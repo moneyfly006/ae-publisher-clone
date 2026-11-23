@@ -1,11 +1,30 @@
 {
   "counts": {
-    "CONFIG_SAVED": 150,
-    "NO_CONFIG_CHANGE": 56
+    "CONFIG_SAVED": 613,
+    "NO_CONFIG_CHANGE": 204
   },
   "results": [
     {
       "page": 1,
+      "platform": "alibaba",
+      "label": "Alibaba 店铺",
+      "value": "9466975",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 1,
+      "platform": "aliexpress",
+      "label": "模板来源",
+      "value": "all",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "template_source"
+      ]
+    },
+    {
+      "page": 1,
+      "platform": "aliexpress",
       "label": "模板来源",
       "value": "draft",
       "status": "CONFIG_SAVED",
@@ -15,8 +34,9 @@
     },
     {
       "page": 1,
+      "platform": "aliexpress",
       "label": "模板来源",
-      "value": "online",
+      "value": "editingRequired",
       "status": "CONFIG_SAVED",
       "changed": [
         "template_source"
@@ -24,6 +44,37 @@
     },
     {
       "page": 1,
+      "platform": "aliexpress",
+      "label": "模板来源",
+      "value": "onSelling",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "template_source"
+      ]
+    },
+    {
+      "page": 1,
+      "platform": "aliexpress",
+      "label": "模板来源",
+      "value": "auditing",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "template_source"
+      ]
+    },
+    {
+      "page": 1,
+      "platform": "aliexpress",
+      "label": "模板来源",
+      "value": "publishFail",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "template_source"
+      ]
+    },
+    {
+      "page": 1,
+      "platform": "aliexpress",
       "label": "类目来源",
       "value": "auto",
       "status": "NO_CONFIG_CHANGE",
@@ -31,6 +82,7 @@
     },
     {
       "page": 1,
+      "platform": "aliexpress",
       "label": "类目来源",
       "value": "template",
       "status": "CONFIG_SAVED",
@@ -40,6 +92,7 @@
     },
     {
       "page": 2,
+      "platform": "aliexpress",
       "label": "是否原箱",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -49,6 +102,7 @@
     },
     {
       "page": 2,
+      "platform": "aliexpress",
       "label": "是否原箱",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -58,6 +112,7 @@
     },
     {
       "page": 2,
+      "platform": "aliexpress",
       "label": "高关注化学品",
       "value": "否",
       "status": "NO_CONFIG_CHANGE",
@@ -65,6 +120,7 @@
     },
     {
       "page": 2,
+      "platform": "aliexpress",
       "label": "高关注化学品",
       "value": "是",
       "status": "CONFIG_SAVED",
@@ -74,6 +130,7 @@
     },
     {
       "page": 2,
+      "platform": "aliexpress",
       "label": "是否带电",
       "value": "否",
       "status": "NO_CONFIG_CHANGE",
@@ -81,6 +138,7 @@
     },
     {
       "page": 2,
+      "platform": "aliexpress",
       "label": "是否带电",
       "value": "是",
       "status": "CONFIG_SAVED",
@@ -90,6 +148,7 @@
     },
     {
       "page": 2,
+      "platform": "aliexpress",
       "label": "是否提交欧盟资质",
       "value": "否",
       "status": "NO_CONFIG_CHANGE",
@@ -97,6 +156,7 @@
     },
     {
       "page": 2,
+      "platform": "aliexpress",
       "label": "是否提交欧盟资质",
       "value": "是",
       "status": "CONFIG_SAVED",
@@ -106,6 +166,270 @@
     },
     {
       "page": 3,
+      "platform": "alibaba",
+      "label": "启用自动AI文案（付费）",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "启用自动AI文案（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "文案处理方式",
+      "value": "missing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "文案处理方式",
+      "value": "rewrite",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_mode"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "AI 标题",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "AI 标题",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "AI 描述",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "AI 描述",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "AI 关键词",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "AI 关键词",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 3,
+      "platform": "aliexpress",
       "label": "启用 AI 标题",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -115,6 +439,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用 AI 标题",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -124,6 +449,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用 AI 详情",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -131,6 +457,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用 AI 详情",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -140,6 +467,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用 AI 优化 SKU",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -147,6 +475,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用 AI 优化 SKU",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -156,6 +485,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用 AI 估重",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -163,6 +493,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用 AI 估重",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -172,6 +503,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用（总开关）",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -179,6 +511,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "启用（总开关）",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -188,6 +521,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "详情图合规过滤",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -195,6 +529,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "详情图合规过滤",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -204,6 +539,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "文字插入位置",
       "value": "head",
       "status": "NO_CONFIG_CHANGE",
@@ -211,6 +547,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "文字插入位置",
       "value": "tail",
       "status": "CONFIG_SAVED",
@@ -220,6 +557,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "文字插入位置",
       "value": "both",
       "status": "CONFIG_SAVED",
@@ -229,6 +567,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "图片插入位置",
       "value": "head",
       "status": "CONFIG_SAVED",
@@ -238,6 +577,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "图片插入位置",
       "value": "tail",
       "status": "CONFIG_SAVED",
@@ -247,6 +587,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "图片插入位置",
       "value": "both",
       "status": "CONFIG_SAVED",
@@ -256,6 +597,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "复制SKU到详情",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -263,6 +605,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "复制SKU到详情",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -272,6 +615,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "删除详情原有文本",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -279,6 +623,7 @@
     },
     {
       "page": 3,
+      "platform": "aliexpress",
       "label": "删除详情原有文本",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -288,6 +633,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "启用文本审查",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -295,6 +641,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "启用文本审查",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -304,6 +651,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "违禁词检查",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -313,6 +661,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "违禁词检查",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -322,6 +671,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "主图审查",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -329,6 +679,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "主图审查",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -338,6 +689,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "详情图审查",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -345,6 +697,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "详情图审查",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -354,6 +707,7 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
       "label": "不合规时拦截发布",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -361,6 +715,99 @@
     },
     {
       "page": 4,
+      "platform": "alibaba",
+      "label": "不合规时拦截发布",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "review_block_on_fail"
+      ]
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "启用文本审查",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "启用文本审查",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "review_text_enable"
+      ]
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "违禁词检查",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "check_banned_word"
+      ]
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "违禁词检查",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "check_banned_word"
+      ]
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "主图审查",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "主图审查",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "review_main_img_enable"
+      ]
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "详情图审查",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "详情图审查",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "review_detail_img_enable"
+      ]
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
+      "label": "不合规时拦截发布",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 4,
+      "platform": "aliexpress",
       "label": "不合规时拦截发布",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -370,6 +817,175 @@
     },
     {
       "page": 5,
+      "platform": "alibaba",
+      "label": "自动处理商品图片（付费 AI + 图床）",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_images"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "自动处理商品图片（付费 AI + 图床）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_images"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "图片分组",
+      "value": "main",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "图片分组",
+      "value": "detail",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "图片分组",
+      "value": "sku",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "处理位置",
+      "value": "all",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "处理位置",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "处理位置",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "处理位置",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "处理位置",
+      "value": "4",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "处理位置",
+      "value": "5",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "处理位置",
+      "value": "6",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "图片处理预设",
+      "value": "white",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "图片处理预设",
+      "value": "watermark",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "图片处理预设",
+      "value": "translate",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "图片处理预设",
+      "value": "studio",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "alibaba",
+      "label": "图片处理预设",
+      "value": "custom",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_image_rules"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "aliexpress",
       "label": "主图白底",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -377,6 +993,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图白底",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -386,6 +1003,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图去水印/去Logo",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -393,6 +1011,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图去水印/去Logo",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -402,6 +1021,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图文字翻译",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -409,6 +1029,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图文字翻译",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -418,6 +1039,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "描述图白底",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -425,6 +1047,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "描述图白底",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -434,6 +1057,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "描述图去水印",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -441,6 +1065,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "描述图去水印",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -450,6 +1075,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "描述图文字翻译",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -457,6 +1083,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "描述图文字翻译",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -466,6 +1093,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "处理 SKU 图",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -473,6 +1101,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "处理 SKU 图",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -482,6 +1111,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "SKU 图白底",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -489,6 +1119,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "SKU 图白底",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -498,6 +1129,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "SKU 图去水印",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -505,6 +1137,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "SKU 图去水印",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -514,6 +1147,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "SKU 图文字翻译",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -521,6 +1155,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "SKU 图文字翻译",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -530,6 +1165,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 判断图片是否需要翻译",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -537,6 +1173,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 判断图片是否需要翻译",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -546,6 +1183,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "SKU 图也做精细编辑",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -553,6 +1191,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "SKU 图也做精细编辑",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -562,6 +1201,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 主图编辑",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -571,6 +1211,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 主图编辑",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -580,6 +1221,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 详情图编辑",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -587,6 +1229,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 详情图编辑",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -596,6 +1239,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "删除原有详情图，仅保留 AI 编辑结果",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -603,6 +1247,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "删除原有详情图，仅保留 AI 编辑结果",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -612,6 +1257,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI SKU 图编辑",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -619,6 +1265,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI SKU 图编辑",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -628,6 +1275,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "图片尺寸校验",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -635,6 +1283,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "图片尺寸校验",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -644,6 +1293,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "连原图里也不合规的一起去掉（默认关，避免误删主图）",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -651,6 +1301,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "连原图里也不合规的一起去掉（默认关，避免误删主图）",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -660,6 +1311,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "生成营销图（写进营销图片 1:1 / 3:4）",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -669,6 +1321,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "生成营销图（写进营销图片 1:1 / 3:4）",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -678,6 +1331,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "营销图来源",
       "value": "local",
       "status": "NO_CONFIG_CHANGE",
@@ -685,6 +1339,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "营销图来源",
       "value": "ai",
       "status": "CONFIG_SAVED",
@@ -694,6 +1349,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 提示词预设（机械类目）",
       "value": "工地作业场景",
       "status": "CONFIG_SAVED",
@@ -703,6 +1359,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 提示词预设（机械类目）",
       "value": "白底棚拍",
       "status": "CONFIG_SAVED",
@@ -712,6 +1369,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "AI 提示词预设（机械类目）",
       "value": "展会/交付场景",
       "status": "CONFIG_SAVED",
@@ -721,6 +1379,37 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
+      "label": "AI 提示词预设（机械类目）",
+      "value": "3:4 竖版场景",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "aliexpress",
+      "label": "AI 提示词预设（机械类目）",
+      "value": "高端暗调",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "aliexpress",
+      "label": "AI 提示词预设（机械类目）",
+      "value": "多场景合并",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "marketing_image_prompt"
+      ]
+    },
+    {
+      "page": 5,
+      "platform": "aliexpress",
       "label": "AI 提示词预设（机械类目）",
       "value": "户外实拍",
       "status": "CONFIG_SAVED",
@@ -730,6 +1419,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "四合一主图（将主图1-4合成一张）",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -737,6 +1427,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "四合一主图（将主图1-4合成一张）",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -746,6 +1437,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "四合一位置",
       "value": "first",
       "status": "NO_CONFIG_CHANGE",
@@ -753,6 +1445,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "四合一位置",
       "value": "append",
       "status": "CONFIG_SAVED",
@@ -762,6 +1455,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图同时作为详情图",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -769,6 +1463,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图同时作为详情图",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -778,6 +1473,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图不足时从详情图补齐",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -787,6 +1483,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "主图不足时从详情图补齐",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -796,6 +1493,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "保留主图到本地",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -803,6 +1501,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "保留主图到本地",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -812,6 +1511,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "叠加水印到主图（发布时逐张叠加）",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -819,6 +1519,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "叠加水印到主图（发布时逐张叠加）",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -828,6 +1529,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "水印位置",
       "value": "bottom-right",
       "status": "NO_CONFIG_CHANGE",
@@ -835,6 +1537,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "水印位置",
       "value": "bottom-left",
       "status": "CONFIG_SAVED",
@@ -844,6 +1547,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "水印位置",
       "value": "top-right",
       "status": "CONFIG_SAVED",
@@ -853,6 +1557,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "水印位置",
       "value": "top-left",
       "status": "CONFIG_SAVED",
@@ -862,6 +1567,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "水印位置",
       "value": "center",
       "status": "CONFIG_SAVED",
@@ -871,6 +1577,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "视频来源",
       "value": "collected",
       "status": "NO_CONFIG_CHANGE",
@@ -878,6 +1585,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "视频来源",
       "value": "template",
       "status": "CONFIG_SAVED",
@@ -887,6 +1595,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "视频来源",
       "value": "generated",
       "status": "CONFIG_SAVED",
@@ -896,6 +1605,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "视频来源",
       "value": "none",
       "status": "CONFIG_SAVED",
@@ -905,6 +1615,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "铺满裁剪（关闭则留白）",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -914,6 +1625,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "铺满裁剪（关闭则留白）",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -923,6 +1635,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "首尾淡入淡出",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -932,6 +1645,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "首尾淡入淡出",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -941,6 +1655,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "覆盖商品已有视频",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -948,6 +1663,7 @@
     },
     {
       "page": 5,
+      "platform": "aliexpress",
       "label": "覆盖商品已有视频",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -957,6 +1673,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "价格模式",
       "value": "multiplier",
       "status": "NO_CONFIG_CHANGE",
@@ -964,6 +1681,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "价格模式",
       "value": "free_shipping",
       "status": "CONFIG_SAVED",
@@ -973,6 +1691,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "价格模式",
       "value": "commission",
       "status": "CONFIG_SAVED",
@@ -982,6 +1701,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "价格模式",
       "value": "fixed",
       "status": "CONFIG_SAVED",
@@ -991,6 +1711,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "启用阶梯倍率",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -998,6 +1719,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "启用阶梯倍率",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1007,6 +1729,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "启用批发",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -1014,6 +1737,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "启用批发",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1023,6 +1747,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "启用区域调价",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -1030,6 +1755,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "启用区域调价",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1039,6 +1765,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "US",
       "status": "CONFIG_SAVED",
@@ -1048,6 +1775,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "RU",
       "status": "CONFIG_SAVED",
@@ -1057,6 +1785,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "BR",
       "status": "CONFIG_SAVED",
@@ -1066,6 +1795,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "ES",
       "status": "CONFIG_SAVED",
@@ -1075,6 +1805,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "FR",
       "status": "CONFIG_SAVED",
@@ -1084,6 +1815,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "DE",
       "status": "CONFIG_SAVED",
@@ -1093,6 +1825,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "GB",
       "status": "CONFIG_SAVED",
@@ -1102,6 +1835,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "IT",
       "status": "CONFIG_SAVED",
@@ -1111,6 +1845,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "PL",
       "status": "CONFIG_SAVED",
@@ -1120,6 +1855,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "TR",
       "status": "CONFIG_SAVED",
@@ -1129,6 +1865,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "SA",
       "status": "CONFIG_SAVED",
@@ -1138,6 +1875,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "AE",
       "status": "CONFIG_SAVED",
@@ -1147,6 +1885,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "IL",
       "status": "CONFIG_SAVED",
@@ -1156,6 +1895,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "KR",
       "status": "CONFIG_SAVED",
@@ -1165,6 +1905,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "JP",
       "status": "CONFIG_SAVED",
@@ -1174,6 +1915,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "MX",
       "status": "CONFIG_SAVED",
@@ -1183,6 +1925,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "CA",
       "status": "CONFIG_SAVED",
@@ -1192,6 +1935,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "AU",
       "status": "CONFIG_SAVED",
@@ -1201,6 +1945,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "NL",
       "status": "CONFIG_SAVED",
@@ -1210,6 +1955,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "PT",
       "status": "CONFIG_SAVED",
@@ -1219,6 +1965,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "US",
       "status": "CONFIG_SAVED",
@@ -1228,6 +1975,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "RU",
       "status": "CONFIG_SAVED",
@@ -1237,6 +1985,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "BR",
       "status": "CONFIG_SAVED",
@@ -1246,6 +1995,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "ES",
       "status": "CONFIG_SAVED",
@@ -1255,6 +2005,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "FR",
       "status": "CONFIG_SAVED",
@@ -1264,6 +2015,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "DE",
       "status": "CONFIG_SAVED",
@@ -1273,6 +2025,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "GB",
       "status": "CONFIG_SAVED",
@@ -1282,6 +2035,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "IT",
       "status": "CONFIG_SAVED",
@@ -1291,6 +2045,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "PL",
       "status": "CONFIG_SAVED",
@@ -1300,6 +2055,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "TR",
       "status": "CONFIG_SAVED",
@@ -1309,6 +2065,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "SA",
       "status": "CONFIG_SAVED",
@@ -1318,6 +2075,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "AE",
       "status": "CONFIG_SAVED",
@@ -1327,6 +2085,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "IL",
       "status": "CONFIG_SAVED",
@@ -1336,6 +2095,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "KR",
       "status": "CONFIG_SAVED",
@@ -1345,6 +2105,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "JP",
       "status": "CONFIG_SAVED",
@@ -1354,6 +2115,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "MX",
       "status": "CONFIG_SAVED",
@@ -1363,6 +2125,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "CA",
       "status": "CONFIG_SAVED",
@@ -1372,6 +2135,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "AU",
       "status": "CONFIG_SAVED",
@@ -1381,6 +2145,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "NL",
       "status": "CONFIG_SAVED",
@@ -1390,6 +2155,7 @@
     },
     {
       "page": 6,
+      "platform": "aliexpress",
       "label": "国家/地区",
       "value": "PT",
       "status": "CONFIG_SAVED",
@@ -1399,6 +2165,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "SKU 编码写回商品",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -1408,6 +2175,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "SKU 编码写回商品",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1417,6 +2185,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "启用自定义前缀",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -1426,6 +2195,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "启用自定义前缀",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1435,6 +2205,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "自动生成编码（前缀-001）",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -1444,6 +2215,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "自动生成编码（前缀-001）",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1453,6 +2225,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "只用前缀（丢掉原编码）",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -1462,6 +2235,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "只用前缀（丢掉原编码）",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1471,6 +2245,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "生成套装 SKU",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -1478,6 +2253,7 @@
     },
     {
       "page": 7,
+      "platform": "aliexpress",
       "label": "生成套装 SKU",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1487,6 +2263,7 @@
     },
     {
       "page": 8,
+      "platform": "aliexpress",
       "label": "编辑完成后去向",
       "value": "save_only",
       "status": "CONFIG_SAVED",
@@ -1496,6 +2273,7 @@
     },
     {
       "page": 8,
+      "platform": "aliexpress",
       "label": "编辑完成后去向",
       "value": "save_to_waiting",
       "status": "CONFIG_SAVED",
@@ -1505,6 +2283,7 @@
     },
     {
       "page": 8,
+      "platform": "aliexpress",
       "label": "编辑完成后去向",
       "value": "publish",
       "status": "CONFIG_SAVED",
@@ -1514,6 +2293,7 @@
     },
     {
       "page": 8,
+      "platform": "aliexpress",
       "label": "违禁词检查",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -1523,6 +2303,7 @@
     },
     {
       "page": 8,
+      "platform": "aliexpress",
       "label": "违禁词检查",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1531,7 +2312,26 @@
       ]
     },
     {
+      "page": 8,
+      "platform": "aliexpress",
+      "label": "定时发布",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 8,
+      "platform": "aliexpress",
+      "label": "定时发布",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "schedule_publish"
+      ]
+    },
+    {
       "page": 9,
+      "platform": "aliexpress",
       "label": "只看有图",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -1539,6 +2339,7 @@
     },
     {
       "page": 9,
+      "platform": "aliexpress",
       "label": "只看有图",
       "value": true,
       "status": "NO_CONFIG_CHANGE",
@@ -1546,6 +2347,7 @@
     },
     {
       "page": 9,
+      "platform": "aliexpress",
       "label": "全选本页",
       "value": false,
       "status": "NO_CONFIG_CHANGE",
@@ -1553,6 +2355,103 @@
     },
     {
       "page": 9,
+      "platform": "aliexpress",
+      "label": "全选本页",
+      "value": true,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "amazon",
+      "label": "只看有图",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "amazon",
+      "label": "只看有图",
+      "value": true,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "amazon",
+      "label": "全选本页",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "amazon",
+      "label": "全选本页",
+      "value": true,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "shopee",
+      "label": "只看有图",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "shopee",
+      "label": "只看有图",
+      "value": true,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "shopee",
+      "label": "全选本页",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "shopee",
+      "label": "全选本页",
+      "value": true,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "tiktok",
+      "label": "只看有图",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "tiktok",
+      "label": "只看有图",
+      "value": true,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "tiktok",
+      "label": "全选本页",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 9,
+      "platform": "tiktok",
       "label": "全选本页",
       "value": true,
       "status": "NO_CONFIG_CHANGE",
@@ -1560,6 +2459,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "Dropdown",
       "value": "全部",
       "status": "NO_CONFIG_CHANGE",
@@ -1567,6 +2467,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "Dropdown",
       "value": "INFO",
       "status": "NO_CONFIG_CHANGE",
@@ -1574,6 +2475,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "Dropdown",
       "value": "WARN",
       "status": "NO_CONFIG_CHANGE",
@@ -1581,6 +2483,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "Dropdown",
       "value": "ERROR",
       "status": "NO_CONFIG_CHANGE",
@@ -1588,6 +2491,7 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
       "label": "跟随最新",
       "value": false,
       "status": "CONFIG_SAVED",
@@ -1597,6 +2501,215 @@
     },
     {
       "page": 10,
+      "platform": "alibaba",
+      "label": "跟随最新",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "platform": "aliexpress",
+      "label": "Dropdown",
+      "value": "全部",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "aliexpress",
+      "label": "Dropdown",
+      "value": "INFO",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "aliexpress",
+      "label": "Dropdown",
+      "value": "WARN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "aliexpress",
+      "label": "Dropdown",
+      "value": "ERROR",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "aliexpress",
+      "label": "跟随最新",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "platform": "aliexpress",
+      "label": "跟随最新",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "Dropdown",
+      "value": "全部",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "Dropdown",
+      "value": "INFO",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "Dropdown",
+      "value": "WARN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "Dropdown",
+      "value": "ERROR",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "跟随最新",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "platform": "amazon",
+      "label": "跟随最新",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "platform": "shopee",
+      "label": "Dropdown",
+      "value": "全部",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "shopee",
+      "label": "Dropdown",
+      "value": "INFO",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "shopee",
+      "label": "Dropdown",
+      "value": "WARN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "shopee",
+      "label": "Dropdown",
+      "value": "ERROR",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "shopee",
+      "label": "跟随最新",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "platform": "shopee",
+      "label": "跟随最新",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "Dropdown",
+      "value": "全部",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "Dropdown",
+      "value": "INFO",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "Dropdown",
+      "value": "WARN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "Dropdown",
+      "value": "ERROR",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
+      "label": "跟随最新",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "log_auto_follow"
+      ]
+    },
+    {
+      "page": 10,
+      "platform": "tiktok",
       "label": "跟随最新",
       "value": true,
       "status": "CONFIG_SAVED",
@@ -1606,6 +2719,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "启动时打开",
       "value": "0",
       "status": "NO_CONFIG_CHANGE",
@@ -1613,6 +2727,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "启动时打开",
       "value": "1",
       "status": "CONFIG_SAVED",
@@ -1622,8 +2737,9 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "启动时打开",
-      "value": "2",
+      "value": "44",
       "status": "CONFIG_SAVED",
       "changed": [
         "start_page"
@@ -1631,8 +2747,9 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "启动时打开",
-      "value": "3",
+      "value": "33",
       "status": "CONFIG_SAVED",
       "changed": [
         "start_page"
@@ -1640,60 +2757,7 @@
     },
     {
       "page": 11,
-      "label": "启动时打开",
-      "value": "4",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "start_page"
-      ]
-    },
-    {
-      "page": 11,
-      "label": "启动时打开",
-      "value": "5",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "start_page"
-      ]
-    },
-    {
-      "page": 11,
-      "label": "启动时打开",
-      "value": "6",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "start_page"
-      ]
-    },
-    {
-      "page": 11,
-      "label": "启动时打开",
-      "value": "7",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "start_page"
-      ]
-    },
-    {
-      "page": 11,
-      "label": "启动时打开",
-      "value": "8",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "start_page"
-      ]
-    },
-    {
-      "page": 11,
-      "label": "启动时打开",
-      "value": "9",
-      "status": "CONFIG_SAVED",
-      "changed": [
-        "start_page"
-      ]
-    },
-    {
-      "page": 11,
+      "platform": "alibaba",
       "label": "启动时打开",
       "value": "10",
       "status": "CONFIG_SAVED",
@@ -1703,6 +2767,17 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
+      "label": "启动时打开",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "alibaba",
       "label": "启动时打开",
       "value": "11",
       "status": "CONFIG_SAVED",
@@ -1712,6 +2787,77 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
+      "label": "启动时打开",
+      "value": "12",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "alibaba",
+      "label": "启动时打开",
+      "value": "30",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "alibaba",
+      "label": "启动时打开",
+      "value": "31",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "alibaba",
+      "label": "启动时打开",
+      "value": "32",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "alibaba",
+      "label": "启动时打开",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "alibaba",
+      "label": "启动时打开",
+      "value": "5",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "alibaba",
+      "label": "启动时打开",
+      "value": "4",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "alibaba",
       "label": "窗口大小",
       "value": "1100x760",
       "status": "CONFIG_SAVED",
@@ -1721,6 +2867,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "窗口大小",
       "value": "1280x800",
       "status": "CONFIG_SAVED",
@@ -1730,6 +2877,7 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "窗口大小",
       "value": "1512x945",
       "status": "CONFIG_SAVED",
@@ -1739,11 +2887,5063 @@
     },
     {
       "page": 11,
+      "platform": "alibaba",
       "label": "窗口大小",
       "value": "1680x1050",
       "status": "CONFIG_SAVED",
       "changed": [
         "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "0",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "6",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "7",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "5",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "4",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "8",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "10",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "启动时打开",
+      "value": "11",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "窗口大小",
+      "value": "1100x760",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "窗口大小",
+      "value": "1280x800",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "窗口大小",
+      "value": "1512x945",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "aliexpress",
+      "label": "窗口大小",
+      "value": "1680x1050",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "0",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "15",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "45",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "21",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "10",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "11",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "16",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "17",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "18",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "34",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "19",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "20",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "启动时打开",
+      "value": "13",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "窗口大小",
+      "value": "1100x760",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "窗口大小",
+      "value": "1280x800",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "窗口大小",
+      "value": "1512x945",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "amazon",
+      "label": "窗口大小",
+      "value": "1680x1050",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "0",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "36",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "38",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "39",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "40",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "41",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "42",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "43",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "10",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "启动时打开",
+      "value": "11",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "窗口大小",
+      "value": "1100x760",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "窗口大小",
+      "value": "1280x800",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "窗口大小",
+      "value": "1512x945",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "shopee",
+      "label": "窗口大小",
+      "value": "1680x1050",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "0",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "22",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "24",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "25",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "35",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "26",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "27",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "28",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "10",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "11",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "启动时打开",
+      "value": "14",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "start_page"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "窗口大小",
+      "value": "1100x760",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "窗口大小",
+      "value": "1280x800",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "窗口大小",
+      "value": "1512x945",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 11,
+      "platform": "tiktok",
+      "label": "窗口大小",
+      "value": "1680x1050",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "window_size"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "MFN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "AFN",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_fulfillment"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "使用 AI（会调用付费 API，默认关闭）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "使用 AI（会调用付费 API，默认关闭）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_use_ai"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "图片分组",
+      "value": "main",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "保存动作",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_op"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "保存动作",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_op"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "保存动作",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_op"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动发布动作",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_op"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动发布动作",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_op"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动发布动作",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_op"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "最多自动修复轮数",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_max_rounds",
+        "amazon_auto_rounds"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "最多自动修复轮数",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_max_rounds",
+        "amazon_auto_rounds"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "最多自动修复轮数",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_max_rounds",
+        "amazon_auto_rounds"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "最多自动修复轮数",
+      "value": "5",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_max_rounds",
+        "amazon_auto_rounds"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "发布后等待（秒）",
+      "value": "30",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_publish_wait",
+        "amazon_auto_wait"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "发布后等待（秒）",
+      "value": "60",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_publish_wait",
+        "amazon_auto_wait"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "发布后等待（秒）",
+      "value": "90",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_publish_wait",
+        "amazon_auto_wait"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "发布后等待（秒）",
+      "value": "180",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_publish_wait",
+        "amazon_auto_wait"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动补齐必填属性",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_fix_attrs"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动补齐必填属性",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_fix_attrs"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动修正标题重复/超长/违规词",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_fix_title"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动修正标题重复/超长/违规词",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_fix_title"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动清理描述促销/联系方式/HTML",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_fix_desc"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动清理描述促销/联系方式/HTML",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_fix_desc"
+      ]
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动 AI 重写违规文案（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 13,
+      "platform": "amazon",
+      "label": "自动 AI 重写违规文案（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_auto_ai_fix"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "TH",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "VN",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "MY",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "PH",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "SG",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "ID",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "GB",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "DE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "ES",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "IT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "FR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "IE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "PL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "NL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "BE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "CZ",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "AT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "GR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "PT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "HU",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "JP",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "BR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "MX",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "使用 AI（会调用付费 API，默认关闭）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "使用 AI（会调用付费 API，默认关闭）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_use_ai"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "main",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "detail",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "sku",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "size",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "尺寸单位",
+      "value": "CENTIMETER",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "尺寸单位",
+      "value": "INCH",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_dimension_unit"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "刊登类型",
+      "value": "1",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "刊登类型",
+      "value": "0",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_product_type"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "保存动作",
+      "value": "1",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "保存动作",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_op"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "保存动作",
+      "value": "2|AS_DRAFT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_op",
+        "tiktok_save_mode"
+      ]
+    },
+    {
+      "page": 14,
+      "platform": "tiktok",
+      "label": "保存动作",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_save_mode"
+      ]
+    },
+    {
+      "page": 15,
+      "platform": "amazon",
+      "label": "站点",
+      "value": "ATVPDKIKX0DER",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_site_code",
+        "amazon_site_name"
+      ]
+    },
+    {
+      "page": 16,
+      "platform": "amazon",
+      "label": "图片分组",
+      "value": "main",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 16,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "MFN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 16,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "AFN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 16,
+      "platform": "amazon",
+      "label": "保存去向",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_op"
+      ]
+    },
+    {
+      "page": 16,
+      "platform": "amazon",
+      "label": "保存去向",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_op"
+      ]
+    },
+    {
+      "page": 16,
+      "platform": "amazon",
+      "label": "保存去向",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_op"
+      ]
+    },
+    {
+      "page": 17,
+      "platform": "amazon",
+      "label": "AI建议有原文依据的缺失属性（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 17,
+      "platform": "amazon",
+      "label": "AI建议有原文依据的缺失属性（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_attributes"
+      ]
+    },
+    {
+      "page": 17,
+      "platform": "amazon",
+      "label": "属性建议预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_attribute_prompt",
+        "amazon_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 17,
+      "platform": "amazon",
+      "label": "属性建议预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_attribute_prompt",
+        "amazon_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 17,
+      "platform": "amazon",
+      "label": "属性建议预设",
+      "value": "strict",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_attribute_prompt",
+        "amazon_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 18,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 18,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "MFN",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_overrides"
+      ]
+    },
+    {
+      "page": 18,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "AFN",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_overrides"
+      ]
+    },
+    {
+      "page": 18,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "MFN",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 18,
+      "platform": "amazon",
+      "label": "配送方式",
+      "value": "AFN",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_fulfillment"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "启用自动AI文案（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "启用自动AI文案（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "文案处理方式",
+      "value": "missing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "文案处理方式",
+      "value": "rewrite",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_mode"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "AI 标题",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "AI 标题",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "AI 完整五点",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "AI 完整五点",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "AI 描述",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "AI 描述",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "AI 搜索词",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "AI 搜索词",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 19,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "自动处理商品图片（付费 AI + 图床）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "自动处理商品图片（付费 AI + 图床）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_images"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "图片分组",
+      "value": "main",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "all",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "4",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "5",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "6",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "7",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "8",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "处理位置",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "图片处理预设",
+      "value": "white",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "图片处理预设",
+      "value": "watermark",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "图片处理预设",
+      "value": "translate",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "图片处理预设",
+      "value": "studio",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "图片处理预设",
+      "value": "custom",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_image_rules"
+      ]
+    },
+    {
+      "page": 20,
+      "platform": "amazon",
+      "label": "图片分组",
+      "value": "main",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "完成后去向",
+      "value": "1",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "完成后去向",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_op"
+      ]
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "完成后去向",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_op"
+      ]
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "all",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "checked",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "draft_saved",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "pending",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "reviewing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "published",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "processing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "needs_info",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "uncertain",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "结果状态",
+      "value": "stopped",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "自动修复可确定的问题",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_auto_repair"
+      ]
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "自动修复可确定的问题",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_auto_repair"
+      ]
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "运行参数预设",
+      "value": "steady",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "运行参数预设",
+      "value": "slow",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "运行参数预设",
+      "value": "fast",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "复用相同商品与规则的AI结果",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_cache"
+      ]
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "复用相同商品与规则的AI结果",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_cache"
+      ]
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "发布失败最多处理次数",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_max_attempts"
+      ]
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "发布失败最多处理次数",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_max_attempts"
+      ]
+    },
+    {
+      "page": 21,
+      "platform": "amazon",
+      "label": "发布失败最多处理次数",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_max_attempts"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "TH",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "VN",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "MY",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "PH",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "SG",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "ID",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "GB",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "DE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "ES",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "IT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "FR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "IE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "PL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "NL",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "BE",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "CZ",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "AT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "GR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "PT",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "HU",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "JP",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "BR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 22,
+      "platform": "tiktok",
+      "label": "站点（L7）",
+      "value": "MX",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_site",
+        "tiktok_site_name"
+      ]
+    },
+    {
+      "page": 24,
+      "platform": "tiktok",
+      "label": "AI建议有原文依据的缺失属性（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 24,
+      "platform": "tiktok",
+      "label": "AI建议有原文依据的缺失属性（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_attributes"
+      ]
+    },
+    {
+      "page": 24,
+      "platform": "tiktok",
+      "label": "属性建议预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_attribute_prompt",
+        "tiktok_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 24,
+      "platform": "tiktok",
+      "label": "属性建议预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_attribute_prompt",
+        "tiktok_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 24,
+      "platform": "tiktok",
+      "label": "属性建议预设",
+      "value": "strict",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_attribute_prompt",
+        "tiktok_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 25,
+      "platform": "tiktok",
+      "label": "尺寸单位",
+      "value": "CENTIMETER",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 25,
+      "platform": "tiktok",
+      "label": "尺寸单位",
+      "value": "INCH",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_dimension_unit"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "启用自动AI文案（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "启用自动AI文案（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "文案处理方式",
+      "value": "missing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "文案处理方式",
+      "value": "rewrite",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_mode"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "AI 标题",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "AI 标题",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "AI 描述",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "AI 描述",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "AI 五点（US）",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "AI 五点（US）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "AI 搜索词",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "AI 搜索词",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "标题预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_title_prompt",
+        "tiktok_title_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "标题预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_title_prompt",
+        "tiktok_title_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "标题预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_title_prompt",
+        "tiktok_title_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "标题预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_title_prompt",
+        "tiktok_title_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "标题预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_title_prompt",
+        "tiktok_title_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "产品描述预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_description_prompt",
+        "tiktok_description_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "产品描述预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_description_prompt",
+        "tiktok_description_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "产品描述预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_description_prompt",
+        "tiktok_description_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "产品描述预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_description_prompt",
+        "tiktok_description_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "产品描述预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_description_prompt",
+        "tiktok_description_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "五点卖点（US）预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_key_features_prompt",
+        "tiktok_key_features_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "五点卖点（US）预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_key_features_prompt",
+        "tiktok_key_features_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "五点卖点（US）预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_key_features_prompt",
+        "tiktok_key_features_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "五点卖点（US）预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_key_features_prompt",
+        "tiktok_key_features_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "五点卖点（US）预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_key_features_prompt",
+        "tiktok_key_features_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "搜索词预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_search_terms_prompt",
+        "tiktok_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "搜索词预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_search_terms_prompt",
+        "tiktok_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "搜索词预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_search_terms_prompt",
+        "tiktok_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "搜索词预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_search_terms_prompt",
+        "tiktok_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 26,
+      "platform": "tiktok",
+      "label": "搜索词预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_search_terms_prompt",
+        "tiktok_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "自动处理商品图片（付费 AI + 图床）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "自动处理商品图片（付费 AI + 图床）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_images"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "main",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "detail",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "sku",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "size",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "all",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "4",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "5",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "6",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "7",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "8",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "处理位置",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片处理预设",
+      "value": "white",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片处理预设",
+      "value": "watermark",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片处理预设",
+      "value": "translate",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片处理预设",
+      "value": "studio",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片处理预设",
+      "value": "custom",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_image_rules"
+      ]
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "main",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "detail",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "sku",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 27,
+      "platform": "tiktok",
+      "label": "图片分组",
+      "value": "size",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "完成后去向",
+      "value": "1",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "完成后去向",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_op"
+      ]
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "完成后去向",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_op"
+      ]
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "运行参数预设",
+      "value": "steady",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "运行参数预设",
+      "value": "slow",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "运行参数预设",
+      "value": "fast",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "复用相同商品与规则的AI结果",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_cache"
+      ]
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "复用相同商品与规则的AI结果",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_cache"
+      ]
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "all",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "checked",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "draft_saved",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "pending",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "reviewing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "published",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "processing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "needs_info",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "uncertain",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 28,
+      "platform": "tiktok",
+      "label": "结果状态",
+      "value": "stopped",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 30,
+      "platform": "alibaba",
+      "label": "AI建议有原文依据的缺失属性（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 30,
+      "platform": "alibaba",
+      "label": "AI建议有原文依据的缺失属性（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_attributes"
+      ]
+    },
+    {
+      "page": 30,
+      "platform": "alibaba",
+      "label": "属性建议预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_attribute_prompt",
+        "alibaba_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 30,
+      "platform": "alibaba",
+      "label": "属性建议预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_attribute_prompt",
+        "alibaba_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 30,
+      "platform": "alibaba",
+      "label": "属性建议预设",
+      "value": "strict",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_attribute_prompt",
+        "alibaba_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 32,
+      "platform": "alibaba",
+      "label": "自动补齐已有变种的缺失SKU（付费AI）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 32,
+      "platform": "alibaba",
+      "label": "自动补齐已有变种的缺失SKU（付费AI）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_sku"
+      ]
+    },
+    {
+      "page": 32,
+      "platform": "alibaba",
+      "label": "SKU规则预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_sku_prompt",
+        "alibaba_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 32,
+      "platform": "alibaba",
+      "label": "SKU规则预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_sku_prompt",
+        "alibaba_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 32,
+      "platform": "alibaba",
+      "label": "SKU规则预设",
+      "value": "strict",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_sku_prompt",
+        "alibaba_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "完成后去向",
+      "value": "1",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "完成后去向",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_op"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "完成后去向",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_op"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "低分商品自动补齐并复评",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_auto_repair"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "低分商品自动补齐并复评",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_auto_repair"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "all",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "checked",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "draft_saved",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "pending",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "reviewing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "published",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "processing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "needs_info",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "uncertain",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "结果状态",
+      "value": "stopped",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "运行参数预设",
+      "value": "steady",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "运行参数预设",
+      "value": "slow",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "运行参数预设",
+      "value": "fast",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "复用相同商品与规则的AI结果",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_cache"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "复用相同商品与规则的AI结果",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_cache"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "发布失败最多处理次数",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_max_attempts"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "发布失败最多处理次数",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_max_attempts"
+      ]
+    },
+    {
+      "page": 33,
+      "platform": "alibaba",
+      "label": "发布失败最多处理次数",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_max_attempts"
+      ]
+    },
+    {
+      "page": 34,
+      "platform": "amazon",
+      "label": "自动生成缺失父SKU（付费AI）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 34,
+      "platform": "amazon",
+      "label": "自动生成缺失父SKU（付费AI）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_sku"
+      ]
+    },
+    {
+      "page": 34,
+      "platform": "amazon",
+      "label": "SKU规则预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_sku_prompt",
+        "amazon_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 34,
+      "platform": "amazon",
+      "label": "SKU规则预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_sku_prompt",
+        "amazon_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 34,
+      "platform": "amazon",
+      "label": "SKU规则预设",
+      "value": "strict",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_sku_prompt",
+        "amazon_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 35,
+      "platform": "tiktok",
+      "label": "自动生成缺失父SKU（付费AI）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 35,
+      "platform": "tiktok",
+      "label": "自动生成缺失父SKU（付费AI）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_ai_sku"
+      ]
+    },
+    {
+      "page": 35,
+      "platform": "tiktok",
+      "label": "SKU规则预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_sku_prompt",
+        "tiktok_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 35,
+      "platform": "tiktok",
+      "label": "SKU规则预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_sku_prompt",
+        "tiktok_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 35,
+      "platform": "tiktok",
+      "label": "SKU规则预设",
+      "value": "strict",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_collect_sku_prompt",
+        "tiktok_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 35,
+      "platform": "tiktok",
+      "label": "刊登类型",
+      "value": "1",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 35,
+      "platform": "tiktok",
+      "label": "刊登类型",
+      "value": "0",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "tiktok_product_type"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "商品类型",
+      "value": "global",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "商品类型",
+      "value": "site",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_mode",
+        "shopee_collect_scope",
+        "shopee_collect_profiles"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "global",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "SG",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "MY",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "PH",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "TW",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "TH",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "VN",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "ID",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "BR",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 36,
+      "platform": "shopee",
+      "label": "站点 / 文案语言",
+      "value": "MX",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_site"
+      ]
+    },
+    {
+      "page": 38,
+      "platform": "shopee",
+      "label": "AI建议有原文依据的缺失属性（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 38,
+      "platform": "shopee",
+      "label": "AI建议有原文依据的缺失属性（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_attributes"
+      ]
+    },
+    {
+      "page": 38,
+      "platform": "shopee",
+      "label": "属性建议预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_attribute_prompt",
+        "shopee_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 38,
+      "platform": "shopee",
+      "label": "属性建议预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_attribute_prompt",
+        "shopee_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 38,
+      "platform": "shopee",
+      "label": "属性建议预设",
+      "value": "strict",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_attribute_prompt",
+        "shopee_collect_attribute_prompt_style"
+      ]
+    },
+    {
+      "page": 40,
+      "platform": "shopee",
+      "label": "自动生成缺失父SKU（付费AI）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 40,
+      "platform": "shopee",
+      "label": "自动生成缺失父SKU（付费AI）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_sku"
+      ]
+    },
+    {
+      "page": 40,
+      "platform": "shopee",
+      "label": "SKU规则预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_sku_prompt",
+        "shopee_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 40,
+      "platform": "shopee",
+      "label": "SKU规则预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_sku_prompt",
+        "shopee_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 40,
+      "platform": "shopee",
+      "label": "SKU规则预设",
+      "value": "strict",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_sku_prompt",
+        "shopee_collect_sku_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "启用自动AI文案（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "启用自动AI文案（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "文案处理方式",
+      "value": "missing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "文案处理方式",
+      "value": "rewrite",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_mode"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "AI 标题",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "AI 标题",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "AI 描述",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "AI 描述",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "标题预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_title_prompt",
+        "shopee_title_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "标题预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_title_prompt",
+        "shopee_title_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "标题预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_title_prompt",
+        "shopee_title_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "标题预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_title_prompt",
+        "shopee_title_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "标题预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_title_prompt",
+        "shopee_title_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "产品描述预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_description_prompt",
+        "shopee_description_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "产品描述预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_description_prompt",
+        "shopee_description_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "产品描述预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_description_prompt",
+        "shopee_description_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "产品描述预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_description_prompt",
+        "shopee_description_prompt_style"
+      ]
+    },
+    {
+      "page": 41,
+      "platform": "shopee",
+      "label": "产品描述预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_description_prompt",
+        "shopee_description_prompt_style"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "自动处理商品图片（付费 AI + 图床）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "自动处理商品图片（付费 AI + 图床）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_images"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "main",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "detail",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "sku",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "size",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "cover",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "all",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "1",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "4",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "5",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "6",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "7",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "8",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "处理位置",
+      "value": "9",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片处理预设",
+      "value": "white",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片处理预设",
+      "value": "watermark",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片处理预设",
+      "value": "translate",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片处理预设",
+      "value": "studio",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片处理预设",
+      "value": "custom",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_image_rules"
+      ]
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "main",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "sku",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "size",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 42,
+      "platform": "shopee",
+      "label": "图片分组",
+      "value": "cover",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "完成后去向",
+      "value": "1",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "完成后去向",
+      "value": "3",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_op"
+      ]
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "完成后去向",
+      "value": "2",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_op"
+      ]
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "运行参数预设",
+      "value": "steady",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "运行参数预设",
+      "value": "slow",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "运行参数预设",
+      "value": "fast",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "复用相同商品与规则的AI结果",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_cache"
+      ]
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "复用相同商品与规则的AI结果",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "shopee_collect_ai_cache"
+      ]
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "all",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "checked",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "draft_saved",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "pending",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "reviewing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "published",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "processing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "needs_info",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "uncertain",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 43,
+      "platform": "shopee",
+      "label": "结果状态",
+      "value": "stopped",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "启用自动AI文案（付费）",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "启用自动AI文案（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "文案处理方式",
+      "value": "missing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "文案处理方式",
+      "value": "rewrite",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_mode"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "AI 标题",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "AI 标题",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "AI 描述",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "AI 描述",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "AI 关键词",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "AI 关键词",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "标题预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_title_prompt",
+        "alibaba_title_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "详情预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_detail_prompt",
+        "alibaba_detail_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 44,
+      "platform": "alibaba",
+      "label": "关键词预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "alibaba_keyword_prompt",
+        "alibaba_keyword_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "启用自动AI文案（付费）",
+      "value": false,
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "启用自动AI文案（付费）",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "文案处理方式",
+      "value": "missing",
+      "status": "NO_CONFIG_CHANGE",
+      "changed": []
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "文案处理方式",
+      "value": "rewrite",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_mode"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "AI 标题",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "AI 标题",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "AI 完整五点",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "AI 完整五点",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "AI 描述",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "AI 描述",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "AI 搜索词",
+      "value": false,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "AI 搜索词",
+      "value": true,
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_collect_ai_fields"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "标题预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_title_prompt",
+        "amazon_title_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "五点描述预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_bullet_prompt",
+        "amazon_bullet_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "产品描述预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_description_prompt",
+        "amazon_description_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "default",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "technical",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "use_case",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "concise",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
+      ]
+    },
+    {
+      "page": 45,
+      "platform": "amazon",
+      "label": "搜索词预设",
+      "value": "search",
+      "status": "CONFIG_SAVED",
+      "changed": [
+        "amazon_search_terms_prompt",
+        "amazon_search_terms_prompt_style"
       ]
     }
   ]

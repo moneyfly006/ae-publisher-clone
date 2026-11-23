@@ -6,11 +6,27 @@ import json
 from ui_sandbox import sandbox, build_app, walk, label
 import flet as ft
 
+def _page_platforms():
+    """按平台实际页面生成遍历表（每个平台独立审计，页面号可重复）。"""
+    from aeclone.platforms import PLATFORMS
+    out = []
+    for pid, pf in PLATFORMS.items():
+        if not pf.implemented:
+            continue
+        for p in pf.pages:
+            out.append((p.index, pid))
+    return out
+
+
 def main():
     results=[]
-    for page in range(12):
+    page_platform = _page_platforms()
+    for page, platform_id in sorted(page_platform):
         with sandbox():
-            app=build_app(); app._switch(page)
+            app=build_app()
+            if platform_id != "alibaba":
+                app._switch_platform(platform_id)
+            app._switch(page)
             specs=[(i,label(c),[False,True] if isinstance(c,(ft.Switch,ft.Checkbox)) else
                     [o.key for o in c.options])
                    for i,c in enumerate(walk(app.content.controls))
@@ -18,7 +34,10 @@ def main():
                    callable(c.on_change) and not c.disabled]
         for position,title,values in specs:
             with sandbox(external_calls=[]) as cfg:
-                app=build_app(); app._switch(page)
+                app=build_app()
+                if platform_id != "alibaba":
+                    app._switch_platform(platform_id)
+                app._switch(page)
                 control=list(walk(app.content.controls))[position]
                 for value in values:
                     before=deepcopy(cfg.as_dict())
@@ -36,7 +55,8 @@ def main():
                             disk=json.loads(cfg.path().read_text())
                             persisted=[k for k in changed if disk.get(k)==after[k]]
                         status='CONFIG_SAVED' if changed and len(persisted)==len(changed) else 'CONFIG_MEMORY' if changed else 'NO_CONFIG_CHANGE'
-                        results.append(dict(page=page,label=title,value=value,status=status,changed=changed))
+                        results.append(dict(page=page,platform=platform_id,label=title,
+                                            value=value,status=status,changed=changed))
                     except Exception as ex:
                         results.append(dict(page=page,label=title,value=value,status='ERROR',detail=type(ex).__name__+': '+str(ex)[:180]))
     counts={s:sum(r['status']==s for r in results) for s in sorted({r['status'] for r in results})}

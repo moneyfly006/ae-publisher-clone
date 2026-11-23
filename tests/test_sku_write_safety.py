@@ -114,6 +114,32 @@ class SKUWriteTests(unittest.TestCase):
             match_processed_skus(source,[dict(_source_id="shared",original_sku="same"),
                                          dict(_source_id="shared",original_sku="same")])
 
+
+    def test_template_plug_properties_merge_without_duplicating_models(self):
+        """模板补 Voltage/plug 时不能覆盖商品型号，否则所有 SKU 会变成同一组合。"""
+        from aeclone.services.api_save import merge_skus, validate_sku_combinations
+        source = {'aeopAeProductSKUs': [
+            {'skuCode': 'A', 'aeopSKUProperty': [
+                {'skuPropertyId': '200007763', 'propertyValueId': 5580,
+                 'propertyValueDefinitionName': 'YG-GS50'}]},
+            {'skuCode': 'B', 'aeopSKUProperty': [
+                {'skuPropertyId': '200007763', 'propertyValueId': 100014969,
+                 'propertyValueDefinitionName': 'YG-GS130'}]}]}
+        template = {'aeopAeProductSKUs': [
+            {'skuCode': 'T', 'aeopSKUProperty': [
+                {'skuPropertyId': '200007763', 'propertyValueId': 1,
+                 'propertyValueDefinitionName': 'T-MODEL'},
+                {'skuPropertyId': 400079803, 'propertyValueId': 1983474624,
+                 'plug_parent_property_id': 400081003,
+                 'plug_parent_value_id': 24681606136}]}]}
+        out = merge_skus(source, template)
+        validate_sku_combinations(out)
+        self.assertEqual([r['skuCode'] for r in out], ['A', 'B'])
+        self.assertEqual(len(out[0]['aeopSKUProperty']), 2)
+        self.assertNotEqual(out[0]['aeopSKUProperty'][0]['propertyValueId'],
+                            out[1]['aeopSKUProperty'][0]['propertyValueId'])
+        self.assertEqual(out[0]['aeopSKUProperty'][1]['plug_parent_property_id'], 400081003)
+
     def test_duplicate_variant_properties_never_silently_delete_distinct_skus(self):
         from aeclone.services.api_save import merge_skus
         source=dict(aeopAeProductSKUs=[dict(skuCode=f"SKU-{i}",aeopSKUProperty=[

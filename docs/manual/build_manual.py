@@ -9,7 +9,7 @@ OUT = ROOT / "docs" / "manual"
 WEB = ROOT / "site" / "manual"
 OUT.mkdir(parents=True, exist_ok=True)
 WEB.mkdir(parents=True, exist_ok=True)
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 QQ = "3219904322"
 
 CHAPTERS = [

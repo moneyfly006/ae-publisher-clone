@@ -1,0 +1,49 @@
+{
+ "generated_at": "2026-11-22T12:59:16+0800",
+ "license_bypass": "AURORA_SKIP_LICENSE=1 (smoke only)",
+ "action": "publish_only retry after fixes",
+ "rows": [
+  {
+   "product_id": "220114600905335022",
+   "known_failure": "webp 主图处理出错",
+   "ok": true,
+   "message": "只发布成功（商品ID 220114600905335022）：产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！",
+   "elapsed": 11.4,
+   "steps": [],
+   "state": {
+    "id": "220114600905335022",
+    "status": "",
+    "err": "主图处理出错：https://wxalbum-10001658-cos.dianxiaomi.com/wxalbum/2447945/20261111120413/cc175e633609e22b7fd85ed1789eaea9.webp <br><span class='gray-c'>异常空间图片：</span>https://wxalbum-10001658-cos.dianxiaomi.com/wxalbum/2447945/20261111120413/cc175e633609e22b7fd85ed1789eaea9.webp,https://wxalbum-10001658-cos.dianxiaomi.com/wxalbum/2447945/20261111120413/f631e0a8e720825a8bf808ac336e5f4b.webp,https://wxalbum-10001658-cos.dianxiaomi.com/wxalbum/2447945/20261111120413/084dbaaedf44dca01b197a9c4c306edc.webp Trace_id: fddac4c114cdbdba59b65d72943a3f2f",
+    "audit_reason": ""
+   }
+  },
+  {
+   "product_id": "220114600914598328",
+   "known_failure": "nationalPriceMode 不在候选",
+   "ok": true,
+   "message": "只发布成功（商品ID 220114600914598328）：产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！",
+   "elapsed": 6.5,
+   "steps": [],
+   "state": {
+    "id": "220114600914598328",
+    "status": "",
+    "err": "isv.7CHK_BASIC_ONEOF, nationalPriceMode:Price adjustment method:CHK_BASIC_ONEOF:Input value not in candidate list. Trace_id: 55354a371285fe4ac30efaade0f784f2",
+    "audit_reason": ""
+   }
+  },
+  {
+   "product_id": "220114600905334786",
+   "known_failure": "自定义属性特殊字符",
+   "ok": true,
+   "message": "只发布成功（商品ID 220114600905334786）：产品已提交发布，请在「发布中」、「发布失败」或「在线产品」中查看！",
+   "elapsed": 9.3,
+   "steps": [],
+   "state": {
+    "id": "220114600905334786",
+    "status": "",
+    "err": "isv.7011012, catProperty:Product Attribute:011012:Special characters are not allowed in custom properties; Valid characters are English letters and digits and ㎡≤≥‰±℃℉ΜΩé. The character you entered is Local Service Location. Trace_id: a622b9649f3d5f876f195840b303ffd8",
+    "audit_reason": ""
+   }
+  }
+ ]
+}

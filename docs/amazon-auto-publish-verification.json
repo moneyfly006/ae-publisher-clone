@@ -1,0 +1,94 @@
+{
+ "generated_at": "2026-11-22T04:03:48",
+ "runs": [
+  {
+   "when": "2026-11-22T03:58:44",
+   "product_id": "220114595363181900",
+   "price": 8600.0,
+   "quantity": 2,
+   "ui_done": "自动发布完成：状态未知（点「查询发布结果」核实） · 轮数 [{'round': 1, 'op': '2', 'publish_state': '', 'status': 'blocked', 'err': '', 'fixes': ['autofill:manufacturer_contact_information,model_name,model_number,part_number'], 'blockers': ['标准校验：产品描述含促销/联系方式/绝对化词：电话'], 'warnings': [], 'elapsed': 0.19, 'saved': False, 'asin': ''}]",
+   "verify": {
+    "state": "draft",
+    "status": "not_submitted",
+    "asin": "",
+    "detail": "未提交成功（商品仍在采集箱）",
+    "err_msg": ""
+   },
+   "ui_texts": [
+    "标题 ≤200 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条（建议 5 条，最多 10 条）；描述为 HTML；Search Terms ≤250 字节。AI 结果全部可编辑。",
+    "发布必填属性（缺失会导致发布失败）",
+    "发布必填属性（常用 4 项）：model_number / model_name / part_number / manufacturer_contact_information。发布失败时会把 errMsg 里解析出的其它必填属性动态追加到下面，保存时统一提交。",
+    "保存草稿 / 移入待发布 / 保存并发布（真实提交）；保存会二次确认并列出商品/标题/站点/op/校验问题。发布失败可点「自动发布（自动修复）」按轮自动补齐/修正后重发。",
+    "自动发布结果",
+    "结果说明：本地政策预检未通过，已停止（不盲目发布）",
+    "第 1 轮 · blocked · 修复/动作：autofill:manufacturer_contact_information,model_name,model_number,part_number"
+   ],
+   "note": "修复前 blocked：描述含中文联系方式「电话」→ 已修复本地清洗（中文联系方式/促销词 + 描述 fallback）并重跑成功"
+  },
+  {
+   "when": "2026-11-22T04:00:57",
+   "product_id": "220114595363181900",
+   "price": 8600.0,
+   "quantity": 2,
+   "ui_done": "自动发布完成：平台审核中（非软件失败，等待平台审核结果） · 轮数 [{'round': 1, 'op': '2', 'publish_state': 'publishFail', 'status': 'reviewing', 'err': 'code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;', 'fixes': ['autofill:manufacturer_contact_information,model_name,model_number,part_number', 'sanitize_description'], 'blockers': [], 'warnings': [], 'elapsed': 43.23, 'saved': True, 'asin': ''}]",
+   "verify": {
+    "state": "publishFail",
+    "status": "reviewing",
+    "asin": "",
+    "detail": "已提交，平台审核中（非软件失败）",
+    "err_msg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+   },
+   "ui_texts": [
+    "标题 ≤200 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条（建议 5 条，最多 10 条）；描述为 HTML；Search Terms ≤250 字节。AI 结果全部可编辑。",
+    "发布必填属性（缺失会导致发布失败）",
+    "发布必填属性（常用 4 项）：model_number / model_name / part_number / manufacturer_contact_information。发布失败时会把 errMsg 里解析出的其它必填属性动态追加到下面，保存时统一提交。",
+    "保存草稿 / 移入待发布 / 保存并发布（真实提交）；保存会二次确认并列出商品/标题/站点/op/校验问题。发布失败可点「自动发布（自动修复）」按轮自动补齐/修正后重发。",
+    "自动发布完成：平台审核中（非软件失败，等待平台审核结果） · 轮数 [{'round': 1, 'op': '2', 'publish_state': 'publishFail', 'status': 'reviewing', 'err': 'code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;', 'fixes': ['autofill:manufacturer_contact_information,model_name,model_number,part_numb",
+    "自动发布结果",
+    "平台审核中（非软件失败，等待平台审核结果）",
+    "发布详情：已提交，平台审核中（非软件失败）",
+    "结果说明：已提交，平台审核中（非软件失败）",
+    "第 1 轮 · publishFail · 修复/动作：autofill:manufacturer_contact_information,model_name,model_number,part_number、sanitize_description · code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+   ]
+  },
+  {
+   "when": "2026-11-22T04:02:08",
+   "product_id": "220114595363181652",
+   "price": 7500.0,
+   "quantity": 2,
+   "ui_done": "自动发布完成：平台审核中（非软件失败，等待平台审核结果） · 轮数 [{'round': 1, 'op': '2', 'publish_state': 'publishFail', 'status': 'reviewing', 'err': 'code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;', 'fixes': ['autofill:manufacturer_contact_information,model_name,model_number,part_number'], 'blockers': [], 'warnings': [], 'elapsed': 53.41, 'saved': True, 'asin': ''}]",
+   "verify": {
+    "state": "publishFail",
+    "status": "reviewing",
+    "asin": "",
+    "detail": "已提交，平台审核中（非软件失败）",
+    "err_msg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+   },
+   "ui_texts": [
+    "标题 ≤200 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条（建议 5 条，最多 10 条）；描述为 HTML；Search Terms ≤250 字节。AI 结果全部可编辑。",
+    "发布必填属性（缺失会导致发布失败）",
+    "发布必填属性（常用 4 项）：model_number / model_name / part_number / manufacturer_contact_information。发布失败时会把 errMsg 里解析出的其它必填属性动态追加到下面，保存时统一提交。",
+    "保存草稿 / 移入待发布 / 保存并发布（真实提交）；保存会二次确认并列出商品/标题/站点/op/校验问题。发布失败可点「自动发布（自动修复）」按轮自动补齐/修正后重发。",
+    "自动发布完成：平台审核中（非软件失败，等待平台审核结果） · 轮数 [{'round': 1, 'op': '2', 'publish_state': 'publishFail', 'status': 'reviewing', 'err': 'code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;', 'fixes': ['autofill:manufacturer_contact_information,model_name,model_number,part_numb",
+    "自动发布结果",
+    "平台审核中（非软件失败，等待平台审核结果）",
+    "发布详情：已提交，平台审核中（非软件失败）",
+    "结果说明：已提交，平台审核中（非软件失败）",
+    "第 1 轮 · publishFail · 修复/动作：autofill:manufacturer_contact_information,model_name,model_number,part_number · code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;"
+   ]
+  }
+ ],
+ "summary": {
+  "runs": 3,
+  "submitted": 2,
+  "blocked_before_fix": 1,
+  "note": "2 个商品通过程序 UI「自动发布（自动修复）」真实提交并进入平台审核；第 1 条 blocked 为修复前记录"
+ },
+ "build": {
+  "app": "dist/verified-amazon-autopublish-20261122-040319/AuroraList.app",
+  "sha256": "d5023a550e03e4857b51121ad974f60b7d6d1a23b588cf5be5af4da20407f8bb",
+  "codesign": "PASS",
+  "packaged_local_check": "PASS",
+  "verified_at": "2026-11-22T04:03:41+08:00"
+ }
+}

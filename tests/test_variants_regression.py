@@ -114,6 +114,53 @@ class VariantsRegressionTests(unittest.TestCase):
         self.assertTrue(variants.check_consistency(cases[2], []))
         self.assertTrue(variants.check_consistency(cases[3], []))
 
+    def test_aeop_named_property_metadata_is_ignored(self):
+        """真实采集形态：aeopSKUProperty 用属性名做 key，并带 skuImage/extraImages 元数据。
+
+        店小秘/速卖通采集数据（Yugong 钻机）曾报：
+        SKU 一致性检查失败：SKU-001: 属性键和值必须是非空标量
+        原因是把 skuImage=None 当成了属性值。
+        """
+        sku = {"sku": "SKU-001", "aeopSKUProperty": [
+            {"Model Number": "YG-150", "Power (W)": "60KW(80.46hp)",
+             "skuImage": None, "extraImages": ""}]}
+        self.assertEqual(variants.check_consistency([sku], []), [])
+        # 标准形态的缺值仍然要报错（不能把真实缺参静默放过）
+        bad = {"sku": "SKU-002", "aeopSKUProperty": [{"skuPropertyId": 1}]}
+        self.assertTrue(variants.check_consistency([bad], []))
+
+    def test_real_sku_property_metadata_variants_are_ignored(self):
+        """真实采集形态（Yugong 钻机 SKU-001）：元数据键/空值/列表都不是规格维度。"""
+        # 标准形态：aeopAeProductSKUs 里的标准条目带大量 null/字符串元数据
+        standard = {"sku": "SKU-001", "aeopSKUProperty": [
+            {"imageUrlList": None, "propertyValueDefinitionName": None,
+             "propertyValueId": 350686, "skuImage": None, "skuPropertyId": 14,
+             "parentPropertyId": None, "parentValueId": None,
+             "plug_parent_property_id": None, "plug_parent_value_id": None},
+            {"imageUrlList": None, "propertyValueDefinitionName": None,
+             "propertyValueId": 1983474624, "skuImage": None,
+             "skuPropertyId": 400079803, "parentPropertyId": None,
+             "parentValueId": None, "plug_parent_property_id": 400081003,
+             "plug_parent_value_id": 24681606136}]}
+        self.assertEqual(variants.check_consistency([standard], []), [])
+        # 命名形态：元数据值可能是列表/空串/None，不能当属性值
+        named = {"sku": "SKU-001", "aeopSKUProperty": [
+            {"Model Number": "YG-150", "Power (W)": "60KW(80.46hp)",
+             "imageUrlList": ["https://x/y.jpg"], "skuImage": None,
+             "extraImages": "", "propertyValueDefinitionName": None,
+             "parentPropertyId": None}]}
+        self.assertEqual(variants.check_consistency([named], []), [])
+        # smtProductSkuList 形态（skuPropertyList 是字符串元数据，不是维度）
+        smt = {"sku": "SKU-001",
+               "skuPropertyList": "[{\"sku_property_id_long\":\"14\","
+                                  "\"property_value_id_long\":\"350686\"}]",
+               "aeopSKUProperty": None, "name": "棕色/220V-240V IL Plug"}
+        self.assertEqual(variants.check_consistency([smt], []), [])
+        # 真正缺值仍必须报错
+        bad = {"sku": "SKU-002", "aeopSKUProperty": [{"skuPropertyId": 14,
+                                                      "propertyValueId": None}]}
+        self.assertTrue(variants.check_consistency([bad], []))
+
     def test_invalid_limits_have_clear_errors(self):
         for limit in (True, 1.5, "3"):
             with self.subTest(limit=limit), self.assertRaises(ValueError):

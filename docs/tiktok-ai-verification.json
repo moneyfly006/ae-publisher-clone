@@ -1,0 +1,61 @@
+{
+ "generated_at": "2026-11-22T02:57:08+08:00",
+ "mode": "real AI API (read-only text generation, no product write)",
+ "api_base": "https://api.moneyfly.club",
+ "model": "qwen-plus",
+ "api_key_logged": false,
+ "cases": {
+  "GB:title": {
+   "value": "Wireless Bluetooth 5.3 TWS Earbuds with Charging Case, 40H Playtime, IPX5 Waterproof, Touch Control, Built-in Mic for Sport and Daily Use",
+   "notes": [
+    "已生成（137 字符）"
+   ]
+  },
+  "DE:title": {
+   "value": "Wireless Bluetooth 5.3 TWS-Ohrhörer AUR-EAR-001 mit 40 Std. Akkulaufzeit, IPX5-Wasserschutz, Touch-Steuerung und integriertem Mikrofon - ideal für Sport und Alltag",
+   "notes": [
+    "已生成（163 字符）"
+   ]
+  },
+  "US:key_features": {
+   "value": [
+    "40H Total Playtime: Up to 40 hours of combined playback time with the charging case",
+    "IPX5 Waterproof: Resistant to sweat and light rain for active use",
+    "Bluetooth 5.3: Stable wireless connection with low latency and improved range",
+    "Touch Control: Intuitive tap gestures for play, pause, calls, and voice assistant",
+    "USB-C Charging: Fast and widely compatible charging for earbuds and case"
+   ],
+   "notes": [
+    "已生成 5 条"
+   ]
+  },
+  "US:search_terms": {
+   "value": [
+    "wireless",
+    "bluetooth",
+    "earbuds",
+    "pro",
+    "tws",
+    "charging",
+    "case",
+    "usb",
+    "touch",
+    "control",
+    "waterproof",
+    "ipx5",
+    "built",
+    "mic",
+    "sport"
+   ],
+   "notes": [
+    "已生成 15 个关键词"
+   ]
+  },
+  "GB:description": {
+   "value": "<p>These wireless Bluetooth earbuds are designed for active lifestyles and everyday listening. Ideal for workouts, commuting, remote calls, or relaxing at home, they deliver stable audio performance without tangled wires. The secure-fit design stays comfortably in place during movement, while the compact charging case ensures portability and on-the-go power.</p>\n\n<p>Key features include Bluetooth 5.3 for fast pairing and reliable connectivity up to 10 metres, up to 40 hours of total playtime (with case), IPX5-rated water resistance for sweat and light rain protection, and intuitive touch controls for play/pause, track skipping, call handling, and voice assistant activation. Each earbud houses a built-in microphone for clear hands-free calls.</p>\n\n<p>The earbuds feature an ergonomic in-ear structure with soft silicone ear tips for long-wearing comfort. Touch controls respond reliably with light taps—no buttons to press or slide. Charging is simple via USB-C port on the case; a full charge takes approximately 1.5 hours. For maintenance, gently wipe earbuds and case with a dry, lint-free cloth—avoid liquids, solvents, or abrasive materials.</p>\n\n<p>The package includes the wireless earbuds, matching charging case, three sizes of silicone ear tips (S/M/L), and a USB-C charging cable. TikTok Shop GB offers standard delivery across the UK and supports returns in accordance with platform policies. All items are covered by the manufacturer’s limited warranty as applicable under UK consumer law.</p>\n\n<ul>\n<li>Bluetooth version: 5.3</li>\n<li>Total battery life: Up to 40 hours (with charging case)</li>\n<li>Water resistance rating: IPX5</li>\n<li>Control method: Touch control</li>\n<li>Charging interface: USB-C</li>\n<li>Included accessories: Ear tips (S/M/L), USB-C cable, charging case</li>\n</ul>",
+   "notes": [
+    "已生成（1813 字符 HTML）"
+   ]
+  }
+ }
+}

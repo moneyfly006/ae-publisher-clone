@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "platforms": [
+    {"id":"alibaba","name":"Alibaba 国际站","features":["listing","category","trade","ai_text","ai_image","audit"],"status":"connected"},
+    {"id":"aliexpress","name":"速卖通","features":["listing","category","pricing","variants","ai_text","ai_image","audit"],"status":"connected"},
+    {"id":"amazon","name":"Amazon 亚马逊","features":["listing","category","ai_text","ai_image","audit","fba"],"status":"connected"},
+    {"id":"tiktok","name":"TikTok Shop","features":["listing","ai_text","ai_image"],"status":"connected"},
+    {"id":"shopee","name":"Shopee","features":["listing","ai_text","ai_image"],"status":"connected"}
+  ]
+}

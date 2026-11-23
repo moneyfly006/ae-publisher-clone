@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 
@@ -17,6 +18,28 @@ from ..api import ApiClient
 from ..config import AppConfig
 
 BANNED_DEFAULT = ["cheap", "replica", "fake", "copy", "knockoff", "best price", "free shipping"]
+
+
+def _allowed_value_names(attr_def: dict) -> list[str]:
+    """取类目属性允许值名称（兼容 SMT values JSON 字符串 / Alibaba list 两种形态）。"""
+    vals = attr_def.get("values") or []
+    if isinstance(vals, str):
+        # 店小秘 attributeList 的 values 是 JSON 字符串
+        try:
+            vals = json.loads(vals)
+        except (TypeError, ValueError):
+            vals = []
+    names: list[str] = []
+    for v in vals if isinstance(vals, list) else []:
+        if isinstance(v, dict):
+            names_map = v.get("names") if isinstance(v.get("names"), dict) else {}
+            nm = str(v.get("name_en") or v.get("nameEn") or v.get("name")
+                     or names_map.get("en") or "").strip()
+        else:
+            nm = str(v or "").strip()
+        if nm and nm not in names:
+            names.append(nm)
+    return names
 
 
 @dataclass
@@ -104,6 +127,39 @@ class TextPipeline:
             if banned:
                 notes.append("违禁词：" + ", ".join(banned))
             return TextResult(True, en, notes)
+        except Exception as e:  # noqa: BLE001
+            return TextResult(False, error=str(e))
+
+    def make_alibaba_title(self, title: str, prompt: str = "", limit: int = 128,
+                           brands: list[str] | None = None) -> TextResult:
+        """Alibaba 专用标题：使用 Alibaba 提示词，严格 ≤128 字符（不是速卖通 125）。"""
+        try:
+            sys_prompt = str(prompt or "").strip() or (
+                "You are an Alibaba.com product naming expert. Write ONE English product "
+                "title, max 128 characters, no Chinese, no emoji, no quotes, no promotional "
+                "or absolute words, no brand names. Output the title only.")
+            user = f"Product information:\n{str(title or '').strip()}"
+            out = self.client.chat(model_of(self.cfg, "text"), [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user},
+            ], max_tokens=180)
+            text = re.sub(r"```[a-zA-Z]*|```", "", str(out or "")).strip()
+            text = re.sub(r"\s+", " ", text).strip().strip('"\'')
+            text = re.sub(r"^[0-9]+[.)、]\s*", "", text)   # 去掉编号
+            if not text:
+                raise RuntimeError("模型返回空标题")
+            if brands:
+                text = add_brand_for(text, brands)
+            if len(text) > limit:
+                cut = text[:limit].rstrip()
+                if " " in cut:
+                    cut = cut[:cut.rfind(" ")].rstrip()
+                text = cut
+            banned = find_banned(text, BANNED_DEFAULT)
+            notes = []
+            if banned:
+                notes.append("违禁词：" + ", ".join(banned))
+            return TextResult(True, text, notes)
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))
 
@@ -212,6 +268,40 @@ class TextPipeline:
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))
 
+    # ---------- 关键词（Alibaba 3~5 个英文搜索词） ----------
+    def make_keywords(self, title: str, detail_text: str = "", limit: int = 5) -> TextResult:
+        """从标题/详情生成 Alibaba 用英文关键词（ASCII，短语优先）。
+
+        商品原 keywords 常常是采集来的小语种（如葡语），直接提交会被平台判为
+        非英文；开启 AI 时用这个方法生成英文搜索词。
+        """
+        prompt = str(getattr(self.cfg, "alibaba_keyword_prompt", "") or "").strip() or (
+            "You are an Alibaba.com SEO expert. From the product title and details, "
+            "output ONLY 3-5 English search keywords as a comma-separated list. "
+            "Lowercase phrases, ASCII only, no brand names, no prices, no claims, "
+            "no explanations.")
+        try:
+            from . import model_of
+            detail_flat = re.sub(r"\s+", " ", str(detail_text or ""))[:1200]
+            user = f"Title: {title}\nDetails: {detail_flat}"
+            out = self.client.chat(model_of(self.cfg, "text"), [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user},
+            ], max_tokens=140)
+            parts = [p.strip() for p in re.split(r"[,;\n]", str(out or "")) if p.strip()]
+            phrases: list[str] = []
+            for p in parts:
+                p = re.sub(r"[^A-Za-z0-9 \-]", " ", p)
+                p = re.sub(r"\s+", " ", p).strip().lower()
+                if p and p not in phrases:
+                    phrases.append(p)
+            phrases = phrases[:limit]
+            if len(phrases) < 3:
+                return TextResult(False, error=f"仅生成 {len(phrases)} 个英文关键词")
+            return TextResult(True, ", ".join(phrases), [f"{len(phrases)} 个"])
+        except Exception as e:  # noqa: BLE001
+            return TextResult(False, error=str(e))
+
     # ---------- 审查 ----------
     def review_text(self, content: str) -> TextResult:
         try:
@@ -219,6 +309,63 @@ class TextPipeline:
                 {"role": "system", "content": self.cfg.review_text_prompt},
                 {"role": "user", "content": content},
             ], max_tokens=1500)
+            return TextResult(True, out)
+        except Exception as e:  # noqa: BLE001
+            return TextResult(False, error=str(e))
+
+    # ---------- 必填属性建议（人工复核后写入预设） ----------
+    def suggest_attributes(self, attr_defs: list[dict], title: str = "",
+                           detail: str = "", platform: str = "alibaba") -> TextResult:
+        """为类目必填属性建议取值，返回 JSON 文本（不是最终配置）。
+
+        只允许模型从候选值里选，避免编造规格；调用方必须让用户复核后再保存。
+        ``values`` 兼容两种格式：
+        - 店小秘 SMT：JSON 字符串，元素形如 ``{"names": {"en": ..., "zh": ...}, "id": ...}``；
+        - Alibaba ICBU：list，元素形如 ``{"name_en": ..., "name": ...}``。
+        ``platform="smt"`` 时提示词换成速卖通口径（保存前仍由
+        ``services.smt_attributes`` 校验并转成真实 id）。
+        """
+        lines: list[str] = []
+        for a in attr_defs or []:
+            if not isinstance(a, dict):
+                continue
+            name = str(a.get("nameEn") or a.get("name_en") or a.get("nameZh")
+                       or a.get("name_zh") or a.get("name") or "").strip()
+            if not name:
+                continue
+            names = _allowed_value_names(a)
+            lines.append(f'- {name}: allowed = {", ".join(names[:15]) or "(free text)"}')
+        if not lines:
+            return TextResult(False, error="没有可建议的必填属性")
+        if str(platform or "").lower() == "smt":
+            prompt = (
+                "You are an AliExpress product data assistant. Given the product title, "
+                "details and the allowed values of each required category attribute, return "
+                "ONLY a JSON object that maps each attribute name (exactly as listed) to ONE "
+                "allowed value. Rules: use only values from the allowed list; if the product "
+                "evidence is insufficient use \"NONE\"/\"None\"/\"Other\" when allowed, "
+                "otherwise leave it out; never invent specs; ASCII output only; no "
+                "explanations."
+            )
+        else:
+            prompt = (
+                "You are an Alibaba.com product data assistant. Given the product title, "
+                "details and the allowed values of each required attribute, return ONLY a "
+                "JSON object that maps each attribute name to ONE allowed value. Rules: "
+                "use only values from the allowed list; if the product evidence is "
+                "insufficient use \"Other\" when it is allowed, otherwise leave it out; "
+                "never invent specs; ASCII output only; no explanations."
+            )
+        detail_flat = re.sub(r"\s+", " ", str(detail or ""))[:900]
+        user = (f"Product title: {title}\n"
+                f"Product details: {detail_flat}\n"
+                f"Required attributes:\n" + "\n".join(lines))
+        try:
+            from . import model_of
+            out = self.client.chat(model_of(self.cfg, "text"), [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user},
+            ], max_tokens=500)
             return TextResult(True, out)
         except Exception as e:  # noqa: BLE001
             return TextResult(False, error=str(e))

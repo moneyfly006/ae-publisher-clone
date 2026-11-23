@@ -52,8 +52,28 @@ def run() -> int:
                          dict(_source_id="red",sku="Red new")]),AppConfig(dict(stock_quantity="")))
         rows=json.loads(result['aeopAeProductSKUs'])
         if [r['skuCode'] for r in rows]!=['Red new','Blue new']:raise AssertionError("SKU identity mismatch")
+        from .services.collect_automation import PLATFORMS, snapshot, isolated_config
+        from .ui.collect_workflow import RUN_PAGE, SECTIONS
+        from .platforms import get_platform
+        class CollectionSource:
+            def list_products(self, *args):
+                return {"items": [{"idStr": "10000000000000001", "title": "pool"}],
+                        "total": 1, "total_page": 1,
+                        "data": {"page": {"list": [{"idStr": "10000000000000001", "subject": "pool"}],
+                                          "totalSize": 1, "totalPage": 1}}}
+        for platform in PLATFORMS:
+            collected = snapshot(CollectionSource(), platform, keyword="pool", limit=1)
+            if len(collected) != 1 or collected[0]["idStr"] != "10000000000000001":
+                raise AssertionError("Collection scope or ID mismatch")
+            pages = get_platform(platform).pages
+            if any(p.label == "采集箱商品" for p in pages):
+                raise AssertionError("Retired list page is still in navigation")
+            if RUN_PAGE[platform] not in {p.index for p in pages} or not SECTIONS[platform]:
+                raise AssertionError("Missing automatic workflow route")
+            isolated_config(AppConfig(), platform)
         print(json.dumps(dict(status="PASS",concurrent_previews=len(completed),
-                              collage=True,watermark=True,sku_identity=True),ensure_ascii=False))
+                              collage=True,watermark=True,sku_identity=True,
+                              automatic_collection_platforms=len(PLATFORMS)),ensure_ascii=False))
         return 0
     except Exception as error:
         print(json.dumps(dict(status="FAIL",error=f"{type(error).__name__}: {error}"),ensure_ascii=False))

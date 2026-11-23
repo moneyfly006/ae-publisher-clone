@@ -1,0 +1,3356 @@
+{
+ "schema_version": 1,
+ "generated_at": "2026-11-22T03:43:47+08:00",
+ "account": {
+  "name": "QINGHEMAOYI",
+  "tiktok_shop": "none",
+  "shopId": "-1",
+  "crossBorder": 1,
+  "note": "无 TikTok 店铺 → 无商品；仅只读类目/属性接口"
+ },
+ "method": {
+  "read_only": true,
+  "write_calls": 0,
+  "endpoints": [
+   "POST /api/tiktokCategory/searchCategory.json {shopId:-1, site, crossBorder:1, category:<kw>}",
+   "POST /api/tiktokCategory/list.json {shopId:-1, site, crossBorder:1, categoryParentId}",
+   "POST /api/tiktokCategory/attributeList.json {shopId:-1, site, crossBorder:1, categoryId, type:3}"
+  ],
+  "sites": [
+   "GB",
+   "US",
+   "DE",
+   "JP",
+   "TH",
+   "VN"
+  ],
+  "keywords": [
+   "shirt",
+   "dress",
+   "shoe",
+   "chair",
+   "lamp",
+   "headphone",
+   "cream",
+   "bag",
+   "toy",
+   "watch",
+   "necklace",
+   "mug",
+   "bottle",
+   "sofa",
+   "table",
+   "jacket",
+   "pants",
+   "socks",
+   "hat",
+   "ring",
+   "phone case",
+   "cable",
+   "speaker",
+   "lipstick",
+   "shampoo",
+   "dog",
+   "cat",
+   "puzzle",
+   "doll",
+   "car"
+  ],
+  "leaves_per_site": 8,
+  "leaf_selection": "每个关键词取首个 isLeaf=1；不足 8 个时按类目树下钻补齐"
+ },
+ "value_shape_taxonomy": {
+  "enum": "values 为 JSON 字符串且 valueList 非空（枚举）",
+  "custom": "values 为空 → 只能自定义填写（如 生产批次号 / TIS license URL）",
+  "enum_or_custom": "枚举 + isCustomized=1（可自定义覆盖）",
+  "conditional": "requirementConditions 非空 → 条件必填（依赖其它属性取值）"
+ },
+ "per_site": {
+  "GB": {
+   "leaves": 8,
+   "attributes": 133,
+   "mandatory": 11,
+   "enum": 116,
+   "free_text": 17,
+   "multi": 53,
+   "customized": 96,
+   "conditional": 4
+  },
+  "US": {
+   "leaves": 8,
+   "attributes": 321,
+   "mandatory": 0,
+   "enum": 241,
+   "free_text": 80,
+   "multi": 184,
+   "customized": 238,
+   "conditional": 22
+  },
+  "DE": {
+   "leaves": 8,
+   "attributes": 171,
+   "mandatory": 21,
+   "enum": 137,
+   "free_text": 34,
+   "multi": 35,
+   "customized": 99,
+   "conditional": 34
+  },
+  "JP": {
+   "leaves": 8,
+   "attributes": 64,
+   "mandatory": 16,
+   "enum": 59,
+   "free_text": 5,
+   "multi": 24,
+   "customized": 48,
+   "conditional": 0
+  },
+  "TH": {
+   "leaves": 8,
+   "attributes": 59,
+   "mandatory": 1,
+   "enum": 53,
+   "free_text": 6,
+   "multi": 16,
+   "customized": 43,
+   "conditional": 0
+  },
+  "VN": {
+   "leaves": 8,
+   "attributes": 89,
+   "mandatory": 0,
+   "enum": 67,
+   "free_text": 22,
+   "multi": 34,
+   "customized": 71,
+   "conditional": 0
+  }
+ },
+ "leaves": [
+  {
+   "site": "GB",
+   "category_id": "601265",
+   "category_name": "Blouses & Shirts",
+   "node_path": "Womenswear & Underwear(女装与女士内衣)/Women's Tops(女士上装)/Blouses & Shirts(女士衬衫)",
+   "path_ids": "601152/842248/601265",
+   "is_leaf": "1",
+   "attribute_count": 22,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "生产批次号"
+   ],
+   "enum_count": 21,
+   "free_text_count": 1,
+   "multi_select_count": 12,
+   "customized_count": 16,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "material": 3,
+    "pattern": 2,
+    "season": 1,
+    "style": 1,
+    "size": 1
+   },
+   "suggest": {
+    "suggested": 5,
+    "mandatory_total": 1,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 17
+   },
+   "sample_attribute": {
+    "attrId": "100149",
+    "attrName": "Country of origin",
+    "transName": "原产国/原产地",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 202,
+    "first_values": [
+     {
+      "id": "1000850",
+      "name": "China",
+      "transName": "中国"
+     },
+     {
+      "id": "1000851",
+      "name": "Indonesia",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1000852",
+      "name": "Malaysia",
+      "transName": "马来西亚"
+     }
+    ]
+   }
+  },
+  {
+   "site": "GB",
+   "category_id": "845960",
+   "category_name": "Bathrobes & Dressing Gowns",
+   "node_path": "Womenswear & Underwear(女装与女士内衣)/Women's Sleepwear & Loungewear(女士睡衣和家居服)/Bathrobes & Dressing Gowns(浴袍与睡袍)",
+   "path_ids": "601152/843016/845960",
+   "is_leaf": "1",
+   "attribute_count": 16,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "生产批次号"
+   ],
+   "enum_count": 16,
+   "free_text_count": 0,
+   "multi_select_count": 10,
+   "customized_count": 10,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "material": 3,
+    "pattern": 2,
+    "count": 1,
+    "season": 1,
+    "size": 1
+   },
+   "suggest": {
+    "suggested": 5,
+    "mandatory_total": 1,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 1,
+    "unresolved": 11
+   },
+   "sample_attribute": {
+    "attrId": "100149",
+    "attrName": "Country of origin",
+    "transName": "原产国/原产地",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 202,
+    "first_values": [
+     {
+      "id": "1000850",
+      "name": "China",
+      "transName": "中国"
+     },
+     {
+      "id": "1000851",
+      "name": "Indonesia",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1000852",
+      "name": "Malaysia",
+      "transName": "马来西亚"
+     }
+    ]
+   }
+  },
+  {
+   "site": "GB",
+   "category_id": "603758",
+   "category_name": "Badminton Shoes",
+   "node_path": "Sports & Outdoor(运动与户外)/Sports Footwear(运动鞋)/Badminton Shoes(羽毛球鞋)",
+   "path_ids": "603014/834696/603758",
+   "is_leaf": "1",
+   "attribute_count": 9,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "生产批次号"
+   ],
+   "enum_count": 9,
+   "free_text_count": 0,
+   "multi_select_count": 4,
+   "customized_count": 6,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 2,
+    "season": 1,
+    "gender": 1,
+    "material": 2
+   },
+   "suggest": {
+    "suggested": 5,
+    "mandatory_total": 1,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 1,
+    "unresolved": 4
+   },
+   "sample_attribute": {
+    "attrId": "100149",
+    "attrName": "Country of origin",
+    "transName": "原产国/原产地",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 202,
+    "first_values": [
+     {
+      "id": "1000850",
+      "name": "China",
+      "transName": "中国"
+     },
+     {
+      "id": "1000851",
+      "name": "Indonesia",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1000852",
+      "name": "Malaysia",
+      "transName": "马来西亚"
+     }
+    ]
+   }
+  },
+  {
+   "site": "GB",
+   "category_id": "700706",
+   "category_name": "Baby Chairs",
+   "node_path": "Baby & Maternity(母婴用品)/Baby Furniture(婴儿家具)/Baby Chairs(婴幼儿椅子)",
+   "path_ids": "602284/878216/700706",
+   "is_leaf": "1",
+   "attribute_count": 17,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "生产批次号"
+   ],
+   "enum_count": 13,
+   "free_text_count": 4,
+   "multi_select_count": 5,
+   "customized_count": 14,
+   "conditional_count": 0,
+   "rule_keys": {
+    "warranty": 1,
+    "capacity": 1,
+    "pattern": 2,
+    "origin": 1,
+    "battery": 1,
+    "age": 1,
+    "gender": 1,
+    "material": 2,
+    "size": 1,
+    "count": 1,
+    "power": 1
+   },
+   "suggest": {
+    "suggested": 4,
+    "mandatory_total": 1,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 1,
+    "unresolved": 13
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "Warranty type",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 4,
+    "first_values": [
+     {
+      "id": "1000054",
+      "name": "Supplier warranty",
+      "transName": "供应商保修"
+     },
+     {
+      "id": "1001037",
+      "name": "Manufacturer warranty",
+      "transName": "制造商保修"
+     },
+     {
+      "id": "1000056",
+      "name": "International warranty",
+      "transName": "国际保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "GB",
+   "category_id": "888328",
+   "category_name": "Clamps",
+   "node_path": "Tools & Hardware(五金工具)/Hardware(五金)/Clamps(夹具)",
+   "path_ids": "604579/872328/888328",
+   "is_leaf": "1",
+   "attribute_count": 5,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 3,
+   "free_text_count": 2,
+   "multi_select_count": 2,
+   "customized_count": 4,
+   "conditional_count": 0,
+   "rule_keys": {
+    "warranty": 1,
+    "capacity": 1,
+    "battery": 1,
+    "power": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 4
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "Warranty type",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 4,
+    "first_values": [
+     {
+      "id": "1000054",
+      "name": "Supplier warranty",
+      "transName": "供应商保修"
+     },
+     {
+      "id": "1000055",
+      "name": "Manufacturer warranty",
+      "transName": "制造商保修"
+     },
+     {
+      "id": "1000056",
+      "name": "International warranty",
+      "transName": "国际保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "GB",
+   "category_id": "601990",
+   "category_name": "Headphones, Earphones & Accessories",
+   "node_path": "Phones & Electronics(手机与数码)/Audio & Video(影音设备)/Headphones, Earphones & Accessories(耳机)",
+   "path_ids": "601739/909320/601990",
+   "is_leaf": "1",
+   "attribute_count": 28,
+   "mandatory_count": 5,
+   "mandatory_labels": [
+    "插头类型",
+    "电源方式",
+    "安全警告信息",
+    "保修期限",
+    "该商品是否含电池？"
+   ],
+   "enum_count": 24,
+   "free_text_count": 4,
+   "multi_select_count": 6,
+   "customized_count": 20,
+   "conditional_count": 4,
+   "rule_keys": {
+    "warranty": 2,
+    "battery": 6,
+    "capacity": 1,
+    "plug": 1,
+    "voltage": 1,
+    "material": 1,
+    "model": 1,
+    "power": 2
+   },
+   "suggest": {
+    "suggested": 2,
+    "mandatory_total": 5,
+    "mandatory_filled": 1,
+    "mandatory_ratio": 0.2,
+    "mandatory_with_candidates": 4,
+    "unresolved": 26
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "Warranty type",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 4,
+    "first_values": [
+     {
+      "id": "1000054",
+      "name": "Supplier warranty",
+      "transName": "供应商保修"
+     },
+     {
+      "id": "1000055",
+      "name": "Manufacturer warranty",
+      "transName": "制造商保修"
+     },
+     {
+      "id": "1000056",
+      "name": "International warranty",
+      "transName": "国际保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "GB",
+   "category_id": "601550",
+   "category_name": "BB & CC Creams",
+   "node_path": "Beauty & Personal Care(美妆个护)/Makeup(美妆)/BB & CC Creams(BB & CC Creams)",
+   "path_ids": "601450/848648/601550",
+   "is_leaf": "1",
+   "attribute_count": 20,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "产品成分"
+   ],
+   "enum_count": 16,
+   "free_text_count": 4,
+   "multi_select_count": 7,
+   "customized_count": 14,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "weight": 1,
+    "capacity": 1,
+    "material": 2,
+    "count": 1
+   },
+   "suggest": {
+    "suggested": 3,
+    "mandatory_total": 1,
+    "mandatory_filled": 1,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 17
+   },
+   "sample_attribute": {
+    "attrId": "100334",
+    "attrName": "Skin type",
+    "transName": "皮肤类型",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 8,
+    "first_values": [
+     {
+      "id": "1000873",
+      "name": "Dry",
+      "transName": "Dry"
+     },
+     {
+      "id": "1000874",
+      "name": "Normal",
+      "transName": "正常"
+     },
+     {
+      "id": "1000875",
+      "name": "Oily",
+      "transName": "油皮"
+     }
+    ]
+   }
+  },
+  {
+   "site": "GB",
+   "category_id": "998920",
+   "category_name": "Baby Bags",
+   "node_path": "Baby & Maternity(母婴用品)/Baby Fashion Accessories(婴儿时尚配件)/Baby Bags(婴儿包)",
+   "path_ids": "602284/961928/998920",
+   "is_leaf": "1",
+   "attribute_count": 16,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "生产批次号"
+   ],
+   "enum_count": 14,
+   "free_text_count": 2,
+   "multi_select_count": 7,
+   "customized_count": 12,
+   "conditional_count": 0,
+   "rule_keys": {
+    "capacity": 1,
+    "material": 2,
+    "pattern": 2,
+    "origin": 1,
+    "count": 1,
+    "battery": 1,
+    "season": 1,
+    "age": 1,
+    "gender": 1,
+    "power": 1
+   },
+   "suggest": {
+    "suggested": 4,
+    "mandatory_total": 1,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 1,
+    "unresolved": 12
+   },
+   "sample_attribute": {
+    "attrId": "100111",
+    "attrName": "Battery capacity (mAh)",
+    "transName": "电池容量(mAh)",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "custom",
+    "value_count": 0,
+    "first_values": []
+   }
+  },
+  {
+   "site": "US",
+   "category_id": "601265",
+   "category_name": "Blouses & Shirts",
+   "node_path": "Womenswear & Underwear(女装与女士内衣)/Women's Tops(女士上装)/Blouses & Shirts(女士衬衫)",
+   "path_ids": "601152/842248/601265",
+   "is_leaf": "1",
+   "attribute_count": 52,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 45,
+   "free_text_count": 7,
+   "multi_select_count": 32,
+   "customized_count": 42,
+   "conditional_count": 2,
+   "rule_keys": {
+    "origin": 2,
+    "material": 7,
+    "pattern": 1,
+    "count": 1,
+    "season": 1,
+    "style": 4,
+    "size": 1
+   },
+   "suggest": {
+    "suggested": 7,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 45
+   },
+   "sample_attribute": {
+    "attrId": "100149",
+    "attrName": "Country of origin",
+    "transName": "原产国/原产地",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 2,
+    "first_values": [
+     {
+      "id": "1000850",
+      "name": "China",
+      "transName": "中国"
+     },
+     {
+      "id": "1089295",
+      "name": "Usa",
+      "transName": "Usa"
+     }
+    ]
+   }
+  },
+  {
+   "site": "US",
+   "category_id": "1377040",
+   "category_name": "Address Books",
+   "node_path": "Computers & Office Equipment(电脑办公)/Office Stationery & Supplies(办公文具用品)/Calendars, Planners & Personal Organisers(日历与配件)/Address Books(地址簿)",
+   "path_ids": "601755/831112/987912/1377040",
+   "is_leaf": "1",
+   "attribute_count": 17,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 10,
+   "free_text_count": 7,
+   "multi_select_count": 13,
+   "customized_count": 12,
+   "conditional_count": 2,
+   "rule_keys": {
+    "material": 2
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 16
+   },
+   "sample_attribute": {
+    "attrId": "100443",
+    "attrName": "Feature",
+    "transName": "功能",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 8,
+    "first_values": [
+     {
+      "id": "1002174",
+      "name": "Hard cover",
+      "transName": "精装"
+     },
+     {
+      "id": "1020988",
+      "name": "Lockable",
+      "transName": "Lockable"
+     },
+     {
+      "id": "1000490",
+      "name": "Portable",
+      "transName": "轻便的"
+     }
+    ]
+   }
+  },
+  {
+   "site": "US",
+   "category_id": "1418128",
+   "category_name": "Baby Boy's Bodysuits & One Pieces",
+   "node_path": "Baby & Maternity(母婴用品)/Baby Clothing & Shoes(婴儿服饰与鞋)/Bodysuits & One-pieces(婴儿连体衣)/Baby Boy's Bodysuits & One Pieces(男婴紧身衣及连体衣)",
+   "path_ids": "602284/877320/700694/1418128",
+   "is_leaf": "1",
+   "attribute_count": 53,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 44,
+   "free_text_count": 9,
+   "multi_select_count": 30,
+   "customized_count": 43,
+   "conditional_count": 2,
+   "rule_keys": {
+    "material": 8,
+    "pattern": 3,
+    "weight": 1,
+    "origin": 1,
+    "count": 1,
+    "season": 1,
+    "style": 3,
+    "age": 1,
+    "gender": 1,
+    "model": 1
+   },
+   "suggest": {
+    "suggested": 7,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 46
+   },
+   "sample_attribute": {
+    "attrId": "100157",
+    "attrName": "Material",
+    "transName": "材质",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 9,
+    "first_values": [
+     {
+      "id": "1003739",
+      "name": "Rib",
+      "transName": "坑条"
+     },
+     {
+      "id": "1003908",
+      "name": "Twill",
+      "transName": "涤纶粗斜"
+     },
+     {
+      "id": "1003756",
+      "name": "Mesh",
+      "transName": "网"
+     }
+    ]
+   }
+  },
+  {
+   "site": "US",
+   "category_id": "2295824",
+   "category_name": "Armchair Slipcovers",
+   "node_path": "Furniture(家具)/Indoor Furniture(室内家具)/Chairs(椅子)/Living Room Furniture(起居室家具)/Chair & Sofa Accessories(椅子及沙发配件)/Armchair Slipcovers(扶手椅套)",
+   "path_ids": "604453/871048/876040/1313424/2271248/2295824",
+   "is_leaf": "1",
+   "attribute_count": 32,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 25,
+   "free_text_count": 7,
+   "multi_select_count": 21,
+   "customized_count": 23,
+   "conditional_count": 2,
+   "rule_keys": {
+    "pattern": 1,
+    "count": 1,
+    "style": 2,
+    "material": 5,
+    "battery": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 31
+   },
+   "sample_attribute": {
+    "attrId": "100198",
+    "attrName": "Pattern",
+    "transName": "图案花纹",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 103,
+    "first_values": [
+     {
+      "id": "1002397",
+      "name": "Characters",
+      "transName": "卡通人物"
+     },
+     {
+      "id": "1003616",
+      "name": "Fruits and vegetable",
+      "transName": "水果&蔬菜印花"
+     },
+     {
+      "id": "1001186",
+      "name": "Graphic",
+      "transName": "图文一体"
+     }
+    ]
+   }
+  },
+  {
+   "site": "US",
+   "category_id": "2010000",
+   "category_name": "Angle Clamps",
+   "node_path": "Toys & Hobbies(玩具和爱好)/DIY(DIY爱好)/DIY Woodwork(木制手工制作)/Woodcraft(木制工艺品)/Clamps(夹具)/Angle Clamps(角夹)",
+   "path_ids": "604206/951560/954504/935440/1538960/2010000",
+   "is_leaf": "1",
+   "attribute_count": 27,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 18,
+   "free_text_count": 9,
+   "multi_select_count": 13,
+   "customized_count": 17,
+   "conditional_count": 2,
+   "rule_keys": {
+    "warranty": 1,
+    "capacity": 1,
+    "battery": 3,
+    "voltage": 1,
+    "power": 2,
+    "material": 3
+   },
+   "suggest": {
+    "suggested": 2,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 25
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "Warranty type",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 6,
+    "first_values": [
+     {
+      "id": "1000055",
+      "name": "Manufacturer warranty",
+      "transName": "制造商保修"
+     },
+     {
+      "id": "1001037",
+      "name": "Manufacturer warranty",
+      "transName": "制造商保修"
+     },
+     {
+      "id": "1007404",
+      "name": "Lifetime warranty",
+      "transName": "终身保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "US",
+   "category_id": "2242064",
+   "category_name": "Adapters",
+   "node_path": "Phones & Electronics(手机与数码)/Audio & Video(影音设备)/Headphones, Earphones & Accessories(耳机)/Accessories(配件)/Adapters(适配器)",
+   "path_ids": "601739/909320/601990/1133584/2242064",
+   "is_leaf": "1",
+   "attribute_count": 60,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 44,
+   "free_text_count": 16,
+   "multi_select_count": 31,
+   "customized_count": 46,
+   "conditional_count": 8,
+   "rule_keys": {
+    "warranty": 1,
+    "battery": 7,
+    "capacity": 2,
+    "plug": 1,
+    "voltage": 3,
+    "material": 3,
+    "model": 1,
+    "count": 1,
+    "power": 2,
+    "weight": 2,
+    "gender": 1
+   },
+   "suggest": {
+    "suggested": 2,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 58
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "Warranty type",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 6,
+    "first_values": [
+     {
+      "id": "1000054",
+      "name": "Supplier warranty",
+      "transName": "供应商保修"
+     },
+     {
+      "id": "1000055",
+      "name": "Manufacturer warranty",
+      "transName": "制造商保修"
+     },
+     {
+      "id": "1000056",
+      "name": "International warranty",
+      "transName": "国际保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "US",
+   "category_id": "601550",
+   "category_name": "BB & CC Creams",
+   "node_path": "Beauty & Personal Care(美妆个护)/Makeup(美妆)/BB & CC Creams(BB & CC Creams)",
+   "path_ids": "601450/848648/601550",
+   "is_leaf": "1",
+   "attribute_count": 43,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 33,
+   "free_text_count": 10,
+   "multi_select_count": 28,
+   "customized_count": 30,
+   "conditional_count": 2,
+   "rule_keys": {
+    "battery": 3,
+    "origin": 1,
+    "capacity": 1,
+    "material": 3,
+    "count": 1,
+    "age": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 42
+   },
+   "sample_attribute": {
+    "attrId": "100216",
+    "attrName": "Battery type",
+    "transName": "电池类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 27,
+    "first_values": [
+     {
+      "id": "1000359",
+      "name": "23 A",
+      "transName": "23A"
+     },
+     {
+      "id": "1000360",
+      "name": "AA",
+      "transName": "AA"
+     },
+     {
+      "id": "1000361",
+      "name": "AAA",
+      "transName": "AAA"
+     }
+    ]
+   }
+  },
+  {
+   "site": "US",
+   "category_id": "1450768",
+   "category_name": "Air Bag Scan Tools",
+   "node_path": "Automotive & Motorcycle(汽车与摩托车)/Car Repair Tools(汽车修理工具)/Diagnostic Tools(诊断工具)/Air Bag Scan Tools(安全气囊扫描工具)",
+   "path_ids": "605196/940296/941192/1450768",
+   "is_leaf": "1",
+   "attribute_count": 37,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 22,
+   "free_text_count": 15,
+   "multi_select_count": 16,
+   "customized_count": 25,
+   "conditional_count": 2,
+   "rule_keys": {
+    "warranty": 1,
+    "capacity": 2,
+    "model": 1,
+    "battery": 5,
+    "power": 2,
+    "weight": 2,
+    "material": 2
+   },
+   "suggest": {
+    "suggested": 2,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 35
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "Warranty type",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 4,
+    "first_values": [
+     {
+      "id": "1000057",
+      "name": "No warranty",
+      "transName": "无保修"
+     },
+     {
+      "id": "1000056",
+      "name": "International warranty",
+      "transName": "国际保修"
+     },
+     {
+      "id": "1000055",
+      "name": "Manufacturer warranty",
+      "transName": "制造商保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "DE",
+   "category_id": "906888",
+   "category_name": "Cuff Links, Shirt Studs & Tie Clips",
+   "node_path": "Mode-Zubehör(时尚配件)/Kleidungsaccessoires(服饰配件)/Cuff Links, Shirt Studs & Tie Clips(Cuff Links, Shirt Studs & Tie Clips)",
+   "path_ids": "605248/905224/906888",
+   "is_leaf": "1",
+   "attribute_count": 12,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "生产批次号",
+    "该商品是否有安全警示信息/标签（单个或多个）"
+   ],
+   "enum_count": 9,
+   "free_text_count": 3,
+   "multi_select_count": 2,
+   "customized_count": 7,
+   "conditional_count": 3,
+   "rule_keys": {
+    "gender": 1,
+    "material": 1,
+    "warranty": 2,
+    "brand": 1,
+    "model": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 2,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 2,
+    "unresolved": 11
+   },
+   "sample_attribute": {
+    "attrId": "100445",
+    "attrName": "Geschlecht",
+    "transName": "性别",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 3,
+    "first_values": [
+     {
+      "id": "1001450",
+      "name": "Weiblich",
+      "transName": "女士"
+     },
+     {
+      "id": "1001451",
+      "name": "Männlich",
+      "transName": "男士"
+     },
+     {
+      "id": "1001452",
+      "name": "Unisex",
+      "transName": "男女通用"
+     }
+    ]
+   }
+  },
+  {
+   "site": "DE",
+   "category_id": "847120",
+   "category_name": "Swimdresses",
+   "node_path": "Sports & Outdoor(运动与户外)/Bademode, Surfbekleidung & Neoprenanzüge(泳装&冲浪服&潜水服)/Swimdresses(Swimdresses)",
+   "path_ids": "603014/846224/847120",
+   "is_leaf": "1",
+   "attribute_count": 16,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "生产批次号",
+    "该商品是否有安全警示信息/标签（单个或多个）"
+   ],
+   "enum_count": 13,
+   "free_text_count": 3,
+   "multi_select_count": 6,
+   "customized_count": 8,
+   "conditional_count": 3,
+   "rule_keys": {
+    "origin": 1,
+    "count": 1,
+    "material": 2,
+    "warranty": 2,
+    "brand": 1,
+    "model": 1
+   },
+   "suggest": {
+    "suggested": 4,
+    "mandatory_total": 2,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 2,
+    "unresolved": 12
+   },
+   "sample_attribute": {
+    "attrId": "100149",
+    "attrName": "Herkunftsland",
+    "transName": "原产国/原产地",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 202,
+    "first_values": [
+     {
+      "id": "1000850",
+      "name": "China",
+      "transName": "中国"
+     },
+     {
+      "id": "1000851",
+      "name": "Indonesien",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1000852",
+      "name": "Malaysia",
+      "transName": "马来西亚"
+     }
+    ]
+   }
+  },
+  {
+   "site": "DE",
+   "category_id": "600574",
+   "category_name": "Rain Shoes & Covers",
+   "node_path": "Haushalts- & Heimartikel(居家日用)/Sonstiges für den Haushalt(家居日用)/Rain Shoes & Covers(Rain Shoes & Covers)",
+   "path_ids": "600001/852616/600574",
+   "is_leaf": "1",
+   "attribute_count": 18,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "生产批次号",
+    "该商品是否有安全警示信息/标签（单个或多个）"
+   ],
+   "enum_count": 15,
+   "free_text_count": 3,
+   "multi_select_count": 5,
+   "customized_count": 10,
+   "conditional_count": 3,
+   "rule_keys": {
+    "origin": 1,
+    "count": 1,
+    "season": 1,
+    "gender": 1,
+    "material": 2,
+    "age": 1,
+    "warranty": 2,
+    "brand": 1,
+    "model": 1
+   },
+   "suggest": {
+    "suggested": 4,
+    "mandatory_total": 2,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 2,
+    "unresolved": 14
+   },
+   "sample_attribute": {
+    "attrId": "100149",
+    "attrName": "Herkunftsland",
+    "transName": "原产国/原产地",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 202,
+    "first_values": [
+     {
+      "id": "1000850",
+      "name": "China",
+      "transName": "中国"
+     },
+     {
+      "id": "1000851",
+      "name": "Indonesien",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1000852",
+      "name": "Malaysia",
+      "transName": "马来西亚"
+     }
+    ]
+   }
+  },
+  {
+   "site": "DE",
+   "category_id": "894088",
+   "category_name": "Außenbeleuchtung",
+   "node_path": "Heimwerken(家装建材)/Lampen & Beleuchtung(灯具和照明设备)/Außenbeleuchtung(户外照明)",
+   "path_ids": "604968/872456/894088",
+   "is_leaf": "1",
+   "attribute_count": 33,
+   "mandatory_count": 4,
+   "mandatory_labels": [
+    "电源方式",
+    "该商品是否含电池？",
+    "能效等级",
+    "欧盟无线电设备指令：该商品是否为可充电设备？"
+   ],
+   "enum_count": 25,
+   "free_text_count": 8,
+   "multi_select_count": 6,
+   "customized_count": 20,
+   "conditional_count": 10,
+   "rule_keys": {
+    "warranty": 3,
+    "plug": 1,
+    "voltage": 1,
+    "model": 2,
+    "battery": 5,
+    "power": 4,
+    "material": 1,
+    "age": 1,
+    "brand": 1
+   },
+   "suggest": {
+    "suggested": 4,
+    "mandatory_total": 4,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 4,
+    "unresolved": 29
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "Garantie Typ",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 4,
+    "first_values": [
+     {
+      "id": "1000057",
+      "name": "Nein",
+      "transName": "无保修"
+     },
+     {
+      "id": "1000055",
+      "name": "Herstellergarantie",
+      "transName": "制造商保修"
+     },
+     {
+      "id": "1000054",
+      "name": "Garantie des Lieferanten",
+      "transName": "供应商保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "DE",
+   "category_id": "601550",
+   "category_name": "BB & CC Creams",
+   "node_path": "Beauty & Körperpflege(美妆个护)/Makeup(美妆)/BB & CC Creams(BB & CC Creams)",
+   "path_ids": "601450/848648/601550",
+   "is_leaf": "1",
+   "attribute_count": 29,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "计数方式",
+    "基本计数单位"
+   ],
+   "enum_count": 22,
+   "free_text_count": 7,
+   "multi_select_count": 7,
+   "customized_count": 19,
+   "conditional_count": 3,
+   "rule_keys": {
+    "origin": 1,
+    "weight": 1,
+    "capacity": 1,
+    "material": 2,
+    "count": 1,
+    "warranty": 2,
+    "brand": 1,
+    "model": 1
+   },
+   "suggest": {
+    "suggested": 4,
+    "mandatory_total": 2,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 2,
+    "unresolved": 25
+   },
+   "sample_attribute": {
+    "attrId": "100334",
+    "attrName": "Hauttyp",
+    "transName": "皮肤类型",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 8,
+    "first_values": [
+     {
+      "id": "1000873",
+      "name": "Trocken",
+      "transName": "Dry"
+     },
+     {
+      "id": "1000874",
+      "name": "Normal",
+      "transName": "正常"
+     },
+     {
+      "id": "1000875",
+      "name": "Ölig",
+      "transName": "油皮"
+     }
+    ]
+   }
+  },
+  {
+   "site": "DE",
+   "category_id": "603682",
+   "category_name": "Gym Bags",
+   "node_path": "Sports & Outdoor(运动与户外)/Sport- & Outdoor-Zubehör(运动与户外配件)/Gym Bags(Gym Bags)",
+   "path_ids": "603014/834824/603682",
+   "is_leaf": "1",
+   "attribute_count": 17,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "生产批次号",
+    "该商品是否有安全警示信息/标签（单个或多个）"
+   ],
+   "enum_count": 14,
+   "free_text_count": 3,
+   "multi_select_count": 2,
+   "customized_count": 11,
+   "conditional_count": 3,
+   "rule_keys": {
+    "origin": 1,
+    "season": 1,
+    "gender": 1,
+    "age": 1,
+    "material": 1,
+    "warranty": 2,
+    "brand": 1,
+    "model": 1
+   },
+   "suggest": {
+    "suggested": 2,
+    "mandatory_total": 2,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 2,
+    "unresolved": 15
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "Ursprungsland",
+    "transName": "原产地",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 11,
+    "first_values": [
+     {
+      "id": "1000851",
+      "name": "Indonesien",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1001869",
+      "name": "Festlandchina",
+      "transName": "中国大陆"
+     },
+     {
+      "id": "1001298",
+      "name": "Bangladesch",
+      "transName": "孟加拉国"
+     }
+    ]
+   }
+  },
+  {
+   "site": "DE",
+   "category_id": "892040",
+   "category_name": "Frühkindliche Bildung und Smart Toys",
+   "node_path": "Babys & Mütter(母婴用品)/Spielzeug für Babys(婴儿玩具)/Frühkindliche Bildung und Smart Toys(早教与智能玩具)",
+   "path_ids": "602284/878984/892040",
+   "is_leaf": "1",
+   "attribute_count": 35,
+   "mandatory_count": 5,
+   "mandatory_labels": [
+    "推荐年龄",
+    "电源方式",
+    "该商品是否含电池？",
+    "生产批次号",
+    "欧盟无线电设备指令：该商品是否为可充电设备？"
+   ],
+   "enum_count": 31,
+   "free_text_count": 4,
+   "multi_select_count": 6,
+   "customized_count": 18,
+   "conditional_count": 6,
+   "rule_keys": {
+    "warranty": 4,
+    "model": 2,
+    "origin": 1,
+    "count": 1,
+    "battery": 3,
+    "age": 3,
+    "gender": 1,
+    "material": 2,
+    "power": 3,
+    "brand": 1
+   },
+   "suggest": {
+    "suggested": 4,
+    "mandatory_total": 5,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 5,
+    "unresolved": 31
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "Garantie Typ",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 4,
+    "first_values": [
+     {
+      "id": "1000054",
+      "name": "Garantie des Lieferanten",
+      "transName": "供应商保修"
+     },
+     {
+      "id": "1001037",
+      "name": "Hersteller-Garantie",
+      "transName": "制造商保修"
+     },
+     {
+      "id": "1000056",
+      "name": "Internationale Garantie",
+      "transName": "国际保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "DE",
+   "category_id": "700795",
+   "category_name": "Fashion Watch Accessories",
+   "node_path": "Mode-Zubehör(时尚配件)/Fashion Watches & Accessories(手表与配件)/Fashion Watch Accessories(Fashion Watch Accessories)",
+   "path_ids": "605248/905480/700795",
+   "is_leaf": "1",
+   "attribute_count": 11,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "生产批次号",
+    "该商品是否有安全警示信息/标签（单个或多个）"
+   ],
+   "enum_count": 8,
+   "free_text_count": 3,
+   "multi_select_count": 1,
+   "customized_count": 6,
+   "conditional_count": 3,
+   "rule_keys": {
+    "material": 1,
+    "warranty": 2,
+    "brand": 1,
+    "model": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 2,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 2,
+    "unresolved": 10
+   },
+   "sample_attribute": {
+    "attrId": "100259",
+    "attrName": "Zubehörtyp",
+    "transName": "附件类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 3,
+    "first_values": [
+     {
+      "id": "1001275",
+      "name": "Riemen",
+      "transName": "背带"
+     },
+     {
+      "id": "1001323",
+      "name": "Schnalle",
+      "transName": "带排扣"
+     },
+     {
+      "id": "1001530",
+      "name": "Box",
+      "transName": "箱子"
+     }
+    ]
+   }
+  },
+  {
+   "site": "JP",
+   "category_id": "906888",
+   "category_name": "Cuff Links, Shirt Studs & Tie Clips",
+   "node_path": "ファッションアクセサリー(时尚配件)/服飾アクセサリー(服饰配件)/Cuff Links, Shirt Studs & Tie Clips(Cuff Links, Shirt Studs & Tie Clips)",
+   "path_ids": "605248/905224/906888",
+   "is_leaf": "1",
+   "attribute_count": 4,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "原产地",
+    "材质"
+   ],
+   "enum_count": 4,
+   "free_text_count": 0,
+   "multi_select_count": 1,
+   "customized_count": 3,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "gender": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 2,
+    "mandatory_filled": 1,
+    "mandatory_ratio": 0.5,
+    "mandatory_with_candidates": 1,
+    "unresolved": 3
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "原産国",
+    "transName": "原产地",
+    "isMandatory": true,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 33,
+    "first_values": [
+     {
+      "id": "1000860",
+      "name": "US",
+      "transName": "US"
+     },
+     {
+      "id": "1004099",
+      "name": "ニュージーランド",
+      "transName": "新西兰"
+     },
+     {
+      "id": "1005559",
+      "name": "ヨーロッパ・アメリカ",
+      "transName": "欧美"
+     }
+    ]
+   }
+  },
+  {
+   "site": "JP",
+   "category_id": "847120",
+   "category_name": "Swimdresses",
+   "node_path": "Sports & Outdoor(运动与户外)/水着・サーフウェア・ウェットスーツ(泳装&冲浪服&潜水服)/Swimdresses(Swimdresses)",
+   "path_ids": "603014/846224/847120",
+   "is_leaf": "1",
+   "attribute_count": 7,
+   "mandatory_count": 3,
+   "mandatory_labels": [
+    "原产地",
+    "成分",
+    "织造方法"
+   ],
+   "enum_count": 7,
+   "free_text_count": 0,
+   "multi_select_count": 4,
+   "customized_count": 5,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "count": 1,
+    "material": 2
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 3,
+    "mandatory_filled": 1,
+    "mandatory_ratio": 0.333,
+    "mandatory_with_candidates": 2,
+    "unresolved": 6
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "原産国",
+    "transName": "原产地",
+    "isMandatory": true,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 33,
+    "first_values": [
+     {
+      "id": "1000860",
+      "name": "US",
+      "transName": "US"
+     },
+     {
+      "id": "1004099",
+      "name": "ニュージーランド",
+      "transName": "新西兰"
+     },
+     {
+      "id": "1005559",
+      "name": "ヨーロッパ・アメリカ",
+      "transName": "欧美"
+     }
+    ]
+   }
+  },
+  {
+   "site": "JP",
+   "category_id": "600574",
+   "category_name": "Rain Shoes & Covers",
+   "node_path": "日用雑貨(家居用品)/生活雑貨(家居日用)/Rain Shoes & Covers(Rain Shoes & Covers)",
+   "path_ids": "600001/852616/600574",
+   "is_leaf": "1",
+   "attribute_count": 8,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "原产地",
+    "材质"
+   ],
+   "enum_count": 8,
+   "free_text_count": 0,
+   "multi_select_count": 2,
+   "customized_count": 5,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "count": 1,
+    "season": 1,
+    "gender": 1,
+    "material": 1,
+    "age": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 2,
+    "mandatory_filled": 1,
+    "mandatory_ratio": 0.5,
+    "mandatory_with_candidates": 1,
+    "unresolved": 7
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "原産国",
+    "transName": "原产地",
+    "isMandatory": true,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 33,
+    "first_values": [
+     {
+      "id": "1000860",
+      "name": "US",
+      "transName": "US"
+     },
+     {
+      "id": "1004099",
+      "name": "ニュージーランド",
+      "transName": "新西兰"
+     },
+     {
+      "id": "1005559",
+      "name": "ヨーロッパ・アメリカ",
+      "transName": "欧美"
+     }
+    ]
+   }
+  },
+  {
+   "site": "JP",
+   "category_id": "601550",
+   "category_name": "BB & CC Creams",
+   "node_path": "美容・パーソナルケア(美妆个护)/Makeup(美妆)/BB & CC Creams(BB & CC Creams)",
+   "path_ids": "601450/848648/601550",
+   "is_leaf": "1",
+   "attribute_count": 16,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "原产地"
+   ],
+   "enum_count": 13,
+   "free_text_count": 3,
+   "multi_select_count": 4,
+   "customized_count": 12,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "weight": 1,
+    "capacity": 1,
+    "material": 1,
+    "count": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 1,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 1,
+    "unresolved": 15
+   },
+   "sample_attribute": {
+    "attrId": "100334",
+    "attrName": "スキンタイプ",
+    "transName": "皮肤类型",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 8,
+    "first_values": [
+     {
+      "id": "1000873",
+      "name": "乾性肌",
+      "transName": "Dry"
+     },
+     {
+      "id": "1000874",
+      "name": "普通肌",
+      "transName": "正常"
+     },
+     {
+      "id": "1000875",
+      "name": "脂性肌",
+      "transName": "油皮"
+     }
+    ]
+   }
+  },
+  {
+   "site": "JP",
+   "category_id": "603682",
+   "category_name": "Gym Bags",
+   "node_path": "Sports & Outdoor(运动与户外)/スポーツ・アウトドアアクセサリー(运动与户外配件)/Gym Bags(Gym Bags)",
+   "path_ids": "603014/834824/603682",
+   "is_leaf": "1",
+   "attribute_count": 8,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "原产地",
+    "材质"
+   ],
+   "enum_count": 8,
+   "free_text_count": 0,
+   "multi_select_count": 1,
+   "customized_count": 6,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "season": 1,
+    "gender": 1,
+    "age": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 2,
+    "mandatory_filled": 1,
+    "mandatory_ratio": 0.5,
+    "mandatory_with_candidates": 1,
+    "unresolved": 7
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "原産国",
+    "transName": "原产地",
+    "isMandatory": true,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 33,
+    "first_values": [
+     {
+      "id": "1000851",
+      "name": "インドネシア",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1001869",
+      "name": "中国本土",
+      "transName": "中国大陆"
+     },
+     {
+      "id": "1001298",
+      "name": "バングラデシュ",
+      "transName": "孟加拉国"
+     }
+    ]
+   }
+  },
+  {
+   "site": "JP",
+   "category_id": "700795",
+   "category_name": "Fashion Watch Accessories",
+   "node_path": "ファッションアクセサリー(时尚配件)/Fashion Watches & Accessories(手表与配件)/Fashion Watch Accessories(Fashion Watch Accessories)",
+   "path_ids": "605248/905480/700795",
+   "is_leaf": "1",
+   "attribute_count": 4,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "原产地"
+   ],
+   "enum_count": 4,
+   "free_text_count": 0,
+   "multi_select_count": 2,
+   "customized_count": 4,
+   "conditional_count": 0,
+   "rule_keys": {
+    "material": 2,
+    "origin": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 1,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 1,
+    "unresolved": 3
+   },
+   "sample_attribute": {
+    "attrId": "100197",
+    "attrName": "ストラップの素材",
+    "transName": "带子材质",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 67,
+    "first_values": [
+     {
+      "id": "1000006",
+      "name": "ステンレススチール",
+      "transName": "不锈钢"
+     },
+     {
+      "id": "1000007",
+      "name": "プラスチック",
+      "transName": "塑料材料"
+     },
+     {
+      "id": "1000009",
+      "name": "ABS",
+      "transName": "ABS"
+     }
+    ]
+   }
+  },
+  {
+   "site": "JP",
+   "category_id": "601317",
+   "category_name": "Palazzo Pants",
+   "node_path": "モデストファッション(穆斯林时尚)/レディースイスラム服(女士穆斯林服饰)/Palazzo Pants(Palazzo Pants)",
+   "path_ids": "601303/601310/601317",
+   "is_leaf": "1",
+   "attribute_count": 10,
+   "mandatory_count": 3,
+   "mandatory_labels": [
+    "原产地",
+    "成分",
+    "织造方法"
+   ],
+   "enum_count": 10,
+   "free_text_count": 0,
+   "multi_select_count": 6,
+   "customized_count": 7,
+   "conditional_count": 0,
+   "rule_keys": {
+    "pattern": 1,
+    "origin": 1,
+    "season": 1,
+    "material": 2
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 3,
+    "mandatory_filled": 1,
+    "mandatory_ratio": 0.333,
+    "mandatory_with_candidates": 2,
+    "unresolved": 9
+   },
+   "sample_attribute": {
+    "attrId": "100198",
+    "attrName": "パターンの種類",
+    "transName": "图案花纹",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 22,
+    "first_values": [
+     {
+      "id": "1001182",
+      "name": "普通",
+      "transName": "素色"
+     },
+     {
+      "id": "1001183",
+      "name": "フローラル",
+      "transName": "花朵"
+     },
+     {
+      "id": "1001184",
+      "name": "ストライプ",
+      "transName": "条纹"
+     }
+    ]
+   }
+  },
+  {
+   "site": "JP",
+   "category_id": "884616",
+   "category_name": "光学機器",
+   "node_path": "工具・ハードウェア(五金工具)/Measuring Tools(测量工具)/光学機器(光学仪器)",
+   "path_ids": "604579/871816/884616",
+   "is_leaf": "1",
+   "attribute_count": 7,
+   "mandatory_count": 2,
+   "mandatory_labels": [
+    "原产地",
+    "材质"
+   ],
+   "enum_count": 5,
+   "free_text_count": 2,
+   "multi_select_count": 4,
+   "customized_count": 6,
+   "conditional_count": 0,
+   "rule_keys": {
+    "warranty": 2,
+    "voltage": 1,
+    "origin": 1,
+    "power": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 2,
+    "mandatory_total": 2,
+    "mandatory_filled": 1,
+    "mandatory_ratio": 0.5,
+    "mandatory_with_candidates": 1,
+    "unresolved": 5
+   },
+   "sample_attribute": {
+    "attrId": "100107",
+    "attrName": "保証の種類",
+    "transName": "保修类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 5,
+    "first_values": [
+     {
+      "id": "1000057",
+      "name": "保証なし",
+      "transName": "无保修"
+     },
+     {
+      "id": "1000054",
+      "name": "サプライヤ保証",
+      "transName": "供应商保修"
+     },
+     {
+      "id": "1000056",
+      "name": "国際保証",
+      "transName": "国际保修"
+     }
+    ]
+   }
+  },
+  {
+   "site": "TH",
+   "category_id": "906888",
+   "category_name": "Cuff Links, Shirt Studs & Tie Clips",
+   "node_path": "เครื่องประดับแฟชั่น(时尚配件)/อุปกรณ์เสริมสำหรับเสื้อผ้า(服饰配件)/Cuff Links, Shirt Studs & Tie Clips(Cuff Links, Shirt Studs & Tie Clips)",
+   "path_ids": "605248/905224/906888",
+   "is_leaf": "1",
+   "attribute_count": 3,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 3,
+   "free_text_count": 0,
+   "multi_select_count": 1,
+   "customized_count": 2,
+   "conditional_count": 0,
+   "rule_keys": {
+    "gender": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 3
+   },
+   "sample_attribute": {
+    "attrId": "100445",
+    "attrName": "เพศ",
+    "transName": "性别",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": false,
+    "valueShape": "enum",
+    "value_count": 3,
+    "first_values": [
+     {
+      "id": "1001450",
+      "name": "หญิง",
+      "transName": "女士"
+     },
+     {
+      "id": "1001451",
+      "name": "ชาย",
+      "transName": "男士"
+     },
+     {
+      "id": "1001452",
+      "name": "ไม่จำกัดเพศ",
+      "transName": "男女通用"
+     }
+    ]
+   }
+  },
+  {
+   "site": "TH",
+   "category_id": "847120",
+   "category_name": "Swimdresses",
+   "node_path": "Sports & Outdoor(运动与户外)/ชุดว่ายน้ำ ชุดเล่นเซิร์ฟ และเว็ทสูท(泳装&冲浪服&潜水服)/Swimdresses(Swimdresses)",
+   "path_ids": "603014/846224/847120",
+   "is_leaf": "1",
+   "attribute_count": 4,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 4,
+   "free_text_count": 0,
+   "multi_select_count": 3,
+   "customized_count": 2,
+   "conditional_count": 0,
+   "rule_keys": {
+    "count": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 4
+   },
+   "sample_attribute": {
+    "attrId": "100347",
+    "attrName": "จํานวนต่อแพ็ค",
+    "transName": "每包数量",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 12,
+    "first_values": [
+     {
+      "id": "1000256",
+      "name": "1",
+      "transName": "1"
+     },
+     {
+      "id": "1000257",
+      "name": "2",
+      "transName": "2"
+     },
+     {
+      "id": "1000258",
+      "name": "3",
+      "transName": "3"
+     }
+    ]
+   }
+  },
+  {
+   "site": "TH",
+   "category_id": "600574",
+   "category_name": "Rain Shoes & Covers",
+   "node_path": "อุปกรณ์ของใช้ในบ้าน(居家日用)/ของใช้ในบ้านเบ็ดเตล็ด(家居日用)/Rain Shoes & Covers(Rain Shoes & Covers)",
+   "path_ids": "600001/852616/600574",
+   "is_leaf": "1",
+   "attribute_count": 7,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 7,
+   "free_text_count": 0,
+   "multi_select_count": 2,
+   "customized_count": 4,
+   "conditional_count": 0,
+   "rule_keys": {
+    "count": 1,
+    "season": 1,
+    "gender": 1,
+    "material": 1,
+    "age": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 7
+   },
+   "sample_attribute": {
+    "attrId": "100347",
+    "attrName": "จํานวนต่อแพ็ค",
+    "transName": "每包数量",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 12,
+    "first_values": [
+     {
+      "id": "1000256",
+      "name": "1",
+      "transName": "1"
+     },
+     {
+      "id": "1000257",
+      "name": "2",
+      "transName": "2"
+     },
+     {
+      "id": "1000258",
+      "name": "3",
+      "transName": "3"
+     }
+    ]
+   }
+  },
+  {
+   "site": "TH",
+   "category_id": "601550",
+   "category_name": "BB & CC Creams",
+   "node_path": "ความงามและการดูแลส่วนบุคคล(美妆个护)/Makeup(美妆)/BB & CC Creams(BB & CC Creams)",
+   "path_ids": "601450/848648/601550",
+   "is_leaf": "1",
+   "attribute_count": 18,
+   "mandatory_count": 1,
+   "mandatory_labels": [
+    "FDA化妆品注册编号"
+   ],
+   "enum_count": 13,
+   "free_text_count": 5,
+   "multi_select_count": 6,
+   "customized_count": 14,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "weight": 1,
+    "capacity": 1,
+    "material": 1,
+    "count": 1,
+    "license": 1
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 1,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 0.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 17
+   },
+   "sample_attribute": {
+    "attrId": "100334",
+    "attrName": "ประเภทผิว",
+    "transName": "皮肤类型",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 8,
+    "first_values": [
+     {
+      "id": "1000873",
+      "name": "แห้ง",
+      "transName": "Dry"
+     },
+     {
+      "id": "1000874",
+      "name": "ปกติ",
+      "transName": "正常"
+     },
+     {
+      "id": "1000875",
+      "name": "มัน",
+      "transName": "油皮"
+     }
+    ]
+   }
+  },
+  {
+   "site": "TH",
+   "category_id": "603682",
+   "category_name": "Gym Bags",
+   "node_path": "Sports & Outdoor(运动与户外)/อุปกรณ์กีฬาและกลางแจ้ง(运动与户外配件)/Gym Bags(Gym Bags)",
+   "path_ids": "603014/834824/603682",
+   "is_leaf": "1",
+   "attribute_count": 8,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 8,
+   "free_text_count": 0,
+   "multi_select_count": 1,
+   "customized_count": 6,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "season": 1,
+    "gender": 1,
+    "age": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 8
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "แหล่งที่มา",
+    "transName": "原产地",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 11,
+    "first_values": [
+     {
+      "id": "1000851",
+      "name": "อินโดนีเซีย",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1001869",
+      "name": "จีนแผ่นดินใหญ่",
+      "transName": "中国大陆"
+     },
+     {
+      "id": "1001298",
+      "name": "บังคลาเทศ",
+      "transName": "孟加拉国"
+     }
+    ]
+   }
+  },
+  {
+   "site": "TH",
+   "category_id": "700795",
+   "category_name": "Fashion Watch Accessories",
+   "node_path": "เครื่องประดับแฟชั่น(时尚配件)/Fashion Watches & Accessories(手表与配件)/Fashion Watch Accessories(Fashion Watch Accessories)",
+   "path_ids": "605248/905480/700795",
+   "is_leaf": "1",
+   "attribute_count": 1,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 1,
+   "free_text_count": 0,
+   "multi_select_count": 0,
+   "customized_count": 1,
+   "conditional_count": 0,
+   "rule_keys": {},
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 1
+   },
+   "sample_attribute": {
+    "attrId": "100259",
+    "attrName": "ประเภทของเครื่องประดับ",
+    "transName": "附件类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 3,
+    "first_values": [
+     {
+      "id": "1001275",
+      "name": "สายรัด",
+      "transName": "背带"
+     },
+     {
+      "id": "1001323",
+      "name": "เข็มขัด",
+      "transName": "带排扣"
+     },
+     {
+      "id": "1001530",
+      "name": "กล่อง",
+      "transName": "箱子"
+     }
+    ]
+   }
+  },
+  {
+   "site": "TH",
+   "category_id": "1020808",
+   "category_name": "Detergent Packs and Tablets",
+   "node_path": "อุปกรณ์ของใช้ในบ้าน(居家日用)/อุปกรณ์ดูแลบ้าน(家庭护理用品)/อุปกรณ์ทำความสะอาดบ้าน(家用清洁剂)/Laundry Detergent(衣物洗涤剂)/Detergent Packs and Tablets(洗涤剂包和洗涤剂片)",
+   "path_ids": "600001/852232/600812/1013768/1020808",
+   "is_leaf": "1",
+   "attribute_count": 11,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 10,
+   "free_text_count": 1,
+   "multi_select_count": 0,
+   "customized_count": 10,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "capacity": 1,
+    "count": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 11
+   },
+   "sample_attribute": {
+    "attrId": "100335",
+    "attrName": "รูปแบบผลิตภัณฑ์",
+    "transName": "产品形式",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 8,
+    "first_values": [
+     {
+      "id": "1000047",
+      "name": "ครีม",
+      "transName": "奶油色"
+     },
+     {
+      "id": "1000049",
+      "name": "ของเหลว",
+      "transName": "液体"
+     },
+     {
+      "id": "1000050",
+      "name": "น้ำมัน",
+      "transName": "油"
+     }
+    ]
+   }
+  },
+  {
+   "site": "TH",
+   "category_id": "601317",
+   "category_name": "Palazzo Pants",
+   "node_path": "แฟชั่นมุสลิม(穆斯林时尚)/เสื้อผ้าอิสลามสำหรับผู้หญิง(女士穆斯林服饰)/Palazzo Pants(Palazzo Pants)",
+   "path_ids": "601303/601310/601317",
+   "is_leaf": "1",
+   "attribute_count": 7,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 7,
+   "free_text_count": 0,
+   "multi_select_count": 3,
+   "customized_count": 4,
+   "conditional_count": 0,
+   "rule_keys": {
+    "pattern": 1,
+    "season": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 7
+   },
+   "sample_attribute": {
+    "attrId": "100198",
+    "attrName": "ลวดลาย",
+    "transName": "图案花纹",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 22,
+    "first_values": [
+     {
+      "id": "1001182",
+      "name": "ไม่มีลาย",
+      "transName": "素色"
+     },
+     {
+      "id": "1001183",
+      "name": "ดอกไม้",
+      "transName": "花朵"
+     },
+     {
+      "id": "1001184",
+      "name": "ลายทาง",
+      "transName": "条纹"
+     }
+    ]
+   }
+  },
+  {
+   "site": "VN",
+   "category_id": "906888",
+   "category_name": "Cuff Links, Shirt Studs & Tie Clips",
+   "node_path": "Phụ kiện thời trang(时尚配件)/Phụ kiện trang phục(服饰配件)/Cuff Links, Shirt Studs & Tie Clips(Cuff Links, Shirt Studs & Tie Clips)",
+   "path_ids": "605248/905224/906888",
+   "is_leaf": "1",
+   "attribute_count": 6,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 4,
+   "free_text_count": 2,
+   "multi_select_count": 3,
+   "customized_count": 5,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "gender": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 6
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "Khu vực xuất xứ",
+    "transName": "原产地",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 11,
+    "first_values": [
+     {
+      "id": "1000851",
+      "name": "Indonesia",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1001869",
+      "name": "Trung Quốc Đại Lục",
+      "transName": "中国大陆"
+     },
+     {
+      "id": "1001298",
+      "name": "Bangladesh",
+      "transName": "孟加拉国"
+     }
+    ]
+   }
+  },
+  {
+   "site": "VN",
+   "category_id": "847120",
+   "category_name": "Swimdresses",
+   "node_path": "Sports & Outdoor(运动与户外)/Đồ bơi, đồ lướt sóng & đồ lặn(泳装&冲浪服&潜水服)/Swimdresses(Swimdresses)",
+   "path_ids": "603014/846224/847120",
+   "is_leaf": "1",
+   "attribute_count": 7,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 5,
+   "free_text_count": 2,
+   "multi_select_count": 5,
+   "customized_count": 5,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "count": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 7
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "Khu vực xuất xứ",
+    "transName": "原产地",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 11,
+    "first_values": [
+     {
+      "id": "1000851",
+      "name": "Indonesia",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1001869",
+      "name": "Trung Quốc Đại Lục",
+      "transName": "中国大陆"
+     },
+     {
+      "id": "1001298",
+      "name": "Bangladesh",
+      "transName": "孟加拉国"
+     }
+    ]
+   }
+  },
+  {
+   "site": "VN",
+   "category_id": "600574",
+   "category_name": "Rain Shoes & Covers",
+   "node_path": "Đồ gia dụng(居家日用)/Đồ gia dụng khác(家居日用)/Rain Shoes & Covers(Rain Shoes & Covers)",
+   "path_ids": "600001/852616/600574",
+   "is_leaf": "1",
+   "attribute_count": 10,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 8,
+   "free_text_count": 2,
+   "multi_select_count": 4,
+   "customized_count": 7,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "count": 1,
+    "season": 1,
+    "gender": 1,
+    "material": 1,
+    "age": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 10
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "Khu vực xuất xứ",
+    "transName": "原产地",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 11,
+    "first_values": [
+     {
+      "id": "1000851",
+      "name": "Indonesia",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1001869",
+      "name": "Trung Quốc Đại Lục",
+      "transName": "中国大陆"
+     },
+     {
+      "id": "1001298",
+      "name": "Bangladesh",
+      "transName": "孟加拉国"
+     }
+    ]
+   }
+  },
+  {
+   "site": "VN",
+   "category_id": "601550",
+   "category_name": "BB & CC Creams",
+   "node_path": "Làm đẹp & chăm sóc cá nhân(美妆个护)/Makeup(美妆)/BB & CC Creams(BB & CC Creams)",
+   "path_ids": "601450/848648/601550",
+   "is_leaf": "1",
+   "attribute_count": 22,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 14,
+   "free_text_count": 8,
+   "multi_select_count": 6,
+   "customized_count": 18,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "weight": 1,
+    "capacity": 1,
+    "material": 1,
+    "count": 1,
+    "license": 2
+   },
+   "suggest": {
+    "suggested": 1,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 21
+   },
+   "sample_attribute": {
+    "attrId": "100334",
+    "attrName": "Loại da",
+    "transName": "皮肤类型",
+    "isMandatory": false,
+    "isMultipleSelected": true,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 8,
+    "first_values": [
+     {
+      "id": "1000873",
+      "name": "Khô",
+      "transName": "Dry"
+     },
+     {
+      "id": "1000874",
+      "name": "Bình thường",
+      "transName": "正常"
+     },
+     {
+      "id": "1000875",
+      "name": "Dầu",
+      "transName": "油皮"
+     }
+    ]
+   }
+  },
+  {
+   "site": "VN",
+   "category_id": "603682",
+   "category_name": "Gym Bags",
+   "node_path": "Sports & Outdoor(运动与户外)/Phụ kiện thể thao & ngoài trời(运动与户外配件)/Gym Bags(Gym Bags)",
+   "path_ids": "603014/834824/603682",
+   "is_leaf": "1",
+   "attribute_count": 10,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 8,
+   "free_text_count": 2,
+   "multi_select_count": 3,
+   "customized_count": 8,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "season": 1,
+    "gender": 1,
+    "age": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 10
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "Khu vực xuất xứ",
+    "transName": "原产地",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 11,
+    "first_values": [
+     {
+      "id": "1001869",
+      "name": "Trung Quốc Đại Lục",
+      "transName": "中国大陆"
+     },
+     {
+      "id": "1001871",
+      "name": "Hoa Kỳ",
+      "transName": "美国"
+     },
+     {
+      "id": "1001298",
+      "name": "Bangladesh",
+      "transName": "孟加拉国"
+     }
+    ]
+   }
+  },
+  {
+   "site": "VN",
+   "category_id": "605257",
+   "category_name": "Đồng hồ cặp đôi",
+   "node_path": "Phụ kiện thời trang(时尚配件)/Fashion Watches & Accessories(手表与配件)/Đồng hồ cặp đôi(情侣表)",
+   "path_ids": "605248/905480/605257",
+   "is_leaf": "1",
+   "attribute_count": 18,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 16,
+   "free_text_count": 2,
+   "multi_select_count": 5,
+   "customized_count": 15,
+   "conditional_count": 0,
+   "rule_keys": {
+    "material": 3,
+    "origin": 2,
+    "warranty": 1,
+    "color": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 18
+   },
+   "sample_attribute": {
+    "attrId": "100196",
+    "attrName": "Loại da",
+    "transName": "皮质类型",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 7,
+    "first_values": [
+     {
+      "id": "1000323",
+      "name": "Da bò",
+      "transName": "牛皮"
+     },
+     {
+      "id": "1000324",
+      "name": "Da cừu",
+      "transName": "羊皮"
+     },
+     {
+      "id": "1001408",
+      "name": "Da bê",
+      "transName": "小牛皮"
+     }
+    ]
+   }
+  },
+  {
+   "site": "VN",
+   "category_id": "812936",
+   "category_name": "Giường, ghế sofa & thảm",
+   "node_path": "Đồ dùng thú cưng(宠物用品)/Đồ nội thất cho chó & mèo(猫狗家具)/Giường, ghế sofa & thảm(宠物床、沙发和垫子)",
+   "path_ids": "602118/812808/812936",
+   "is_leaf": "1",
+   "attribute_count": 6,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 4,
+   "free_text_count": 2,
+   "multi_select_count": 3,
+   "customized_count": 6,
+   "conditional_count": 0,
+   "rule_keys": {
+    "origin": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 6
+   },
+   "sample_attribute": {
+    "attrId": "100336",
+    "attrName": "Khu vực xuất xứ",
+    "transName": "原产地",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 11,
+    "first_values": [
+     {
+      "id": "1000851",
+      "name": "Indonesia",
+      "transName": "印度尼西亚"
+     },
+     {
+      "id": "1001869",
+      "name": "Trung Quốc Đại Lục",
+      "transName": "中国大陆"
+     },
+     {
+      "id": "1001298",
+      "name": "Bangladesh",
+      "transName": "孟加拉国"
+     }
+    ]
+   }
+  },
+  {
+   "site": "VN",
+   "category_id": "601317",
+   "category_name": "Palazzo Pants",
+   "node_path": "Thời trang Hồi giáo(穆斯林时尚)/Trang phục Hồi giáo nữ(女士穆斯林服饰)/Palazzo Pants(Palazzo Pants)",
+   "path_ids": "601303/601310/601317",
+   "is_leaf": "1",
+   "attribute_count": 10,
+   "mandatory_count": 0,
+   "mandatory_labels": [],
+   "enum_count": 8,
+   "free_text_count": 2,
+   "multi_select_count": 5,
+   "customized_count": 7,
+   "conditional_count": 0,
+   "rule_keys": {
+    "pattern": 1,
+    "origin": 1,
+    "season": 1,
+    "material": 1
+   },
+   "suggest": {
+    "suggested": 0,
+    "mandatory_total": 0,
+    "mandatory_filled": 0,
+    "mandatory_ratio": 1.0,
+    "mandatory_with_candidates": 0,
+    "unresolved": 10
+   },
+   "sample_attribute": {
+    "attrId": "100198",
+    "attrName": "Mẫu",
+    "transName": "图案花纹",
+    "isMandatory": false,
+    "isMultipleSelected": false,
+    "isCustomized": true,
+    "valueShape": "enum_or_custom",
+    "value_count": 22,
+    "first_values": [
+     {
+      "id": "1001182",
+      "name": "Trơn",
+      "transName": "素色"
+     },
+     {
+      "id": "1001183",
+      "name": "Hoa",
+      "transName": "花朵"
+     },
+     {
+      "id": "1001184",
+      "name": "Kẻ sọc",
+      "transName": "条纹"
+     }
+    ]
+   }
+  }
+ ],
+ "summary": {
+  "sites": 6,
+  "leaves": 48,
+  "attribute_rows": 837,
+  "mandatory_attributes": 49,
+  "enum_attributes": 673,
+  "free_text_attributes": 164,
+  "multi_select_attributes": 346,
+  "customized_attributes": 595,
+  "conditional_attributes": 60,
+  "rule_covered_attributes": 373,
+  "rule_covered_ratio": 0.4456,
+  "rule_covered_attr_ids": 90,
+  "mandatory_labels": {
+   "生产批次号": 11,
+   "原产地": 8,
+   "该商品是否有安全警示信息/标签（单个或多个）": 5,
+   "材质": 4,
+   "电源方式": 3,
+   "该商品是否含电池？": 3,
+   "欧盟无线电设备指令：该商品是否为可充电设备？": 2,
+   "成分": 2,
+   "织造方法": 2,
+   "插头类型": 1,
+   "安全警告信息": 1,
+   "保修期限": 1,
+   "产品成分": 1,
+   "能效等级": 1,
+   "计数方式": 1,
+   "基本计数单位": 1,
+   "推荐年龄": 1,
+   "FDA化妆品注册编号": 1
+  },
+  "search_calls": 80,
+  "attribute_calls": 48,
+  "write_calls": 0
+ },
+ "derivable": {
+  "age": {
+   "attribute_rows": 16,
+   "distinct_attr_ids": [
+    "100433",
+    "100475",
+    "100662",
+    "100921",
+    "101685",
+    "102759"
+   ],
+   "leaves": 16
+  },
+  "battery": {
+   "attribute_rows": 36,
+   "distinct_attr_ids": [
+    "100109",
+    "100110",
+    "100216",
+    "100370",
+    "100497",
+    "101610",
+    "101611",
+    "101623",
+    "102408",
+    "102605"
+   ],
+   "leaves": 36
+  },
+  "brand": {
+   "attribute_rows": 8,
+   "distinct_attr_ids": [
+    "104358"
+   ],
+   "leaves": 8
+  },
+  "capacity": {
+   "attribute_rows": 16,
+   "distinct_attr_ids": [
+    "100111",
+    "100343",
+    "101624"
+   ],
+   "leaves": 16
+  },
+  "color": {
+   "attribute_rows": 1,
+   "distinct_attr_ids": [
+    "101162"
+   ],
+   "leaves": 1
+  },
+  "count": {
+   "attribute_rows": 23,
+   "distinct_attr_ids": [
+    "100209",
+    "100347",
+    "100736"
+   ],
+   "leaves": 23
+  },
+  "gender": {
+   "attribute_rows": 18,
+   "distinct_attr_ids": [
+    "100445",
+    "100491",
+    "101868"
+   ],
+   "leaves": 18
+  },
+  "license": {
+   "attribute_rows": 3,
+   "distinct_attr_ids": [
+    "101692",
+    "102872",
+    "102999"
+   ],
+   "leaves": 3
+  },
+  "material": {
+   "attribute_rows": 87,
+   "distinct_attr_ids": [
+    "100157",
+    "100197",
+    "100346",
+    "100496",
+    "100701",
+    "100722",
+    "100790",
+    "100926",
+    "101057",
+    "101159",
+    "101161",
+    "101474",
+    "101619",
+    "101680",
+    "101762",
+    "102256",
+    "102347",
+    "103376",
+    "103688",
+    "103805"
+   ],
+   "leaves": 87
+  },
+  "model": {
+   "attribute_rows": 14,
+   "distinct_attr_ids": [
+    "100177",
+    "102696",
+    "104359"
+   ],
+   "leaves": 14
+  },
+  "origin": {
+   "attribute_rows": 36,
+   "distinct_attr_ids": [
+    "100149",
+    "100336",
+    "101165"
+   ],
+   "leaves": 36
+  },
+  "pattern": {
+   "attribute_rows": 16,
+   "distinct_attr_ids": [
+    "100198",
+    "100718",
+    "101302"
+   ],
+   "leaves": 16
+  },
+  "plug": {
+   "attribute_rows": 3,
+   "distinct_attr_ids": [
+    "100113"
+   ],
+   "leaves": 3
+  },
+  "power": {
+   "attribute_rows": 19,
+   "distinct_attr_ids": [
+    "100561",
+    "100607",
+    "101077",
+    "101426",
+    "101662",
+    "102273",
+    "102274"
+   ],
+   "leaves": 19
+  },
+  "season": {
+   "attribute_rows": 17,
+   "distinct_attr_ids": [
+    "100397"
+   ],
+   "leaves": 17
+  },
+  "size": {
+   "attribute_rows": 4,
+   "distinct_attr_ids": [
+    "100711",
+    "101127"
+   ],
+   "leaves": 4
+  },
+  "style": {
+   "attribute_rows": 10,
+   "distinct_attr_ids": [
+    "100398",
+    "100585",
+    "100653",
+    "101175",
+    "101790",
+    "102003",
+    "102854"
+   ],
+   "leaves": 10
+  },
+  "voltage": {
+   "attribute_rows": 7,
+   "distinct_attr_ids": [
+    "100114",
+    "100375",
+    "101757",
+    "101968"
+   ],
+   "leaves": 7
+  },
+  "warranty": {
+   "attribute_rows": 29,
+   "distinct_attr_ids": [
+    "100107",
+    "100495",
+    "101476",
+    "104356",
+    "104357"
+   ],
+   "leaves": 29
+  },
+  "weight": {
+   "attribute_rows": 10,
+   "distinct_attr_ids": [
+    "100327",
+    "100342",
+    "101614",
+    "101625"
+   ],
+   "leaves": 10
+  }
+ },
+ "suggest_capability": {
+  "fixture": "合成商品文案：'<类目名> Cotton Black Summer Size: M Model: X100 20W Made in China 2 year warranty' + 描述含 Material/Color/Size/Warranty/Model/Power/Origin",
+  "note": "衡量本地规则在**真实类目属性**上的可补全能力（上界），不代表真实商品字段准确率；线上以页面人工确认为准",
+  "leaves": 48,
+  "attr_total": 837,
+  "suggested": 87,
+  "suggested_ratio": 0.1039,
+  "mandatory_total": 49,
+  "mandatory_filled": 8,
+  "mandatory_ratio": 0.1633,
+  "mandatory_with_candidates": 39,
+  "mandatory_no_candidates": 2,
+  "mandatory_actionable_ratio": 0.9592,
+  "unresolved": 750,
+  "suggested_by_rule": {
+   "origin": 16,
+   "material": 38,
+   "season": 6,
+   "size": 1,
+   "power": 13,
+   "warranty": 1,
+   "gender": 1,
+   "model": 11
+  }
+ },
+ "attribute_id_stability": {
+  "100107": [
+   "DE",
+   "GB",
+   "JP",
+   "US"
+  ],
+  "100149": [
+   "DE",
+   "GB",
+   "US"
+  ],
+  "100177": [
+   "DE",
+   "GB",
+   "US"
+  ],
+  "100397": [
+   "DE",
+   "GB",
+   "JP",
+   "TH",
+   "US",
+   "VN"
+  ]
+ },
+ "errors": [],
+ "ai_fallback_live": {
+  "note": "真实模型验证（本次任务仅 1 次真实 AI 调用，其余 AI 路径为 mock）：本地规则在 JP 站点因属性名为日文/本地化而无法匹配，走批量 AI 兜底；AI 返回值经**类目枚举校验**后才写回，最终 valueId/valueName 取自接口枚举。",
+  "model": "qwen-plus",
+  "site": "JP",
+  "category_id": "600574",
+  "real_ai_calls": 1,
+  "ai_used": true,
+  "coverage": {
+   "attr_total": 8,
+   "suggested": 2,
+   "suggested_ratio": 0.25,
+   "mandatory_total": 2,
+   "mandatory_filled": 2,
+   "mandatory_ratio": 1.0,
+   "unresolved": 6
+  },
+  "missing_mandatory": [],
+  "suggestions": [
+   {
+    "attrId": "100336",
+    "label": "原产地",
+    "source": "ai",
+    "confidence": "low",
+    "values": [
+     "中国"
+    ],
+    "reason": "AI 兜底推断（值：中国），保存前请核对"
+   },
+   {
+    "attrId": "100701",
+    "label": "材质",
+    "source": "ai",
+    "confidence": "low",
+    "values": [
+     "PVC"
+    ],
+    "reason": "AI 兜底推断（值：PVC），保存前请核对"
+   }
+  ],
+  "caveat": "AI 偶发用中文回答非中文站点，这里靠稳定的 transName（中文）匹配枚举后再取站点语言的 name/valueId 写回，避免把中文写进保存包；无枚举的自定义属性若 AI 返回中文，仍需人工复核。"
+ },
+ "implementation": {
+  "load_category_attributes": "src/aeclone/services/tiktok_payload.py：调 attributeList.json(type=3) 并规范化 attrId/attrName/transName/isMandatory/values[{id,name,transName}]/isMultipleSelected/isCustomized/valueShape；失败返回 [] 并给出中文原因",
+  "suggest_attributes": "src/aeclone/services/tiktok_payload.py：已有值不覆盖 → 20 条本地规则（color/size/material/warranty/model/style/pattern/origin/brand/weight/capacity/power/voltage/plug/battery/age/gender/season/count/license）→ 枚举按 valueId/name/transName 匹配 → 无法确定给候选+中文原因 → 可选一次性批量 AI 兜底（枚举外取值丢弃）",
+  "product_attributes_shape": "真实前端形状（add-B_TV--jq.js 逆向）：{\"attributeId\",\"attributeName\",\"values\":[{\"valueId\",\"valueName\"}]}；品牌是 attributeId=-99999 特殊项，补全时跳过",
+  "pipeline": "src/aeclone/services/tiktok_pipeline.py：prepare_save / run_tiktok_product 中新增「类目属性补全」步骤，只补空值、不覆盖用户值；缺失非条件必填 → issues，条件必填/接口失败 → warnings；不影响 productAttributes 透传与写安全边界",
+  "tests": {
+   "file": "tests/test_tiktok_attributes.py",
+   "tests": 48,
+   "tiktok_suite_total": 393,
+   "baseline_tiktok_before": 345,
+   "offline_guard_run": "48/48 OK（socket.connect/getaddrinfo 全禁 + AURORA_TEST=1）",
+   "offline_suite_total": 877,
+   "regressions": "tools/verify_regressions.py 72/72 PASS",
+   "note": "tools/test_offline.py 的 MODULES 与 tools/verify_regressions.py 是固定清单，本次未改（不在写入范围）：建议由 owner 追加 test_tiktok_attributes。离线套件总数 743→877 是并行的其它平台任务新增测试所致，与本改动无关。"
+  },
+  "ui_todo": [
+   "属性卡片改调 load_category_attributes（当前直接读原始行，必填字段名是 isMandatory，UI 读的是 required → 现在必填数恒为 0；values 是 JSON 字符串 → 值提示为空）",
+   "属性表展示 label(transName)/必填标记/候选下拉，支持多选",
+   "用 suggest_attributes 结果渲染「自动补全/候选/需人工」三态，并允许一键应用",
+   "缺失必填在保存按钮前提示 missing_mandatory_attributes（含自由文本项，如生产批次号）",
+   "可选：开关 use_ai_attributes 触发一次批量 AI 兜底（返回 confidence=low，需用户确认）"
+  ]
+ },
+ "limits_of_verification": [
+  "账号无 TikTok 店铺 → 无采集箱商品：productAttributes 的**元素形状**来自前端构建产物逆向（add-B_TV--jq.js：attributeId/attributeName/values[{valueId,valueName}]，品牌=-99999），**未经真实保存回写验证**；绑定店铺后需做一次真实保存回环确认。",
+  "必填属性的服务端强制点（保存 vs 发布）未验证：当前实现按 attributeList 的 isMandatory 视为保存必填。",
+  "AI 兜底仅 1 次真实调用（JP 600574），其余为 mock；成本与稳定性需在批量场景观察。",
+  "本地规则对中文/英文文案效果好；DE/JP/TH/VN 属性名为本地语言时依赖 transName（中文）或 AI 兜底。"
+ ]
+}

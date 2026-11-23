@@ -1,0 +1,980 @@
+{
+ "generated_at": "2026-11-22T03:20:54",
+ "mode": "read-only",
+ "write_calls": 0,
+ "summary": {
+  "total": 25,
+  "passed": 25,
+  "failed": 0,
+  "all_pass": true
+ },
+ "data": {
+  "cookie_source": "/Users/apple/Projects/alibaba-lister/.tmp-probe/cookies.txt",
+  "cookie_masked": "_dxm_ad_client_id=E07A0ED5FA…",
+  "account": "QINGHEMAOYI",
+  "puid": 2728813,
+  "shops": [
+   {
+    "id": "9408005",
+    "name": "QingHe",
+    "merchant_id": "A26OV9RTCAYJMS",
+    "default_marketplace": "ATVPDKIKX0DER",
+    "platform": "amazon"
+   }
+  ],
+  "shop_id": "9408005",
+  "sites": [
+   {
+    "marketplace_id": "ATVPDKIKX0DER",
+    "code": "US",
+    "country": "美国",
+    "currency": "USD",
+    "language": "en",
+    "language_name": "英语"
+   },
+   {
+    "marketplace_id": "A2EUQ1WTGCTBG2",
+    "code": "CA",
+    "country": "加拿大",
+    "currency": "CAD",
+    "language": "en",
+    "language_name": "英语"
+   },
+   {
+    "marketplace_id": "A1AM78C64UM0Y8",
+    "code": "MX",
+    "country": "墨西哥",
+    "currency": "MXN",
+    "language": "es",
+    "language_name": "西班牙语"
+   },
+   {
+    "marketplace_id": "A2Q3Y263D00KWC",
+    "code": "BR",
+    "country": "巴西",
+    "currency": "BRL",
+    "language": "pt",
+    "language_name": "葡萄牙语"
+   }
+  ],
+  "lists": {
+   "draft": {
+    "total": 12,
+    "page_no": 1,
+    "total_page": 3,
+    "drafts": 12,
+    "wait_publish": 5,
+    "publish_fail": 24,
+    "publishing": 1,
+    "markets": {
+     "AAHKV2X7AFYLW": "中国",
+     "ATVPDKIKX0DER": "美国",
+     "A2EUQ1WTGCTBG2": "加拿大",
+     "A1AM78C64UM0Y8": "墨西哥",
+     "A1F83G8C2ARO7P": "英国",
+     "A1PA6795UKMFR9": "德国",
+     "A13V1IB3VIYZZH": "法国",
+     "APJ6JRA9NG5V4": "意大利",
+     "A1RKKUPIHCS9HS": "西班牙",
+     "A21TJRUUN4KGV": "印度",
+     "A1VC38T7YXB528": "日本",
+     "A39IBJ37TRP1C6": "澳大利亚",
+     "A2VIGQ35RCS4UG": "阿联酋",
+     "A33AVAJ2PDY3EV": "土耳其",
+     "A19VAU5U5O7RUS": "新加坡",
+     "A2Q3Y263D00KWC": "巴西",
+     "A1805IZSGTT6HS": "荷兰",
+     "A17E79C6D8DWNP": "沙特阿拉伯",
+     "A2NODRKZP88ZB9": "瑞典",
+     "A1C3SOZRARQ6R3": "波兰",
+     "AMEN7PMS3EDWL": "比利时",
+     "ARBP9OOSHTCHU": "埃及",
+     "AE08WJ6YKNBMC": "南非",
+     "A28R8C7NBKEWEA": "爱尔兰"
+    }
+   },
+   "offline": {
+    "total": 5,
+    "page_no": 1,
+    "total_page": 1,
+    "drafts": 12,
+    "wait_publish": 5,
+    "publish_fail": 24,
+    "publishing": 1,
+    "markets": {
+     "AAHKV2X7AFYLW": "中国",
+     "ATVPDKIKX0DER": "美国",
+     "A2EUQ1WTGCTBG2": "加拿大",
+     "A1AM78C64UM0Y8": "墨西哥",
+     "A1F83G8C2ARO7P": "英国",
+     "A1PA6795UKMFR9": "德国",
+     "A13V1IB3VIYZZH": "法国",
+     "APJ6JRA9NG5V4": "意大利",
+     "A1RKKUPIHCS9HS": "西班牙",
+     "A21TJRUUN4KGV": "印度",
+     "A1VC38T7YXB528": "日本",
+     "A39IBJ37TRP1C6": "澳大利亚",
+     "A2VIGQ35RCS4UG": "阿联酋",
+     "A33AVAJ2PDY3EV": "土耳其",
+     "A19VAU5U5O7RUS": "新加坡",
+     "A2Q3Y263D00KWC": "巴西",
+     "A1805IZSGTT6HS": "荷兰",
+     "A17E79C6D8DWNP": "沙特阿拉伯",
+     "A2NODRKZP88ZB9": "瑞典",
+     "A1C3SOZRARQ6R3": "波兰",
+     "AMEN7PMS3EDWL": "比利时",
+     "ARBP9OOSHTCHU": "埃及",
+     "AE08WJ6YKNBMC": "南非",
+     "A28R8C7NBKEWEA": "爱尔兰"
+    }
+   },
+   "online": {
+    "total": 142,
+    "page_no": 1,
+    "total_page": 29,
+    "drafts": 12,
+    "wait_publish": 5,
+    "publish_fail": 24,
+    "publishing": 1,
+    "markets": {
+     "AAHKV2X7AFYLW": "中国",
+     "ATVPDKIKX0DER": "美国",
+     "A2EUQ1WTGCTBG2": "加拿大",
+     "A1AM78C64UM0Y8": "墨西哥",
+     "A1F83G8C2ARO7P": "英国",
+     "A1PA6795UKMFR9": "德国",
+     "A13V1IB3VIYZZH": "法国",
+     "APJ6JRA9NG5V4": "意大利",
+     "A1RKKUPIHCS9HS": "西班牙",
+     "A21TJRUUN4KGV": "印度",
+     "A1VC38T7YXB528": "日本",
+     "A39IBJ37TRP1C6": "澳大利亚",
+     "A2VIGQ35RCS4UG": "阿联酋",
+     "A33AVAJ2PDY3EV": "土耳其",
+     "A19VAU5U5O7RUS": "新加坡",
+     "A2Q3Y263D00KWC": "巴西",
+     "A1805IZSGTT6HS": "荷兰",
+     "A17E79C6D8DWNP": "沙特阿拉伯",
+     "A2NODRKZP88ZB9": "瑞典",
+     "A1C3SOZRARQ6R3": "波兰",
+     "AMEN7PMS3EDWL": "比利时",
+     "ARBP9OOSHTCHU": "埃及",
+     "AE08WJ6YKNBMC": "南非",
+     "A28R8C7NBKEWEA": "爱尔兰"
+    }
+   },
+   "waitPublish": {
+    "total": 5,
+    "page_no": 1,
+    "total_page": 1,
+    "drafts": 12,
+    "wait_publish": 5,
+    "publish_fail": 24,
+    "publishing": 1,
+    "markets": {
+     "A28R8C7NBKEWEA": "爱尔兰",
+     "AAHKV2X7AFYLW": "中国",
+     "A1AM78C64UM0Y8": "墨西哥",
+     "A2Q3Y263D00KWC": "巴西",
+     "AMEN7PMS3EDWL": "比利时",
+     "A17E79C6D8DWNP": "沙特阿拉伯",
+     "A1VC38T7YXB528": "日本",
+     "A2EUQ1WTGCTBG2": "加拿大",
+     "A1F83G8C2ARO7P": "英国",
+     "A19VAU5U5O7RUS": "新加坡",
+     "ATVPDKIKX0DER": "美国",
+     "A2VIGQ35RCS4UG": "阿联酋",
+     "APJ6JRA9NG5V4": "意大利",
+     "ARBP9OOSHTCHU": "埃及",
+     "A2NODRKZP88ZB9": "瑞典",
+     "AE08WJ6YKNBMC": "南非",
+     "A1C3SOZRARQ6R3": "波兰",
+     "A13V1IB3VIYZZH": "法国",
+     "A33AVAJ2PDY3EV": "土耳其",
+     "A21TJRUUN4KGV": "印度",
+     "A39IBJ37TRP1C6": "澳大利亚",
+     "A1805IZSGTT6HS": "荷兰",
+     "A1RKKUPIHCS9HS": "西班牙",
+     "A1PA6795UKMFR9": "德国"
+    }
+   },
+   "publishing": {
+    "total": 1,
+    "page_no": 1,
+    "total_page": 1,
+    "drafts": 12,
+    "wait_publish": 5,
+    "publish_fail": 24,
+    "publishing": 1,
+    "markets": {
+     "A28R8C7NBKEWEA": "爱尔兰",
+     "AAHKV2X7AFYLW": "中国",
+     "A1AM78C64UM0Y8": "墨西哥",
+     "A2Q3Y263D00KWC": "巴西",
+     "AMEN7PMS3EDWL": "比利时",
+     "A17E79C6D8DWNP": "沙特阿拉伯",
+     "A1VC38T7YXB528": "日本",
+     "A2EUQ1WTGCTBG2": "加拿大",
+     "A1F83G8C2ARO7P": "英国",
+     "A19VAU5U5O7RUS": "新加坡",
+     "ATVPDKIKX0DER": "美国",
+     "A2VIGQ35RCS4UG": "阿联酋",
+     "APJ6JRA9NG5V4": "意大利",
+     "ARBP9OOSHTCHU": "埃及",
+     "A2NODRKZP88ZB9": "瑞典",
+     "AE08WJ6YKNBMC": "南非",
+     "A1C3SOZRARQ6R3": "波兰",
+     "A13V1IB3VIYZZH": "法国",
+     "A33AVAJ2PDY3EV": "土耳其",
+     "A21TJRUUN4KGV": "印度",
+     "A39IBJ37TRP1C6": "澳大利亚",
+     "A1805IZSGTT6HS": "荷兰",
+     "A1RKKUPIHCS9HS": "西班牙",
+     "A1PA6795UKMFR9": "德国"
+    }
+   },
+   "publishFail": {
+    "total": 24,
+    "page_no": 1,
+    "total_page": 1,
+    "drafts": 12,
+    "wait_publish": 5,
+    "publish_fail": 24,
+    "publishing": 1,
+    "markets": {
+     "A28R8C7NBKEWEA": "爱尔兰",
+     "AAHKV2X7AFYLW": "中国",
+     "A1AM78C64UM0Y8": "墨西哥",
+     "A2Q3Y263D00KWC": "巴西",
+     "AMEN7PMS3EDWL": "比利时",
+     "A17E79C6D8DWNP": "沙特阿拉伯",
+     "A1VC38T7YXB528": "日本",
+     "A2EUQ1WTGCTBG2": "加拿大",
+     "A1F83G8C2ARO7P": "英国",
+     "A19VAU5U5O7RUS": "新加坡",
+     "ATVPDKIKX0DER": "美国",
+     "A2VIGQ35RCS4UG": "阿联酋",
+     "APJ6JRA9NG5V4": "意大利",
+     "ARBP9OOSHTCHU": "埃及",
+     "A2NODRKZP88ZB9": "瑞典",
+     "AE08WJ6YKNBMC": "南非",
+     "A1C3SOZRARQ6R3": "波兰",
+     "A13V1IB3VIYZZH": "法国",
+     "A33AVAJ2PDY3EV": "土耳其",
+     "A21TJRUUN4KGV": "印度",
+     "A39IBJ37TRP1C6": "澳大利亚",
+     "A1805IZSGTT6HS": "荷兰",
+     "A1RKKUPIHCS9HS": "西班牙",
+     "A1PA6795UKMFR9": "德国"
+    }
+   }
+  },
+  "list_samples": {
+   "draft": [
+    {
+     "id": "220114595363181982",
+     "title": "Heavy Duty 4WD Articulated Backhoe Loader Hydraulic Wheel Excavator with Reinforced Chassis for Road Subgrade Earthwork",
+     "sku": "WY-QHCA-LTM-4",
+     "asin": "",
+     "price": "0",
+     "stock": 0,
+     "status": "draft",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "6257559011",
+     "category_path": "6299024011/6257556011/6257557011/6257559011",
+     "main_image": "https://sc04.alicdn.com/kf/H844e31a11f484b79a55099ddb96a51edm.png",
+     "extra_images": [
+      "https://sc04.alicdn.com/kf/H74410533ea254295b2e751ef901ceae9o.png",
+      "https://sc04.alicdn.com/kf/H613c76d05e274a36bb3e0d66f7cb10edN.png",
+      "https://sc04.alicdn.com/kf/H4c64cb35a798419484eec5ecdd58c217v.png",
+      "https://sc04.alicdn.com/kf/Hd4e09badd7d0451e89e6f73c7600f98ag.png",
+      "https://sc04.alicdn.com/kf/He3b2dfcc9e5542ac9f1a68310bca15b4I.png"
+     ],
+     "err_msg": "",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795157319125
+    },
+    {
+     "id": "220114595363181900",
+     "title": "4X4 Wheel Loader Backhoe Loader 85KW Diesel Engine Hydraulic Excavator 1.5m Bucket CE Certified Construction Landscaping",
+     "sku": "WY-QHCA-LTM-6",
+     "asin": "",
+     "price": "0",
+     "stock": 0,
+     "status": "draft",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "13553005011",
+     "category_path": "6299024011/6256963011/6256964011/13553005011",
+     "main_image": "https://sc04.alicdn.com/kf/Hd275806d0dbf4fe7bcdb91308cfadcebM.jpg",
+     "extra_images": [
+      "https://sc04.alicdn.com/kf/H3528e44f728a49338cea5460b668b3b53.png",
+      "https://sc04.alicdn.com/kf/H44a4f2a6ac7543c5b0f6c98952518d25W.png",
+      "https://sc04.alicdn.com/kf/H054956b8d48a466a8c136c7043fac5b8K.png",
+      "https://sc04.alicdn.com/kf/H3f4b49d492ff4ffab3081c89c03910bbR.png",
+      "https://sc04.alicdn.com/kf/Hd0c9f109037744498f77d89ea4639deaD.png"
+     ],
+     "err_msg": "",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795157246716
+    }
+   ],
+   "offline": [
+    {
+     "id": "220114595362000806",
+     "title": "Semi Automatic Hollow Block Making ",
+     "sku": "WY-CAHQ-brick-16",
+     "asin": "",
+     "price": "6619.0",
+     "stock": 2,
+     "status": "offline",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "9709494011",
+     "category_path": "3006903011/3111721011/3241952011/3241958011/9709493011/9709494011",
+     "main_image": "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/2ddd4327e47a5fdbf7c4398d588365ce.jpg",
+     "extra_images": [
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174125/73a68ce8ed92a2da0febce042c3662dd.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174124/da59059f2e7d5bb815f3b22563ec8dda.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/8d4d0bdb6a89863df96593d280bf5feb.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/d091214c211a5a6879a841db4e438fc7.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/7afeca060425caccdc22b6344f2c7cb8.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/f91f5153f9c498828fbd96e9d437e896.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/664882f4c0349e55e29d825f385854c4.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/930d216d71fa5e43c400a7f5b99947ce.jpg"
+     ],
+     "err_msg": "",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795081328906
+    },
+    {
+     "id": "220114595360100042",
+     "title": "Multi Function Embroidery Machin",
+     "sku": "WY-CA-cixiu-16",
+     "asin": "",
+     "price": "5590.0",
+     "stock": 2,
+     "status": "offline",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "13333837011",
+     "category_path": "2206276011/2224180011/2224195011/13333836011/13333837011",
+     "main_image": "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/94e9ea4692ad38123c8b3dd1dbeb4c15.jpg",
+     "extra_images": [
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/ae34a8d21ee17f76c9dbed3949b7ca12.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/73fb3b549c7e5a70e9f0146ae02c5a58.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/b75e1b4e94a6671b982c125338a85362.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/8553a1ed49b8df184083c8762c6d8015.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/c1df53ce879720de4b8662b17ec8b1fc.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/6e78937de28d194b26466b7912373d92.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/275674001d33fb10d25c5d89cc37426e.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/d2b37c32af4399d1ea15d0c3c1502348.jpg"
+     ],
+     "err_msg": "",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795050140957
+    }
+   ],
+   "online": [
+    {
+     "id": "220114595361999004",
+     "title": "Semi Automatic Hollow Block Making Machine for Concrete Block Production",
+     "sku": "WY-CAHQ-brick-15",
+     "asin": "B0HS7Q6DB2",
+     "price": "6619.0",
+     "stock": 2,
+     "status": "online",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "9709494011",
+     "category_path": "3006903011/3111721011/3241952011/3241958011/9709493011/9709494011",
+     "main_image": "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142340/8ef541f4f70dd24a72899a63f461ca04.jpg",
+     "extra_images": [
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142340/aea7ed6e99896eb49f560fca01cbd506.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142340/4882043b77d68eb4905bd65f6a9ea84e.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142340/1b94cfcae4587e038422ec49dc4315ae.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142340/dab6393aeec9158d745a756523ab981d.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142340/7c18e93e75d6c3c2adb1a0007f11dfdf.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142341/4ae307c56253ce00c47419a4cf43cada.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142341/5465a9a64377643ed6a284deeb68a8f6.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142340/77b92c134a9375cbf4ab591fd401e014.jpg"
+     ],
+     "err_msg": "code:18320,主图像缺失或不正确。请提交符合要求的图片以解除禁止。另请参阅商品图片要求。; Trace_id: 896db31c0ea53becd52953e80d207ebf",
+     "warning_msg": "1、code:101424,您的 CA 商品信息处于非活跃或禁止显示状态，因此我们无法在 [MX] 创建您的商品信息。 解决您的 CA 商品信息问题并确定其已上线，然后再次尝试创建 [MX] 商品信息。 您也可以选择将该产品单独上架到 [MX]。<br>;2、code:101441,您的商品无法通过您在CA的商品信息自动在[AU]上架。 在[AU]单独上架此商品。<br>;3、code:101441,您的商品无法通过您在CA的商品信息自动在[BR]上架。 在[BR]单独上架此商品。<br>;",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795156409713
+    },
+    {
+     "id": "220114595361980756",
+     "title": "Hydraulic Paving Block Making Machine for Outdoor Projects",
+     "sku": "WY-CAHQ-brick-14",
+     "asin": "B0HS7X9G7Z",
+     "price": "8112.0",
+     "stock": 2,
+     "status": "online",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "9709494011",
+     "category_path": "3006903011/3111721011/3241952011/3241958011/9709493011/9709494011",
+     "main_image": "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/7184421956b25f5e1fdc403522f0803c.jpg",
+     "extra_images": [
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/359db42c59010453fc6e913b59c4c759.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/352e57bc4e9c6ac6537578aebe1a622a.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/704889fef265426f11daac5c4dccbf0c.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/bfa988741cad640a26964af71c4e6c45.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/dd2897c0f0668f2bae267bc2e9923357.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/0344077ceda4935bc3bf8e399718e5c4.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/bfdc007c63316bf6f695096e5fac09b3.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261120142145/303aafe36d21be19b78305f636cb3d1a.jpg"
+     ],
+     "err_msg": "code:18320,主图像缺失或不正确。请提交符合要求的图片以解除禁止。另请参阅商品图片要求。; Trace_id: 7ff01915476d457d3fc845d0eadc5d46",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795155969663
+    }
+   ],
+   "waitPublish": [
+    {
+     "id": "220114595362000806",
+     "title": "Semi Automatic Hollow Block Making ",
+     "sku": "WY-CAHQ-brick-16",
+     "asin": "",
+     "price": "6619.0",
+     "stock": 2,
+     "status": "offline",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "9709494011",
+     "category_path": "3006903011/3111721011/3241952011/3241958011/9709493011/9709494011",
+     "main_image": "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/2ddd4327e47a5fdbf7c4398d588365ce.jpg",
+     "extra_images": [
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174125/73a68ce8ed92a2da0febce042c3662dd.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174124/da59059f2e7d5bb815f3b22563ec8dda.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/8d4d0bdb6a89863df96593d280bf5feb.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/d091214c211a5a6879a841db4e438fc7.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/7afeca060425caccdc22b6344f2c7cb8.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/f91f5153f9c498828fbd96e9d437e896.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/664882f4c0349e55e29d825f385854c4.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119174123/930d216d71fa5e43c400a7f5b99947ce.jpg"
+     ],
+     "err_msg": "",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795081328906
+    },
+    {
+     "id": "220114595360100042",
+     "title": "Multi Function Embroidery Machin",
+     "sku": "WY-CA-cixiu-16",
+     "asin": "",
+     "price": "5590.0",
+     "stock": 2,
+     "status": "offline",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "13333837011",
+     "category_path": "2206276011/2224180011/2224195011/13333836011/13333837011",
+     "main_image": "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/94e9ea4692ad38123c8b3dd1dbeb4c15.jpg",
+     "extra_images": [
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/ae34a8d21ee17f76c9dbed3949b7ca12.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/73fb3b549c7e5a70e9f0146ae02c5a58.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/b75e1b4e94a6671b982c125338a85362.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/8553a1ed49b8df184083c8762c6d8015.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/c1df53ce879720de4b8662b17ec8b1fc.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/6e78937de28d194b26466b7912373d92.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/275674001d33fb10d25c5d89cc37426e.jpg",
+      "https://wxalbum-10001658-file.dianxiaomi.com/wxalbum/2728813/20261119090157/d2b37c32af4399d1ea15d0c3c1502348.jpg"
+     ],
+     "err_msg": "",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795050140957
+    }
+   ],
+   "publishing": [
+    {
+     "id": "220114595363182036",
+     "title": "China Wholesale CE EPA Mini Backhoe Loader Agricultural Operation 4x4 WD Backhoe Loader All Terrain Farm Small Backhoe Loader",
+     "sku": "WY-QHCA-LTM-3",
+     "asin": "",
+     "price": "7900.0",
+     "stock": 2,
+     "status": "offline",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "13553005011",
+     "category_path": "6299024011/6256963011/6256964011/13553005011",
+     "main_image": "https://sc04.alicdn.com/kf/H8c3efdd0023a404abd04401c9efcd121i.png",
+     "extra_images": [
+      "https://sc04.alicdn.com/kf/H5c9df9b520e448819f8886288aa309d69.png",
+      "https://sc04.alicdn.com/kf/H5f17386239764e888c5934edbd147731M.png",
+      "https://sc04.alicdn.com/kf/H97ff4a87e1d4424884b14df6bb1628b1n.png",
+      "https://sc04.alicdn.com/kf/Ha6900b341a114f2aa19495e1880cd75ev.png",
+      "https://sc04.alicdn.com/kf/Hd2b9ff0b25954386a49eeeae040d7995w.png"
+     ],
+     "err_msg": "",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795288332331
+    }
+   ],
+   "publishFail": [
+    {
+     "id": "220114595363182214",
+     "title": "6 Ton Wheeled Backhoe Loader 4x4 Multi-Purpose Excavator Loader with High Power Engine Gear Rural Construction Trenching HW25-30",
+     "sku": "WY-QHCA-LTM-2",
+     "asin": "",
+     "price": "9500.0",
+     "stock": 2,
+     "status": "offline",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "13553005011",
+     "category_path": "6299024011/6256963011/6256964011/13553005011",
+     "main_image": "https://sc04.alicdn.com/kf/Hd1e06b4441074668bfc5d6b6942a3ac7l.png",
+     "extra_images": [
+      "https://sc04.alicdn.com/kf/H8a2bfba0c0ee4374baa36f4a906cf277b.png",
+      "https://sc04.alicdn.com/kf/H293f4d79692c457d93faafb9a73cef92a.png",
+      "https://sc04.alicdn.com/kf/Heb0e5824b92a43b382ab22cb617e7ddbz.png",
+      "https://sc04.alicdn.com/kf/H8dfea8807b264023b456098d7c479bc9P.png",
+      "https://sc04.alicdn.com/kf/H4e1808e0f4084a2bb341922f789a61c0K.png"
+     ],
+     "err_msg": "发布失败:code:90220,“包含液体” 为必填项，但缺失。,属性:contains_liquid_contents;code:90220,“动力来源” 为必填项，但缺失。,属性:power_source_type;code:90220,“原产国” 为必填项，但缺失。,属性:country_of_origin;code:90220,“商品高度单位” 为必填项，但缺失。,属性:item_dimensions;code:90220,“危险商品规管” 为必填项，但缺失。,属性:supplier_declared_dg_hz_regulation;",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795288671302
+    },
+    {
+     "id": "220114595363181922",
+     "title": "4WD Backhoe Loader 75 kW HW15-26 Wheel Loader Excavator for Agriculture Municipal Construction CE",
+     "sku": "WY-QHCA-LTM-5",
+     "asin": "",
+     "price": "8500.0",
+     "stock": 2,
+     "status": "offline",
+     "marketplace": "A2EUQ1WTGCTBG2",
+     "marketplace_id": "A2EUQ1WTGCTBG2",
+     "currency": "CAD",
+     "category_id": "13553005011",
+     "category_path": "6299024011/6256963011/6256964011/13553005011",
+     "main_image": "https://sc04.alicdn.com/kf/H41810e1d1c8541139e66496543992b632.jpg",
+     "extra_images": [
+      "https://sc04.alicdn.com/kf/Hfeaf9d1ac85040c9a2b9de530d85b352B.jpg",
+      "https://sc04.alicdn.com/kf/H38c58f3593c14ddea6ad0bcf645fdb6ab.jpg",
+      "https://sc04.alicdn.com/kf/H71c2e324e65b4e2190069c6d0e8055edo.jpg",
+      "https://sc04.alicdn.com/kf/H10b03b9afcdb4cae89f7774aa447ecf7c.png",
+      "https://sc04.alicdn.com/kf/H9ceadec1c95d41b1b160c3a30c241785r.png"
+     ],
+     "err_msg": "code:100521,我们正在审查这个商品信息，以确定是否需要任何其他信息。 请等待最多 48 小时才能完成此流程。 如果需要采取行动，将在此处通知您，否则商品信息将被公布。;",
+     "warning_msg": "",
+     "import_warning_msg": "",
+     "shop_id": "9408005",
+     "is_variation": 0,
+     "update_time": 1795288525524
+    }
+   ]
+  },
+  "product_id": "220114595363181982",
+  "detail_site": "CA",
+  "detail_marketplace": "A2EUQ1WTGCTBG2",
+  "product_summary": {
+   "title": "Heavy Duty 4WD Articulated Backhoe Loader Hydraulic Wheel Excavator with Reinforced Chassis for Road Subgrade Earthwork",
+   "sku": "WY-QHCA-LTM-4",
+   "categoryId": "6257559011",
+   "categoryBrowsePath": "6299024011/6257556011/6257557011/6257559011",
+   "marketPlaceId": "A2EUQ1WTGCTBG2",
+   "standardPrice": 0.0,
+   "saleSalePrice": 0.0,
+   "quantity": 0,
+   "bullets": 10,
+   "description_chars": 3895,
+   "fields": 164
+  },
+  "publish_state": {
+   "state": "draft",
+   "err_msg": "",
+   "asin": "",
+   "title": "Heavy Duty 4WD Articulated Backhoe Loader Hydraulic Wheel Excavator with Reinforced Chassis for Road Subgrade Earthwork",
+   "counts": {
+    "draft": 12,
+    "online": 0,
+    "waitPublish": 5,
+    "publishing": 1,
+    "publishFail": 24
+   }
+  },
+  "publish_fail_sample": {
+   "id": "220114595363182214",
+   "state": "publishFail",
+   "required_attrs": [
+    "contains_liquid_contents",
+    "power_source_type",
+    "country_of_origin",
+    "item_dimensions",
+    "supplier_declared_dg_hz_regulation"
+   ],
+   "err_msg": "发布失败:code:90220,“包含液体” 为必填项，但缺失。,属性:contains_liquid_contents;code:90220,“动力来源” 为必填项，但缺失。,属性:power_source_type;code:90220,“原产国” 为必填项，但缺失。,属性:country_of_origin;code:90220,“商品高度单位” 为必填项，但缺失。,属性:item_dimensions;code:90220,“危险商品规管” 为必填项，但缺失。,属性:supplier_declared_dg_hz_regulation;"
+  },
+  "attribute_count": 31,
+  "category_roots": [
+   {
+    "id": 166,
+    "categoryId": "6948390011",
+    "categoryName": "Automotive",
+    "chineseName": "汽车",
+    "leafCategory": 0
+   },
+   {
+    "id": 167,
+    "categoryId": "3561347011",
+    "categoryName": "Baby",
+    "chineseName": "宝贝",
+    "leafCategory": 0
+   },
+   {
+    "id": 168,
+    "categoryId": "6205125011",
+    "categoryName": "Beauty & Personal Care",
+    "chineseName": "美容与个人护理",
+    "leafCategory": 0
+   },
+   {
+    "id": 172,
+    "categoryId": "21204936011",
+    "categoryName": "Clothing, Shoes & Accessories",
+    "chineseName": "服装、鞋子和配饰",
+    "leafCategory": 0
+   },
+   {
+    "id": 175,
+    "categoryId": "677211011",
+    "categoryName": "Electronics",
+    "chineseName": "电子学",
+    "leafCategory": 0
+   },
+   {
+    "id": 178,
+    "categoryId": "6967216011",
+    "categoryName": "Grocery & Gourmet Food",
+    "chineseName": "食品杂货和美食",
+    "leafCategory": 0
+   },
+   {
+    "id": 179,
+    "categoryId": "16708698011",
+    "categoryName": "Handmade",
+    "chineseName": "手工制作",
+    "leafCategory": 0
+   },
+   {
+    "id": 180,
+    "categoryId": "6205178011",
+    "categoryName": "Health & Personal Care",
+    "chineseName": "健康与个人护理",
+    "leafCategory": 0
+   }
+  ],
+  "category_children_sample": [
+   {
+    "id": 161682,
+    "categoryId": "6303827011",
+    "categoryName": "Automotive Care"
+   },
+   {
+    "id": 160746,
+    "categoryId": "6303826011",
+    "categoryName": "Automotive Enthusiast Merchandise"
+   },
+   {
+    "id": 160823,
+    "categoryId": "6303828011",
+    "categoryName": "Car Electronics & Accessories"
+   },
+   {
+    "id": 162379,
+    "categoryId": "6303829011",
+    "categoryName": "Exterior Accessories"
+   },
+   {
+    "id": 160508,
+    "categoryId": "6303830011",
+    "categoryName": "Interior Accessories"
+   }
+  ],
+  "category_by_path": {
+   "id": 158754,
+   "categoryId": "6257559011",
+   "categoryName": "Salt Spreaders",
+   "chineseName": "撒盐器",
+   "nodePathId": "6299024011/6257556011/6257557011/6257559011",
+   "leafCategory": 1
+  },
+  "category_history_count": 5,
+  "product_type_count": 1604,
+  "predict": {
+   "productType": "NON_RIDING_TOY_VEHICLE",
+   "amaoznCategorySearchVos": null
+  },
+  "logistics": [
+   {
+    "templateId": "legacy-template-id",
+    "templateName": "Migrated Template"
+   }
+  ],
+  "banned_words": {
+   "normal": [],
+   "probe": [],
+   "raw_data": null
+  },
+  "payload": {
+   "key_count": 39,
+   "keys_ok": true,
+   "title_chars": 119,
+   "bullets": 10,
+   "description_bytes": 3896,
+   "search_terms_bytes": 0,
+   "standardPrice": null,
+   "saleSalePrice": null,
+   "currency": "CAD",
+   "marketPlaceId": "A2EUQ1WTGCTBG2",
+   "issues": [],
+   "warnings": [
+    "卖点 10 条（Amazon 建议 5 条，硬上限 10）",
+    "产品描述 3775 字符（建议 ≤2000）",
+    "库存为 0（草稿允许，发布前需补库存）",
+    "标准价为 0/空（草稿允许，发布前需设价）",
+    "品牌为 Generic（Amazon 可能要求品牌备案）",
+    "发布必填属性缺失：model_number、part_number、model_name、manufacturer_contact_information（不补齐时 op=2 发布会失败；op=2 会自动补齐，也可在 productAttr 手动填写）"
+   ]
+  },
+  "preview": {
+   "ok": true,
+   "preview": true,
+   "saved": false,
+   "error": "",
+   "issues": [],
+   "warnings": [
+    "卖点 10 条（Amazon 建议 5 条，硬上限 10）",
+    "产品描述 3775 字符（建议 ≤2000）",
+    "库存为 0（草稿允许，发布前需补库存）",
+    "标准价为 0/空（草稿允许，发布前需设价）",
+    "品牌为 Generic（Amazon 可能要求品牌备案）",
+    "发布必填属性缺失：model_number、part_number、model_name、manufacturer_contact_information（不补齐时 op=2 发布会失败；op=2 会自动补齐，也可在 productAttr 手动填写）"
+   ],
+   "steps": [
+    {
+     "name": "连接 Amazon",
+     "ok": true,
+     "detail": "Cookie 可用，客户端已创建"
+    },
+    {
+     "name": "读取商品详情",
+     "ok": true,
+     "detail": "Heavy Duty 4WD Articulated Backhoe Loader Hydraulic Wheel Ex · 类目 6257559011"
+    },
+    {
+     "name": "站点与币种",
+     "ok": true,
+     "detail": "站点 CA · 加拿大 · CAD · 英语"
+    },
+    {
+     "name": "类目校验",
+     "ok": true,
+     "detail": "沿用商品类目 6257559011"
+    },
+    {
+     "name": "AI 文案",
+     "ok": true,
+     "detail": "未启用 AI，使用当前文案/商品原文"
+    },
+    {
+     "name": "保存前校验",
+     "ok": true,
+     "detail": "必填项/合规项全部通过"
+    },
+    {
+     "name": "违禁词检查",
+     "ok": true,
+     "detail": "未命中"
+    },
+    {
+     "name": "预演",
+     "ok": true,
+     "detail": "op=1（保存草稿）· 载荷 39 个字段；dry-run 未调用保存接口"
+    },
+    {
+     "name": "完成",
+     "ok": true,
+     "detail": "预演完成（未保存商品）"
+    }
+   ]
+  }
+ },
+ "steps": [
+  {
+   "name": "登录 userIn",
+   "ok": true,
+   "detail": "QINGHEMAOYI · puid=2728813"
+  },
+  {
+   "name": "店铺 shops",
+   "ok": true,
+   "detail": "9408005:QingHe"
+  },
+  {
+   "name": "站点 sites",
+   "ok": true,
+   "detail": "US(USD), CA(CAD), MX(MXN), BR(BRL)"
+  },
+  {
+   "name": "列表 draft",
+   "ok": true,
+   "detail": "total=12 page=1/3 items=5 · 采集箱12 待发布5 失败24"
+  },
+  {
+   "name": "列表 offline",
+   "ok": true,
+   "detail": "total=5 page=1/1 items=5 · 采集箱12 待发布5 失败24"
+  },
+  {
+   "name": "列表 online",
+   "ok": true,
+   "detail": "total=142 page=1/29 items=5 · 采集箱12 待发布5 失败24"
+  },
+  {
+   "name": "列表 waitPublish",
+   "ok": true,
+   "detail": "total=5 page=1/1 items=5 · 采集箱12 待发布5 失败24"
+  },
+  {
+   "name": "列表 publishing",
+   "ok": true,
+   "detail": "total=1 page=1/1 items=1 · 采集箱12 待发布5 失败24"
+  },
+  {
+   "name": "列表 publishFail",
+   "ok": true,
+   "detail": "total=24 page=1/1 items=24 · 采集箱12 待发布5 失败24"
+  },
+  {
+   "name": "详情 editSp",
+   "ok": true,
+   "detail": "id=220114595363181982 · 站点 CA · 164 字段 · 卖点 10 条"
+  },
+  {
+   "name": "发布状态 publish_state",
+   "ok": true,
+   "detail": "state=draft · counts={'draft': 12, 'online': 0, 'waitPublish': 5, 'publishing': 1, 'publishFail': 24} · 缺失属性=无"
+  },
+  {
+   "name": "发布失败样例 publish_state",
+   "ok": true,
+   "detail": "id=220114595363182214 · state=publishFail · 缺失属性=['contains_liquid_contents', 'power_source_type', 'country_of_origin', 'item_dimensions', 'supplier_declared_dg_hz_regulation']"
+  },
+  {
+   "name": "类目属性 getProductAttrById",
+   "ok": true,
+   "detail": "31 个属性"
+  },
+  {
+   "name": "类目树 roots",
+   "ok": true,
+   "detail": "17 个顶层类目 · 首项 汽车 (id=166, categoryId=6948390011)"
+  },
+  {
+   "name": "类目树 children",
+   "ok": true,
+   "detail": "parentId=166 → 12 个子类目"
+  },
+  {
+   "name": "类目路径 getCategoryBySiteNodePath",
+   "ok": true,
+   "detail": "6299024011/6257556011/6257557011/6257559011 → 撒盐器(categoryId=6257559011, 匹配原类目=True)"
+  },
+  {
+   "name": "最近类目 listHistory",
+   "ok": true,
+   "detail": "5 条 · 砖块(Bricks)、讲台和讲台(Lecterns & Podiums)、防滑转向(Skid Steers)"
+  },
+  {
+   "name": "产品类型 gerProductTypes",
+   "ok": true,
+   "detail": "1604 个 · 3D_PRINTER, ABDOMINAL_EXERCISER, ABIS_BOOK, ABIS_MUSIC, ABRASIVES"
+  },
+  {
+   "name": "类目预测 predict",
+   "ok": true,
+   "detail": "productType=NON_RIDING_TOY_VEHICLE（best-effort）"
+  },
+  {
+   "name": "币种 currency",
+   "ok": true,
+   "detail": "CAD"
+  },
+  {
+   "name": "物流模板 getLogisticsTemplates",
+   "ok": true,
+   "detail": "Migrated Template"
+  },
+  {
+   "name": "品牌 getBrands",
+   "ok": true,
+   "detail": "0 个品牌（空数组是正常结果）"
+  },
+  {
+   "name": "违禁词 amazonCheckBannedWord",
+   "ok": true,
+   "detail": "接口 code=0（可用）· 原商品命中 0 个 · 测试文本命中 0 个；data=null 表示词表未命中"
+  },
+  {
+   "name": "保存包构造/校验（只读）",
+   "ok": true,
+   "detail": "39键=True · issues=0 · warnings=6"
+  },
+  {
+   "name": "流水线预演 dry-run",
+   "ok": true,
+   "detail": "ok=True preview=True saved=False steps=9"
+  }
+ ],
+ "limits": [
+  "本脚本只调用只读接口；唯一写入口 save_product 已被替换为断言，从未调用",
+  "保存包只构造+校验，不做任何写操作",
+  "属性/预测/品牌接口返回空是合法结果（best-effort）"
+ ]
+}

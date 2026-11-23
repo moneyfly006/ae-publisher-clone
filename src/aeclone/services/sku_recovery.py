@@ -8,7 +8,7 @@ import tempfile
 
 from ..config import config_dir
 from .api_save import validate_sku_combinations
-from .product_data import hydrate_product, sku_rows
+from .product_data import clean_sku_rows, hydrate_product, sku_rows
 
 
 def _codes(rows):
@@ -104,8 +104,12 @@ def _merge_duplicate_rows(rows):
 def recover_skus(product, client=None, directory=None):
     """Return a private product copy and repair note. No platform writes or AI calls."""
     result = deepcopy(product)
-    raw = result.get("raw") or {}
-    rows = sku_rows(raw.get("aeopAeProductSKUs"))
+    raw = deepcopy(result.get("raw") or {})
+    # 先清掉采集元数据/空值，再校验；否则会把 skuImage=None 之类误当规格，
+    # 或者把清洗后才重复的组合放过去。
+    rows = clean_sku_rows(sku_rows(raw.get("aeopAeProductSKUs")))
+    raw["aeopAeProductSKUs"] = deepcopy(rows)
+    result["raw"] = raw
     try:
         validate_sku_combinations(rows)
     except ValueError as original:
@@ -129,6 +133,9 @@ def recover_skus(product, client=None, directory=None):
             pass
         for label, candidate in candidates:
             try:
+                candidate = dict(candidate or {})
+                candidate_rows = clean_sku_rows(sku_rows(candidate.get("aeopAeProductSKUs")))
+                candidate["aeopAeProductSKUs"] = candidate_rows
                 repaired = _replace(raw, candidate)
             except (ValueError, TypeError, KeyError):
                 continue

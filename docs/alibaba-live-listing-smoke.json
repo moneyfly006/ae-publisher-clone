@@ -1,0 +1,2427 @@
+{
+  "generated_at": "2026-11-22T12:48:18+0800",
+  "task": "Alibaba 国际站真实刊登冒烟（op=1 草稿；未执行 op=2/op=3）",
+  "environment": {
+    "workspace": "/Users/apple/Projects/alibaba-lister",
+    "python": "3.14.7",
+    "store_id": "9466975",
+    "shop_state": {
+      "draft_total": 24,
+      "drafts_on_page": 24,
+      "offline_total": 4
+    },
+    "config_source": "docs 内不落 Cookie/API key；脚本用 get_config().manual_cookies",
+    "safety": [
+      "AURORA_TEST/AURORA_NO_SAVE 未设置",
+      "真实写入仅 op=1（保存草稿）2 次",
+      "op=2 发布 / op=3 移入待发布：未执行（等待 Lead 批准）"
+    ],
+    "secrets_in_this_file": "none（已检查：无 cookie/api_key/authorization）"
+  },
+  "baseline_before_fix": {
+    "captured": "2026-11-22T12:31:00+0800（修复前 dry-run，use_ai=False）",
+    "products": {
+      "220114598434958542": {
+        "score": 4.5,
+        "raw_weighted_total": 4.495,
+        "score_passed": false,
+        "issues": [],
+        "warnings": [
+          "评分建议：把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "评分建议：关键词与标题使用同一组核心词",
+          "评分建议：在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分"
+        ],
+        "score_items": {
+          "attributes": 3.8,
+          "title": 5.0,
+          "keywords": 4.5,
+          "detail": 5.0,
+          "images": 5.0,
+          "video": 1.0,
+          "trade": 5.0,
+          "compliance": 4.7
+        }
+      },
+      "220114598434958538": {
+        "score": 4.25,
+        "raw_weighted_total": 4.245,
+        "score_passed": false,
+        "issues": [],
+        "warnings": [
+          "评分建议：把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "评分建议：关键词与标题使用同一组核心词",
+          "评分建议：在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分"
+        ],
+        "score_items": {
+          "attributes": 3.8,
+          "title": 5.0,
+          "keywords": 4.5,
+          "detail": 5.0,
+          "images": 5.0,
+          "video": 1.0,
+          "trade": 2.5,
+          "compliance": 4.7
+        }
+      }
+    }
+  },
+  "live_op1": {
+    "220114598434958542": {
+      "op": "1",
+      "use_ai": false,
+      "phase": "修复前（发现 4.25 评分门问题的同批次）",
+      "design": "第 1 个真实保存样本（ladder_price）"
+    },
+    "220114598434958538": {
+      "op": "1",
+      "use_ai": false,
+      "phase": "修复后验证",
+      "design": "第 2 个真实保存样本（sku_price，即 4.25 商品）"
+    }
+  },
+  "live_op1_details": {
+    "220114598434958542": {
+      "op": "1",
+      "use_ai": false,
+      "elapsed_s": 0.61,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [
+          "评分建议：把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "评分建议：关键词与标题使用同一组核心词",
+          "评分建议：在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分"
+        ],
+        "score": 4.5,
+        "score_passed": false,
+        "score_fixes": [
+          "把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "关键词与标题使用同一组核心词",
+          "在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分",
+          "按真实规格修正占位属性"
+        ],
+        "subject": "Large FRP Prefabricated Above-Ground Swimming Pool - 20ft & 40ft Fiberglass Container Pool for Outdoor Use",
+        "keywords": [
+          "machinery",
+          "construction equipment",
+          "laser screed",
+          "drilling rig",
+          "concrete leveling"
+        ],
+        "text_chars": 1982,
+        "category_id": "202107201",
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958542"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Large FRP Prefabricated Above-Ground Swimming Pool - 20ft &  · 类目 202107201"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "machinery, construction equipment, laser screed, drilling rig, concrete leveling"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "刊登评分",
+            "ok": false,
+            "detail": "4.50/5（发布线 4.5）"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "before": {
+        "subject": "Large FRP Prefabricated Above-Ground Swimming Pool - 20ft & 40ft Fiberglass Container Pool for Outdoor Use",
+        "keywords": "machinery, construction equipment, laser screed, drilling rig, concrete leveling",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": [
+          {
+            "start_quantity": 1,
+            "price": 3705.0
+          }
+        ],
+        "attributes": [
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Charge Status",
+            "value_id": "-1",
+            "value_name": "No"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "High-concerned chemical",
+            "value_id": "-1",
+            "value_name": "None"
+          },
+          {
+            "attribute_id": "1",
+            "attribute_name": "Origin",
+            "value_id": "100000458",
+            "value_name": "China",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Certification",
+            "value_id": "-1",
+            "value_name": "CE"
+          },
+          {
+            "attribute_id": "1",
+            "attribute_name": "Place of Origin",
+            "value_id": "100000458",
+            "value_name": "China",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "3727694",
+            "value_name": "Stainless Steel",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "326756224",
+            "value_name": "Glass Fiber",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "190091184",
+            "value_name": "FRP",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3972330",
+            "value_name": "Adult",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3485683",
+            "value_name": "Children",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3254703",
+            "value_name": "All",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089528",
+            "value_name": "Children's Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089526",
+            "value_name": "Above Ground Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089532",
+            "value_name": "Swimming Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089527",
+            "value_name": "Lap Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Feature",
+            "value_id": "-1",
+            "value_name": "Eco-Friendly, Portable, Durable, Uv Resistant, Easy Install, High Efficiency, rectangular frame pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Shape",
+            "value_id": "-1",
+            "value_name": "Rectangle"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Application",
+            "value_id": "-1",
+            "value_name": "Home, Swimming Pool, Swim, Durable, family swimming pool, outdoor pool"
+          },
+          {
+            "attribute_id": "210190015",
+            "attribute_name": "Color",
+            "value_id": "4",
+            "value_name": "Other",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Core Components",
+            "value_id": "-1",
+            "value_name": "Motor"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Warranty",
+            "value_id": "-1",
+            "value_name": "1 Year"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Model Number",
+            "value_id": "-1",
+            "value_name": "LS-600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Weight (kg)",
+            "value_id": "-1",
+            "value_name": "600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Unique Selling Point",
+            "value_id": "-1",
+            "value_name": "Fully hydraulic system"
+          }
+        ],
+        "companyDesc": "We are a professional machinery manufacturer with 15 years of experience. Our factory supports OEM/ODM orders and provides installation and after-sales service.",
+        "companyFaqDesc": "Q: What is the MOQ? A: One set. Q: How long is the delivery time? A: 15-30 days.",
+        "imageUrls": [
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sc94a6204162f48f7ad46faf42dd6f622u.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S59fb33defd3445cfbba00cd7d0113cbd2.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S347a2f57f36b4025aa886b1555507c68d.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S48e1d91ae1974780b36208a041545bab1.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sacb74203cf1242b1b26852b3f9f6efcbV.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sfcf4e3e221a34adead76b7ba45958ecfk.jpg"
+        ],
+        "draftImgUrl": "https://ae-pic-a1.aliexpress-media.com/kf/Sc94a6204162f48f7ad46faf42dd6f622u.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S59fb33defd3445cfbba00cd7d0113cbd2.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S347a2f57f36b4025aa886b1555507c68d.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S48e1d91ae1974780b36208a041545bab1.jpg|https://ae-pic-a1.aliexpress-media.com/kf/Sacb74203cf1242b1b26852b3f9f6efcbV.jpg|https://ae-pic-a1.aliexpress-media.com/kf/Sfcf4e3e221a34adead76b7ba45958ecfk.jpg",
+        "detailImageCount": 2508,
+        "textDesc": "Application and Installation Scenarios\nThese large prefabricated above-ground swimming pools are engineered for permanent outdoor installation in residential, commercial, and institutional settings. Designed as self-supporting fiberglass-reinforced plastic (FRP) structures, they require no in-ground excavation and can be installed on level, load-bearing surfaces such as concrete pads, compacted gravel, or reinforced pavers. Ideal for backyard recreation, hospitality facilities, fitness centers, schools, and seasonal resorts, the units offer rapid deployment with minimal site preparation. Their robust construction supports year-round use in temperate climates and accommodates standard pool filtration, heating, and lighting systems.\nCore Technical Specifications\nDiameter options: 20 feet (6.1 meters) and 40 feet (12.2 meters)\nMaterial: Fiberglass-reinforced plastic (FRP)\nConfiguration: Above-ground, prefabricated monocoque structure\nIntended environment: Outdoor use only\nStructural Design and Operation\nThe pool shell is a single-piece, rotationally molded FRP unit featuring integrated wall curvature, structural ribs, and a smooth gel-coated interior surface. The design eliminates seams and joints, enhancing watertight integrity and resistance to cracking or delamination. Each unit includes pre-molded openings for skimmer, return jets, and main drain—ready for connection to standard pool equipment. Installation requires anchoring to a stable base using supplied hardware; no welding, cutting, or on-site lamination is needed. Water filling, chemical balancing, and system commissioning follow standard industry protocols. Maintenance involves routine filtration, pH monitoring, and periodic surface inspection—no specialized tools or training required.\nIndustries and Use Cases\nIndustry | Typical Application\nResidential | Backyard leisure pools for private homes and gated communities\nHospitality | Swimming facilities for hotels, resorts, and vacation rentals",
+        "wholesaleTrade": {
+          "sale_type": "normal",
+          "package_size": "300X200X200",
+          "weight": "500",
+          "inventory": [
+            {
+              "warehouseCode": "CN_LOCAL_01",
+              "value": 5
+            }
+          ],
+          "min_order_quantity": 1,
+          "unit_type": "Piece",
+          "batch_number": null,
+          "shipping_line_template_id": "2055583029",
+          "tariffsHsCode": [
+            {
+              "toCountry": "US",
+              "hsCode": "84791000"
+            }
+          ],
+          "deliver_periods": [
+            {
+              "quantity": 1,
+              "process_period": 15
+            }
+          ]
+        },
+        "logisticsProperty": "general_cargo_0",
+        "dxmState": "draft",
+        "productStatusType": null,
+        "errMsg": null
+      },
+      "after": {
+        "subject": "Large FRP Prefabricated Above-Ground Swimming Pool - 20ft & 40ft Fiberglass Container Pool for Outdoor Use",
+        "keywords": "machinery, construction equipment, laser screed, drilling rig, concrete leveling",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": [
+          {
+            "start_quantity": 1,
+            "price": 3705.0
+          }
+        ],
+        "attributes": [
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Charge Status",
+            "value_id": "-1",
+            "value_name": "No"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "High-concerned chemical",
+            "value_id": "-1",
+            "value_name": "None"
+          },
+          {
+            "attribute_id": "1",
+            "attribute_name": "Place of Origin",
+            "value_id": "100000458",
+            "value_name": "China",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Certification",
+            "value_id": "-1",
+            "value_name": "CE"
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "3727694",
+            "value_name": "Stainless Steel",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "326756224",
+            "value_name": "Glass Fiber",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "190091184",
+            "value_name": "FRP",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3972330",
+            "value_name": "Adult",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3485683",
+            "value_name": "Children",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3254703",
+            "value_name": "All",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089528",
+            "value_name": "Children's Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089526",
+            "value_name": "Above Ground Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089532",
+            "value_name": "Swimming Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089527",
+            "value_name": "Lap Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Feature",
+            "value_id": "-1",
+            "value_name": "Eco-Friendly, Portable, Durable, Uv Resistant, Easy Install, High Efficiency, rectangular frame pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Shape",
+            "value_id": "-1",
+            "value_name": "Rectangle"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Application",
+            "value_id": "-1",
+            "value_name": "Home, Swimming Pool, Swim, Durable, family swimming pool, outdoor pool"
+          },
+          {
+            "attribute_id": "210190015",
+            "attribute_name": "Color",
+            "value_id": "4",
+            "value_name": "Other",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Core Components",
+            "value_id": "-1",
+            "value_name": "Motor"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Warranty",
+            "value_id": "-1",
+            "value_name": "1 Year"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Model Number",
+            "value_id": "-1",
+            "value_name": "LS-600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Weight (kg)",
+            "value_id": "-1",
+            "value_name": "600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Unique Selling Point",
+            "value_id": "-1",
+            "value_name": "Fully hydraulic system"
+          }
+        ],
+        "companyDesc": "We are a professional machinery manufacturer with 15 years of experience. Our factory supports OEM/ODM orders and provides installation and after-sales service.",
+        "companyFaqDesc": "Q: What is the MOQ? A: One set. Q: How long is the delivery time? A: 15-30 days.",
+        "imageUrls": [
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sc94a6204162f48f7ad46faf42dd6f622u.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S59fb33defd3445cfbba00cd7d0113cbd2.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S347a2f57f36b4025aa886b1555507c68d.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S48e1d91ae1974780b36208a041545bab1.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sacb74203cf1242b1b26852b3f9f6efcbV.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sfcf4e3e221a34adead76b7ba45958ecfk.jpg"
+        ],
+        "draftImgUrl": "https://ae-pic-a1.aliexpress-media.com/kf/Sc94a6204162f48f7ad46faf42dd6f622u.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S59fb33defd3445cfbba00cd7d0113cbd2.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S347a2f57f36b4025aa886b1555507c68d.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S48e1d91ae1974780b36208a041545bab1.jpg|https://ae-pic-a1.aliexpress-media.com/kf/Sacb74203cf1242b1b26852b3f9f6efcbV.jpg|https://ae-pic-a1.aliexpress-media.com/kf/Sfcf4e3e221a34adead76b7ba45958ecfk.jpg",
+        "detailImageCount": 2508,
+        "textDesc": "Application and Installation Scenarios\nThese large prefabricated above-ground swimming pools are engineered for permanent outdoor installation in residential, commercial, and institutional settings. Designed as self-supporting fiberglass-reinforced plastic (FRP) structures, they require no in-ground excavation and can be installed on level, load-bearing surfaces such as concrete pads, compacted gravel, or reinforced pavers. Ideal for backyard recreation, hospitality facilities, fitness centers, schools, and seasonal resorts, the units offer rapid deployment with minimal site preparation. Their robust construction supports year-round use in temperate climates and accommodates standard pool filtration, heating, and lighting systems.\nCore Technical Specifications\nDiameter options: 20 feet (6.1 meters) and 40 feet (12.2 meters)\nMaterial: Fiberglass-reinforced plastic (FRP)\nConfiguration: Above-ground, prefabricated monocoque structure\nIntended environment: Outdoor use only\nStructural Design and Operation\nThe pool shell is a single-piece, rotationally molded FRP unit featuring integrated wall curvature, structural ribs, and a smooth gel-coated interior surface. The design eliminates seams and joints, enhancing watertight integrity and resistance to cracking or delamination. Each unit includes pre-molded openings for skimmer, return jets, and main drain—ready for connection to standard pool equipment. Installation requires anchoring to a stable base using supplied hardware; no welding, cutting, or on-site lamination is needed. Water filling, chemical balancing, and system commissioning follow standard industry protocols. Maintenance involves routine filtration, pH monitoring, and periodic surface inspection—no specialized tools or training required.\nIndustries and Use Cases\nIndustry | Typical Application\nResidential | Backyard leisure pools for private homes and gated communities\nHospitality | Swimming facilities for hotels, resorts, and vacation rentals",
+        "wholesaleTrade": {
+          "sale_type": "normal",
+          "package_size": "300X200X200",
+          "weight": "500",
+          "inventory": [
+            {
+              "warehouseCode": "CN_LOCAL_01",
+              "value": 5
+            }
+          ],
+          "min_order_quantity": 1,
+          "unit_type": "Piece",
+          "batch_number": null,
+          "shipping_line_template_id": "2055583029",
+          "tariffsHsCode": [
+            {
+              "toCountry": "US",
+              "hsCode": "84791000"
+            }
+          ],
+          "deliver_periods": [
+            {
+              "quantity": 1,
+              "process_period": 15
+            }
+          ]
+        },
+        "logisticsProperty": "general_cargo_0",
+        "dxmState": "draft",
+        "productStatusType": null,
+        "errMsg": null
+      },
+      "changed_fields": {
+        "attributes": {
+          "before": [
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Charge Status",
+              "value_id": "-1",
+              "value_name": "No"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "High-concerned chemical",
+              "value_id": "-1",
+              "value_name": "None"
+            },
+            {
+              "attribute_id": "1",
+              "attribute_name": "Origin",
+              "value_id": "100000458",
+              "value_name": "China",
+              "level": 0
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Certification",
+              "value_id": "-1",
+              "value_name": "CE"
+            },
+            {
+              "attribute_id": "1",
+              "attribute_name": "Place of Origin",
+              "value_id": "100000458",
+              "value_name": "China",
+              "level": 0
+            },
+            {
+              "attribute_id": "238736366",
+              "attribute_name": "Material",
+              "value_id": "3727694",
+              "value_name": "Stainless Steel",
+              "level": 0
+            },
+            {
+              "attribute_id": "238736366",
+              "attribute_name": "Material",
+              "value_id": "326756224",
+              "value_name": "Glass Fiber",
+              "level": 0
+            },
+            {
+              "attribute_id": "238736366",
+              "attribute_name": "Material",
+              "value_id": "190091184",
+              "value_name": "FRP",
+              "level": 0
+            },
+            {
+              "attribute_id": "270605350",
+              "attribute_name": "Applicable People",
+              "value_id": "3972330",
+              "value_name": "Adult",
+              "level": 0
+            },
+            {
+              "attribute_id": "270605350",
+              "attribute_name": "Applicable People",
+              "value_id": "3485683",
+              "value_name": "Children",
+              "level": 0
+            },
+            {
+              "attribute_id": "270605350",
+              "attribute_name": "Applicable People",
+              "value_id": "3254703",
+              "value_name": "All",
+              "level": 0
+            },
+            {
+              "attribute_id": "191284229",
+              "attribute_name": "Type",
+              "value_id": "190089528",
+              "value_name": "Children's Pools",
+              "level": 0
+            },
+            {
+              "attribute_id": "191284229",
+              "attribute_name": "Type",
+              "value_id": "190089526",
+              "value_name": "Above Ground Pools",
+              "level": 0
+            },
+            {
+              "attribute_id": "191284229",
+              "attribute_name": "Type",
+              "value_id": "190089532",
+              "value_name": "Swimming Pools",
+              "level": 0
+            },
+            {
+              "attribute_id": "191284229",
+              "attribute_name": "Type",
+              "value_id": "190089527",
+              "value_name": "Lap Pools",
+              "level": 0
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Feature",
+              "value_id": "-1",
+              "value_name": "Eco-Friendly, Portable, Durable, Uv Resistant, Easy Install, High Efficiency, rectangular frame pool"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Shape",
+              "value_id": "-1",
+              "value_name": "Rectangle"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Application",
+              "value_id": "-1",
+              "value_name": "Home, Swimming Pool, Swim, Durable, family swimming pool, outdoor pool"
+            },
+            {
+              "attribute_id": "210190015",
+              "attribute_name": "Color",
+              "value_id": "4",
+              "value_name": "Other",
+              "level": 0
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Core Components",
+              "value_id": "-1",
+              "value_name": "Motor"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Warranty",
+              "value_id": "-1",
+              "value_name": "1 Year"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Model Number",
+              "value_id": "-1",
+              "value_name": "LS-600"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Weight (kg)",
+              "value_id": "-1",
+              "value_name": "600"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Unique Selling Point",
+              "value_id": "-1",
+              "value_name": "Fully hydraulic system"
+            }
+          ],
+          "after": [
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Charge Status",
+              "value_id": "-1",
+              "value_name": "No"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "High-concerned chemical",
+              "value_id": "-1",
+              "value_name": "None"
+            },
+            {
+              "attribute_id": "1",
+              "attribute_name": "Place of Origin",
+              "value_id": "100000458",
+              "value_name": "China",
+              "level": 0
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Certification",
+              "value_id": "-1",
+              "value_name": "CE"
+            },
+            {
+              "attribute_id": "238736366",
+              "attribute_name": "Material",
+              "value_id": "3727694",
+              "value_name": "Stainless Steel",
+              "level": 0
+            },
+            {
+              "attribute_id": "238736366",
+              "attribute_name": "Material",
+              "value_id": "326756224",
+              "value_name": "Glass Fiber",
+              "level": 0
+            },
+            {
+              "attribute_id": "238736366",
+              "attribute_name": "Material",
+              "value_id": "190091184",
+              "value_name": "FRP",
+              "level": 0
+            },
+            {
+              "attribute_id": "270605350",
+              "attribute_name": "Applicable People",
+              "value_id": "3972330",
+              "value_name": "Adult",
+              "level": 0
+            },
+            {
+              "attribute_id": "270605350",
+              "attribute_name": "Applicable People",
+              "value_id": "3485683",
+              "value_name": "Children",
+              "level": 0
+            },
+            {
+              "attribute_id": "270605350",
+              "attribute_name": "Applicable People",
+              "value_id": "3254703",
+              "value_name": "All",
+              "level": 0
+            },
+            {
+              "attribute_id": "191284229",
+              "attribute_name": "Type",
+              "value_id": "190089528",
+              "value_name": "Children's Pools",
+              "level": 0
+            },
+            {
+              "attribute_id": "191284229",
+              "attribute_name": "Type",
+              "value_id": "190089526",
+              "value_name": "Above Ground Pools",
+              "level": 0
+            },
+            {
+              "attribute_id": "191284229",
+              "attribute_name": "Type",
+              "value_id": "190089532",
+              "value_name": "Swimming Pools",
+              "level": 0
+            },
+            {
+              "attribute_id": "191284229",
+              "attribute_name": "Type",
+              "value_id": "190089527",
+              "value_name": "Lap Pools",
+              "level": 0
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Feature",
+              "value_id": "-1",
+              "value_name": "Eco-Friendly, Portable, Durable, Uv Resistant, Easy Install, High Efficiency, rectangular frame pool"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Shape",
+              "value_id": "-1",
+              "value_name": "Rectangle"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Application",
+              "value_id": "-1",
+              "value_name": "Home, Swimming Pool, Swim, Durable, family swimming pool, outdoor pool"
+            },
+            {
+              "attribute_id": "210190015",
+              "attribute_name": "Color",
+              "value_id": "4",
+              "value_name": "Other",
+              "level": 0
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Core Components",
+              "value_id": "-1",
+              "value_name": "Motor"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Warranty",
+              "value_id": "-1",
+              "value_name": "1 Year"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Model Number",
+              "value_id": "-1",
+              "value_name": "LS-600"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Weight (kg)",
+              "value_id": "-1",
+              "value_name": "600"
+            },
+            {
+              "attribute_id": "-1",
+              "attribute_name": "Unique Selling Point",
+              "value_id": "-1",
+              "value_name": "Fully hydraulic system"
+            }
+          ]
+        }
+      },
+      "state_after": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "errMsg": null
+      },
+      "readback_compare": {
+        "subject_equal": true,
+        "keywords_equal": true,
+        "bulkDiscountPrices_equal": true,
+        "priceType_equal": true,
+        "companyDesc_equal": true,
+        "imageUrls_equal": true,
+        "textDesc_sha_equal": true,
+        "detailImageCount_equal": true
+      }
+    },
+    "220114598434958538": {
+      "op": "1",
+      "use_ai": false,
+      "elapsed_s": 0.48,
+      "result": {
+        "ok": true,
+        "saved": true,
+        "preview": false,
+        "error": "",
+        "issues": [],
+        "warnings": [
+          "评分建议：把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "评分建议：关键词与标题使用同一组核心词",
+          "评分建议：在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分"
+        ],
+        "score": 4.5,
+        "score_passed": true,
+        "score_fixes": [
+          "把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "关键词与标题使用同一组核心词",
+          "在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分",
+          "按真实规格修正占位属性"
+        ],
+        "subject": "20ft Prefab Steel Swimming Pool - Outdoor Container Pool for Backyard, Custom Shape, Landscape Design",
+        "keywords": [
+          "machinery",
+          "construction equipment",
+          "laser screed",
+          "drilling rig",
+          "concrete leveling"
+        ],
+        "text_chars": 1969,
+        "category_id": "202107201",
+        "save_result": {
+          "code": 0,
+          "msg": "Successful",
+          "msgCode": null,
+          "data": {
+            "msg": "您的产品编辑成功！",
+            "code": 0,
+            "productId": "220114598434958538"
+          }
+        },
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "20ft Prefab Steel Swimming Pool - Outdoor Container Pool for · 类目 202107201"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "machinery, construction equipment, laser screed, drilling rig, concrete leveling"
+          },
+          {
+            "name": "属性自动补齐",
+            "ok": true,
+            "detail": "Place of Origin=China(覆盖)"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "刊登评分",
+            "ok": true,
+            "detail": "4.50/5（发布线 4.5）"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "授权校验",
+            "ok": true,
+            "detail": "通过"
+          },
+          {
+            "name": "保存到 Alibaba",
+            "ok": true,
+            "detail": "保存草稿成功：您的产品编辑成功！"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "商品已保存/提交"
+          }
+        ]
+      },
+      "before": {
+        "subject": "20ft Prefab Steel Swimming Pool - Outdoor Container Pool for Backyard, Custom Shape, Landscape Design",
+        "keywords": "machinery, construction equipment, laser screed, drilling rig, concrete leveling",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": [],
+        "attributes": [
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Charge Status",
+            "value_id": "-1",
+            "value_name": "No"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "High-concerned chemical",
+            "value_id": "-1",
+            "value_name": "None"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Condition",
+            "value_id": "-1",
+            "value_name": "New"
+          },
+          {
+            "attribute_id": "1",
+            "attribute_name": "Place of Origin",
+            "value_id": "100000458",
+            "value_name": "China",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Certification",
+            "value_id": "-1",
+            "value_name": "CE"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Brand Name",
+            "value_id": "-1",
+            "value_name": "YG"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Thickness",
+            "value_id": "-1",
+            "value_name": "Customized"
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "326756224",
+            "value_name": "Glass Fiber",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "190091184",
+            "value_name": "FRP",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Warranty",
+            "value_id": "-1",
+            "value_name": "1 Year"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Model Number",
+            "value_id": "-1",
+            "value_name": "YG"
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3485683",
+            "value_name": "Children",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3972330",
+            "value_name": "Adult",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3254703",
+            "value_name": "All",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089526",
+            "value_name": "Above Ground Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089532",
+            "value_name": "Swimming Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Feature",
+            "value_id": "-1",
+            "value_name": "Eco-Friendly, Durable, Uv Resistant, Easy Install, rectangular frame pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Shape",
+            "value_id": "-1",
+            "value_name": "Rectangle"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Power Supply",
+            "value_id": "-1",
+            "value_name": "220 V, 120 V"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Application",
+            "value_id": "-1",
+            "value_name": "Home, Swimming Pool, Swim, Durable, Anti-Uv, family swimming pool, outdoor pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Accessories",
+            "value_id": "-1",
+            "value_name": "safety ladder"
+          },
+          {
+            "attribute_id": "210190015",
+            "attribute_name": "Color",
+            "value_id": "4",
+            "value_name": "Other",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Core Components",
+            "value_id": "-1",
+            "value_name": "Motor"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Weight (kg)",
+            "value_id": "-1",
+            "value_name": "600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Unique Selling Point",
+            "value_id": "-1",
+            "value_name": "Fully hydraulic system"
+          }
+        ],
+        "companyDesc": "We are a professional machinery manufacturer with 15 years of experience. Our factory supports OEM/ODM orders and provides installation and after-sales service.",
+        "companyFaqDesc": "Q: What is the MOQ? A: One set. Q: How long is the delivery time? A: 15-30 days.",
+        "imageUrls": [
+          "https://ae-pic-a1.aliexpress-media.com/kf/S4e00515648394a3db04bf2f0421aa3b9w.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S781cef2e7381458a88f8b3aca12098d0t.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Secb3e7d5710d47d6af3d6dc7543e6de3N.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S16f2bb3f56de43209f98731fc83f981bZ.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S9d698fd8702449db8f1c82f4130abe3cn.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S9fe4c416fa2d4cd98a1cb93a24fce0d4u.jpg"
+        ],
+        "draftImgUrl": "https://ae-pic-a1.aliexpress-media.com/kf/S4e00515648394a3db04bf2f0421aa3b9w.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S781cef2e7381458a88f8b3aca12098d0t.jpg|https://ae-pic-a1.aliexpress-media.com/kf/Secb3e7d5710d47d6af3d6dc7543e6de3N.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S16f2bb3f56de43209f98731fc83f981bZ.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S9d698fd8702449db8f1c82f4130abe3cn.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S9fe4c416fa2d4cd98a1cb93a24fce0d4u.jpg",
+        "detailImageCount": 2775,
+        "textDesc": "Applications and Scenarios\nThis 20ft prefabricated steel swimming pool is engineered for outdoor installation in residential and commercial environments. It serves as a rapid-deployment aquatic solution ideal for backyard installations, villa courtyards, garden landscapes, resort leisure zones, outdoor campgrounds, boutique hotels, cultural tourism sites, and temporary event venues. Its modular nature supports flexible integration into landscape design schemes—whether as a functional family swimming space, a parent-child water play area, a fitness-focused aquatic zone, or a visually distinctive landmark for social engagement.\nDesigned to replace conventional concrete or fiberglass pools, it eliminates extended civil construction timelines and on-site excavation requirements. The unit is fully self-contained and ready for water filling upon secure placement on a level, load-bearing surface.\nCore Specifications\nDimension | 20 feet (length)\nStructure Material | Steel\nType | Prefabricated container swimming pool\nInstallation Environment | Outdoor\nCustomization | Available in custom shapes\nConstruction and Operation\nThe pool consists of a robust, factory-welded steel frame with integrated waterproofing and structural reinforcement. All components are pre-assembled and tested prior to shipment, ensuring dimensional accuracy and system integrity. Installation requires only site preparation—a compacted, level base—and mechanical handling equipment for positioning. No on-site welding, pouring, or curing is needed. Water circulation, filtration, and sanitation systems are compatible with standard external pumps and equipment (not included). Drainage, overflow, and inlet/outlet ports are pre-fitted per configuration. The structure supports standard pool maintenance protocols and seasonal winterization where applicable.\nIndustries Served\nResidential: Private homes, villas, townhouse communities\nHospitality: Resorts, boutique hotels, glamping sites",
+        "wholesaleTrade": {
+          "sale_type": "normal",
+          "package_size": "300X200X200",
+          "weight": "500",
+          "min_order_quantity": 1,
+          "unit_type": "Piece",
+          "batch_number": null,
+          "shipping_line_template_id": "2055583029",
+          "tariffsHsCode": [
+            {
+              "toCountry": "US",
+              "hsCode": "84791000"
+            }
+          ],
+          "inventory": [
+            {
+              "warehouseCode": "CN_LOCAL_01",
+              "value": 5
+            }
+          ],
+          "deliver_periods": [
+            {
+              "quantity": 1,
+              "process_period": 15
+            }
+          ]
+        },
+        "logisticsProperty": "general_cargo_0",
+        "dxmState": "draft",
+        "productStatusType": null,
+        "errMsg": null
+      },
+      "after": {
+        "subject": "20ft Prefab Steel Swimming Pool - Outdoor Container Pool for Backyard, Custom Shape, Landscape Design",
+        "keywords": "machinery, construction equipment, laser screed, drilling rig, concrete leveling",
+        "categoryId": "202107201",
+        "fullCid": "18,100005657,100005663,202107201",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": [],
+        "attributes": [
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Charge Status",
+            "value_id": "-1",
+            "value_name": "No"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "High-concerned chemical",
+            "value_id": "-1",
+            "value_name": "None"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Condition",
+            "value_id": "-1",
+            "value_name": "New"
+          },
+          {
+            "attribute_id": "1",
+            "attribute_name": "Place of Origin",
+            "value_id": "100000458",
+            "value_name": "China",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Certification",
+            "value_id": "-1",
+            "value_name": "CE"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Brand Name",
+            "value_id": "-1",
+            "value_name": "YG"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Thickness",
+            "value_id": "-1",
+            "value_name": "Customized"
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "326756224",
+            "value_name": "Glass Fiber",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "190091184",
+            "value_name": "FRP",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Warranty",
+            "value_id": "-1",
+            "value_name": "1 Year"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Model Number",
+            "value_id": "-1",
+            "value_name": "YG"
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3485683",
+            "value_name": "Children",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3972330",
+            "value_name": "Adult",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3254703",
+            "value_name": "All",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089526",
+            "value_name": "Above Ground Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089532",
+            "value_name": "Swimming Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Feature",
+            "value_id": "-1",
+            "value_name": "Eco-Friendly, Durable, Uv Resistant, Easy Install, rectangular frame pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Shape",
+            "value_id": "-1",
+            "value_name": "Rectangle"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Power Supply",
+            "value_id": "-1",
+            "value_name": "220 V, 120 V"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Application",
+            "value_id": "-1",
+            "value_name": "Home, Swimming Pool, Swim, Durable, Anti-Uv, family swimming pool, outdoor pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Accessories",
+            "value_id": "-1",
+            "value_name": "safety ladder"
+          },
+          {
+            "attribute_id": "210190015",
+            "attribute_name": "Color",
+            "value_id": "4",
+            "value_name": "Other",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Core Components",
+            "value_id": "-1",
+            "value_name": "Motor"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Weight (kg)",
+            "value_id": "-1",
+            "value_name": "600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Unique Selling Point",
+            "value_id": "-1",
+            "value_name": "Fully hydraulic system"
+          }
+        ],
+        "companyDesc": "We are a professional machinery manufacturer with 15 years of experience. Our factory supports OEM/ODM orders and provides installation and after-sales service.",
+        "companyFaqDesc": "Q: What is the MOQ? A: One set. Q: How long is the delivery time? A: 15-30 days.",
+        "imageUrls": [
+          "https://ae-pic-a1.aliexpress-media.com/kf/S4e00515648394a3db04bf2f0421aa3b9w.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S781cef2e7381458a88f8b3aca12098d0t.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Secb3e7d5710d47d6af3d6dc7543e6de3N.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S16f2bb3f56de43209f98731fc83f981bZ.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S9d698fd8702449db8f1c82f4130abe3cn.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S9fe4c416fa2d4cd98a1cb93a24fce0d4u.jpg"
+        ],
+        "draftImgUrl": "https://ae-pic-a1.aliexpress-media.com/kf/S4e00515648394a3db04bf2f0421aa3b9w.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S781cef2e7381458a88f8b3aca12098d0t.jpg|https://ae-pic-a1.aliexpress-media.com/kf/Secb3e7d5710d47d6af3d6dc7543e6de3N.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S16f2bb3f56de43209f98731fc83f981bZ.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S9d698fd8702449db8f1c82f4130abe3cn.jpg|https://ae-pic-a1.aliexpress-media.com/kf/S9fe4c416fa2d4cd98a1cb93a24fce0d4u.jpg",
+        "detailImageCount": 2775,
+        "textDesc": "Applications and Scenarios\nThis 20ft prefabricated steel swimming pool is engineered for outdoor installation in residential and commercial environments. It serves as a rapid-deployment aquatic solution ideal for backyard installations, villa courtyards, garden landscapes, resort leisure zones, outdoor campgrounds, boutique hotels, cultural tourism sites, and temporary event venues. Its modular nature supports flexible integration into landscape design schemes—whether as a functional family swimming space, a parent-child water play area, a fitness-focused aquatic zone, or a visually distinctive landmark for social engagement.\nDesigned to replace conventional concrete or fiberglass pools, it eliminates extended civil construction timelines and on-site excavation requirements. The unit is fully self-contained and ready for water filling upon secure placement on a level, load-bearing surface.\nCore Specifications\nDimension | 20 feet (length)\nStructure Material | Steel\nType | Prefabricated container swimming pool\nInstallation Environment | Outdoor\nCustomization | Available in custom shapes\nConstruction and Operation\nThe pool consists of a robust, factory-welded steel frame with integrated waterproofing and structural reinforcement. All components are pre-assembled and tested prior to shipment, ensuring dimensional accuracy and system integrity. Installation requires only site preparation—a compacted, level base—and mechanical handling equipment for positioning. No on-site welding, pouring, or curing is needed. Water circulation, filtration, and sanitation systems are compatible with standard external pumps and equipment (not included). Drainage, overflow, and inlet/outlet ports are pre-fitted per configuration. The structure supports standard pool maintenance protocols and seasonal winterization where applicable.\nIndustries Served\nResidential: Private homes, villas, townhouse communities\nHospitality: Resorts, boutique hotels, glamping sites",
+        "wholesaleTrade": {
+          "sale_type": "normal",
+          "package_size": "300X200X200",
+          "weight": "500",
+          "min_order_quantity": 1,
+          "unit_type": "Piece",
+          "batch_number": null,
+          "shipping_line_template_id": "2055583029",
+          "tariffsHsCode": [
+            {
+              "toCountry": "US",
+              "hsCode": "84791000"
+            }
+          ],
+          "inventory": [
+            {
+              "warehouseCode": "CN_LOCAL_01",
+              "value": 5
+            }
+          ],
+          "deliver_periods": [
+            {
+              "quantity": 1,
+              "process_period": 15
+            }
+          ]
+        },
+        "logisticsProperty": "general_cargo_0",
+        "dxmState": "draft",
+        "productStatusType": null,
+        "errMsg": null
+      },
+      "changed_fields": {},
+      "state_after": {
+        "dxmState": "draft",
+        "productStatusType": null,
+        "errMsg": null
+      },
+      "readback_compare": {
+        "subject_equal": true,
+        "keywords_equal": true,
+        "bulkDiscountPrices_equal": true,
+        "priceType_equal": true,
+        "companyDesc_equal": true,
+        "imageUrls_equal": true,
+        "textDesc_sha_equal": true,
+        "detailImageCount_equal": true
+      }
+    }
+  },
+  "post_fix_dry_run": {
+    "220114598434958542": {
+      "product_id": "220114598434958542",
+      "category_id": "202107201",
+      "full_cid": "18,100005657,100005663,202107201",
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "issues": [],
+        "warnings": [
+          "关键词与本商品标题/详情无任何重叠，可能套用了别的商品的全局关键词；请在「设置 → Alibaba 刊登」改成本品类关键词，或为本商品单独填关键词",
+          "评分建议：把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "评分建议：关键词与标题使用同一组核心词",
+          "评分建议：在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分"
+        ],
+        "score": 4.5,
+        "score_passed": true,
+        "score_fixes": [
+          "把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "关键词与标题使用同一组核心词",
+          "在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分",
+          "按真实规格修正占位属性"
+        ],
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "Large FRP Prefabricated Above-Ground Swimming Pool - 20ft &  · 类目 202107201"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "machinery, construction equipment, laser screed, drilling rig, concrete leveling"
+          },
+          {
+            "name": "关键词相关性",
+            "ok": true,
+            "detail": "关键词与本商品标题/详情无任何重叠，可能套用了别的商品的全局关键词；请在「设置 → Alibaba 刊登」改成本品类关键词，或为本商品单独填关键词"
+          },
+          {
+            "name": "属性自动补齐",
+            "ok": true,
+            "detail": "Place of Origin=China(覆盖)"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "刊登评分",
+            "ok": true,
+            "detail": "4.50/5（发布线 4.5）"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 40 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ],
+        "payload_fields": 40,
+        "autofilled": [
+          "Place of Origin=China(覆盖)"
+        ],
+        "unresolved": [],
+        "unresolved_reasons": [],
+        "contact_removed": [],
+        "global_data_notes": []
+      },
+      "score_items": [
+        {
+          "key": "attributes",
+          "label": "类目与属性",
+          "score": 3.8,
+          "weight": 20,
+          "problems": [
+            "属性是占位值（需按真实规格修正）：color"
+          ],
+          "fixes": [
+            "把这些属性改成真实值（Other 只用于确实无法确定时）"
+          ]
+        },
+        {
+          "key": "title",
+          "label": "标题",
+          "score": 5.0,
+          "weight": 15,
+          "problems": [],
+          "fixes": []
+        },
+        {
+          "key": "keywords",
+          "label": "关键词",
+          "score": 4.5,
+          "weight": 10,
+          "problems": [
+            "关键词与标题完全不重叠"
+          ],
+          "fixes": [
+            "关键词与标题使用同一组核心词"
+          ]
+        },
+        {
+          "key": "detail",
+          "label": "详情描述",
+          "score": 5.0,
+          "weight": 20,
+          "problems": [],
+          "fixes": []
+        },
+        {
+          "key": "images",
+          "label": "图片（主图/详情图）",
+          "score": 5.0,
+          "weight": 15,
+          "problems": [],
+          "fixes": []
+        },
+        {
+          "key": "video",
+          "label": "商品视频",
+          "score": 1.0,
+          "weight": 5,
+          "problems": [
+            "没有商品视频（mainVideoId/detailVideoId 为空）"
+          ],
+          "fixes": [
+            "在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分"
+          ]
+        },
+        {
+          "key": "trade",
+          "label": "价格与贸易",
+          "score": 5.0,
+          "weight": 10,
+          "problems": [],
+          "fixes": []
+        },
+        {
+          "key": "compliance",
+          "label": "合规",
+          "score": 4.7,
+          "weight": 5,
+          "problems": [
+            "存在占位属性值"
+          ],
+          "fixes": [
+            "按真实规格修正占位属性"
+          ]
+        }
+      ],
+      "validated_issues": [],
+      "product_snapshot": {
+        "subject": "Large FRP Prefabricated Above-Ground Swimming Pool - 20ft & 40ft Fiberglass Container Pool for Outdoor Use",
+        "subject_sha256_16": "83e15f04d5bd6c58",
+        "priceType": "ladder_price",
+        "bulkDiscountPrices": [
+          {
+            "start_quantity": 1,
+            "price": 3705.0
+          }
+        ],
+        "attributes_count": 23,
+        "attributes": [
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Charge Status",
+            "value_id": "-1",
+            "value_name": "No"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "High-concerned chemical",
+            "value_id": "-1",
+            "value_name": "None"
+          },
+          {
+            "attribute_id": "1",
+            "attribute_name": "Place of Origin",
+            "value_id": "100000458",
+            "value_name": "China",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Certification",
+            "value_id": "-1",
+            "value_name": "CE"
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "3727694",
+            "value_name": "Stainless Steel",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "326756224",
+            "value_name": "Glass Fiber",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "190091184",
+            "value_name": "FRP",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3972330",
+            "value_name": "Adult",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3485683",
+            "value_name": "Children",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3254703",
+            "value_name": "All",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089528",
+            "value_name": "Children's Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089526",
+            "value_name": "Above Ground Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089532",
+            "value_name": "Swimming Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089527",
+            "value_name": "Lap Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Feature",
+            "value_id": "-1",
+            "value_name": "Eco-Friendly, Portable, Durable, Uv Resistant, Easy Install, High Efficiency, rectangular frame pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Shape",
+            "value_id": "-1",
+            "value_name": "Rectangle"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Application",
+            "value_id": "-1",
+            "value_name": "Home, Swimming Pool, Swim, Durable, family swimming pool, outdoor pool"
+          },
+          {
+            "attribute_id": "210190015",
+            "attribute_name": "Color",
+            "value_id": "4",
+            "value_name": "Other",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Core Components",
+            "value_id": "-1",
+            "value_name": "Motor"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Warranty",
+            "value_id": "-1",
+            "value_name": "1 Year"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Model Number",
+            "value_id": "-1",
+            "value_name": "LS-600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Weight (kg)",
+            "value_id": "-1",
+            "value_name": "600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Unique Selling Point",
+            "value_id": "-1",
+            "value_name": "Fully hydraulic system"
+          }
+        ],
+        "companyDesc_sha256_16": "364211b4599cec0e",
+        "companyDesc_len": 160,
+        "imageUrls": [
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sc94a6204162f48f7ad46faf42dd6f622u.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S59fb33defd3445cfbba00cd7d0113cbd2.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S347a2f57f36b4025aa886b1555507c68d.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S48e1d91ae1974780b36208a041545bab1.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sacb74203cf1242b1b26852b3f9f6efcbV.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Sfcf4e3e221a34adead76b7ba45958ecfk.jpg"
+        ],
+        "imageUrls_count": 6,
+        "detailImage_count": 2508,
+        "textDesc_len": 1982,
+        "textDesc_sha256_16": "b00ba84e79b38045",
+        "dxmState": "draft",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": null
+      }
+    },
+    "220114598434958538": {
+      "product_id": "220114598434958538",
+      "category_id": "202107201",
+      "full_cid": "18,100005657,100005663,202107201",
+      "dry_run": {
+        "ok": true,
+        "preview": true,
+        "saved": false,
+        "issues": [],
+        "warnings": [
+          "关键词与本商品标题/详情无任何重叠，可能套用了别的商品的全局关键词；请在「设置 → Alibaba 刊登」改成本品类关键词，或为本商品单独填关键词",
+          "评分建议：把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "评分建议：关键词与标题使用同一组核心词",
+          "评分建议：在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分"
+        ],
+        "score": 4.5,
+        "score_passed": true,
+        "score_fixes": [
+          "把这些属性改成真实值（Other 只用于确实无法确定时）",
+          "关键词与标题使用同一组核心词",
+          "在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分",
+          "按真实规格修正占位属性"
+        ],
+        "steps": [
+          {
+            "name": "连接 Alibaba",
+            "ok": true,
+            "detail": "Cookie 可用，客户端已创建"
+          },
+          {
+            "name": "读取商品详情",
+            "ok": true,
+            "detail": "20ft Prefab Steel Outdoor Container Swimming Pool for Backya · 类目 202107201"
+          },
+          {
+            "name": "读取类目规则",
+            "ok": true,
+            "detail": "类目 202107201：5 个必填属性 / 8 个模块字段"
+          },
+          {
+            "name": "AI 文案",
+            "ok": true,
+            "detail": "未启用 AI，使用商品原标题/详情"
+          },
+          {
+            "name": "关键词",
+            "ok": true,
+            "detail": "machinery, construction equipment, laser screed, drilling rig, concrete leveling"
+          },
+          {
+            "name": "关键词相关性",
+            "ok": true,
+            "detail": "关键词与本商品标题/详情无任何重叠，可能套用了别的商品的全局关键词；请在「设置 → Alibaba 刊登」改成本品类关键词，或为本商品单独填关键词"
+          },
+          {
+            "name": "属性自动补齐",
+            "ok": true,
+            "detail": "Place of Origin=China(覆盖)"
+          },
+          {
+            "name": "保存前校验",
+            "ok": true,
+            "detail": "必填项全部满足"
+          },
+          {
+            "name": "刊登评分",
+            "ok": true,
+            "detail": "4.50/5（发布线 4.5）"
+          },
+          {
+            "name": "违禁词检查",
+            "ok": true,
+            "detail": "未命中"
+          },
+          {
+            "name": "预演",
+            "ok": true,
+            "detail": "op=1（保存草稿）· 载荷 40 个字段；dry-run 未调用保存接口"
+          },
+          {
+            "name": "完成",
+            "ok": true,
+            "detail": "预演完成（未保存商品）"
+          }
+        ],
+        "payload_fields": 40,
+        "autofilled": [
+          "Place of Origin=China(覆盖)"
+        ],
+        "unresolved": [],
+        "unresolved_reasons": [],
+        "contact_removed": [],
+        "global_data_notes": []
+      },
+      "score_items": [
+        {
+          "key": "attributes",
+          "label": "类目与属性",
+          "score": 3.8,
+          "weight": 20,
+          "problems": [
+            "属性是占位值（需按真实规格修正）：color"
+          ],
+          "fixes": [
+            "把这些属性改成真实值（Other 只用于确实无法确定时）"
+          ]
+        },
+        {
+          "key": "title",
+          "label": "标题",
+          "score": 5.0,
+          "weight": 15,
+          "problems": [],
+          "fixes": []
+        },
+        {
+          "key": "keywords",
+          "label": "关键词",
+          "score": 4.5,
+          "weight": 10,
+          "problems": [
+            "关键词与标题完全不重叠"
+          ],
+          "fixes": [
+            "关键词与标题使用同一组核心词"
+          ]
+        },
+        {
+          "key": "detail",
+          "label": "详情描述",
+          "score": 5.0,
+          "weight": 20,
+          "problems": [],
+          "fixes": []
+        },
+        {
+          "key": "images",
+          "label": "图片（主图/详情图）",
+          "score": 5.0,
+          "weight": 15,
+          "problems": [],
+          "fixes": []
+        },
+        {
+          "key": "video",
+          "label": "商品视频",
+          "score": 1.0,
+          "weight": 5,
+          "problems": [
+            "没有商品视频（mainVideoId/detailVideoId 为空）"
+          ],
+          "fixes": [
+            "在店小秘/卖家中心上传主图视频；当前保存接口未包含视频字段，视频需在平台侧补充后重新评分"
+          ]
+        },
+        {
+          "key": "trade",
+          "label": "价格与贸易",
+          "score": 5.0,
+          "weight": 10,
+          "problems": [],
+          "fixes": []
+        },
+        {
+          "key": "compliance",
+          "label": "合规",
+          "score": 4.7,
+          "weight": 5,
+          "problems": [
+            "存在占位属性值"
+          ],
+          "fixes": [
+            "按真实规格修正占位属性"
+          ]
+        }
+      ],
+      "validated_issues": [],
+      "product_snapshot": {
+        "subject": "20ft Prefab Steel Outdoor Container Swimming Pool for Backyard - Custom Shape, Landscape Integration",
+        "subject_sha256_16": "103a2aaf30a6b26e",
+        "priceType": "sku_price",
+        "bulkDiscountPrices": [],
+        "attributes_count": 25,
+        "attributes": [
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Charge Status",
+            "value_id": "-1",
+            "value_name": "No"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "High-concerned chemical",
+            "value_id": "-1",
+            "value_name": "None"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Condition",
+            "value_id": "-1",
+            "value_name": "New"
+          },
+          {
+            "attribute_id": "1",
+            "attribute_name": "Place of Origin",
+            "value_id": "100000458",
+            "value_name": "China",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Certification",
+            "value_id": "-1",
+            "value_name": "CE"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Brand Name",
+            "value_id": "-1",
+            "value_name": "YG"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Thickness",
+            "value_id": "-1",
+            "value_name": "Customized"
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "326756224",
+            "value_name": "Glass Fiber",
+            "level": 0
+          },
+          {
+            "attribute_id": "238736366",
+            "attribute_name": "Material",
+            "value_id": "190091184",
+            "value_name": "FRP",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Warranty",
+            "value_id": "-1",
+            "value_name": "1 Year"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Model Number",
+            "value_id": "-1",
+            "value_name": "YG"
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3485683",
+            "value_name": "Children",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3972330",
+            "value_name": "Adult",
+            "level": 0
+          },
+          {
+            "attribute_id": "270605350",
+            "attribute_name": "Applicable People",
+            "value_id": "3254703",
+            "value_name": "All",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089526",
+            "value_name": "Above Ground Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "191284229",
+            "attribute_name": "Type",
+            "value_id": "190089532",
+            "value_name": "Swimming Pools",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Feature",
+            "value_id": "-1",
+            "value_name": "Eco-Friendly, Durable, Uv Resistant, Easy Install, rectangular frame pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Shape",
+            "value_id": "-1",
+            "value_name": "Rectangle"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Power Supply",
+            "value_id": "-1",
+            "value_name": "220 V, 120 V"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Application",
+            "value_id": "-1",
+            "value_name": "Home, Swimming Pool, Swim, Durable, Anti-Uv, family swimming pool, outdoor pool"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Accessories",
+            "value_id": "-1",
+            "value_name": "safety ladder"
+          },
+          {
+            "attribute_id": "210190015",
+            "attribute_name": "Color",
+            "value_id": "4",
+            "value_name": "Other",
+            "level": 0
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Core Components",
+            "value_id": "-1",
+            "value_name": "Motor"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Weight (kg)",
+            "value_id": "-1",
+            "value_name": "600"
+          },
+          {
+            "attribute_id": "-1",
+            "attribute_name": "Unique Selling Point",
+            "value_id": "-1",
+            "value_name": "Fully hydraulic system"
+          }
+        ],
+        "companyDesc_sha256_16": "364211b4599cec0e",
+        "companyDesc_len": 160,
+        "imageUrls": [
+          "https://ae-pic-a1.aliexpress-media.com/kf/S4e00515648394a3db04bf2f0421aa3b9w.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S781cef2e7381458a88f8b3aca12098d0t.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/Secb3e7d5710d47d6af3d6dc7543e6de3N.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S16f2bb3f56de43209f98731fc83f981bZ.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S9d698fd8702449db8f1c82f4130abe3cn.jpg",
+          "https://ae-pic-a1.aliexpress-media.com/kf/S9fe4c416fa2d4cd98a1cb93a24fce0d4u.jpg"
+        ],
+        "imageUrls_count": 6,
+        "detailImage_count": 2775,
+        "textDesc_len": 1747,
+        "textDesc_sha256_16": "05e85cd91a3727e3",
+        "dxmState": "draft",
+        "dxmOfflineState": null,
+        "productStatusType": null,
+        "errMsg": null
+      },
+      "state_note": "该商品在 12:39 op=1 保存后，其 textDesc 被外部进程（AI 生成风格，1747 字符）改写；本次任务未调用付费 AI。修复后重新 dry-run 仍为 4.5/passed（详情≥800 满分）。op=1 保存当时的回读证据见 live_op1_details（before/after textDesc 一致，1969 字符）。"
+    }
+  },
+  "category_scope_precheck": {
+    "category_id": "202107201",
+    "in_scope_guess": false,
+    "evidence_count": 0,
+    "scanned": 600,
+    "total": 11568,
+    "detail": "类目 202107201 未在 600 个在线商品类目样本中出现，可能不在经营类目范围；若发布报 PUB_BIZCHECK_CAT_PUB_RESTRICT，需按提示开类目（样本覆盖率仅 5%，结论仅供参考）",
+    "advice": "经营类目是平台店铺资质限制：请到 Alibaba 卖家中心 → 店铺管理 → 管理公司信息 → 经营类目，把该商品所属大类/末级类目加入经营范围后再发布。软件无法代替平台开通经营类目。"
+  },
+  "publish_fail_evidence": {
+    "product_id": "220114598434958580",
+    "category_id": "202107201",
+    "dxmState": "offline",
+    "dxmOfflineState": "publishFail",
+    "errMsg": "systemError:isp.system-service-error:PUB_BIZCHECK_CAT_PUB_RESTRICT:当前商品类目不在线上经营类目范围内，无法发品，请前往店铺管理->管理公司信息完成经营类目设置:; Trace_id: eedd073ada2af687bb983e5f7fffe3d1",
+    "note": "同店同分类的真实 op=2 失败原因：类目不在经营类目范围。未由本次执行，只读读取。"
+  },
+  "wait_publish_rows": [
+    {
+      "id": "220114598434958536",
+      "dxmState": "offline",
+      "dxmOfflineState": "publishingTiming",
+      "subject": "Customized Big Made Above Ground Home Family Outdoor Use 20ft 40ft Shipping Cont"
+    },
+    {
+      "id": "220114598434958530",
+      "dxmState": "offline",
+      "dxmOfflineState": "publishingTiming",
+      "subject": "Hot Sale 20ft 40ft Fiberglass Shipping Container Swimming Pools for Sale"
+    },
+    {
+      "id": "220114598434958528",
+      "dxmState": "offline",
+      "dxmOfflineState": "waitPublish",
+      "subject": "Custom Size Steel Container Swimming Pool 40ft for Family Backyard and Resort"
+    },
+    {
+      "id": "220114598434958580",
+      "dxmState": "offline",
+      "dxmOfflineState": "publishFail",
+      "subject": "Customized Fiberglass Container Pool - Ready-Made Prefabricated Outdoor Swimming"
+    }
+  ],
+  "root_causes": [
+    {
+      "id": "score-sku-dict",
+      "symptom": "sku_price 商品评分 4.25 < 4.5（真实商品 220114598434958538）",
+      "root_cause": "alibaba_score 的 sku_price 分支用 _as_list() 判断 productSku，真实 edit.json 的 productSku 是 JSON 字符串（dict：attributes+special_skus），_as_list 对 dict 返回 [] → 误判「缺少 SKU 数据」→ trade 2.5/5（-0.25 总分）",
+      "kind": "评分器 bug（非真实内容质量）",
+      "fix": "改用 alibaba_payload.sku_summary 判断 has_sku/valid_skus/has_dims"
+    },
+    {
+      "id": "score-rounding",
+      "symptom": "加权和 4.495 显示「4.50/5（发布线 4.5）」却 passed=False；op=2 会提示「4.50/5 未达发布线 4.5」",
+      "root_cause": "总分未按门禁精度（两位小数）归一就与 4.5 比较",
+      "kind": "评分器 bug",
+      "fix": "res.total = round(..., 2) 后再比较 PASS_SCORE"
+    },
+    {
+      "id": "detail-threshold-mismatch",
+      "symptom": "1747 字符的 AI 详情被扣到 4.0（建议 1800+），总分 4.29 < 4.5；而 Alibaba 详情提示词要求 800~1500 字符、文档期望 800~1800",
+      "root_cause": "评分器详情维度硬编码 <1800 扣 1.0，与自家提示词/文档自相矛盾",
+      "kind": "评分器 bug",
+      "fix": "详情 ≥800 字符给满分；<300 仍硬阻断；<800 提示补到 800+"
+    },
+    {
+      "id": "contact-in-detail",
+      "symptom": "采集详情带 WhatsApp/微信/电话/邮箱，评分 detail/compliance 扣分，平台禁止站外联系",
+      "root_cause": "保存前只做 HTML→纯文本，未清理联系方式",
+      "kind": "真实内容质量/合规问题",
+      "fix": "alibaba_payload.strip_contact_info：保存前移除邮箱/网址/电话/渠道词，移除片段回传 _contact_removed，流水线写 warning"
+    },
+    {
+      "id": "global-defaults-overwrite",
+      "symptom": "全局包装 300X200X200 / 500kg / HS 84791000 被静默写到真实包装 35X16X8 / 0.64kg 的商品",
+      "root_cause": "build_alibaba_save 无条件用 cfg 覆盖 product 的包装/重量",
+      "kind": "真实数据质量（不编造/不静默）",
+      "fix": "商品已有真实包装/重量/HS 时保留商品值；差异写入 _overwrites 并在流水线 warning"
+    },
+    {
+      "id": "silent-autofill",
+      "symptom": "必填属性脏值（如 Type=Pool 有歧义）被自动换成 Other/首个候选，但没有任何提示",
+      "root_cause": "pipeline 只读 _autofilled 之外的字段，未把自动候选值/未补齐原因暴露给用户",
+      "kind": "不静默",
+      "fix": "pipeline 增加「属性自动补齐」步骤 + 「属性自动候选值需复核」warning + _unresolved_reasons warning"
+    },
+    {
+      "id": "keyword-mismatch",
+      "symptom": "24 个草稿关键词全部是 machinery/laser screed/drilling rig（全局预设），与泳池商品无关",
+      "root_cause": "cfg.alibaba_keywords 优先于商品原关键词（设计如此），但套到不相关商品时无提示",
+      "kind": "真实内容质量（配置数据）",
+      "fix": "关键词与标题/详情零重叠时 warning，提示改全局关键词或按商品单独设置；评分仍如实扣分"
+    },
+    {
+      "id": "contact-false-positive",
+      "symptom": "评分 CONTACT_RE 会把「1200 800 900」尺寸误判成联系方式",
+      "root_cause": "评分器电话正则比保存清理规则宽",
+      "kind": "评分器 bug",
+      "fix": "alibaba_score.contact_hit 复用 _looks_like_contact_number 过滤尺寸/年份"
+    }
+  ],
+  "code_changes": [
+    {
+      "file": "src/aeclone/services/alibaba_score.py",
+      "line": "420",
+      "change": "sku_price 用 sku_summary 判定真实 SKU（修复 4.25）"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_score.py",
+      "line": "511",
+      "change": "总分按两位小数归一后再与 PASS_SCORE 比较"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_score.py",
+      "line": "315-330",
+      "change": "详情长度门槛与提示词/文档对齐（800~1500/800~1800；旧 1800 硬门槛把 1747 字符扣到 4.0）"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_score.py",
+      "line": "75",
+      "change": "contact_hit() 过滤尺寸/年份等数字误报"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_payload.py",
+      "line": "1150",
+      "change": "strip_contact_info() 清理站外联系方式并回传移除片段"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_payload.py",
+      "line": "300-313",
+      "change": "build_alibaba_save 保存前清理 textDesc/companyDesc 联系方式，写 _contact_removed"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_payload.py",
+      "line": "396-440",
+      "change": "包装/重量/HS：商品已有真实值优先，差异记录 _overwrites"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_payload.py",
+      "line": "486",
+      "change": "save['_overwrites'] 留痕，供流水线提示"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_pipeline.py",
+      "line": "543-563",
+      "change": "属性自动补齐/联系方式清理/全局数据核对 warning（不静默）"
+    },
+    {
+      "file": "src/aeclone/services/alibaba_pipeline.py",
+      "line": "504-515",
+      "change": "关键词与本商品无重叠时 warning"
+    },
+    {
+      "file": "tests/test_alibaba_live_smoke.py",
+      "line": "1-444",
+      "change": "新增 23 个 mock 回归用例"
+    }
+  ],
+  "tests": {
+    "new": {
+      "file": "tests/test_alibaba_live_smoke.py",
+      "count": 23,
+      "status": "PASS"
+    },
+    "existing_alibaba": {
+      "files": [
+        "test_alibaba_ai.py",
+        "test_alibaba_ai_rules.py",
+        "test_alibaba_attributes.py",
+        "test_alibaba_batch.py",
+        "test_alibaba_payload.py",
+        "test_alibaba_pipeline.py",
+        "test_alibaba_prompts.py",
+        "test_alibaba_scope.py",
+        "test_alibaba_score.py",
+        "test_ui_alibaba_actions.py"
+      ],
+      "status": "全部 exit=0（payload 34 / pipeline 36 / attributes 35 / prompts 29 / ui 7 …）"
+    }
+  },
+  "decisions": [
+    {
+      "question": "4.25 是真实内容质量还是评分器 bug？",
+      "decision": "评分器 bug（sku_price 误判 dict productSku）。修复后同一商品 4.25 → 4.50，passed=True。真实的剩余扣分项（Color=Other 占位、无视频、关键词不相关）保留在评分/警告中，不掩盖。"
+    },
+    {
+      "question": "是否用付费 AI 提升文案？",
+      "decision": "本次未调用付费 AI（0 次）。标题/详情本身已 5.0/5，低分来自评分器与数据问题；详情过短/含联系方式的商品（如 558/534）可用 1 次 AI 详情在 Lead 批准预算后再做。"
+    },
+    {
+      "question": "详情 1747 字符为什么得分 4.0？",
+      "decision": "评分器阈值与提示词（800~1500）/文档（800~1800）冲突，按文档对齐为 ≥800 满分；不改变「<300 详情过短硬阻断」。"
+    },
+    {
+      "question": "是否允许自动把 Other 填进必填属性？",
+      "decision": "保留自动候选（避免商品因脏值完全不能保存），但必须在 warning 里写「需复核」，并在评分里按占位扣分，不静默。"
+    },
+    {
+      "question": "全局包装/重量/HS 是否覆盖商品真实值？",
+      "decision": "不覆盖商品已有真实值（真实 0.64kg 小件曾被写成 500kg）；仅缺失时用全局默认，差异以「全局配置与商品数据不一致」提示。"
+    }
+  ],
+  "next_steps": [
+    "op=3（移入待发布）/ op=2（提交审核）需 Lead 批准后再执行；建议先选一个非泳池类目商品（如 220114598434958114 / 220114598434958532）验证，避免 202107201 的经营类目限制。",
+    "202107201（泳池）已被平台拒绝：PUB_BIZCHECK_CAT_PUB_RESTRICT（同店商品 580 的 errMsg 为证）→ 需卖家中心开通经营类目后再发布，软件无法代开。",
+    "关键词全局预设（machinery…）需按品类修改，或逐商品填关键词；否则相关性评分持续扣分。",
+    "详情过短且有联系方式的草稿（558/534 等）建议用 1 次 AI 详情（800~1500 字符纯文本）后重新评分。",
+    "可选：主图视频需在卖家中心上传，保存接口无视频字段（评分 -0.2，但非阻断）。",
+    "价格/属性脏值（Type=Other、Color=Other）应按真实规格人工确认后重跑 dry-run。"
+  ]
+}

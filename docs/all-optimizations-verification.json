@@ -1,0 +1,148 @@
+{
+  "verified_at": "2026-11-22T19:32:04.266682",
+  "build": {
+    "issue": "allopt-delivery-final",
+    "build": "dist/verified-allopt-delivery-final-20261122-192715/AuroraList.app",
+    "tests": [
+      "tests/test_collect_optimization.py",
+      "tests/test_collect_ui.py",
+      "tests/test_collect_runtime.py",
+      "tests/test_listing_recovery.py",
+      "tests/test_collect_ai.py",
+      "tests/test_platform_workflows.py"
+    ],
+    "sha256": "ba3b6b990baa9c9b252a8ac79c3758f2fbe52c27ec7cb4343b47a4f7f07b6d62",
+    "verified_at": "2026-11-22T19:28:06.355505",
+    "signature": "PASS",
+    "packaged_local_check": "PASS"
+  },
+  "features": [
+    "durable_tasks_and_resume",
+    "precise_statuses",
+    "actual_runtime_parameters",
+    "visual_native_forms",
+    "search_filter_export_repair_routes",
+    "shop_site_profiles",
+    "lazy_ui_and_phase_caches",
+    "ai_budget_and_persistent_reuse"
+  ],
+  "regression_tests": 1232,
+  "new_behavior_tests": 29,
+  "callbacks": {
+    "OK": 961,
+    "DEFERRED": 285,
+    "NATIVE": 16,
+    "EXTERNAL": 51,
+    "ERROR": 0
+  },
+  "options": {
+    "CONFIG_SAVED": 502,
+    "NO_CONFIG_CHANGE": 205
+  },
+  "packaged_databases": {
+    "alibaba": {
+      "exists": true,
+      "tables": [
+        "ai_cache",
+        "ai_requests",
+        "items",
+        "runs"
+      ],
+      "integrity": "ok",
+      "pass": true
+    },
+    "amazon": {
+      "exists": true,
+      "tables": [
+        "ai_cache",
+        "ai_requests",
+        "items",
+        "runs"
+      ],
+      "integrity": "ok",
+      "pass": true
+    },
+    "tiktok": {
+      "exists": true,
+      "tables": [
+        "ai_cache",
+        "ai_requests",
+        "items",
+        "runs"
+      ],
+      "integrity": "ok",
+      "pass": true
+    },
+    "shopee": {
+      "exists": true,
+      "tables": [
+        "ai_cache",
+        "ai_requests",
+        "items",
+        "runs"
+      ],
+      "integrity": "ok",
+      "pass": true
+    }
+  },
+  "real_readonly_checks": {
+    "alibaba": {
+      "records": [
+        {
+          "id": "220114598434958538",
+          "ok": true,
+          "saved": false,
+          "error": "",
+          "checked": true,
+          "run_id": "ab2f2ba1db1f4780a2abcda4e3a4e821",
+          "state": "",
+          "outcome": "checked"
+        }
+      ],
+      "persisted": true,
+      "task_status": "complete",
+      "writes": 0,
+      "paid_calls": 0
+    },
+    "amazon": {
+      "records": [
+        {
+          "id": "220114595363181982",
+          "ok": true,
+          "saved": false,
+          "error": "",
+          "checked": true,
+          "run_id": "038a988c0c4d467ab6f8624db7885d05",
+          "state": "",
+          "outcome": "checked"
+        }
+      ],
+      "persisted": true,
+      "task_status": "complete",
+      "writes": 0,
+      "paid_calls": 0
+    }
+  },
+  "online_publication_this_round": false,
+  "paid_ai_calls_this_round": 0,
+  "visual_pages": {
+    "alibaba": [
+      30,
+      32,
+      33
+    ],
+    "amazon": [
+      17,
+      21
+    ],
+    "tiktok": [
+      24,
+      28
+    ],
+    "shopee": [
+      38,
+      43
+    ]
+  },
+  "delivery_open_process_record": "build/ui-redesign/final-open-processes.json"
+}

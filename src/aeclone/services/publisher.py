@@ -21,7 +21,8 @@ class Step:
 
 
 _FAIL_WORDS = ("失败", "错误", "不能", "只有", "无效", "不存在", "未找到", "不允许",
-               "异常", "isv.", "error", "failed", "invalid", "not allowed", "cannot")
+               "异常", "未填写", "请填写", "不能为空", "必填",
+               "isv.", "error", "failed", "invalid", "not allowed", "cannot")
 
 
 def is_failure_msg(msg: str) -> bool:
@@ -1859,10 +1860,10 @@ class Publisher:
             src = d / "m0.png"
             src.write_bytes(_rq.get(str(image_url), timeout=40).content)
             # 顺序很重要！店小秘/速卖通规定：
-            #   marketImg1 = 场景图，必须 ≥750x1000 且 3:4
+            #   marketImg1 = 场景图，必须 3:4 且最短边 ≥750（生成 800x1067，兼容 ≥800 主图门槛）
             #   marketImg2 = 白底图，必须 ≥800x800 且 1:1
             out = []
-            for i, size in enumerate(((750, 1000), (800, 800))):
+            for i, size in enumerate(((800, 1067), (800, 800))):
                 fp = d / f"mk{i}.jpg"
                 make_marketing(src, fp, size)
                 out.append(_up(fp))
@@ -2004,6 +2005,25 @@ class Publisher:
                 tpl = _cached_template_edit(self.dxm, _tid)
             except Exception:
                 tpl = None
+        # 平台主图不接受 webp：重试发布同样要先把目标商品 webp 主图/详情图转 JPG
+        try:
+            _wt = {"images": [x for x in str(target.get("imageURLs") or "").split(";") if x],
+                   "detail": str(target.get("detail") or "")}
+            self._fix_webp_images(_wt, res)
+            _changed = False
+            if _wt.get("images"):
+                _new_urls = ";".join(_wt["images"])
+                if _new_urls != str(target.get("imageURLs") or ""):
+                    target = dict(target); target["imageURLs"] = _new_urls; _changed = True
+            if _wt.get("detail") and _wt["detail"] != str(target.get("detail") or ""):
+                target = dict(target); target["detail"] = _wt["detail"]; _changed = True
+        except Exception as _we:  # noqa: BLE001
+            self._step_safe(res, "主图转JPG", False, str(_we)[:80])
+        _img_err = self._check_main_image_for_publish(
+            [x for x in str(target.get("imageURLs") or "").split(";") if x], res)
+        if _img_err:
+            return SaveResult(ok=False, message=_img_err)
+
         # User-triggered publication retries share the same free data repair checks.
         # Do not rerun AI or submit stale/ambiguous variant data unchanged.
         try:
@@ -2048,9 +2068,11 @@ class Publisher:
         except Exception:
             pass
 
+        _attr_ov = self._smt_attr_overrides(target, tpl, res)
         try:
             payload = build_save_payload(
                 target, tpl, action="publish",
+                overrides=_attr_ov or None,
                 custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None),
                 cargo_price=str(getattr(self.cfg, "declared_value", "") or "") or "50",
                 cfg=self.cfg)
@@ -2073,6 +2095,45 @@ class Publisher:
             return SaveResult(ok=True, published=True,
                               message=f"已在审核中（商品ID {pid}）：无需重复发布")
         return SaveResult(ok=False, message=f"发布失败：{_m2[:200]}")
+
+    def _check_main_image_for_publish(self, images, res=None) -> str:
+        """发布前校验主图可访问且确实是图片；返回中文错误（空=通过）。
+
+        实测 11 条历史发布失败为「主图处理出错：*.webp」——源图在店小秘 COS 已 404
+        或为 webp。webp 会在 _fix_webp_images 转换；源图 404 必须让用户换图，
+        不能带着坏图去提交平台。
+        """
+        import requests as _rq
+        urls = [str(u) for u in (images or []) if str(u).startswith("http")]
+        if not urls:
+            return ""
+        url = urls[0]
+        try:
+            r = _rq.get(url, timeout=20, stream=True)
+            if int(r.status_code) != 200:
+                return (f"主图链接失效（HTTP {r.status_code}）：{url[:110]}；"
+                        "请重新采集/替换主图后再发布")
+            chunk = b""
+            try:
+                chunk = r.raw.read(32) or b""
+            except Exception:
+                chunk = b""
+            ct = str(r.headers.get("content-type") or "").lower()
+            magic_ok = (chunk.startswith(b"\x89PNG") or chunk.startswith(b"\xff\xd8")
+                        or chunk.startswith(b"RIFF") or chunk.startswith(b"GIF8"))
+            if not (ct.startswith("image/") or magic_ok):
+                return (f"主图不是有效图片（content-type={ct or '未知'}）：{url[:110]}；"
+                        "请重新采集/替换主图后再发布")
+        except Exception as ex:  # noqa: BLE001
+            return f"主图无法访问（{str(ex)[:80]}）：{url[:110]}；请检查图片链接后再发布"
+        return ""
+
+    def _step_safe(self, res, name: str, ok: bool, detail: str = "") -> None:
+        """记录步骤；SaveResult（publish_only 重试路径）没有 steps 字段时忽略。"""
+        try:
+            add_step(res, name, ok, detail)
+        except Exception:
+            pass
 
     def _fix_webp_images(self, p: dict, res) -> None:
         """主图/详情图里的 .webp → JPG 再上传（平台主图不支持 webp）。"""
@@ -2100,7 +2161,7 @@ class Publisher:
             new = [_conv(u) for u in imgs]
             if new != imgs and any(x.lower().split("?")[0].endswith(".jpg") for x in new):
                 p["images"] = new
-                add_step(res, "主图转JPG", True, "webp 主图已转成 JPG 并重新上传")
+                self._step_safe(res, "主图转JPG", True, "webp 主图已转成 JPG 并重新上传")
         except Exception:
             pass
         try:
@@ -2123,7 +2184,7 @@ class Publisher:
                         changed = True
                 if changed:
                     p["detail"] = html
-                    add_step(res, "详情图压缩", True, "超过 5MB / webp 的详情图已压缩并重新上传")
+                    self._step_safe(res, "详情图压缩", True, "超过 5MB / webp 的详情图已压缩并重新上传")
         except Exception:
             pass
 
@@ -2323,6 +2384,58 @@ class Publisher:
             except Exception as ex2:  # noqa: BLE001
                 add_step(res, "视频上传", False, f"{str(ex)[:50]} / 兜底失败：{str(ex2)[:50]}")
 
+    def _smt_attr_overrides(self, target: dict, tpl: dict | None, res) -> dict:
+        """保存/发布前补齐速卖通类目必填属性（只补缺失、不覆盖已有；纯本地规则）。
+
+        - ``cfg.smt_attr_autofill`` 默认 True，可关闭；
+        - 类目属性定义来自店小秘只读接口 ``category_attributes``；
+        - 只返回 ``aeopAeProductPropertys`` 覆盖项，失败不阻断保存（add_step 记录原因）。
+        """
+        if not bool(getattr(self.cfg, "smt_attr_autofill", True)):
+            return {}
+        if self.dxm is None or not isinstance(target, dict):
+            return {}
+        try:
+            from .smt_attributes import parse_product_attributes, repair_product_attributes
+            cid = str(target.get("categoryId") or "").strip()
+            if not cid or cid in ("0", "-1", "None", "null"):
+                return {}
+            try:
+                attrs = self.dxm.category_attributes(cid) or []
+            except Exception as ex:  # noqa: BLE001
+                add_step(res, "属性补全", False, f"读取类目属性失败，跳过：{str(ex)[:60]}")
+                return {}
+            if not attrs:
+                return {}
+            tpl_props = None
+            if tpl:
+                raw = tpl.get("aeopAeProductPropertys") or tpl.get("productProperties")
+                if raw:
+                    try:
+                        tpl_props = parse_product_attributes(raw)
+                    except Exception:
+                        tpl_props = None
+            rep = repair_product_attributes(target, attrs, template_props=tpl_props)
+            new_json = (rep.get("payload") or {}).get("aeopAeProductPropertys")
+            if not new_json:
+                return {}
+            before = rep.get("before") or {}
+            after = rep.get("after") or {}
+            missing = rep.get("missing") or []
+            detail = (f"系统属性 {before.get('system_attributes', '?')}→"
+                      f"{after.get('system_attributes', '?')}；"
+                      f"自定义属性 {after.get('custom_attributes', '?')}")
+            if missing:
+                _r = str((missing[0] or {}).get("reason") or "").strip()
+                detail += f"；仍缺必填 {len(missing)} 项" + (f"（{_r[:40]}）" if _r else "")
+            else:
+                detail += "；必填已齐"
+            add_step(res, "属性补全", True, detail)
+            return {"aeopAeProductPropertys": str(new_json)}
+        except Exception as ex:  # noqa: BLE001
+            add_step(res, "属性补全", False, f"跳过（{str(ex)[:60]}）")
+            return {}
+
     def _save_via_api(self, p: dict, res, action: str, ship, images: list[str] | None):
         """用 add.json 的 API 直存路径保存（绕开 DOM）。
 
@@ -2337,6 +2450,11 @@ class Publisher:
             return None
 
         pid = str(p.get("id", ""))
+        if str(action or "") == "publish":
+            _img_err = self._check_main_image_for_publish(images or p.get("images"), res)
+            if _img_err:
+                add_step(res, "主图校验", False, _img_err[:160])
+                return SaveResult(ok=False, message=_img_err)
         try:
             target = self.dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
             tpl = None
@@ -2385,6 +2503,17 @@ class Publisher:
                          f"计算价 ¥{_pf:.2f} 超过速卖通上限 999999，已截断为 999999")
             overrides = build_ai_overrides(target, p, self.cfg, images=_imgs, ship=ship,
                                            template=tpl)
+            # 类目必填属性补全（只补缺失；AI 已改属性时以 AI 值为基础再补）
+            try:
+                _merged_target = dict(target)
+                if isinstance(overrides, dict) and overrides.get("aeopAeProductPropertys"):
+                    _merged_target["aeopAeProductPropertys"] = overrides["aeopAeProductPropertys"]
+                _attr_ov = self._smt_attr_overrides(_merged_target, tpl, res)
+                if _attr_ov:
+                    overrides = dict(overrides or {})
+                    overrides.update(_attr_ov)
+            except Exception as _attr_ex:  # noqa: BLE001
+                add_step(res, "属性补全", False, f"跳过（{str(_attr_ex)[:60]}）")
 
             # 营销图是发布必填项：没有就本地裁切补上（免费，不做会报「请补充营销图」）
             try:
@@ -2545,10 +2674,10 @@ class Publisher:
                 for _w in getattr(plan, "warnings", [])[:3]:
                     res.steps.append(Step("图片计划提醒", True, _w))
             except Exception as ex:  # noqa: BLE001
-                # 预演只是给人看的计划，依赖缺失不该把整次预演判失败
-                res.steps.append(Step("图片计划", True,
-                                      f"跳过（{str(ex)[:60]}）" if dry_run
-                                      else f"生成失败：{str(ex)[:80]}"))
+                # 预演也要如实反映「计划算不出来」：如果这里静默跳过，用户会以为
+                # 图片处理已规划好，真实运行时却直接失败。失败步骤会汇总到
+                # res.ok=False + res.error（见下方 failures 聚合）。
+                res.steps.append(Step("图片计划", False, f"生成失败：{str(ex)[:80]}"))
 
             # 图片方案摘要（新引擎自带 dry_run 分支，不调 AI）
             try:
@@ -3065,7 +3194,7 @@ class Publisher:
                         from .hosting import upload as _host_m
                         _mk = []
                         # 3:4 场景图在前（marketImg1），1:1 白底图在后（marketImg2）
-                        for _i, _sz in enumerate(((750, 1000), (800, 800))):
+                        for _i, _sz in enumerate(((800, 1067), (800, 800))):
                             _out = d_m / f"mk{_i}.jpg"
                             make_marketing(src, _out, _sz)
                             _mk.append(_host_m(_out))
@@ -3246,6 +3375,13 @@ class Publisher:
                 if self._aborted():
                     return self._halt(res, "主图视频")
                 self._prepare_video(p, res, product, dry_run)
+
+                # 主图/详情图 webp → JPG（平台主图不接受 webp；实测 11 次发布失败根因）
+                if not dry_run and p.get("images"):
+                    try:
+                        self._fix_webp_images(p, res)
+                    except Exception as ex:  # noqa: BLE001
+                        add_step(res, "主图转JPG", False, str(ex)[:80])
 
                 # API 直存（唯一保存路径，无 DOM 模拟、支持并发）
                 if self._aborted():

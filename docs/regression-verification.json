@@ -101,8 +101,8 @@
   },
   {
     "name": "test_updater",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_preset",
@@ -206,6 +206,246 @@
   },
   {
     "name": "test_publish_repair",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_payload",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_pipeline",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_publish_readiness",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_prompts",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_ui_alibaba_actions",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_platform_ui_filter",
+    "status": "FAIL",
+    "exit_code": 1
+  },
+  {
+    "name": "test_alibaba_scope",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_score",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_batch",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_ai_rules",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_cookie_separation",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_template_search",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_realtime_log_panel",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_auto_error_report",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_platform_picker",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_selected_scope",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_sku_clean",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_machine_identity",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_legacy_license_flow",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_account_migration",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_contract",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_client",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_payload",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_prompts",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_pipeline",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_presets",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_auto_publish",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_ui_page",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_adapter",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_attributes",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_platform_ui_filter",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_publish_ui",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_presets_audit",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_amazon_auto_audit",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_licensing",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_license_server",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_client",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_payload",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_prompts",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_pipeline",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_contract",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_ui_page",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_smt_publish_fixes",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_smt_attr_integration",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_ops_watermark",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_attributes",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_smt_attributes",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_tiktok_attributes",
     "status": "PASS",
     "exit_code": 0
   }

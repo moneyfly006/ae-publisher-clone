@@ -5,6 +5,51 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+# 文本水印字体候选：优先系统 CJK/西文字体，最后用 Pillow 可缩放默认字体。
+# macOS 上没有 arial.ttf（旧实现回退 10px 位图字体 → 水印小到看不见）。
+_FONT_CANDIDATES = (
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    "/Library/Fonts/Arial Unicode.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/msyh.ttc",
+)
+
+
+def _load_font(size: int):
+    """按像素大小加载字体；最后回退到 Pillow 可缩放默认字体（≥10.1）。"""
+    for path in _FONT_CANDIDATES:
+        try:
+            if Path(path).is_file():
+                return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    try:
+        return ImageFont.load_default(size=size)  # Pillow ≥ 10.1 支持指定字号
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def _text_watermark(text: str, base_width: int) -> Image.Image:
+    """生成可见的文本水印（白字黑描边，任何底色都能看清）。"""
+    size = max(18, int(base_width * 0.045))  # 相对图片宽度，避免大图水印过小
+    font = _load_font(size)
+    stroke = max(1, size // 16)
+    try:
+        bbox = font.getbbox(text, stroke_width=stroke)
+    except Exception:
+        bbox = (0, 0, len(text) * size, size)
+    pad = max(6, size // 4)
+    w = max(1, bbox[2] - bbox[0] + pad * 2)
+    h = max(1, bbox[3] - bbox[1] + pad * 2)
+    wm = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(wm)
+    d.text((pad - bbox[0], pad - bbox[1]), text, font=font,
+           fill=(255, 255, 255, 235), stroke_width=stroke,
+           stroke_fill=(0, 0, 0, 210))
+    return wm
+
 
 def ensure_rgb(img: Image.Image) -> Image.Image:
     return img.convert("RGB") if img.mode != "RGB" else img
@@ -23,20 +68,15 @@ def add_watermark(path: Path, watermark: Path | str, out: Path,
                   position: str = "bottom-right", opacity: float = 0.7) -> Path:
     base = ensure_rgb(Image.open(path)).convert("RGBA")
     if isinstance(watermark, (str, Path)) and Path(watermark).exists():
+        # 图片水印保持原尺寸/原位置（旧测试按坐标校验；不额外偏移）
         wm = Image.open(watermark).convert("RGBA")
     else:
-        # 文本水印
-        text = str(watermark)
-        wm = Image.new("RGBA", (max(1, len(text) * 24), 60), (0, 0, 0, 0))
-        d = ImageDraw.Draw(wm)
-        try:
-            font = ImageFont.truetype("arial.ttf", 36)
-        except Exception:
-            font = ImageFont.load_default()
-        d.text((4, 8), text, font=font, fill=(255, 255, 255, 220))
+        # 文本水印：白字 + 黑描边（旧实现固定白字，打在白底图上像素零变化）
+        wm = _text_watermark(str(watermark), base.width)
     if wm.width > base.width // 2:
         ratio = (base.width // 2) / wm.width
-        wm = wm.resize((int(wm.width * ratio), int(wm.height * ratio)))
+        wm = wm.resize((max(1, int(wm.width * ratio)),
+                        max(1, int(wm.height * ratio))))
     alpha = wm.split()[-1].point(lambda a: int(a * opacity))
     wm.putalpha(alpha)
 

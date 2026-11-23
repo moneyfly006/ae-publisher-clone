@@ -21,6 +21,31 @@ MODULES = (
     "test_price_write_safety", "test_variants_regression", "test_workbench_safety",
     "test_content_review", "test_weight_reuse", "test_ui_state_regression",
     "test_image_hosting_optimization",
+    # Amazon 刊登（task-4 接入；AURORA_TEST=1 下应全绿）
+    "test_amazon_contract", "test_amazon_client", "test_amazon_payload",
+    "test_amazon_prompts", "test_amazon_pipeline", "test_amazon_presets",
+    "test_amazon_auto_publish", "test_amazon_ui_page",
+    "test_amazon_adapter", "test_amazon_attributes", "test_amazon_platform_ui_filter",
+    "test_amazon_publish_ui",
+    "test_amazon_presets_audit",
+    "test_amazon_auto_audit",
+    # 授权：token 解析 / 授权服务器地址归一化与 308 query 保留
+    "test_licensing", "test_license_server",
+    # TikTok Shop 刊登（task-5 接入；AURORA_TEST=1 下应全绿）
+    "test_tiktok_client", "test_tiktok_payload", "test_tiktok_prompts",
+    "test_tiktok_pipeline", "test_tiktok_contract", "test_tiktok_ui_page",
+    "test_smt_publish_fixes",
+    "test_smt_attr_integration",
+    "test_image_ops_watermark",
+    "test_alibaba_attributes", "test_smt_attributes", "test_tiktok_attributes",
+    "test_platform_workflows", "test_alibaba_editor", "test_shopee_workflow",
+    "test_alibaba_payload", "test_alibaba_pipeline", "test_alibaba_batch",
+    "test_media_actions",
+    "test_collect_automation", "test_collect_ui", "test_listing_recovery", "test_conflict_effectiveness", "test_collect_ai", "test_navigation_operations",
+    "test_ui_redesign", "test_ui_function_dedup", "test_collect_runtime", "test_collect_optimization",
+    "test_platforms",
+    "test_macos_app",
+    "test_license_compatibility",
 )
 
 
@@ -33,7 +58,7 @@ def main():
     sys.dont_write_bytecode = True
     with tempfile.TemporaryDirectory(prefix="aurora-offline-") as root:
         env = {"AURORA_CONFIG_DIR": root, "AURORA_INSTANCE": "offline-regression",
-               "AURORA_SKIP_LICENSE": "1"}
+               "AURORA_SKIP_LICENSE": "1", "AURORA_TEST": "1"}
         with patch.dict(os.environ, env), patch.object(socket.socket, "connect", denied), \
              patch.object(socket.socket, "connect_ex", denied), \
              patch.object(socket, "create_connection", denied), \

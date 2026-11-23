@@ -1,0 +1,608 @@
+{
+  "generated_at": "2026-11-23T12:27:24+0800",
+  "platforms": [
+    {
+      "platform": "alibaba",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 22,
+          "tabs": []
+        },
+        {
+          "index": 1,
+          "label": "连接与店铺",
+          "controls": 16,
+          "tabs": []
+        },
+        {
+          "index": 44,
+          "label": "处理规则",
+          "controls": 63,
+          "tabs": [
+            "AI 文案",
+            "AI 图片",
+            "类目与属性",
+            "价格与贸易",
+            "公司资料"
+          ]
+        },
+        {
+          "index": 33,
+          "label": "运行与结果",
+          "controls": 103,
+          "tabs": []
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 85,
+          "tabs": [
+            "运行日志"
+          ]
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 73,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 169,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        },
+        {
+          "index": 12,
+          "label": "单品处理",
+          "controls": 60,
+          "tabs": [
+            "选择商品",
+            "文案",
+            "图片",
+            "类目与属性",
+            "商品资料",
+            "价格与贸易",
+            "保存单品"
+          ]
+        },
+        {
+          "index": 30,
+          "label": "类目与属性",
+          "controls": 55,
+          "tabs": [
+            "AI 文案",
+            "AI 图片",
+            "类目与属性",
+            "价格与贸易",
+            "公司资料"
+          ]
+        },
+        {
+          "index": 31,
+          "label": "公司与商品资料",
+          "controls": 28,
+          "tabs": [
+            "AI 文案",
+            "AI 图片",
+            "类目与属性",
+            "价格与贸易",
+            "公司资料"
+          ]
+        },
+        {
+          "index": 32,
+          "label": "价格与贸易",
+          "controls": 75,
+          "tabs": [
+            "AI 文案",
+            "AI 图片",
+            "类目与属性",
+            "价格与贸易",
+            "公司资料"
+          ]
+        },
+        {
+          "index": 3,
+          "label": "AI 文案",
+          "controls": 61,
+          "tabs": [
+            "AI 文案",
+            "AI 图片",
+            "类目与属性",
+            "价格与贸易",
+            "公司资料"
+          ]
+        },
+        {
+          "index": 5,
+          "label": "AI 图片",
+          "controls": 56,
+          "tabs": [
+            "AI 文案",
+            "AI 图片",
+            "类目与属性",
+            "价格与贸易",
+            "公司资料"
+          ]
+        },
+        {
+          "index": 4,
+          "label": "内容审查",
+          "controls": 54,
+          "tabs": []
+        }
+      ],
+      "problems": [],
+      "ok": true
+    },
+    {
+      "platform": "aliexpress",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 199,
+          "tabs": []
+        },
+        {
+          "index": 1,
+          "label": "店铺与模板",
+          "controls": 84,
+          "tabs": []
+        },
+        {
+          "index": 2,
+          "label": "类目与属性",
+          "controls": 87,
+          "tabs": [
+            "类目与规格",
+            "属性模板与清理",
+            "欧盟资质"
+          ]
+        },
+        {
+          "index": 6,
+          "label": "价格",
+          "controls": 162,
+          "tabs": [
+            "定价与试算",
+            "阶梯与批发",
+            "区域调价",
+            "价格模板库"
+          ]
+        },
+        {
+          "index": 7,
+          "label": "变种与库存",
+          "controls": 76,
+          "tabs": [
+            "编码与库存",
+            "变种属性与图片",
+            "套装 SKU"
+          ]
+        },
+        {
+          "index": 3,
+          "label": "AI 文案",
+          "controls": 227,
+          "tabs": [
+            "AI 能力与提示词",
+            "详情内容增强"
+          ]
+        },
+        {
+          "index": 5,
+          "label": "AI 图片",
+          "controls": 214,
+          "tabs": [
+            "简单编辑",
+            "精细化编辑",
+            "营销图",
+            "图片输出与水印",
+            "商品视频"
+          ]
+        },
+        {
+          "index": 4,
+          "label": "内容审查",
+          "controls": 54,
+          "tabs": []
+        },
+        {
+          "index": 8,
+          "label": "发布队列",
+          "controls": 70,
+          "tabs": [
+            "运行与发布设置",
+            "商品队列"
+          ]
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 93,
+          "tabs": [
+            "运行日志",
+            "定时发布"
+          ]
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 132,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出",
+            "任务队列"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 167,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        }
+      ],
+      "problems": [],
+      "ok": true
+    },
+    {
+      "platform": "amazon",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 22,
+          "tabs": []
+        },
+        {
+          "index": 15,
+          "label": "连接与店铺",
+          "controls": 19,
+          "tabs": []
+        },
+        {
+          "index": 45,
+          "label": "处理规则",
+          "controls": 72,
+          "tabs": [
+            "AI 文案",
+            "商品图片",
+            "类目与属性",
+            "价格与物流",
+            "SKU 与库存"
+          ]
+        },
+        {
+          "index": 21,
+          "label": "运行与结果",
+          "controls": 101,
+          "tabs": []
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 75,
+          "tabs": [
+            "运行日志"
+          ]
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 132,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出",
+            "任务队列"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 122,
+          "tabs": [
+            "账号与连接",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        },
+        {
+          "index": 16,
+          "label": "单品编辑",
+          "controls": 218,
+          "tabs": [
+            "文案",
+            "商品图片",
+            "类目与属性",
+            "价格与库存",
+            "保存"
+          ]
+        },
+        {
+          "index": 17,
+          "label": "类目与属性",
+          "controls": 108,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 18,
+          "label": "价格与物流",
+          "controls": 57,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 34,
+          "label": "SKU 与库存",
+          "controls": 52,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 19,
+          "label": "AI 文案",
+          "controls": 109,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 20,
+          "label": "商品图片",
+          "controls": 89,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 13,
+          "label": "Amazon 刊登",
+          "controls": 368,
+          "tabs": [
+            "商品文案",
+            "提示词预设"
+          ]
+        }
+      ],
+      "problems": [],
+      "ok": true
+    },
+    {
+      "platform": "tiktok",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 21,
+          "tabs": []
+        },
+        {
+          "index": 22,
+          "label": "连接与店铺",
+          "controls": 56,
+          "tabs": []
+        },
+        {
+          "index": 24,
+          "label": "类目与属性",
+          "controls": 81,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 25,
+          "label": "价格与物流",
+          "controls": 55,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 35,
+          "label": "SKU 与库存",
+          "controls": 51,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 26,
+          "label": "AI 文案",
+          "controls": 108,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 27,
+          "label": "图片与视频",
+          "controls": 100,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 28,
+          "label": "保存与发布",
+          "controls": 83,
+          "tabs": []
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 75,
+          "tabs": [
+            "运行日志"
+          ]
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 119,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 167,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        },
+        {
+          "index": 14,
+          "label": "TikTok 刊登",
+          "controls": 273,
+          "tabs": [
+            "连接与商品",
+            "类目与属性",
+            "文案与图片",
+            "价格与物流",
+            "保存与诊断",
+            "商品文案",
+            "提示词预设"
+          ]
+        }
+      ],
+      "problems": [],
+      "ok": true
+    },
+    {
+      "platform": "shopee",
+      "pages": [
+        {
+          "index": 0,
+          "label": "概览",
+          "controls": 21,
+          "tabs": []
+        },
+        {
+          "index": 36,
+          "label": "连接与店铺",
+          "controls": 37,
+          "tabs": []
+        },
+        {
+          "index": 38,
+          "label": "类目与属性",
+          "controls": 61,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 39,
+          "label": "价格与物流",
+          "controls": 53,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 40,
+          "label": "SKU 与库存",
+          "controls": 45,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 41,
+          "label": "AI 文案",
+          "controls": 60,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 42,
+          "label": "商品图片与视频",
+          "controls": 88,
+          "tabs": [
+            "自动处理设置",
+            "单品高级编辑"
+          ]
+        },
+        {
+          "index": 43,
+          "label": "保存与发布",
+          "controls": 83,
+          "tabs": []
+        },
+        {
+          "index": 10,
+          "label": "任务与日志",
+          "controls": 75,
+          "tabs": [
+            "运行日志"
+          ]
+        },
+        {
+          "index": 9,
+          "label": "图片工作台",
+          "controls": 119,
+          "tabs": [
+            "商品与取图",
+            "图片处理与输出"
+          ]
+        },
+        {
+          "index": 11,
+          "label": "设置",
+          "controls": 166,
+          "tabs": [
+            "账号与连接",
+            "图片与模型",
+            "界面与实例",
+            "维护与诊断"
+          ]
+        }
+      ],
+      "problems": [],
+      "ok": true
+    }
+  ],
+  "ok": true
+}
