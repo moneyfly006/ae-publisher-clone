@@ -25,7 +25,6 @@ def populate(app, index):
     if index == 10:
         app.log_rows = [("12:00:00", "INFO", "产品 12345678 处理完成"),
                         ("12:00:01", "ERROR", "产品 87654321 保存失败")]
-        app.scheduler.add("ui-test-product", time.time() + 3600, "验证定时发布")
 
 
 def _cases():

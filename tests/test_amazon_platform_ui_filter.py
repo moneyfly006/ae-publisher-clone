@@ -25,9 +25,6 @@ AMAZON_ONLY_CAPS = (
     "image_settings", "video_tools", "smt_wizard", "smt_conflicts",
 )
 # 复用已有 cap（Alibaba 本来就 False）：Amazon 也隐藏
-REUSED_CAP = "scheduled_publish"
-
-
 def controls(app):
     return list(walk(app.content.controls))
 
@@ -66,13 +63,8 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
             # 这里不断言它的默认值（避免把外部改动误判成 Amazon 回归）。
             for pid in ("aliexpress"):
                 self.assertTrue(cap(pid, name), f"{pid} 不应被改动：{name}")
-        # 复用 cap：Alibaba 原本就 False（既有行为），其它平台保持 True
-        self.assertFalse(cap("amazon", REUSED_CAP))
-        self.assertFalse(cap("alibaba", REUSED_CAP))
-        self.assertTrue(cap("aliexpress", REUSED_CAP))
         # 既有 Alibaba caps 不能被回退
         self.assertTrue(cap("alibaba", "icbu_listing"))
-        self.assertFalse(cap("alibaba", "smt_sku_page"))
         self.assertFalse(cap("aliexpress", "icbu_listing"))
 
     # ---------- A. 顶部栏 / 侧栏 ----------
@@ -134,8 +126,8 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                       "Amazon 设置副标题应去掉「图片服务」")
         self.assertFalse(any("图片服务" in t for t in current))
         # 界面与实例说明不出现 SMT 措辞
-        self.assertTrue(any("任务记录与日志也按实例隔离" in t for t in current),
-                        "Amazon 界面与实例说明应换成非 SMT 措辞")
+        self.assertTrue(any("多开 / 多任务" in t for t in current),
+                        "Amazon 界面应保留多开/多任务说明")
         self.assertFalse(any("任务队列与定时发布" in t for t in current))
         # 维护与诊断：恢复图床/图床提示隐藏，保留恢复 API + 全部恢复
         self.assertNotIn("图床", current, "Amazon 不应显示图床提示")
@@ -249,7 +241,7 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                         "AliExpress 应保留「检查配置冲突」按钮")
         self.app._switch(10)
         tabs = find_tabs(self.app)
-        self.assertIn("定时发布", [t.text for t in tabs.tabs])
+        self.assertNotIn("定时发布", [t.text for t in tabs.tabs])
         stop = [b for b in buttons(self.app) if str(getattr(b, "text", "")) == "停止任务"]
         self.assertTrue(any(bool(getattr(b, "visible", True)) for b in stop))
         self.app._switch(11)
@@ -259,8 +251,8 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
         current = texts(self.app)
         self.assertTrue(any("图片服务" in t for t in current),
                         "AliExpress 设置副标题应保留「图片服务」")
-        self.assertTrue(any("任务队列与定时发布也按实例隔离" in t for t in current),
-                        "AliExpress 界面与实例说明应保留 SMT 措辞")
+        self.assertTrue(any("新实例运行" in t for t in current),
+                        "AliExpress 应保留多任务说明")
         self.assertIn("图床", current, "AliExpress 应保留图床提示")
         restore_host = [b for b in buttons(self.app)
                         if str(getattr(b, "text", "")) == "恢复图床"]

@@ -89,8 +89,11 @@ def _merge_duplicate_rows(rows):
              str(p.get("parentPropertyId") or p.get("plug_parent_property_id") or ""),
              str(p.get("parentValueId") or p.get("plug_parent_value_id") or ""))
             for p in props if isinstance(p, dict)))
-        if combo and combo in seen:
-            kept = seen[combo]
+        # 清空「发货地」后，只靠发货地区分的 SKU 会变成空属性组合；
+        # 空组合同样必须合并，否则平台仍判重复规格，整单无法发布。
+        key = combo or ("__EMPTY__",)
+        if key in seen:
+            kept = seen[key]
             try:
                 kept["ipmSkuStock"] = str(int(float(kept.get("ipmSkuStock") or 0)) +
                                           int(float(row.get("ipmSkuStock") or 0)))
@@ -98,8 +101,7 @@ def _merge_duplicate_rows(rows):
                 pass
             merged += 1
             continue
-        if combo:
-            seen[combo] = row
+        seen[key] = row
         out.append(row)
     return out, merged
 

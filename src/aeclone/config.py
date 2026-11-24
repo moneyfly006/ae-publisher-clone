@@ -265,9 +265,6 @@ DEFAULTS: dict = {
     # 素材补齐
     "pad_main_images_from_extra": False,
     "main_pic_count": "6",
-    # 定时发布
-    "schedule_publish": False,
-    "schedule_time": "",
     # 套装 / 水印叠加 / SKU 图替换
     # 变种属性组合完全重复时：恢复真实规格失败后，自动合并重复 SKU（保留首条、库存累加）
     "auto_merge_duplicate_skus": True,
@@ -348,6 +345,7 @@ DEFAULTS: dict = {
     "detail_text_info_tail": "",
     # 本地详情图：用户从电脑选的图片，上传图床后插入详情头/尾
     "detail_local_images": "[]",          # JSON: ["/path/a.png", ...]
+    "workbench_image_overrides": "{}",    # JSON: {商品ID: {"main": [...], "detail": [...]}}
     "detail_local_image_position": "tail",  # head | tail | both
     "detail_text_position": "head",
     # ---- 主图/图片位置 ----
@@ -422,7 +420,6 @@ DEFAULTS: dict = {
     "alibaba_lead_time": 30,          # 发货期天数（写入 deliver_periods.process_period）
     "alibaba_deliver_quantity": "1",  # 发货期起订量（deliver_periods.quantity）
     "alibaba_process_period": "15",
-    "alibaba_schedule_time": "",      # op=5 定时发布时间（本地 YYYY-MM-DD HH:MM）
     "alibaba_attr_presets": "{\"Core Components\":\"Motor\",\"Warranty\":\"1 Year\",\"Place of Origin\":\"China\",\"Model Number\":\"LS-600\",\"Weight (kg)\":\"600\",\"Unique Selling Point\":\"Fully hydraulic system\"}",
     # ---------------- Amazon（亚马逊）刊登预设 ----------------
     "amazon_cookies": "",

@@ -3439,6 +3439,26 @@ class Publisher:
             raise ValueError("没有读取到商品详情")
         return hydrate_product(product, detail)
 
+    def _apply_workbench_overrides(self, product: dict) -> dict:
+        """图片工作台按商品 ID 保存的主图/详情图覆盖。"""
+        try:
+            import json as _j
+            raw = getattr(self.cfg, "workbench_image_overrides", "{}") or "{}"
+            data = _j.loads(raw) if isinstance(raw, str) else dict(raw or {})
+        except Exception:
+            return product
+        ov = data.get(str(product.get("id") or "")) if isinstance(data, dict) else None
+        if not isinstance(ov, dict):
+            return product
+        out = dict(product)
+        main = [str(x) for x in (ov.get("main") or []) if str(x).strip()]
+        detail = [str(x) for x in (ov.get("detail") or []) if str(x).strip()]
+        if main:
+            out["images"] = main + [x for x in (out.get("images") or []) if x not in main]
+        if detail:
+            out["detail_images"] = detail
+        return out
+
     def run(self, product: dict, dry_run: bool = True, manage_progress: bool = True) -> PublishResult:
         # ---- 核心层授权校验：改 UI 配置绕不过（必须伪造服务端 ECDSA 签名）----
         if not dry_run:
@@ -3534,6 +3554,7 @@ class Publisher:
             hydrate = getattr(self, "_hydrate_product", None)
             if callable(hydrate):
                 product = hydrate(product)
+            product = self._apply_workbench_overrides(product)
             from .sku_recovery import recover_skus
             product, repair_note = recover_skus(product, getattr(self, "dxm", None))
             if repair_note:

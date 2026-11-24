@@ -102,7 +102,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_aliexpress_navigation_and_all_existing_pages_preserved(self):
         self.assertEqual([p.index for p in ALIEXPRESS.pages],
-                         [0, 1, 2, 6, 7, 3, 5, 4, 8, 10, 9, 11])
+                         [0, 1, 2, 6, 7, 3, 5, 4, 8, 46, 10, 9, 11])
         self.app._switch_platform("aliexpress")
         for theme in ("dark", "light"):
             ui.apply_theme(theme)

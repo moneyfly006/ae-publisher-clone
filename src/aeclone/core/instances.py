@@ -75,9 +75,10 @@ def create_instance(name: str) -> dict:
     return {"name": safe, "path": str(target), "cdp_port": int(cfg.get("cdp_port") or 0)}
 
 
-def launch_instance(name: str) -> subprocess.Popen:
+def launch_instance(name: str, env_extra: dict | None = None) -> subprocess.Popen:
     """启动一个新实例窗口；窗口位置错开，避免叠在一起。"""
     env = dict(os.environ)
+    env.update({str(k): str(v) for k, v in (env_extra or {}).items()})
     env["AURORA_INSTANCE"] = name
     # 按实例序号错开窗口位置
     idx = 0
@@ -93,3 +94,39 @@ def launch_instance(name: str) -> subprocess.Popen:
         cmd = [exe, str(Path(__file__).resolve().parents[3] / "main.py")]
     from .proc import popen as _hidden_popen
     return _hidden_popen(cmd, env=env, close_fds=True)
+
+
+def launch_task_instance(task: dict, instance_name: str = "") -> dict:
+    """把任务配置写入独立实例并启动；返回 {'process','name','path'}。"""
+    name = instance_name or ("task-" + str(task.get("id") or "")[:8])
+    info = create_instance(name)
+    cfg_path = Path(info["path"]) / "config.json"
+    try:
+        data = _read_cfg(cfg_path)
+    except Exception:
+        data = {}
+    snapshot = task.get("config") or {}
+    if isinstance(snapshot, dict):
+        for k, v in snapshot.items():
+            if any(word in str(k).lower() for word in
+                   ("cookie", "token", "password", "secret", "api_key", "license")):
+                continue
+            data[k] = v
+    if task.get("keyword"):
+        plat = str(task.get("platform") or data.get("active_platform") or "")
+        if plat:
+            data[plat + "_collect_keyword"] = str(task.get("keyword") or "")
+    if task.get("platform"):
+        data["active_platform"] = str(task.get("platform"))
+    cfg_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 实例配置目录写一份单任务配置，启动进程可从自己的 config_dir 读取状态。
+    try:
+        (Path(info["path"]) / "task_profiles.json").write_text(
+            json.dumps([task], ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:
+        pass
+    proc = launch_instance(name, env_extra={
+        "AURORA_AUTOSTART": "1",
+        "AURORA_TASK_ID": str(task.get("id") or ""),
+    })
+    return {"process": proc, "name": name, "path": info["path"]}

@@ -51,7 +51,6 @@ def test_other_platforms_unchanged():
         idx = {p.index for p in pf.pages}
         check(f"{pid} 页面清单非空且不含 12", bool(idx) and 12 not in idx, sorted(idx))
         # 未声明能力的平台默认保留（不因 Alibaba 的裁剪被影响）
-        check(f"{pid} 仍保留 SMT 队列能力（默认值）", cap(pid, "smt_queue") is True)
 
 
 def test_tiktok_new_platform_boundary():
@@ -74,26 +73,21 @@ def test_tiktok_new_platform_boundary():
     for name in ("smt_wizard", "smt_pipeline_actions", "smt_run_stop",
                  "smt_pipeline_stats", "smt_store_selector", "smt_resume",
                  "smt_extra_ai", "smt_prompt_library", "smt_detail_assembly",
-                 "marketing_images", "smt_queue", "scheduled_publish",
+                 "marketing_images",
                  "smt_sku_page", "legacy_price_page", "smt_category_source",
                  "smt_product_settings", "smt_attr_templates",
                  "eu_qualification", "smt_shop_template", "smt_template_ready"):
         check(f"TikTok 关闭 {name}", cap("tiktok", name) is False)
     check("TikTok 关闭 ICBU 刊登", cap("tiktok", "icbu_listing") is False)
     # 不得影响其它平台
-    check("速卖通未被 TikTok 裁剪影响", cap("aliexpress", "smt_queue") is True)
 
 
 def test_caps():
-    check("Alibaba 关闭 SMT 队列", cap("alibaba", "smt_queue") is False)
     check("Alibaba 关闭营销图", cap("alibaba", "marketing_images") is False)
-    check("Alibaba 关闭定时发布", cap("alibaba", "scheduled_publish") is False)
     check("Alibaba 关闭欧盟资质", cap("alibaba", "eu_qualification") is False)
     check("Alibaba 开启 ICBU 刊登", cap("alibaba", "icbu_listing") is True)
-    check("速卖通保留 SMT 队列", cap("aliexpress", "smt_queue") is True)
     check("速卖通保留营销图", cap("aliexpress", "marketing_images") is True)
     check("速卖通不显示 ICBU 刊登", cap("aliexpress", "icbu_listing") is False)
-    check("未知平台默认保留能力", cap("unknown-platform", "smt_queue") is True)
     # 能力 map 只应包含已知平台
     check("PLATFORM_CAPS 仅含已注册平台",
           set(PLATFORM_CAPS) <= set(PLATFORMS), set(PLATFORM_CAPS) - set(PLATFORMS))

@@ -24,8 +24,6 @@ from ..services.video import generate_carousel_video, probe as video_probe
 from ..core import updater
 from ..core.instances import list_instances, create_instance, launch_instance
 from ..services import history
-from ..services.queue import TaskQueue
-from ..services.scheduler import Scheduler
 from .navigation import DESTINATIONS, destination
 from ..licensing import load_entitlements
 from ..platforms import PLATFORMS, cap, get_platform
@@ -674,6 +672,11 @@ class App:
         self.page = page
         self.cfg: AppConfig = get_config()
         try:
+            from ..services.task_profiles import recover_interrupted
+            recover_interrupted()
+        except Exception:
+            pass
+        try:
             page.on_keyboard_event = self._on_key
         except Exception:
             pass
@@ -692,10 +695,15 @@ class App:
         self.picked: list[Path] = []
         self.wb_sel_paths: set[str] = set()
         self.wb_pick_summary = ft.Text("", size=12.5, color=ACCENT_2)
+        self.wb_source_text = ft.Text("图片来源：未选择", size=12, color=MUTED)
+        self.wb_queue_name = ft.TextField(label="队列任务名称（可选）", width=240,
+                                          bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.wb_result_values: list[str] = []
         self._subscribe_progress()
         self.wb_wall = None
         self.logs: list[str] = []
         self.products: list[dict] = []
+        self._queue_products: dict = {}
         self.ws_endpoint = ""
         self.field_refs: list[Field] = []
         self.file_picker = ft.FilePicker(on_result=self._on_files)
@@ -917,9 +925,6 @@ class App:
                 ft.Column([nav], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO),
                 ft.Divider(color=BORDER, height=12),
                 self.btn_run,
-                ft.TextButton("日志监控", icon=ft.Icons.TERMINAL, height=36,
-                              style=ft.ButtonStyle(color=MUTED),
-                              on_click=lambda e: self._open_log_panel()),
                 ft.Row([ft.Icon(ft.Icons.VERIFIED_USER, size=13, color=SUCCESS_C),
                         ft.Container(content=self.license_text, expand=True,
                                      clip_behavior=ft.ClipBehavior.HARD_EDGE),
@@ -970,9 +975,7 @@ class App:
             pass
         threading.Thread(target=self._check_license, daemon=True).start()
         try:
-            if getattr(self, "scheduler", None) is None:
-                self.scheduler = Scheduler()
-                self.scheduler.start(self._run_scheduled)
+            self.scheduler = None
         except Exception as ex:
             self._log(f"调度器启动失败：{ex}", "WARN")
         def _start_heartbeat():
@@ -1236,6 +1239,18 @@ class App:
         if item is None:
             return
         idx = item.index
+        if idx == 46:
+            self._current = 46
+            self._page_idx = 46
+            self.breadcrumb.value = f"{self.active_platform.name} / 发布与运行 / 任务队列"
+            self.content.controls = [page_header("任务队列",
+                                                 "配置快照队列：保存多份配置，单独执行或全部执行。"),
+                                     self._config_queue_card()]
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+            return
         for page_idx, b in self.nav_buttons:
             on = page_idx == idx
             b.style = self._nav_style(on)
@@ -2602,19 +2617,6 @@ class App:
             from pathlib import Path as _P
             if not _P(str(cfg.watermark)).exists():
                 errs.append(f"水印文件不存在：{cfg.watermark}")
-        # 定时发布：时间必须能解析且在未来（否则保存后永远不会发布）
-        try:
-            if getattr(cfg, "schedule_publish", False):
-                from ..services.publisher import parse_run_at
-                when = str(getattr(cfg, "schedule_time", "") or "").strip()
-                if not when:
-                    errs.append("已开启定时发布，但没填发布时间（例：2026-11-12 09:00）")
-                else:
-                    run_at = parse_run_at(when)
-                    if run_at <= time.time():
-                        errs.append(f"定时发布时间已过：{when}，请改成将来的时间")
-        except Exception as ex:
-            errs.append(f"定时发布时间格式不对：{str(ex)[:60]}")
         # 欧盟资质选「是」时必须有责任人资料，否则保存会被站点拦截（ISSUES #4）
         try:
             if str(getattr(cfg, "eu_qualification", "否")) == "是":
@@ -2934,6 +2936,7 @@ class App:
             if getattr(self, "_running", False):
                 self._request_stop()
             else:
+                getattr(self, '_open_log_on_task', lambda: None)()
                 launch(self, self.active_platform.id)
             return
         if self.active_platform.id == "shopee":
@@ -3023,71 +3026,8 @@ class App:
         self._log("启动：配置检查通过")
         self._switch(10)
         self._log("开始执行…")
+        getattr(self, '_open_log_on_task', lambda: None)()
         threading.Thread(target=self._run_pipeline, args=(only_ids,), daemon=True).start()
-
-    def _run_scheduled(self, job):
-        """到点执行「定时发布」：商品已保存，这里用 API op=2 直接发布（无浏览器）。"""
-        if self._is_tiktok():
-            # 定时发布属于 SMT 写操作：TikTok 平台不跑速卖通定时器（跳 14 号页 + WARN）。
-            self._log(f"TikTok 平台禁止速卖通定时发布：{getattr(job, 'product_id', '')}"
-                      "（请用左侧 TikTok 功能页保存）", "WARN")
-            try:
-                self._switch(22)
-            except Exception:
-                pass
-            return
-        if self._is_amazon():
-            # 定时发布属于 SMT 写操作：Amazon 平台不跑速卖通定时器（跳 13 号页 + WARN）。
-            self._log(f"Amazon 平台禁止速卖通定时发布：{getattr(job, 'product_id', '')}"
-                      "（请用「Amazon 刊登」页保存）", "WARN")
-            try:
-                self._switch(16)
-            except Exception:
-                pass
-            return
-        if os.environ.get("AURORA_NO_SAVE") or os.environ.get("AURORA_TEST"):
-            raise RuntimeError("预览模式：未执行真实定时发布")
-        self._log(f"定时发布触发：{job.product_id}（{job.title[:30]}）", "INFO")
-        try:
-            from ..integrations.dianxiaomi import DianxiaomiClient
-            from ..services.api_save import build_save_payload
-            ck = self._cookies()
-            dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
-            pid = str(job.product_id)
-            _tpl = str(getattr(self.cfg, "template_product_id", "") or "").strip()
-            target = dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
-            tpl = None
-            if _tpl:
-                tpl = dxm._get("product_detail", {"id": _tpl}).get("data", {}).get("product", {})
-            if not target:
-                raise RuntimeError("未取到商品详情")
-            payload = build_save_payload(target, tpl, action="publish",
-                                         custom_attributes=(getattr(self.cfg, "custom_attributes", None) or None))
-            resp = dxm.save_product_via_api(payload)
-            _code = resp.get("code") if isinstance(resp, dict) else None
-            _d = resp.get("data") if isinstance(resp, dict) and isinstance(resp.get("data"), dict) else {}
-            _msg = str(_d.get("msg") or (resp.get("msg") if isinstance(resp, dict) else "") or "")
-            if _code != 0:
-                raise RuntimeError(_msg[:120] or "发布失败")
-            # 店小秘可能返回 code=0 但 msg 是「操作失败，只有处在采集箱中的产品…」
-            try:
-                from ..services.publisher import is_failure_msg as _ifm
-            except Exception:
-                _ifm = lambda m: False  # noqa: E731
-            if _ifm(_msg):
-                raise RuntimeError(_msg[:120])
-            self._log(f"定时发布成功：{pid}", "INFO")
-            try:
-                history.record("scheduled_publish", 1, 0, pid)
-            except Exception:
-                pass
-        except Exception as ex:
-            self._log(f"定时发布失败：{ex}", "ERROR")
-            try:
-                history.record("scheduled_publish", 0, 1, str(job.product_id))
-            except Exception:
-                pass
-            raise
 
     def _save_api_fields(self):
         """把设置页 API 卡里的值落盘（输入即保存，启动前也会再存一次）。"""
@@ -3977,20 +3917,6 @@ class App:
             self.toast("机器码已复制")
         except Exception:
             self.toast(f"请手动复制：{code}", False)
-
-    def _publish_scheduled_now(self, job):
-        """把「定时发布队列」里的任务立即执行（手动提前发布）。"""
-        self._log(f"手动提前发布：{job.product_id}")
-        try:
-            self._run_scheduled(job)
-            self.toast("定时任务已提前发布")
-        except Exception as ex:
-            self.toast(f"发布失败：{ex}", False)
-        finally:
-            try:
-                self._switch(10)
-            except Exception:
-                pass
 
     def _run_pipeline(self, only_ids: list | None = None):
         if self.active_platform.id == "shopee":
@@ -6052,14 +5978,6 @@ class App:
                 ], width=200, tooltip_text="产品保存后放在哪个位置"),
                 self._sw("check_banned_word", "违禁词检查",
                    tooltip_text="发布前检查标题/详情是否有违禁词"),
-            ], spacing=16, wrap=True),
-            muted("定时发布（仅速卖通链路）：开启后先保存到待发布，到点由调度器发布；"
-                  "创建后可在「任务与日志 → 定时发布」查看/取消。", 11),
-            ft.Row([
-                self._sw("schedule_publish", "定时发布",
-                   tooltip_text="保存后不立即发布，到指定时间再发布"),
-                self._tf("schedule_time", "发布时间（如 2026-11-25 09:00）", width=260,
-                   tooltip_text="本地时间；必须是将来时间，格式 2026-11-25 09:00"),
             ], spacing=16, wrap=True),
         ], spacing=10))
 
@@ -8206,6 +8124,230 @@ class App:
                     ("套装 SKU", [self._combo_card()]),
                 ])]
 
+    def _start_publish_counts_auto_refresh(self, refresh_counts) -> None:
+        """停留在发布队列页时每 30 秒刷新一次数量；离开页面自动停止。"""
+        try:
+            gen = int(getattr(self, "_pub_counts_gen", 0)) + 1
+            self._pub_counts_gen = gen
+        except Exception:
+            return
+
+        def loop():
+            while True:
+                time.sleep(30)
+                try:
+                    if getattr(self, "_current", -1) != 8 or getattr(self, "_pub_counts_gen", 0) != gen:
+                        return
+                    refresh_counts()
+                except Exception:
+                    return
+        try:
+            threading.Thread(target=loop, daemon=True).start()
+        except Exception:
+            pass
+
+    def _refresh_config_queue(self) -> None:
+        try:
+            from ..services import task_profiles as _tp
+            jobs = [j for j in _tp.list_tasks()
+                    if str(j.get("status") or "idle") != "idle"]
+        except Exception:
+            jobs = []
+        if getattr(self, "cq_list", None) is None:
+            return
+        rows = []
+        for j in jobs:
+            st = str(j.get("status") or "idle")
+            label = {"pending": "等待执行", "running": "执行中", "done": "已完成",
+                     "failed": "失败", "idle": "未加入"}.get(st, st)
+            color = {"pending": ACCENT_2, "running": ACCENT, "done": SUCCESS_C,
+                     "failed": DANGER_C}.get(st, MUTED)
+            rows.append(ft.Row([
+                ft.Column([
+                    ft.Text(str(j.get("name") or "-"), size=13, color=TEXT,
+                            weight=ft.FontWeight.BOLD),
+                    ft.Text(f"{j.get('platform') or '-'} · 关键词 {j.get('keyword') or '全部'} · "
+                            f"数量 {j.get('quantity') or '全部'} · "
+                            f"商品 {len(j.get('selected_products') or []) or '当前配置'} · "
+                            f"加入于 {time.strftime('%m-%d %H:%M', time.localtime(float(j.get('created_at') or 0)))}"
+                            + (f" · {j.get('last_error')}" if j.get('last_error') and st in ("pending", "failed") else ""),
+                            size=11.5, color=MUTED),
+                ], spacing=1, expand=True),
+                ft.Text(label, size=11.5, color=color, width=70),
+                ft.TextButton("执行", icon=ft.Icons.PLAY_ARROW,
+                              on_click=lambda e, _j=j: self._start_config_queue([_j])),
+                ft.TextButton("日志", icon=ft.Icons.RECEIPT_LONG,
+                              on_click=lambda e, _j=j: self._show_config_job_logs(_j)),
+                ft.TextButton("删除", icon=ft.Icons.DELETE_OUTLINE,
+                              on_click=lambda e, _j=j: self._delete_config_job(_j)),
+            ], spacing=6, wrap=True))
+        self.cq_list.controls = rows or [muted("队列为空：配置好软件后，填写名称并加入队列", 12)]
+
+    def _enqueue_current_config(self) -> None:
+        try:
+            self._save_api_fields()
+        except Exception:
+            pass
+        name = str(getattr(self, "cq_name", None).value
+                   if getattr(self, "cq_name", None) is not None else "").strip()
+        if not name:
+            self.toast("请填写队列任务名称", False)
+            return
+        try:
+            from ..services import task_profiles as _tp
+            plat = str(getattr(self.active_platform, "id", "") or self.cfg.active_platform or "")
+            kw = str(getattr(self, "run_keyword", "") or "").strip()
+            try:
+                self.cfg.set(plat + "_collect_keyword", kw)
+            except Exception:
+                pass
+            qty = 0
+            try:
+                qty = max(0, int(getattr(self.cfg, "edit_sum", 0) or 0))
+            except Exception:
+                qty = 0
+            try:
+                _bl = getattr(self, "_alibaba_batch_limit", None)
+                if callable(_bl):
+                    qty = int(_bl() or qty)
+            except Exception:
+                pass
+            selected = set()
+            try:
+                selected.update(str(x) for x in (getattr(self, "wb_selected", set()) or set()))
+            except Exception:
+                pass
+            try:
+                _pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+                if _pid:
+                    selected.add(_pid)
+            except Exception:
+                pass
+            _tp.enqueue(name, self.cfg, plat, keyword=kw, quantity=qty,
+                        selected_products=sorted(selected))
+            self.cq_name.value = ""
+            self._refresh_config_queue()
+            self.toast(f"已加入队列：{name}")
+            self._log(f"已加入配置队列：{name}（{plat}，关键词 {kw or '全部'}）")
+        except Exception as ex:
+            self.toast(f"加入队列失败：{str(ex)[:80]}", False)
+
+    def _show_config_job_logs(self, job: dict) -> None:
+        logs = job.get("logs") if isinstance(job.get("logs"), list) else []
+        dlg = ft.AlertDialog(
+            title=ft.Text(f"队列日志 · {job.get('name') or job.get('id')}", size=15),
+            content=ft.Container(width=760, height=420,
+                                 content=ft.Column([ft.Text(str(x), size=12, color=TEXT,
+                                                            selectable=True) for x in logs[-300:]]
+                                                   or [muted("暂无日志", 12)],
+                                                   spacing=2, scroll=ft.ScrollMode.AUTO)),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
+        self._show_dlg(dlg)
+
+    def _delete_config_job(self, job: dict) -> None:
+        try:
+            from ..services import task_profiles as _tp
+            if _tp.delete(str(job.get("id") or "")):
+                self._refresh_config_queue()
+                self.toast("队列任务已删除")
+        except Exception as ex:
+            self.toast(str(ex), False)
+
+    def _start_config_queue(self, jobs: list[dict]) -> None:
+        jobs = [j for j in jobs if str(j.get("status") or "") == "pending"]
+        if not jobs:
+            self.toast("没有等待执行的队列任务", False); return
+        if getattr(self, "_config_queue_running", False) or getattr(self, "_running", False):
+            self.toast("已有任务在运行；队列会等当前任务结束后再执行", False); return
+        self._config_queue_running = True
+
+        def worker():
+            from ..services import task_profiles as _tp
+            try:
+                for job in jobs:
+                    name = str(job.get("name") or job.get("id") or "")
+                    self._queue_job_name = name
+                    self._queue_job_id = str(job.get("id") or "")
+                    _tp.mark(str(job.get("id") or ""), "running")
+                    self._log(f"开始执行队列任务：{name}")
+                    try:
+                        self._apply_config_job(job)
+                        self._open_log_on_task()
+                        _sel = [str(x) for x in (job.get("selected_products") or []) if str(x).strip()]
+                        self._start(ignore_conflicts=True, only_ids=_sel or None)
+                        deadline = time.time() + 30
+                        while time.time() < deadline and not getattr(self, "_running", False):
+                            time.sleep(0.2)
+                        started = bool(getattr(self, "_running", False))
+                        while getattr(self, "_running", False):
+                            time.sleep(1)
+                        _tp.mark(str(job.get("id") or ""), "done" if started else "failed",
+                                 "" if started else "任务未进入运行状态")
+                    except Exception as ex:  # noqa: BLE001
+                        _tp.mark(str(job.get("id") or ""), "failed", str(ex)[:200])
+                        self._log(f"队列任务失败：{name}：{ex}", "ERROR")
+                    self._refresh_config_queue()
+            finally:
+                self._queue_job_name = ""
+                self._queue_job_id = ""
+                self._config_queue_running = False
+                self._refresh_config_queue()
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_config_job(self, job: dict) -> None:
+        from ..services import task_profiles as _tp
+        _tp.apply_to_config(job, self.cfg)
+        plat = str(job.get("platform") or self.cfg.active_platform or "")
+        if plat:
+            self.cfg.set("active_platform", plat)
+            self.cfg.set(plat + "_collect_keyword", str(job.get("keyword") or ""))
+        try:
+            qty = int(job.get("quantity") or 0)
+            if qty > 0:
+                self.cfg.set("edit_sum", qty)
+                self._alibaba_batch_limit = lambda _q=qty: _q
+        except Exception:
+            pass
+        save_config(self.cfg)
+        self.run_keyword = str(job.get("keyword") or "")
+        if plat:
+            self._switch_platform(plat)
+
+    def _config_queue_card(self):
+        self.cq_name = ft.TextField(label="队列任务名称（如 钻机-德国站）", width=300,
+                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.cq_list = ft.Column(spacing=4)
+        self._refresh_config_queue()
+        queue_card = card(ft.Column([
+            h1i(ft.Icons.QUEUE, "配置任务队列"),
+            muted("先把关键词、模板商品、数量、平台、AI/图片/价格/发布方式全部配置好，"
+                  "填写名称后点「加入队列」。可以继续改配置再加第二条；每条都是独立快照。", 11),
+            muted("执行单条或执行全部；执行时按任务名写入实时日志。队列只在当前实例顺序执行，"
+                  "要并行请用设置里的「新实例运行」。", 11),
+            ft.Row([self.cq_name,
+                    ft.ElevatedButton("加入队列", icon=ft.Icons.ADD_TASK,
+                                      bgcolor=ACCENT, color=ON_ACCENT,
+                                      on_click=lambda e: self._enqueue_current_config()),
+                    ft.OutlinedButton("执行全部待执行", icon=ft.Icons.PLAY_CIRCLE_FILL,
+                                      on_click=lambda e: self._start_config_queue(
+                                          __import__("aeclone.services.task_profiles",
+                                                     fromlist=["pending_jobs"]).pending_jobs())),
+                    ft.OutlinedButton("清理已完成/失败",
+                                      on_click=lambda e: self._clear_config_queue_finished())],
+                   spacing=8, wrap=True),
+            self.cq_list,
+        ], spacing=8))
+        return queue_card
+
+    def _clear_config_queue_finished(self) -> None:
+        try:
+            from ..services import task_profiles as _tp
+            n = _tp.clear_finished()
+            self._refresh_config_queue()
+            self.toast(f"已清理 {n} 条队列任务" if n else "没有可清理的任务")
+        except Exception as ex:
+            self.toast(str(ex), False)
+
     def _p_publish(self):
         """发布队列：SMT 平台用店小秘 SMT 队列；Alibaba 平台只读 Alibaba 商品数。
 
@@ -8260,7 +8402,7 @@ class App:
                         return
                     from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
                     c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
-                    c2 = c.counts(self.cfg.store_id or None, ttl=30)
+                    c2 = c.counts(self.cfg.store_id or None, ttl=0)
                     if not c2:
                         raise RuntimeError("店铺没有返回数量")
                     self.store_counts = c2 or {}
@@ -8268,7 +8410,7 @@ class App:
                     self.pub_fail_txt.value = str((c2 or {}).get("publishFail", 0))
                     self.pub_publishing_txt.value = str((c2 or {}).get("publishing", 0))
                     if getattr(self, "pub_counts_status", None) is not None:
-                        self.pub_counts_status.value = "更新于 " + time.strftime("%H:%M:%S")
+                        self.pub_counts_status.value = "更新于 " + time.strftime("%H:%M:%S") + " · 自动刷新 30 秒"
                         self.pub_counts_status.color = MUTED
                     self._safe_update()
                 except Exception as ex:  # noqa: BLE001
@@ -8279,7 +8421,7 @@ class App:
                     self._safe_update()
             threading.Thread(target=go, daemon=True).start()
 
-        self.pub_counts_status = ft.Text("", size=12, color=MUTED)
+        self.pub_counts_status = ft.Text("自动刷新 30 秒 · 数量来自店小秘当前店铺", size=12, color=MUTED)
 
         if is_alibaba:
             tiles = ft.Row([
@@ -8344,18 +8486,23 @@ class App:
         ], spacing=10))
 
         refresh_counts()
+        self._start_publish_counts_auto_refresh(refresh_counts)
         if is_alibaba:
-            tabs = [("商品队列", [queue_card])]
+            tabs = [("发布概览", [queue_card])]
         else:
             tabs = [("运行与发布设置", [self._card_run(), self._card_publish()]),
-                    ("商品队列", [queue_card])]
+                    ("发布概览（数量与批量操作）", [queue_card])]
+
         return [page_header("发布队列", destination(8).description),
                 workspace_tabs(tabs)]
 
     def _p_workbench(self):
         self._current = 9
         ok, ck_text = self._cookie_status_text()
-        is_alibaba = str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba"
+        _pid = str(getattr(getattr(self, "active_platform", None), "id", "") or "")
+        is_alibaba = _pid == "alibaba"
+        # 只有速卖通走店小秘 SMT 商品列表；其他平台不能误加载 SMT 商品。
+        is_smt = _pid == "aliexpress"
 
         def _step(n, label):
             return ft.Container(
@@ -8367,10 +8514,10 @@ class App:
                 padding=ft.padding.symmetric(horizontal=10, vertical=5),
                 bgcolor=CARD, border_radius=999, border=ft.border.all(1, CARD_2))
 
-        if is_alibaba:
-            _wb_step_labels = ["连接", "取图", "处理图片", "导出/上传"]
+        if is_smt:
+            _wb_step_labels = ["连接", "选商品", "取图并处理", "导出/上传"]
         else:
-            _wb_step_labels = ["连接", "选商品", "取图并处理", "任务队列"]
+            _wb_step_labels = ["连接", "取图", "处理图片", "导出/上传"]
         self.wb_steps = ft.Row([
             _step(1, _wb_step_labels[0]), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14.5, color=MUTED),
             _step(2, _wb_step_labels[1]), ft.Icon(ft.Icons.CHEVRON_RIGHT, size=14.5, color=MUTED),
@@ -8488,18 +8635,39 @@ class App:
         def pick_images(e):
             self._wb_pick_images()
 
-        if is_alibaba:
-            # Alibaba 平台不加载 SMT 商品：只保留 URL / 本地图片取图与后续处理。
-            prod_card = card(ft.Column([
-                h1("2 · 取图（URL / 本地）", 15),
-                muted("Alibaba 平台不在工作台加载 SMT 商品列表；粘贴图片 URL"
-                      "（在「图片处理与输出」页签）或导入本地图片即可。"
-                      "商品刊登请到「Alibaba 刊登」页。"),
-                ft.Row([ft.OutlinedButton("导入本地图片", icon=ft.Icons.UPLOAD_FILE,
-                                          on_click=lambda e: self._pick_local_images())],
-                       spacing=8, wrap=True),
-                self.wb_pick_summary,
-            ], spacing=8))
+        if not is_smt:
+            _plat_name = str(getattr(self.active_platform, "name", "") or _pid)
+            if is_alibaba:
+                prod_card = card(ft.Column([
+                    h1("2 · 取图（Alibaba / 本地）", 15),
+                    muted("读取 Alibaba 店铺草稿/商品主图，或导入本地图片；"
+                          "图片进入图片墙后统一处理。"),
+                    ft.Row([ft.OutlinedButton("导入本地图片", icon=ft.Icons.UPLOAD_FILE,
+                                              on_click=lambda e: self._pick_local_images()),
+                            ft.OutlinedButton("加载 Alibaba 商品", icon=ft.Icons.CLOUD_DOWNLOAD,
+                                              on_click=lambda e: self._wb_load_alibaba_products(1))],
+                           spacing=8, wrap=True),
+                    self.wb_pick_summary,
+                    self.wb_prod_box,
+                    muted("选中商品后点「取选中图片」；图片会下载到图片墙处理。", 10.5),
+                    self.wb_prod_preview,
+                ], spacing=8))
+            else:
+                # 非速卖通/非 Alibaba：没有统一在线商品图片接口，只用本地/URL，避免读错平台商品。
+                prod_card = card(ft.Column([
+                    h1("2 · 取图（URL / 本地）", 15),
+                    muted(f"{_plat_name} 暂不在图片工作台加载在线商品列表；"
+                          "请导入本地图片或粘贴图片 URL。"),
+                    ft.Row([ft.OutlinedButton("导入本地图片", icon=ft.Icons.UPLOAD_FILE,
+                                              on_click=lambda e: self._pick_local_images()),
+                            ft.OutlinedButton(f"加载 {_plat_name} 商品", icon=ft.Icons.CLOUD_DOWNLOAD,
+                                              on_click=lambda e: self._wb_load_platform_products(_pid, 1))],
+                           spacing=8, wrap=True),
+                    self.wb_pick_summary,
+                    self.wb_prod_box,
+                    muted("选中商品后点「取选中图片」；图片会下载到图片墙处理。", 10.5),
+                    self.wb_prod_preview,
+                ], spacing=8))
         else:
             prod_card = card(ft.Column([
                 h1("2 · 产品", 15),
@@ -8554,8 +8722,35 @@ class App:
         def fill_from_products(e):
             self._images_from_products()
 
+        def go_load_products(e=None):
+            if is_smt:
+                try:
+                    self.wb_tabs.selected_index = 0
+                    self._safe_update()
+                    self._wb_load_products(1)
+                except Exception as ex:
+                    self.toast(f"加载线上产品失败：{str(ex)[:80]}", False)
+                return
+            if is_alibaba:
+                try:
+                    self._wb_load_alibaba_products(1)
+                except Exception as ex:
+                    self.toast(f"加载 Alibaba 商品失败：{str(ex)[:80]}", False)
+                return
+            try:
+                self._wb_load_platform_products(_pid, 1)
+            except Exception as ex:
+                self.toast(f"加载线上商品失败：{str(ex)[:80]}", False)
+
         img_card = card(ft.Column([
-            h1("3 · 图片处理", 15),
+            h1("3 · 图片处理与输出", 15),
+            muted("两种来源都支持：本机图片，或店小秘线上商品图片；取图后所有处理都作用于当前图片墙。", 11),
+            ft.Row([ft.ElevatedButton("选择本地图片", icon=ft.Icons.UPLOAD_FILE,
+                                      on_click=lambda e: self._pick_local_images()),
+                    ft.OutlinedButton("加载线上产品", icon=ft.Icons.CLOUD_DOWNLOAD,
+                                      on_click=go_load_products, visible=True,
+                                      tooltip="先加载速卖通线上商品，再勾选商品并取图"),
+                    self.wb_source_text], spacing=8, wrap=True),
             muted("简单处理：白底 / 去水印 / 翻译 / 四合一；精细处理：填提示词后点「编辑」"),
             muted("① 单张处理（只对勾选的图生效）", 10.5),
             ft.Row([ft.ElevatedButton("白底", icon=ft.Icons.WB_SUNNY_OUTLINED,
@@ -8574,6 +8769,17 @@ class App:
                     ft.OutlinedButton("生成视频", icon=ft.Icons.MOVIE, on_click=make_video),
                     ft.OutlinedButton("上传结果到相册", icon=ft.Icons.CLOUD_UPLOAD, on_click=upload)],
                    spacing=8, wrap=True),
+            ft.Row([ft.OutlinedButton("结果设为主图", icon=ft.Icons.IMAGE,
+                                      tooltip="写到勾选商品的图片覆盖；只对勾选的线上商品生效",
+                                      on_click=lambda e: self._wb_apply_results_to_main()),
+                    ft.OutlinedButton("结果设为本地详情图", icon=ft.Icons.ARTICLE,
+                                      tooltip="把处理结果写入详情内容增强的本地图，后续发布使用",
+                                      on_click=lambda e: self._wb_apply_results_to_detail()),
+                    self.wb_queue_name,
+                    ft.ElevatedButton("结果加入配置队列", icon=ft.Icons.QUEUE,
+                                      tooltip="保存结果到详情图，并把当前全部配置加入发布队列",
+                                      on_click=lambda e: self._wb_apply_results_to_detail(queue=True))],
+                   spacing=8, wrap=True),
             muted("③ 维护", 10.5),
             ft.Row([ft.OutlinedButton("清理旧图 / 空间", icon=ft.Icons.DELETE_SWEEP, on_click=cleanup)],
                    spacing=8, wrap=True),
@@ -8589,66 +8795,9 @@ class App:
             self.wb_results,
         ], spacing=8))
 
-        # ---- 队列 ----
-        self.q = TaskQueue()
-        self.q_text = ft.Text("", size=13.5, color=MUTED)
-        self._refresh_queue()
-
-        def enqueue(e):
-            if is_alibaba:
-                self.toast("Alibaba 平台不在图片工作台入队；请到「Alibaba 刊登」页选择商品保存", False)
-                return
-            pool = {}
-            for p in (self.products or []):
-                pool[str(p.get("id"))] = p
-            for p in (getattr(self, "wb_rows", None) or []):
-                pool.setdefault(str(p.get("id")), p)
-            if not pool:
-                self.toast("没有可入队的产品：先「加载」产品列表", False)
-                return
-            chosen = ([pool[str(pid)] for pid in self.wb_selected if str(pid) in pool]
-                      if self.wb_selected else list(pool.values()))
-            before = len(chosen)
-            chosen = [p for p in chosen if str(p.get("status_type") or "") not in
-                      ("auditing", "onSelling", "published", "online")
-                      and "PRODUCT_IN_AUDIT_PENDING" not in str((p.get("raw") or {}).get("errMsg") or "")]
-            try:
-                from ..services import edited as _edited
-                chosen, _ = _edited.filter_new(chosen)
-            except Exception:
-                pass
-            skipped = before - len(chosen)
-            self._queue_products = pool
-            n = self.q.add_many(chosen)
-            self._refresh_queue()
-            self.toast(f"已入队 {n} 个产品" + (f"，跳过审核中/已上架 {skipped} 个" if skipped else ""))
-            self.wb_tabs.selected_index = 2
-            self._safe_update()
-
-        def process(e):
-            if is_alibaba:
-                self.toast("Alibaba 平台不使用速卖通队列；请到「Alibaba 刊登」页保存", False)
-                return
-            if not self.q.pending():
-                self.toast("队列为空", False); return
-            threading.Thread(target=self._process_queue, daemon=True).start()
-
-        self.q_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
-        q_card = card(ft.Column([h1("4 · 任务队列", 15), self.q_text, self.q_progress,
-                                 ft.Row([ft.ElevatedButton("产品入队", icon=ft.Icons.ADD_TASK, on_click=enqueue),
-                                         ft.ElevatedButton("处理队列", icon=ft.Icons.PLAY_ARROW,
-                                                           bgcolor=ACCENT, color=ON_ACCENT, on_click=process),
-                                         ft.OutlinedButton("清理已完成",
-                                                           on_click=lambda e: (self.q.clear_done(), self._refresh_queue())),
-                                         ft.OutlinedButton("重试失败", icon=ft.Icons.REPLAY,
-                                                           on_click=lambda e: self._retry_failed_queue())],
-                                        spacing=10, wrap=True)], spacing=8))
         # Alibaba 的图片工作台只处理 URL/本地图片，不需要再放一份 Cookie 连接卡。
         _wb_tabs = [("商品与取图", [prod_card] if is_alibaba else [conn_card, prod_card]),
                     ("图片处理与输出", [img_card])]
-        # 任务队列走 SMT Publisher（会写速卖通），Alibaba 平台不展示。
-        if self._cap("smt_queue"):
-            _wb_tabs.append(("任务队列", [q_card]))
         self.wb_tabs = workspace_tabs(_wb_tabs)
         return [page_header("图片工作台", destination(9).description),
                 self.wb_steps, self.wb_status, self.wb_tabs]
@@ -8740,6 +8889,157 @@ class App:
             except Exception:
                 pass
 
+        threading.Thread(target=work, daemon=True).start()
+
+    def _wb_load_platform_products(self, platform: str, page: int = 1) -> None:
+        """Amazon/TikTok/Shopee 在线商品图片加载（各平台自己的客户端）。"""
+        self.wb_status.value = f"正在读取 {platform} 商品…"
+        self.wb_status.color = MUTED
+        try:
+            self._safe_update()
+        except Exception:
+            pass
+
+        def work():
+            try:
+                items = []
+                if platform == "amazon":
+                    from ..services.amazon_publish import make_client
+                    c = make_client(self.cfg)
+                    d = c.list_products("draft", page, 20,
+                                        shop_id=str(getattr(self.cfg, "amazon_shop_id", "") or "-1"))
+                    raw_items = d.get("items") or []
+                    for r in raw_items:
+                        imgs = []
+                        if r.get("main_image"):
+                            imgs.append(str(r["main_image"]))
+                        for x in (r.get("extra_images") or []):
+                            if x:
+                                imgs.append(str(x))
+                        items.append({"id": str(r.get("id") or ""), "title": str(r.get("title") or ""),
+                                      "images": list(dict.fromkeys(imgs)),
+                                      "status": str(r.get("status") or ""), "skus": []})
+                elif platform == "tiktok":
+                    from ..services.tiktok_publish import make_client
+                    c = make_client(self.cfg)
+                    d = c.list_products("draft", page, 20,
+                                        shop_id=str(getattr(self.cfg, "tiktok_shop_id", "") or "-1"))
+                    for r in (d.get("items") or []):
+                        imgs = [str(x) for x in (r.get("images") or []) if x]
+                        if r.get("main_image") and str(r["main_image"]) not in imgs:
+                            imgs.insert(0, str(r["main_image"]))
+                        items.append({"id": str(r.get("id") or ""), "title": str(r.get("title") or ""),
+                                      "images": list(dict.fromkeys(imgs)),
+                                      "status": str(r.get("status") or r.get("state") or ""), "skus": []})
+                elif platform == "shopee":
+                    from ..integrations.shopee import make_client
+                    c = make_client(self.cfg)
+                    d = c.list_products("draft", page, 20,
+                                        shop_id=str(getattr(self.cfg, "shopee_shop_id", "") or "-1"))
+                    for r in (d.get("items") or []):
+                        raw = r.get("mainImage") or r.get("image") or ""
+                        imgs = [x.strip() for x in str(raw).split(";") if x.strip()] if raw else []
+                        for x in (r.get("images") or r.get("extraImages") or []):
+                            if isinstance(x, str) and x.strip() and x not in imgs:
+                                imgs.append(x.strip())
+                        items.append({"id": str(r.get("idStr") or r.get("id") or ""),
+                                      "title": str(r.get("title") or r.get("name") or ""),
+                                      "images": list(dict.fromkeys(imgs)),
+                                      "status": str(r.get("state") or r.get("status") or ""), "skus": []})
+                else:
+                    raise ValueError("当前平台不支持在线商品加载")
+                items = [x for x in items if x["id"]]
+                self.wb_rows = items
+                table_rows = []
+                for it in items:
+                    pid = it["id"]
+                    cb = ft.Checkbox(value=pid in self.wb_selected,
+                                     on_change=lambda e, _p=pid: self._wb_toggle(_p, e.control.value))
+                    table_rows.append(ft.DataRow(cells=[
+                        ft.DataCell(cb),
+                        ft.DataCell(self._zoom_img((it.get("images") or [""])[0], 44, 44, "商品主图")),
+                        ft.DataCell(ft.Text((it.get("title") or "")[:48] or pid, size=12.5, color=TEXT)),
+                        ft.DataCell(ft.Text(str(it.get("status") or "")[:20], size=12, color=MUTED)),
+                        ft.DataCell(ft.Text(f"{len(it.get('images') or [])}", size=12, color=MUTED)),
+                    ]))
+                self.wb_prod_table.rows = table_rows
+                self.wb_status.value = f"已加载 {platform} 商品 {len(items)} 个"
+                self.wb_status.color = ACCENT_2 if items else WARN_C
+                self._wb_sel_refresh()
+            except Exception as ex:
+                self.wb_status.value = f"加载 {platform} 商品失败：{str(ex)[:120]}"
+                self.wb_status.color = DANGER_C
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+        threading.Thread(target=work, daemon=True).start()
+
+    def _wb_load_alibaba_products(self, page: int = 1) -> None:
+        """加载 Alibaba 店铺商品并带出主图（供图片工作台取图）。"""
+        self.wb_status.value = f"正在读取 Alibaba 商品第 {page} 页…"
+        self.wb_status.color = MUTED
+        try:
+            self._safe_update()
+        except Exception:
+            pass
+
+        def work():
+            try:
+                from ..services.alibaba_publish import make_client
+                c = make_client(self.cfg)
+                d = c.list_products(page, 30, "draft",
+                                    shop_id=str(self.cfg.alibaba_shop_id or "") or None)
+                po = ((d.get("data") or {}).get("page") or {})
+                rows = po.get("list") or []
+                items = []
+                for r in rows[:20]:
+                    pid = str(r.get("idStr") or r.get("id") or "")
+                    if not pid:
+                        continue
+                    try:
+                        detail = c.product_detail(pid) or {}
+                    except Exception:
+                        detail = {}
+                    imgs = []
+                    for key in ("imageURLs", "mainImage", "imageUrl"):
+                        raw = detail.get(key)
+                        if isinstance(raw, list):
+                            imgs.extend(str(x) for x in raw if x)
+                        elif raw:
+                            imgs.extend(x.strip() for x in str(raw).split(";") if x.strip())
+                    imgs = list(dict.fromkeys(imgs))
+                    items.append({"id": pid, "title": str(r.get("subject") or ""),
+                                  "images": imgs,
+                                  "status": str(detail.get("dxmState") or detail.get("dxmOfflineState") or "draft"),
+                                  "skus": []})
+                self.wb_rows = items
+                table_rows = []
+                for it in items:
+                    pid = it["id"]
+                    cb = ft.Checkbox(value=pid in self.wb_selected,
+                                     on_change=lambda e, _p=pid: self._wb_toggle(_p, e.control.value))
+                    table_rows.append(ft.DataRow(cells=[
+                        ft.DataCell(cb),
+                        ft.DataCell(self._zoom_img((it.get("images") or [""])[0], 44, 44, "商品主图")),
+                        ft.DataCell(ft.Text((it.get("title") or "")[:48] or pid, size=12.5, color=TEXT)),
+                        ft.DataCell(ft.Text(str(it.get("status") or "")[:20], size=12, color=MUTED)),
+                        ft.DataCell(ft.Text(f"{len(it.get('images') or [])}", size=12, color=MUTED)),
+                    ]))
+                self.wb_prod_table.rows = table_rows
+                self.wb_total_pages = int(po.get("totalPage") or 1)
+                self.wb_page_no = page
+                self.wb_page_info.value = f"第 {page}/{self.wb_total_pages} 页 · 共 {po.get('totalSize') or 0} 个"
+                self.wb_status.value = f"已加载 Alibaba 商品 {len(items)} 个"
+                self.wb_status.color = ACCENT_2 if items else WARN_C
+                self._wb_sel_refresh()
+            except Exception as ex:
+                self.wb_status.value = f"加载 Alibaba 商品失败：{str(ex)[:120]}"
+                self.wb_status.color = DANGER_C
+            try:
+                self._safe_update()
+            except Exception:
+                pass
         threading.Thread(target=work, daemon=True).start()
 
     def _wb_pick_images(self):
@@ -8868,109 +9168,6 @@ class App:
         except Exception:
             pass
 
-    def _retry_failed_queue(self):
-        n = self.q.retry_failed()
-        self._refresh_queue()
-        self.toast(f"已重新排队 {n} 个失败任务" if n else "没有失败任务")
-
-    def _refresh_queue(self):
-        st = self.q.stats()
-        self.q_text.value = (f"待处理 {st['pending']} · 处理中 {st['running']} · "
-                             f"完成 {st['done']} · 失败 {st['failed']}")
-        try:
-            total = int(st["pending"]) + int(st["running"]) + int(st["done"]) + int(st["failed"])
-            self.q_progress.value = (float(st["done"] + st["failed"]) / total) if total else 0
-        except Exception:
-            pass
-        try:
-            self._safe_update()
-        except Exception:
-            pass
-
-    def _process_queue(self):
-        """按队列真实执行：会处理图片/文本并保存到店小秘（与主流程一致）。"""
-        if getattr(self, "_running", False):
-            self._log("已有任务在运行，队列稍后再处理", "WARN")
-            self.toast("已有任务在运行", False)
-            return
-        self._running = True
-        (getattr(self, '_sync_run_button', None) or (lambda: None))()
-        self._stop_requested = False
-        # 验收实例仅预演，日常实例按队列执行真实处理。
-        import os as _queue_os
-        preview = bool(_queue_os.environ.get("AURORA_NO_SAVE") or _queue_os.environ.get("AURORA_TEST"))
-        by_id = {str(p.get("id")): p for p in (self.products or [])}
-        by_id.update({str(k): v for k, v in getattr(self, "_queue_products", {}).items()})
-        items = self.q.pending()
-        if not items:
-            self._running = False
-            (getattr(self, '_sync_run_button', None) or (lambda: None))()
-            self.toast("队列为空", False)
-            return
-        workers = max(1, min(int(getattr(self.cfg, "concurrency", 3) or 3), 8, len(items)))
-        lock = threading.Lock()
-        counts = {"ok": 0, "fail": 0}
-        # 队列批处理必须带 dxm（API 直存）和 scheduler（定时发布登记），
-        # 否则会退回 DOM 保存 / 报「未启用调度器」。
-        _q_dxm = None
-        try:
-            if preview:
-                raise RuntimeError("预览模式不连接商品保存服务")
-            from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
-            _q_dxm = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
-        except Exception as _ex:
-            self._log(f"队列：连接店小秘失败（将退回 DOM）：{str(_ex)[:80]}", "WARN")
-
-        def work(item):
-            if self._stop_requested:
-                self._log(f"已停止，跳过队列 {item.product_id}", "WARN")
-                return
-            base = by_id.get(item.product_id, {})
-            if str(base.get("status_type") or "") in ("auditing", "onSelling", "published", "online") or \
-                    "PRODUCT_IN_AUDIT_PENDING" in str((base.get("raw") or {}).get("errMsg") or ""):
-                self._log(f"队列跳过审核中/已上架：{item.product_id}", "WARN")
-                with lock:
-                    self.q.mark(item.product_id, "failed", "审核中/已上架，已跳过")
-                    self._refresh_queue()
-                return
-            prod = {"id": item.product_id,
-                    "title": base.get("title") or item.title,
-                    "skus": base.get("skus") or [],
-                    "images": base.get("images") or [],
-                    "status_type": base.get("status_type") or "",
-                    "raw": base.get("raw") or {},
-                    "cost": 0}
-            with lock:
-                self.q.mark(item.product_id, "running")
-                self._refresh_queue()
-            try:
-                pub = Publisher(self.cfg, dxm=_q_dxm,
-                                scheduler=getattr(self, "scheduler", None))
-                res = pub.run(prod, dry_run=preview, manage_progress=False)
-                status = "done" if res.ok else "failed"
-                msg = (("测试保护：未保存商品、未标记已编辑" if preview else
-                        "处理完成，已保存到店小秘") if res.ok else res.error)
-            except Exception as ex:  # noqa: BLE001
-                status, msg = "failed", str(ex)[:160]
-            with lock:
-                self.q.mark(item.product_id, status, msg)
-                counts["ok" if status == "done" else "fail"] += 1
-                self._refresh_queue()
-                self._log(f"队列 {item.product_id}: {msg if status == 'done' else '失败 ' + msg}")
-
-        self._log(f"队列处理开始：{len(items)} 个任务，并发 {workers}")
-        import concurrent.futures as _cf
-        try:
-            with _cf.ThreadPoolExecutor(max_workers=workers) as ex:
-                list(ex.map(work, items))
-        finally:
-            self._running = False
-            (getattr(self, '_sync_run_button', None) or (lambda: None))()
-        ok, fail = counts["ok"], counts["fail"]
-        history.record("queue:preview" if preview else "queue:process", ok, fail)
-        self._log(f"队列处理完成：成功 {ok} / 失败 {fail}" + ("（已按请求停止）" if self._stop_requested else ""))
-        self.toast(f"队列处理完成：成功 {ok} / 失败 {fail}" + ("（测试保护：未保存商品）" if preview else ""))
-
     def _images_from_products(self):
         urls: list[str] = []
         for p in self.products:
@@ -9019,6 +9216,11 @@ class App:
         self.wb_status.value = f"已下载 {len(got)}/{len(urls)} 张"
         self.wb_status.color = ACCENT_2 if got else DANGER_C
         try:
+            self.wb_source_text.value = f"图片来源：线上商品图片（{len(got)} 张）"
+            self.wb_source_text.color = ACCENT_2 if got else DANGER_C
+        except Exception:
+            pass
+        try:
             self._wb_render_wall()
         except Exception:
             pass
@@ -9048,6 +9250,71 @@ class App:
             self._log(f"图片上传完成：{ok}/{len(urls)}")
         except Exception as ex:
             self.toast(f"上传失败：{ex}", False)
+
+    def _wb_apply_results_to_main(self) -> None:
+        """把图片工作台结果按勾选商品 ID 写为主图覆盖。"""
+        import json as _j
+        vals = [str(x) for x in (getattr(self, "wb_result_values", []) or []) if str(x).strip()]
+        if not vals:
+            self.toast("还没有处理结果可回填", False); return
+        selected = [str(x) for x in (getattr(self, "wb_selected", set()) or set()) if str(x).strip()]
+        if not selected:
+            self.toast("请先在「商品与取图」勾选要覆盖主图的线上商品", False); return
+        try:
+            raw = getattr(self.cfg, "workbench_image_overrides", "{}") or "{}"
+            data = _j.loads(raw) if isinstance(raw, str) else dict(raw or {})
+            if not isinstance(data, dict):
+                data = {}
+            for pid in selected:
+                item = data.get(pid) if isinstance(data.get(pid), dict) else {}
+                item["main"] = vals
+                data[pid] = item
+            self.cfg.set("workbench_image_overrides", _j.dumps(data, ensure_ascii=False))
+            save_config(self.cfg)
+            self._log(f"图片结果已设为主图覆盖：{len(selected)} 个商品 · {len(vals)} 张")
+            self.toast(f"已写入主图覆盖：{len(selected)} 个商品")
+        except Exception as ex:
+            self.toast(f"写入主图失败：{str(ex)[:80]}", False)
+
+    def _wb_apply_results_to_detail(self, queue: bool = False) -> None:
+        """把图片工作台结果写回本地详情图；可选同时加入配置队列。"""
+        import json as _j
+        vals = []
+        try:
+            vals = [str(x) for x in (getattr(self, "wb_result_values", []) or []) if str(x).strip()]
+        except Exception:
+            vals = []
+        if not vals:
+            self.toast("还没有处理结果可回填", False)
+            return
+        try:
+            self.cfg.set("detail_local_images", _j.dumps(vals, ensure_ascii=False))
+            self.cfg.set("custom_detail_text_enable", True)
+            save_config(self.cfg)
+            self._log(f"图片结果已设为本地详情图：{len(vals)} 张")
+            self.toast(f"已写入本地详情图：{len(vals)} 张")
+        except Exception as ex:
+            self.toast(f"写入详情图失败：{str(ex)[:80]}", False)
+            return
+        if queue:
+            name = str(getattr(getattr(self, "wb_queue_name", None), "value", "") or "").strip()
+            if not name:
+                self.toast("请先填写队列任务名称", False)
+                return
+            try:
+                from ..services import task_profiles as _tp
+                plat = str(getattr(self.active_platform, "id", "") or self.cfg.active_platform or "")
+                kw = str(getattr(self, "run_keyword", "") or "").strip()
+                _tp.enqueue(name, self.cfg, plat, keyword=kw)
+                self.wb_queue_name.value = ""
+                self._log(f"图片结果已加入配置队列：{name}")
+                self.toast(f"已加入配置队列：{name}")
+                try:
+                    self._refresh_config_queue()
+                except Exception:
+                    pass
+            except Exception as ex:
+                self.toast(f"加入队列失败：{str(ex)[:80]}", False)
 
     def _wb_compare(self, before, after):
         """处理前后对比（左侧原图、右侧结果）。"""
@@ -9085,6 +9352,7 @@ class App:
         runner = BatchRunner(self.cfg.concurrency, retries=int(self.cfg.retry_max or 1), retry_delay=float(self.cfg.retry_delay or 2.0))
         self.wb_runner = runner
         self.wb_results.controls = []
+        self.wb_result_values = []
 
         _prompt = str(getattr(getattr(self, "wb_prompt", None), "value", "") or "").strip() \
             or (self.cfg.edit_prompt or "clean product photo")
@@ -9111,6 +9379,11 @@ class App:
             color = ACCENT_2 if res.ok else DANGER_C
             if not res.ok:
                 self._maybe_quota(res.error)
+            if res.ok and res.value:
+                try:
+                    self.wb_result_values.append(str(res.value))
+                except Exception:
+                    pass
             _before = (getattr(self, "_wb_before", {}) or {}).get(res.index)
             _cmp = (ft.TextButton("对比", icon=ft.Icons.COMPARE,
                                   on_click=lambda e, _b=_before, _a=res.value:
@@ -9271,52 +9544,6 @@ class App:
                   "按授权 ID、关键词筛选；「上报运行日志」仍可手动补充上报。"),
         ], spacing=8))
 
-        # ---------- 定时发布队列 ----------
-        try:
-            jobs = self.scheduler.pending_jobs() if hasattr(self, "scheduler") else []
-        except Exception:
-            jobs = []
-
-        def cancel_job(e, job):
-            try:
-                n = self.scheduler.cancel(str(job.product_id))
-                self._log(f"定时任务已取消：{job.product_id}（{n} 条）")
-                self.toast("已取消定时发布")
-            except Exception as ex:
-                self.toast(f"取消失败：{ex}", False)
-            self._switch(10)
-
-        def publish_now(e, job):
-            try:
-                self.scheduler.cancel(str(job.product_id))
-            except Exception:
-                pass
-            threading.Thread(target=self._publish_scheduled_now, args=(job,), daemon=True).start()
-
-        sched_rows = []
-        for j in jobs[:8]:
-            remain = max(0, int(j.run_at - time.time()))
-            sched_rows.append(ft.Row([
-                ft.Text(str(j.product_id), size=12.5, color=TEXT, width=110),
-                ft.Text(time.strftime("%m-%d %H:%M", time.localtime(j.run_at)), size=12.5,
-                        color=INFO_C, width=96),
-                ft.Text(f"{remain // 60} 分钟后" if remain >= 60 else ("即将执行" if remain else "待执行"),
-                        size=12, color=MUTED, width=76),
-                ft.Text((j.title or "")[:24], size=12.5, color=MUTED, expand=True),
-                ft.TextButton("立即发布", on_click=lambda e, _j=j: publish_now(e, _j)),
-                ft.TextButton("取消", on_click=lambda e, _j=j: cancel_job(e, _j)),
-            ], spacing=6))
-        sched_card = card(ft.Column([
-            ft.Row([ft.Text("定时发布队列", size=15.5, weight=ft.FontWeight.BOLD, color=TEXT),
-                    ft.Text(f"{len(jobs)} 条待执行", size=12.5, color=MUTED),
-                    ft.Container(expand=True),
-                    ft.TextButton("刷新", icon=ft.Icons.REFRESH, on_click=lambda e: self._switch(10))],
-                   spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            muted("到点后自动在「待发布」列表里批量发布；商品本身在保存阶段已写入店小秘"),
-            muted("注意：定时任务需要软件保持运行；关闭软件后不会执行。"),
-            *(sched_rows or [empty_state("暂无定时任务")]),
-        ], spacing=6))
-
         # ---------- 日志表 ----------
         log_card = card(ft.Column([
             ft.Row([ft.Text("运行日志", size=15.5, weight=ft.FontWeight.BOLD, color=TEXT),
@@ -9326,9 +9553,6 @@ class App:
         ], spacing=8))
 
         _log_tabs = [("运行日志", [toolbar, log_card])]
-        # 定时发布是 SMT 调度器能力；Alibaba 直连没有时间字段，不在该平台展示。
-        if self._cap("scheduled_publish"):
-            _log_tabs.append(("定时发布", [sched_card]))
         _logs_subtitle = (destination(10).description
                           if self._cap("smt_pipeline_actions")
                           else ("跟踪 TikTok 运行日志与任务记录"
@@ -9508,30 +9732,73 @@ class App:
         except Exception:
             pass
 
+    def _open_log_on_task(self) -> None:
+        """任务真正启动时才打开实时日志；对轻量测试对象保持容错。"""
+        try:
+            fn = getattr(self, "_auto_open_log_panel", None)
+            if callable(fn):
+                fn()
+        except Exception:
+            pass
+
+    def _auto_open_log_panel(self) -> None:
+        """登录/更新检查结束后自动打开右上角实时日志（测试/预览跳过）。"""
+        import os as _os
+        if _os.environ.get("AURORA_TEST") or _os.environ.get("AURORA_NO_SAVE"):
+            return
+        if getattr(self, "log_panel_open", False):
+            return
+        try:
+            self._open_log_panel()
+        except Exception as exc:  # noqa: BLE001
+            try:
+                self._log(f"自动打开实时日志失败：{exc}", "WARN")
+            except Exception:
+                pass
+
     def _open_log_panel(self):
-        """全局日志侧栏：任意页面可唤出，实时刷新。"""
+        """右上角非模态实时日志：可关闭，关闭后不影响后台任务。"""
         if getattr(self, "log_panel_open", False):
             return
         self.log_panel_open = True
-        self.log_panel_level = ft.Dropdown(width=110, value="全部", bgcolor=CARD_2, color=TEXT, border_color=CARD_2,
+        self.log_panel_level = ft.Dropdown(width=105, value="全部", bgcolor=CARD_2, color=TEXT,
+                                           border_color=CARD_2, dense=True,
                                            options=[ft.dropdown.Option(x) for x in ("全部", "INFO", "WARN", "ERROR")],
                                            on_change=lambda e: self._render_log_panel())
+        self.log_panel_platform = ft.Dropdown(
+            width=155, value="全部", bgcolor=CARD_2, color=TEXT, border_color=CARD_2, dense=True,
+            options=[ft.dropdown.Option(k, v) for k, v in self._log_platform_options()],
+            tooltip="多平台同时运行时，可按平台查看日志；关闭窗口不会停止任务",
+            on_change=lambda e: self._render_log_panel())
+        self.log_panel_queue = ft.Dropdown(
+            width=165, value="全部任务", bgcolor=CARD_2, color=TEXT, border_color=CARD_2, dense=True,
+            options=[ft.dropdown.Option("全部任务", "全部队列任务")],
+            tooltip="只看某一条配置队列任务的日志",
+            on_change=lambda e: self._render_log_panel())
         self.log_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=6)
         self.log_progress_text = ft.Text("空闲", size=12.5, color=MUTED)
-        self.log_panel_list = ft.Column(spacing=2, height=540, scroll=ft.ScrollMode.AUTO, auto_scroll=True)
+        self.log_panel_list = ft.Column(spacing=2, height=470, scroll=ft.ScrollMode.AUTO, auto_scroll=True)
         self.log_panel_list.controls = [ft.Text(f"{t} [{lv}] {x}", size=12.5,
                                                 color=self._log_color(lv), selectable=True)
                                         for t, lv, x in self._log_panel_items()]
         self.log_panel_dlg = ft.AlertDialog(
-            title=ft.Row([ft.Text("运行日志（实时）"), self.log_panel_level,
+            modal=False, alignment=ft.alignment.top_right,
+            title=ft.Row([ft.Icon(ft.Icons.TERMINAL, size=18, color=ACCENT_2),
+                          ft.Text("实时日志 · 右上角", size=15, weight=ft.FontWeight.BOLD),
+                          self.log_panel_platform, self.log_panel_queue, self.log_panel_level,
                           ft.TextButton("打开完整任务与日志", icon=ft.Icons.OPEN_IN_NEW,
                                         on_click=lambda e: self._open_full_logs_from_panel()),
                           ft.TextButton("清空", on_click=lambda e: self._clear_logs()),
-                          ft.TextButton("导出", on_click=lambda e: self._export_logs())], spacing=12),
-            content=ft.Container(content=ft.Column([self.log_progress, self.log_progress_text,
-                                                    ft.Divider(height=1, color=CARD_2),
-                                                    self.log_panel_list], spacing=6, tight=True), width=1000),
-            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_log_panel())])
+                          ft.TextButton("导出", on_click=lambda e: self._export_logs())],
+                         spacing=8, wrap=True),
+            content=ft.Container(content=ft.Column([
+                ft.Text("可关闭本窗口继续操作其他页面；后台任务不会停止。多平台日志按平台切换过滤。",
+                        size=11.5, color=MUTED),
+                self.log_progress, self.log_progress_text,
+                ft.Divider(height=1, color=CARD_2),
+                self.log_panel_list], spacing=6, tight=True), width=780),
+            actions=[ft.TextButton("关闭", icon=ft.Icons.CLOSE,
+                                   on_click=lambda e: self._close_log_panel())])
         try:
             self._show_dlg(self.log_panel_dlg)
         except Exception:
@@ -9549,12 +9816,45 @@ class App:
     def _log_color(lv: str) -> str:
         return {"ERROR": DANGER_C, "WARN": WARN_C}.get(str(lv).upper(), MUTED)
 
+    @staticmethod
+    def _log_platform_options() -> list[tuple[str, str]]:
+        return [("全部", "全部平台"), ("aliexpress", "速卖通"), ("alibaba", "Alibaba"),
+                ("amazon", "Amazon"), ("tiktok", "TikTok"), ("shopee", "Shopee")]
+
+    @staticmethod
+    def _log_platform_key(text: str) -> str:
+        s = str(text or "").lower()
+        if "alibaba" in s or "阿里国际" in s:
+            return "alibaba"
+        if "aliexpress" in s or "速卖通" in s or "smt" in s:
+            return "aliexpress"
+        if "amazon" in s or "亚马逊" in s:
+            return "amazon"
+        if "tiktok" in s:
+            return "tiktok"
+        if "shopee" in s:
+            return "shopee"
+        return ""
+
+    @staticmethod
+    def _queue_name_of_log(text: str) -> str:
+        m = __import__("re").match(r"^\[队列·([^\]]+)\]", str(text or ""))
+        return m.group(1) if m else ""
+
     def _log_panel_items(self) -> list[tuple]:
         rows = getattr(self, "log_rows", [])[-300:]
         lv = getattr(self, "log_panel_level", None)
         want = (lv.value if lv is not None else "全部") or "全部"
         if want != "全部":
             rows = [r for r in rows if str(r[1]).upper() == want]
+        pd = getattr(self, "log_panel_platform", None)
+        pwant = (pd.value if pd is not None else "全部") or "全部"
+        if pwant != "全部":
+            rows = [r for r in rows if self._log_platform_key(r[2]) in (pwant, "")]
+        qd = getattr(self, "log_panel_queue", None)
+        qwant = (qd.value if qd is not None else "全部任务") or "全部任务"
+        if qwant != "全部任务":
+            rows = [r for r in rows if self._queue_name_of_log(r[2]) == qwant]
         return rows
 
     def _log_panel_loop(self):
@@ -9569,6 +9869,22 @@ class App:
         if getattr(self, "log_panel_list", None) is None:
             return
         from ..services.progress import BUS
+        try:
+            names = []
+            for _, _, m in getattr(self, "log_rows", [])[-1000:]:
+                n = self._queue_name_of_log(m)
+                if n and n not in names:
+                    names.append(n)
+            qd = getattr(self, "log_panel_queue", None)
+            if qd is not None:
+                cur = qd.value or "全部任务"
+                opts = [ft.dropdown.Option("全部任务", "全部队列任务")] + [
+                    ft.dropdown.Option(n, n) for n in names]
+                qd.options = opts
+                if cur not in [o.key for o in opts]:
+                    qd.value = "全部任务"
+        except Exception:
+            pass
         rows = [ft.Text(f"{t} [{lv}] {m}", size=12.5, color=self._log_color(lv),
                         selectable=True)
                 for t, lv, m in self._log_panel_items()]
@@ -9581,6 +9897,10 @@ class App:
                 if want == "WARN" and e.level not in ("WARN", "ERROR"):
                     continue
                 if want == "INFO" and e.level not in ("INFO", "OK"):
+                    continue
+                pd = getattr(self, "log_panel_platform", None)
+                pwant = (pd.value if pd is not None else "全部") or "全部"
+                if pwant != "全部" and self._log_platform_key(e.text()) not in (pwant, ""):
                     continue
                 ts = time.strftime("%H:%M:%S", time.localtime(e.ts))
                 rows.append(ft.Text(f"{ts}  {e.text()}", size=12.5,
@@ -9644,6 +9964,16 @@ class App:
 
     def _log(self, msg, level="INFO"):
         ts = time.strftime("%H:%M:%S")
+        _qname = str(getattr(self, "_queue_job_name", "") or "")
+        if _qname:
+            msg = f"[队列·{_qname}] {msg}"
+        _qid = str(getattr(self, "_queue_job_id", "") or "")
+        if _qid:
+            try:
+                from ..services.task_profiles import append_log as _append_qlog
+                _append_qlog(_qid, f"{ts} [{level}] {msg}")
+            except Exception:
+                pass
         if not hasattr(self, "log_rows"):
             self.log_rows = []
         self.log_rows.append((ts, level, str(msg)))
@@ -10250,17 +10580,34 @@ class App:
             create(e)
             launch(e)
 
+        # 任务配置：把关键词、模板、平台和当前全部非敏感配置保存成任务，可重复运行。
+        self.task_name = ft.TextField(label="任务名称（如 钻机-德国站）", width=250,
+                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.task_release = ft.Dropdown(
+            label="运行结束后", width=180, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            value="keep", options=[ft.dropdown.Option("keep", "保留任务配置"),
+                                   ft.dropdown.Option("delete", "自动删除任务")])
+        self.task_list = ft.Column(spacing=4)
+        self._refresh_task_profiles()
         inst_card = card(ft.Column([
             h1("多开 / 多任务", 15),
-            muted("同一台电脑要同时跑多个店小秘账号时才需要", 11),
-            muted("每个实例独立配置、独立浏览器调试端口，可同时跑不同店铺；任务队列与定时发布也按实例隔离"
-                  if self._cap("smt_pipeline_actions") else
-                  "每个实例独立配置、独立浏览器调试端口，可同时跑不同店铺；任务记录与日志也按实例隔离"),
+            muted("一个任务 = 当前平台 + 关键词 + 模板商品 + 其他全部配置的快照；"
+                  "保存后可再次改配置保存成另一个任务。", 11),
+            muted("同一实例内顺序运行；点「新实例运行」会使用独立配置目录、独立调试端口和独立日志，"
+                  "多个任务可同时跑，互不影响。", 11),
             ft.Row([self.inst_name,
                     ft.ElevatedButton("创建实例", icon=ft.Icons.ADD, on_click=create),
                     ft.ElevatedButton("创建并启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color=ON_ACCENT,
                                       on_click=create_and_launch)], spacing=8, wrap=True),
             self.inst_list,
+            ft.Divider(color=BORDER, height=12),
+            h1("任务配置", 14),
+            ft.Row([self.task_name, self.task_release,
+                    ft.ElevatedButton("保存当前配置为任务", icon=ft.Icons.SAVE,
+                                      bgcolor=ACCENT_2, color=ON_ACCENT,
+                                      on_click=lambda e: self._save_task_profile())],
+                   spacing=8, wrap=True),
+            self.task_list,
         ], spacing=8))
 
         # ---------------- 更新 / 诊断 / 价格 ----------------
@@ -10271,7 +10618,11 @@ class App:
         upd = card(ft.Column([
             h1("版本更新", 15),
             muted("有新版本时在这里检测并下载（检查 GitHub Releases）", 11),
-            ft.Text(f"当前版本：v{_cur_ver}" if _cur_ver else "当前版本：-", size=13.5, color=TEXT),
+            ft.TextButton(
+                (f"当前版本：v{_cur_ver}" if _cur_ver else "当前版本：-") + "　点击检查更新",
+                icon=ft.Icons.SYSTEM_UPDATE, style=ft.ButtonStyle(color=ACCENT_2),
+                tooltip="点击检查 GitHub 最新版本",
+                on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start()),
             ft.Row([ft.ElevatedButton("检查更新", icon=ft.Icons.SYSTEM_UPDATE,
                                       on_click=lambda e: threading.Thread(target=self._check_update, daemon=True).start())])],
             spacing=8))
@@ -11031,8 +11382,7 @@ class App:
             use_ai = bool(save_ai_use.value)
             op_text = {"1": "保存草稿（只更新这个商品，不提交审核）",
                        "3": "保存并移入待发布（会进入待发布列表）",
-                       "2": "提交审核 / 发布（会送平台审核，影响线上状态）",
-                       "5": "定时发布（按填写的发布时间排队，平台校验类目/视频）"}.get(op, "保存")
+                       "2": "提交审核 / 发布（会送平台审核，影响线上状态）"}.get(op, "保存")
 
             def work():
                 try:
@@ -11045,14 +11395,6 @@ class App:
                         _label = {"offline": "待发布/已下线", "online": "在线"}.get(_state, _state)
                         status.value = (f"「移入待发布」只适用于采集箱商品；"
                                         f"当前商品状态：{_label}，平台会拒绝该操作")
-                        status.color = WARN_C
-                        try:
-                            self._safe_update()
-                        except Exception:
-                            pass
-                        return
-                    if op == "5" and not str(getattr(self.cfg, "alibaba_schedule_time", "") or "").strip():
-                        status.value = "定时发布需要先在本页填写发布时间"
                         status.color = WARN_C
                         try:
                             self._safe_update()
@@ -11300,6 +11642,7 @@ class App:
                 _show_dlg(dlg)
                 return
             self._alibaba_batch_running = True
+            getattr(self, '_open_log_on_task', lambda: None)()
             try:
                 self._log("[Alibaba任务] 开始批量处理采集箱（按每个商品自己的类目）", "INFO")
                 self._alibaba_task_update(reset=True)
@@ -11454,6 +11797,7 @@ class App:
                 self.toast("采集箱正在批量处理中，请稍候…", False)
                 return
             self._alibaba_batch_running = True
+            getattr(self, '_open_log_on_task', lambda: None)()
             batch_status.value = "发布前评分检查中（只读，不保存）…"
             batch_status.color = MUTED
             batch_box.controls = []
@@ -12059,7 +12403,6 @@ class App:
             h1("保存 / 发布（真实写入）", FS_MD),
             muted("四个动作都会真实写入店小秘/平台（不是测试模拟）："
                   "保存草稿不提交；发布/定时会先校验必填/评分/类目，再弹确认框。"),
-            tf("alibaba_schedule_time", "定时发布时间（如 2030-01-01 09:00）", 360),
             *([save_ai_use, *([_save_ai_preset] if _save_ai_preset else []), ft.Row([
                 ft.TextButton("填入推荐发布信息", icon=ft.Icons.AUTO_FIX_HIGH,
                               tooltip="填入已验证的机械类店铺/类目/属性/贸易/公司资料",
@@ -12075,9 +12418,6 @@ class App:
                 ft.OutlinedButton("移入待发布", icon=ft.Icons.INVENTORY_2,
                                   tooltip="仅对采集箱商品有效；待发布/在线商品平台会拒绝",
                                   on_click=lambda e: do_save(e, "3")),
-                ft.OutlinedButton("定时发布", icon=ft.Icons.SCHEDULE,
-                                  tooltip="按设置里的发布时间排队；需要商品状态允许定时",
-                                  on_click=lambda e: do_save(e, "5")),
             ], spacing=10, wrap=True),
             *([required_box, status] if section is not None else []),
         ], spacing=8))
@@ -18709,6 +19049,174 @@ class App:
             self._safe_update()
         except Exception:
             pass
+    def _refresh_task_profiles(self) -> None:
+        """刷新设置里的任务配置列表。"""
+        try:
+            from ..services import task_profiles as _tp
+            items = _tp.list_tasks()
+        except Exception:
+            items = []
+        if not hasattr(self, "task_list") or self.task_list is None:
+            return
+        rows = []
+        for t in items:
+            tid = str(t.get("id") or "")
+            status = str(t.get("status") or "idle")
+            status_label = {"idle": "未运行", "running": "运行中", "done": "已完成",
+                            "failed": "失败"}.get(status, status)
+            rows.append(ft.Row([
+                ft.Column([
+                    ft.Text(str(t.get("name") or "-"), size=13, color=TEXT,
+                            weight=ft.FontWeight.BOLD),
+                    ft.Text(f"{t.get('platform') or '-'} · 关键词 {t.get('keyword') or '全部'} · "
+                            f"{status_label} · 完成后{'自动删除' if t.get('auto_release')=='delete' else '保留'}",
+                            size=11.5, color=MUTED),
+                ], spacing=1, expand=True),
+                ft.TextButton("当前窗口运行", icon=ft.Icons.PLAY_ARROW,
+                              on_click=lambda e, _t=t: self._run_task_profile(_t)),
+                ft.TextButton("新实例运行", icon=ft.Icons.OPEN_IN_NEW,
+                              on_click=lambda e, _t=t: self._launch_task_profile(_t)),
+                ft.TextButton("删除", icon=ft.Icons.DELETE_OUTLINE,
+                              on_click=lambda e, _t=t: self._delete_task_profile(_t)),
+            ], spacing=4, wrap=True))
+        self.task_list.controls = rows or [muted("暂无保存的任务配置", 12)]
+        try:
+            self._safe_update()
+        except Exception:
+            pass
+
+    def _save_task_profile(self) -> None:
+        """把当前关键词、模板、平台和全部非敏感配置保存为任务。"""
+        try:
+            self._save_api_fields()
+        except Exception:
+            pass
+        name = str(getattr(self, "task_name", None).value
+                   if getattr(self, "task_name", None) is not None else "").strip()
+        if not name:
+            self.toast("请填写任务名称", False)
+            return
+        try:
+            from ..services import task_profiles as _tp
+            rel = (getattr(self, "task_release", None).value
+                   if getattr(self, "task_release", None) is not None else "keep")
+            plat = str(getattr(self.active_platform, "id", "") or self.cfg.active_platform or "")
+            kw = str(getattr(self, "run_keyword", "") or "").strip()
+            try:
+                self.cfg.set(plat + "_collect_keyword", kw)
+            except Exception:
+                pass
+            t = _tp.create(name, self.cfg, plat, keyword=kw, auto_release=rel)
+            self._log(f"任务配置已保存：{name}（{plat}）")
+            self.toast(f"任务已保存：{name}")
+            self._refresh_task_profiles()
+            return t
+        except Exception as ex:
+            self.toast(f"保存任务失败：{str(ex)[:80]}", False)
+            return None
+
+    def _delete_task_profile(self, task: dict) -> None:
+        try:
+            from ..services import task_profiles as _tp
+            if _tp.delete(str(task.get("id") or "")):
+                self._refresh_task_profiles()
+                self.toast("任务已删除")
+        except Exception as ex:
+            self.toast(str(ex), False)
+
+    def _run_task_profile(self, task: dict) -> None:
+        """当前窗口应用任务配置并启动；运行完按设置保留或删除任务。"""
+        try:
+            if getattr(self, "_running", False) or getattr(self, "_alibaba_batch_running", False):
+                self.toast("已有任务在运行；请用「新实例运行」并行，或等当前任务结束", False)
+                return
+            from ..services import task_profiles as _tp
+            _tp.apply_to_config(task, self.cfg)
+            plat = str(task.get("platform") or self.cfg.active_platform or "")
+            if plat:
+                self.cfg.set("active_platform", plat)
+                self.cfg.set(plat + "_collect_keyword", str(task.get("keyword") or ""))
+            save_config(self.cfg)
+            self.run_keyword = str(task.get("keyword") or "")
+            if plat:
+                self._switch_platform(plat)
+            _tp.mark(str(task.get("id") or ""), "running")
+            self._refresh_task_profiles()
+            self._open_log_on_task()
+            self._start(ignore_conflicts=True)
+            tid = str(task.get("id") or "")
+
+            def watch():
+                # 等任务线程真正置为运行中，避免刚启动时 _running 还是 False 就误判完成。
+                deadline = time.time() + 30
+                started = False
+                while time.time() < deadline and not getattr(self, "_running", False):
+                    time.sleep(0.2)
+                started = bool(getattr(self, "_running", False))
+                while getattr(self, "_running", False):
+                    time.sleep(2)
+                try:
+                    _tp.mark(tid, "done" if started else "failed",
+                             "" if started else "任务未进入运行状态（可能校验未通过）")
+                    if str(task.get("auto_release")) == "delete":
+                        _tp.delete(tid)
+                    self._refresh_task_profiles()
+                except Exception:
+                    pass
+            threading.Thread(target=watch, daemon=True).start()
+        except Exception as ex:
+            self.toast(f"运行任务失败：{str(ex)[:100]}", False)
+
+    def _launch_task_profile(self, task: dict) -> None:
+        """在独立实例中运行任务，多任务之间配置/端口/日志互不影响。"""
+        try:
+            from ..core.instances import launch_task_instance
+            from ..services import task_profiles as _tp
+            info = launch_task_instance(task)
+            _tp.mark(str(task.get("id") or ""), "running")
+            self._refresh_task_profiles()
+            self.toast(f"已在独立实例启动：{info.get('name')}")
+            tid = str(task.get("id") or "")
+            proc = info.get("process")
+
+            def watch():
+                try:
+                    rc = proc.wait()
+                except Exception:
+                    rc = -1
+                try:
+                    _tp.mark(tid, "done" if rc == 0 else "failed")
+                    if str(task.get("auto_release")) == "delete":
+                        _tp.delete(tid)
+                    self._refresh_task_profiles()
+                except Exception:
+                    pass
+            threading.Thread(target=watch, daemon=True).start()
+        except Exception as ex:
+            self.toast(f"启动独立任务失败：{str(ex)[:100]}", False)
+
+    def _auto_start_task(self) -> None:
+        """独立实例启动后自动执行自己的任务（由 AURORA_AUTOSTART 触发）。"""
+        import os as _os
+        if str(_os.environ.get("AURORA_AUTOSTART", "") or "") != "1":
+            return
+        try:
+            from ..services import task_profiles as _tp
+            tid = str(_os.environ.get("AURORA_TASK_ID", "") or "")
+            task = _tp.get(tid)
+            if not task:
+                return
+            self.run_keyword = str(task.get("keyword") or "")
+            _tp.mark(tid, "running")
+            self._refresh_task_profiles()
+            self._open_log_on_task()
+            self._start(ignore_conflicts=True)
+        except Exception as ex:
+            try:
+                self._log(f"任务配置自动启动失败：{ex}", "ERROR")
+            except Exception:
+                pass
+
     def _refresh_instances(self):
         try:
             items = list_instances()
@@ -18893,9 +19401,15 @@ class App:
             info = _up.check(self.cfg.license_server, timeout=8)
             if not info.get("ok"):
                 self._log(f"版本检查失败（不阻断启动）：{info.get('error')}", "WARN")
+                import os as _ao
+                if str(_ao.environ.get("AURORA_AUTOSTART", "") or "") == "1":
+                    self._auto_start_task()
                 return
             if not info.get("has_update"):
                 self._log(f"版本检查：已是最新 v{_up.CURRENT}", "INFO")
+                import os as _ao
+                if str(_ao.environ.get("AURORA_AUTOSTART", "") or "") == "1":
+                    self._auto_start_task()
                 return
             self._log(f"发现新版本 v{info.get('latest')}（当前 v{_up.CURRENT}），需更新后使用", "WARN")
             self._show_update_gate(info)
@@ -19641,6 +20155,16 @@ class App:
         self.picked = [Path(f.path) for f in files]
         self.wb_sel_paths = {str(p) for p in self.picked}
         txt = f"已选择 {len(self.picked)} 张本地图片"
+        try:
+            self.wb_source_text.value = f"图片来源：本地图片（{len(self.picked)} 张）"
+            self.wb_source_text.color = ACCENT_2
+        except Exception:
+            pass
+        try:
+            if getattr(self, "wb_tabs", None) is not None:
+                self.wb_tabs.selected_index = 1
+        except Exception:
+            pass
         for attr in ("img_status",):
             ctl = getattr(self, attr, None)
             if ctl is not None:

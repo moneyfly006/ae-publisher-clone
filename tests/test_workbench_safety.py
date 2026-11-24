@@ -129,40 +129,6 @@ class WorkbenchSafetyTests(unittest.TestCase):
                     probe.assert_not_called()
                     generate.assert_not_called()
 
-    def test_queue_preview_ignores_auto_save_and_external_connections(self):
-        for auto_save in (False, True):
-            for size in (0, 1, 3):
-                for success in (False, True):
-                    with self.subTest(auto_save=auto_save, size=size, success=success):
-                        items = [NS(product_id=str(i), title="Product") for i in range(size)]
-                        publisher = Mock(return_value=NS(run=Mock(return_value=NS(ok=success, error="bad"))))
-                        history = NS(record=Mock())
-                        app = NS(cfg=NS(auto_save_products=auto_save, concurrency=3),
-                                 products=[], _queue_products={},
-                                 q=NS(pending=lambda: items, mark=Mock()),
-                                 _cookies=forbidden, _ensure_browser_session=forbidden,
-                                 _refresh_queue=Mock(), _log=Mock(), toast=Mock())
-                        with patch.dict(os.environ, {"AURORA_NO_SAVE": "1"}):
-                            method("_process_queue", Publisher=publisher, history=history)(app)
-                        self.assertFalse(app._running)
-                        self.assertEqual(publisher.call_count, size)
-                        for call in publisher.call_args_list:
-                            self.assertEqual(call.args, (app.cfg,))
-                            self.assertEqual(call.kwargs, {"dxm": None, "scheduler": None})
-                        for call in publisher.return_value.run.call_args_list:
-                            self.assertEqual(call.kwargs, {"dry_run": True, "manage_progress": False})
-                        if size:
-                            history.record.assert_called_once_with("queue:preview", size if success else 0,
-                                                                   0 if success else size)
-                            terminal = [c for c in app.q.mark.call_args_list if c.args[1] != "running"]
-                            self.assertEqual(len(terminal), size)
-                            for call in terminal:
-                                self.assertEqual(call.args[1], "done" if success else "failed")
-                                if success:
-                                    self.assertIn("未标记已编辑", call.args[2])
-                            self.assertIn("未保存商品", app.toast.call_args.args[0])
-                        else:
-                            history.record.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -81,6 +81,7 @@ ALIBABA = Platform(
         PageItem(1, "连接与店铺", "自动处理", "STORE_OUTLINED", "listing", "Cookie 登录"),
         PageItem(44, "处理规则", "自动处理", "TUNE", "listing", "AI 文案 图片 主图 详情图 水印 类目 属性 价格 贸易 公司 SKU 库存 FOB 包装"),
         PageItem(33, "运行与结果", "自动处理", "CLOUD_UPLOAD_OUTLINED", "listing", "采集箱 关键词 数量 保存 发布 批量 评分 审核 草稿 队列 发布失败"),
+        PageItem(46, "任务队列", "发布与运行", "QUEUE", "listing", "队列 配置 快照 批量 执行"),
         PageItem(10, "任务与日志", "发布与运行", "RECEIPT_LONG_OUTLINED", "listing"),
         PageItem(9, "图片工作台", "工具与设置", "GRID_VIEW", "ai_image"),
         PageItem(11, "设置", "工具与设置", "SETTINGS_OUTLINED", "listing"),
@@ -106,6 +107,7 @@ ALIEXPRESS = Platform(
         PageItem(5, "AI 图片", "内容处理", "AUTO_AWESOME", "ai_image"),
         PageItem(4, "内容审查", "内容处理", "FACT_CHECK_OUTLINED", "audit"),
         PageItem(8, "发布队列", "发布与运行", "CLOUD_UPLOAD_OUTLINED", "listing"),
+        PageItem(46, "任务队列", "发布与运行", "QUEUE", "listing", "队列 配置 快照 批量 执行"),
         PageItem(10, "任务与日志", "发布与运行", "RECEIPT_LONG_OUTLINED", "listing"),
         PageItem(9, "图片工作台", "工具与设置", "GRID_VIEW", "ai_image"),
         PageItem(11, "设置", "工具与设置", "SETTINGS_OUTLINED", "listing"),
@@ -122,6 +124,7 @@ AMAZON = Platform(
         PageItem(45, "处理规则", "自动处理", "TUNE", "listing",
                  "类目 属性 价格 物流 SKU 库存 品牌 制造商 AI 文案 五点 商品图片"),
         PageItem(21, "运行与结果", "自动处理", "CLOUD_UPLOAD_OUTLINED", "listing"),
+        PageItem(46, "任务队列", "发布与运行", "QUEUE", "listing", "队列 配置 快照 批量 执行"),
         PageItem(10, "任务与日志", "发布与运行", "RECEIPT_LONG_OUTLINED", "listing"),
         PageItem(9, "图片工作台", "工具与设置", "GRID_VIEW", "ai_image"),
         PageItem(11, "设置", "工具与设置", "SETTINGS_OUTLINED", "listing"),
@@ -158,6 +161,7 @@ TIKTOK = Platform(
                  ("tiktok", "图片", "视频", "主图", "详情图", "ai")),
         PageItem(28, "保存与发布", "发布与运行", "CLOUD_UPLOAD_OUTLINED", "listing",
                  "tiktok 采集箱 关键词 数量 自动处理 保存 发布 诊断 保存包 回读"),
+        PageItem(46, "任务队列", "发布与运行", "QUEUE", "listing", "队列 配置 快照 批量 执行"),
         PageItem(10, "任务与日志", "发布与运行", "RECEIPT_LONG_OUTLINED", "listing"),
         PageItem(9, "图片工作台", "工具与设置", "GRID_VIEW", "ai_image"),
         PageItem(11, "设置", "工具与设置", "SETTINGS_OUTLINED", "listing"),
@@ -176,6 +180,7 @@ SHOPEE = Platform(
         PageItem(41, "AI 文案", "内容处理", "EDIT_NOTE", "ai_text", "标题 描述 提示词"),
         PageItem(42, "商品图片与视频", "内容处理", "PHOTO_LIBRARY_OUTLINED", "listing", "图片 视频 媒体 尺码图"),
         PageItem(43, "保存与发布", "发布与运行", "CLOUD_UPLOAD_OUTLINED", "listing", "草稿 保存 发布 结果 检查"),
+        PageItem(46, "任务队列", "发布与运行", "QUEUE", "listing", "队列 配置 快照 批量 执行"),
         PageItem(10, "任务与日志", "发布与运行", "RECEIPT_LONG_OUTLINED", "listing"),
         PageItem(9, "图片工作台", "工具与设置", "GRID_VIEW", "ai_image"),
         PageItem(11, "设置", "工具与设置", "SETTINGS_OUTLINED", "listing"),
@@ -190,21 +195,10 @@ DEFAULT_PLATFORM = "alibaba"
 PLATFORM_CAPS: dict[str, dict[str, bool]] = {
     "alibaba": {
         # 店小秘 SMT（速卖通）专属：Alibaba 直连 ICBU 不用这些
-        "smt_shop_template": False,      # 店铺选择 + 模板商品
-        "smt_category_source": False,    # 模板类目 / 自动分类
-        "smt_product_settings": False,   # 原箱 / 申报货值 / 化学品 / 规格默认值
-        "smt_attr_templates": False,     # 属性模板与自定义属性清理
-        "eu_qualification": False,       # 欧盟资质
-        "legacy_price_page": False,      # SMT 价格页（Alibaba 报价在 12 号页）
-        "smt_sku_page": False,           # SKU 编码 / 套装 / 库存页
         "marketing_images": False,       # 营销图 1:1 / 3:4
-        "smt_queue": False,              # 图片工作台 SMT 产品入队/队列
-        "scheduled_publish": False,      # SMT 定时发布
         "smt_detail_assembly": False,    # AI 文案-详情内容增强（SMT 详情组装）
         "smt_extra_ai": False,           # SKU 优化 / 读图估重（SMT 专用 AI 能力）
         "smt_prompt_library": False,     # 速卖通/通用提示词预设库（Alibaba 用行业预设）
-        "smt_resume": False,             # 上次未完成任务的续跑卡
-        "smt_template_ready": False,     # 概览准备状态里的「模板商品」
         "icbu_listing": True,            # Alibaba 直连刊登页
     },
     "aliexpress": {"icbu_listing": False},
@@ -218,7 +212,6 @@ PLATFORM_CAPS: dict[str, dict[str, bool]] = {
         "smt_diff_preview": False,      # 概览「改前后对比」（SMT 管线预览）
         "smt_run_stop": False,          # 任务与日志「停止任务」（SMT 批量任务）
         "smt_edited_history": False,    # 任务与日志「已编辑记录 / 清空已编辑记录」
-        "scheduled_publish": False,     # 任务与日志「定时发布」tab（SMT 调度器）
         "image_settings": False,        # 设置「图片与模型」tab（Amazon v1 不处理图片上传）
         "video_tools": False,           # ffmpeg 下载/诊断/启动提示（Amazon 无视频功能）
         "smt_wizard": False,            # 首次引导（模板产品/模板来源）
@@ -233,21 +226,10 @@ PLATFORM_CAPS: dict[str, dict[str, bool]] = {
         "smt_pipeline_actions": False,   # 概览「选择商品」/侧栏按钮 tooltip/日志副标题
         "smt_pipeline_stats": False,     # 概览「今日任务 / 成功 / 失败 / 今日花费」
         "smt_run_stop": False,           # 任务与日志「停止任务」（SMT 批量任务）
-        "smt_resume": False,             # 上次未完成任务续跑卡
         "smt_extra_ai": False,           # SKU 优化 / 读图估重（SMT 专用 AI）
         "smt_prompt_library": False,     # 速卖通/通用提示词预设库（TikTok 用站点语言）
         "smt_detail_assembly": False,    # AI 文案-详情内容增强（SMT 详情组装）
         "marketing_images": False,       # 营销图 1:1 / 3:4（SMT 发布必填，TikTok 不需要）
-        "smt_queue": False,              # 图片工作台 SMT 产品入队/队列
-        "scheduled_publish": False,      # SMT 定时发布（TikTok v1 不做定时）
-        "smt_sku_page": False,           # SKU 编码 / 套装 / 库存页
-        "legacy_price_page": False,      # SMT 价格页（TikTok 价格在 14 号页）
-        "smt_category_source": False,    # 模板类目 / 自动分类
-        "smt_product_settings": False,   # 原箱 / 申报货值 / 化学品 / 规格默认值
-        "smt_attr_templates": False,     # 属性模板与自定义属性清理
-        "eu_qualification": False,       # 欧盟资质（TikTok 资质走类目 certifications）
-        "smt_shop_template": False,      # 店铺选择 + 模板商品
-        "smt_template_ready": False,     # 概览准备状态里的「模板商品」
         # 概览里 SMT 专属的两块：改前后对比（SMT 管线）与配置冲突（SMT 设置规则）
         "smt_diff_preview": False,
         "smt_conflicts": False,
@@ -256,13 +238,7 @@ PLATFORM_CAPS: dict[str, dict[str, bool]] = {
     "shopee": {
         "icbu_listing": False, "smt_wizard": False, "smt_store_selector": False,
         "smt_pipeline_actions": False, "smt_pipeline_stats": False, "smt_run_stop": False,
-        "smt_resume": False, "smt_extra_ai": False, "smt_prompt_library": False,
-        "smt_detail_assembly": False, "marketing_images": False, "smt_queue": False,
-        "scheduled_publish": False, "smt_sku_page": False, "legacy_price_page": False,
-        "smt_category_source": False, "smt_product_settings": False, "smt_attr_templates": False,
-        "eu_qualification": False, "smt_shop_template": False, "smt_template_ready": False,
-        "smt_diff_preview": False, "smt_conflicts": False, "smt_edited_history": False,
-    },
+        "smt_detail_assembly": False, "marketing_images": False, },
 }
 
 

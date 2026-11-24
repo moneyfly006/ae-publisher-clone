@@ -24,7 +24,7 @@ class RedesignTests(unittest.TestCase):
     def test_all_platform_pages_build_in_both_themes(self):
         """按平台实际页面逐个构建：Alibaba 已移除速卖通专属页，速卖通保留全部旧页。"""
         _idx = {d.index for d in DESTINATIONS}
-        self.assertTrue(set(range(12)).issubset(_idx), _idx)
+        self.assertTrue(({46} | set(range(12))).issubset(_idx), _idx)
         self.assertTrue({12, 13, 14}.issubset(_idx), _idx)
         for theme in ("dark", "light"):
             ui.apply_theme(theme)
@@ -33,7 +33,7 @@ class RedesignTests(unittest.TestCase):
                 pf = self.app.active_platform
                 items = list(pf.pages)
                 if expect_all:
-                    self.assertEqual({p.index for p in items}, set(range(12)),
+                    self.assertEqual({p.index for p in items}, set(range(12)) | {46},
                                      "速卖通平台必须保留 0-11 全部页面")
                 for item in items:
                     with self.subTest(theme=theme, platform=pf_id, page=item.label):
@@ -208,9 +208,9 @@ class RedesignTests(unittest.TestCase):
             5: ["简单编辑", "精细化编辑", "AI 图片提示词", "营销图", "图片输出与水印", "商品视频"],
             6: ["定价与试算", "阶梯与批发", "区域调价", "价格模板库"],
             7: ["编码与库存", "变种属性与图片", "套装 SKU"],
-            8: ["运行与发布设置", "商品队列"],
-            9: ["商品与取图", "图片处理与输出", "任务队列"],
-            10: ["运行日志", "定时发布"],
+            8: ["运行与发布设置", "发布概览（数量与批量操作）"],
+            9: ["商品与取图", "图片处理与输出"],
+            10: ["运行日志"],
             11: ["账号与连接", "图片与模型", "界面与实例", "维护与诊断"],
         }
         for index, titles in expected.items():

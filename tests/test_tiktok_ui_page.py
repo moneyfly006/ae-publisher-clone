@@ -338,7 +338,7 @@ class TikTokPageTests(unittest.TestCase):
     def test_tiktok_platform_is_implemented_with_split_pages(self):
         self.assertTrue(TIKTOK.implemented, "TikTok 必须 implemented=True")
         visible = [p.index for p in TIKTOK.pages if not p.group.startswith("_")]
-        self.assertEqual(visible, [0, 22, 24, 25, 35, 26, 27, 28, 10, 9, 11])
+        self.assertEqual(visible, [0, 22, 24, 25, 35, 26, 27, 28, 46, 10, 9, 11])
         self.assertEqual({p.index for p in get_platform("tiktok").pages},
                          set(visible) | {14})
         self.assertEqual(TIKTOK.groups(),
@@ -366,7 +366,7 @@ class TikTokPageTests(unittest.TestCase):
         nav = [b.content.controls[1].value for _, b in self.app.nav_buttons]
         self.assertEqual(nav, ["概览", "连接与店铺", "类目与属性",
                                "价格与物流", "SKU 与库存", "AI 文案", "图片与视频",
-                               "保存与发布", "任务与日志", "图片工作台", "设置"])
+                               "保存与发布", "任务队列", "任务与日志", "图片工作台", "设置"])
         self.app._sync_run_button()
         self.assertEqual(self.app.btn_run_text.value, "自动处理采集箱")
         # 导航搜索按功能命中对应页（不再只有一个 14 号页）
@@ -380,12 +380,9 @@ class TikTokPageTests(unittest.TestCase):
         # 契约 §4.1：TikTok 关闭 SMT 专属能力，icbu_listing 关闭
         self.assertIn("tiktok", PLATFORM_CAPS)
         for name in ("smt_wizard", "smt_store_selector", "smt_pipeline_actions",
-                     "smt_pipeline_stats", "smt_run_stop", "smt_resume",
+                     "smt_pipeline_stats", "smt_run_stop",
                      "smt_extra_ai", "smt_prompt_library", "smt_detail_assembly",
-                     "marketing_images", "smt_queue", "scheduled_publish",
-                     "smt_sku_page", "legacy_price_page", "smt_category_source",
-                     "smt_product_settings", "smt_attr_templates",
-                     "eu_qualification", "smt_shop_template", "smt_template_ready"):
+                     "marketing_images"):
             self.assertFalse(cap("tiktok", name), f"TikTok 应关闭 cap：{name}")
         self.assertFalse(cap("tiktok", "icbu_listing"))
 
@@ -461,7 +458,7 @@ class TikTokPageTests(unittest.TestCase):
         self.app._switch_platform("tiktok")
         self.app._switch(15)
         nav = [idx for idx, _b in self.app.nav_buttons]
-        self.assertEqual(nav, [0, 22, 24, 25, 35, 26, 27, 28, 10, 9, 11])
+        self.assertEqual(nav, [0, 22, 24, 25, 35, 26, 27, 28, 46, 10, 9, 11])
         for idx, btn in self.app.nav_buttons:
             btn.on_click(SimpleNamespace(control=btn))
             self.assertEqual(self.app._page_idx, idx, f"导航 {idx} 落点错误")

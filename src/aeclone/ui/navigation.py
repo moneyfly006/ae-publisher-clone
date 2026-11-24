@@ -106,6 +106,9 @@ DESTINATIONS += tuple(Destination(36 + i,
     for i, (title, description) in enumerate(SHOPEE_SECTIONS))
 DESTINATIONS += (Destination(44, "自动处理", "处理规则", "TUNE", "设置 Alibaba 文案、图片和商品资料的批量规则"),)
 DESTINATIONS += (Destination(45, "自动处理", "处理规则", "TUNE", "设置 Amazon 文案、图片和商品资料的批量规则"),)
+DESTINATIONS += (Destination(46, "发布与运行", "任务队列", "QUEUE",
+                             "保存多份配置快照，单独执行或全部执行，日志按任务记录",
+                             "队列 配置 快照 批量 执行 日志"),)
 
 BY_INDEX = {item.index: item for item in DESTINATIONS}
 

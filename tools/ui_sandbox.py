@@ -89,7 +89,6 @@ def sandbox(*, threads=False, external_calls=None):
     import webbrowser
     from aeclone.integrations import browser_cookies
     from aeclone import license as license_module
-    from aeclone.services.scheduler import Scheduler
     calls = external_calls if external_calls is not None else []
     def block(kind):
         def handler(*args, **kwargs):
@@ -129,7 +128,6 @@ def sandbox(*, threads=False, external_calls=None):
                                          SimpleNamespace(ok=False, cookies={}, source="sandbox", error="离线验证")))
         stack.enter_context(patch.object(browser_cookies, "describe", lambda source: "离线验证 · 未连接账号"))
         stack.enter_context(patch.object(license_module, "machine_code", lambda: "UI-VALIDATION-ONLY"))
-        stack.enter_context(patch.object(Scheduler, "start", lambda *a: None))
         for method in ("_subscribe_progress", "_probe_api_async", "_probe_balance", "_check_license",
                        "_refresh_store_counts", "_startup_update_gate", "_startup_ffmpeg_gate", "_load_prices"):
             stack.enter_context(patch.object(ui.App, method, lambda *a, **kw: None))

@@ -119,7 +119,7 @@ class CollectUiTests(unittest.TestCase):
             confirm.assert_not_called()
 
     def test_aliexpress_navigation_unchanged(self):
-        self.assertEqual([p.index for p in ALIEXPRESS.pages], [0, 1, 2, 6, 7, 3, 5, 4, 8, 10, 9, 11])
+        self.assertEqual([p.index for p in ALIEXPRESS.pages], [0, 1, 2, 6, 7, 3, 5, 4, 8, 46, 10, 9, 11])
         self.app._switch_platform("aliexpress")
         for page in ALIEXPRESS.pages:
             self.app._switch(page.index)
