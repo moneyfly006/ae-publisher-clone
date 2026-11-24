@@ -2081,10 +2081,78 @@ class Publisher:
             pass
         return target
 
+    def _china_origin_value(self, category_id: str) -> tuple[str, str]:
+        """从类目 Origin 枚举里找中国大陆；找不到用阿里国际站通用值。"""
+        cid = str(category_id or "").strip()
+        cache = getattr(self, "_origin_value_cache", None)
+        if not isinstance(cache, dict):
+            cache = self._origin_value_cache = {}
+        if cid in cache:
+            return cache[cid]
+        out = ("9441741844", "Mainland China")
+        try:
+            import json as _j
+            import re as _re
+            for a in (self.dxm.category_attributes(cid) if self.dxm and cid else []):
+                if not isinstance(a, dict) or str(a.get("arrtNameId") or "") != "219":
+                    continue
+                vals = a.get("values") or "[]"
+                if isinstance(vals, str):
+                    vals = _j.loads(vals)
+                for v in vals if isinstance(vals, list) else []:
+                    names = v.get("names") or {}
+                    label = f"{names.get('en') or ''} {names.get('zh') or ''}".strip()
+                    if _re.search(r"mainland china|china|中国", label, _re.I):
+                        out = (str(v.get("id") or ""), label)
+                        break
+                break
+        except Exception:
+            pass
+        cache[cid] = out
+        return out
+
+    def _repair_origin_attribute(self, target: dict, res=None) -> dict:
+        """强制系统属性 Origin 为中国大陆，清理旧的自定义产地属性。"""
+        if not isinstance(target, dict):
+            return target
+        try:
+            import json as _j
+            cid = str(target.get("categoryId") or "").strip()
+            oid, oname = self._china_origin_value(cid)
+            if not oid:
+                return target
+            props = _j.loads(target.get("aeopAeProductPropertys") or "[]")
+            if not isinstance(props, list):
+                props = []
+            cleaned = []
+            changed = 0
+            for a in props:
+                if not isinstance(a, dict):
+                    continue
+                if str(a.get("attrNameId") or "") == "219":
+                    if str(a.get("attrValueId") or "") != oid:
+                        changed += 1
+                    continue
+                name = str(a.get("attrName") or "").strip().lower()
+                if name in ("origin", "place of origin", "country of origin", "产地", "原产地"):
+                    changed += 1
+                    continue
+                cleaned.append(a)
+            cleaned.append({"attrNameId": "219", "attrValueId": oid, "attrName": "Origin"})
+            target = dict(target)
+            target["aeopAeProductPropertys"] = _j.dumps(cleaned, ensure_ascii=False)
+            if res is not None and changed:
+                try:
+                    add_step(res, "产地统一", True, f"系统属性 Origin 已统一为 {oname}")
+                except Exception:
+                    pass
+            return target
+        except Exception:
+            return target
+
     def _repair_ships_from(self, target: dict, res=None) -> dict:
-        """把 SKU 的「发货地」统一成 China Mainland，避免 DAILY_TPL/发货地冲突。"""
+        """清空 SKU 的「发货地」属性（保持页面不勾选）；系统 Origin 另行写中国。"""
         import json as _js
-        import re as _re
         if not isinstance(target, dict):
             return target
         skus = target.get("aeopAeProductSKUs")
@@ -2095,57 +2163,25 @@ class Publisher:
                 return target
         if not isinstance(skus, list) or not skus:
             return target
-        has_ship = any(
-            isinstance(p, dict) and str(p.get("skuPropertyId") or "") == "200007763"
-            for s in skus for p in (s.get("aeopSKUProperty") or [])
-        )
-        if not has_ship:
-            return target
-        cid = str(target.get("categoryId") or "")
-        cache = getattr(self, "_attr_values_cache", None)
-        if not isinstance(cache, dict):
-            cache = self._attr_values_cache = {}
-        attr = cache.get(cid)
-        if attr is None:
-            attr = {}
-            try:
-                for a in (self.dxm.category_attributes(cid) if self.dxm and cid else []):
-                    if str(a.get("arrtNameId") or "") == "200007763":
-                        vals = a.get("values") or "[]"
-                        if isinstance(vals, str):
-                            vals = _js.loads(vals)
-                        for v in vals if isinstance(vals, list) else []:
-                            names = v.get("names") or {}
-                            label = f"{names.get('zh') or ''} {names.get('en') or ''}".strip()
-                            if _re.search(r"china|中国", label, _re.I):
-                                attr = v
-                                break
-            except Exception:
-                pass
-            cache[cid] = attr
-        cn = attr.get("id") if isinstance(attr, dict) else ""
-        names = (attr.get("names") or {}) if isinstance(attr, dict) else {}
-        cn_name = names.get("zh") or names.get("en") or "China Mainland"
-        if not cn:
-            cn, cn_name = "201336100", "China Mainland"
         changed = 0
         for s in skus:
-            for prop in (s.get("aeopSKUProperty") or []):
-                if str(prop.get("skuPropertyId") or "") != "200007763":
-                    continue
-                if str(prop.get("propertyValueId") or "") != str(cn):
-                    prop["propertyValueId"] = cn
-                    prop["attrVal"] = cn_name
-                    prop["themeVal"] = "发货地"
-                    prop["attrValEn"] = cn_name
-                    changed += 1
+            if not isinstance(s, dict):
+                continue
+            props = s.get("aeopSKUProperty")
+            if not isinstance(props, list):
+                continue
+            kept = [p for p in props if not (
+                isinstance(p, dict) and str(p.get("skuPropertyId") or "") == "200007763")]
+            if len(kept) != len(props):
+                changed += len(props) - len(kept)
+                s["aeopSKUProperty"] = kept
         if changed:
             target = dict(target)
             target["aeopAeProductSKUs"] = _js.dumps(skus, ensure_ascii=False)
             if res is not None:
                 try:
-                    add_step(res, "发货地自动修复", True,
-                             f"已将 {changed} 个 SKU 发货地统一为 {cn_name}")
+                    add_step(res, "SKU 发货地", True,
+                             f"已清空 {changed} 个 SKU 的「发货地」勾选；系统 Origin 使用中国")
                 except Exception:
                     pass
         return target
@@ -2399,6 +2435,7 @@ class Publisher:
         target = self._repair_ships_from(target, res)
         target = self._dedupe_product_skus(target, res)
         target = self._resolve_auto_category(target, res)
+        target = self._repair_origin_attribute(target, res)
         # 发布失败重试也必须走运费模板预审/安全模板切换，否则 DAILY_TPL 会一直失败。
         self._smt_shipping_preflight(target, res, tpl)
         _attr_ov = self._smt_attr_overrides(target, tpl, res)
@@ -3288,6 +3325,7 @@ class Publisher:
             target = self._repair_ships_from(target, res)
             target = self._dedupe_product_skus(target, res)
             target = self._resolve_auto_category(target, res)
+            target = self._repair_origin_attribute(target, res)
             try:
                 _mk_cur = self._fix_market_images(
                     str(target.get("marketImg1") or ""), str(target.get("marketImg2") or ""),

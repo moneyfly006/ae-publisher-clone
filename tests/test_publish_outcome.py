@@ -36,6 +36,7 @@ def main():
  chk("直接发布：online 成功", judge("publish","online")["ok"])
  chk("直接发布：waitPublish 不算成功", not judge("publish","waitPublish")["ok"])
  chk("直接发布：publishing 不算成功", not judge("publish","publishing")["ok"])
+ chk("publishing 带旧错误码仍判处理中", judge("publish","publishing","DAILY_TPL old")["category"]=="processing")
  chk("直接发布：publishFail 失败", not judge("publish","publishFail")["ok"])
  test_publishing_is_pending_not_success()
  # 后端规则不能把“已提交发布”算发布成功

@@ -38,11 +38,13 @@ def judge(action: str, state: str = "", error: str = "") -> dict:
     if st in ONLINE_STATES:
         return {"ok": True, "state": state, "category": "online",
                 "label": "已在线", "success": True}
-    if st in FAIL_STATES or err:
-        return {"ok": False, "state": state, "category": "failed",
-                "label": "发布失败", "success": False}
+    # 发布中可能仍带着上一轮的旧错误码；优先按“处理中”处理，不能
+    # 因为旧错误码把已经提交成功的商品误报成发布失败。
     if st in PROCESSING_STATES:
         return {"ok": False, "state": state, "category": "processing",
                 "label": "平台仍在处理，尚未进入审核", "success": False}
+    if st in FAIL_STATES or err:
+        return {"ok": False, "state": state, "category": "failed",
+                "label": "发布失败", "success": False}
     return {"ok": False, "state": state, "category": "uncertain",
             "label": "发布结果未确认", "success": False}
