@@ -229,12 +229,25 @@ def status(record, op="1"):
             return "reviewing"
     if state in ("online", "onselling"):
         return "published"
-    if state in ("publishing", "waitpublish"):
+    # 保存到待发布：只有回读到待发布状态才算成功。
+    # 直接发布：只有最终进入审核中/在线才算成功。
+    if str(op) == "3" and state in ("editingrequired", "waitpublish", "pending"):
+        return "pending"
+    if str(op) == "2" and state in ("auditing", "reviewing"):
+        return "reviewing"
+    if str(op) == "2" and state in ("online", "onselling"):
+        return "published"
+    if state in ("publishing", "processing"):
         return "processing"
     if record.get("saved") and not record.get("ok"):
         return "uncertain" if "回读" in error or "超时" in error else "needs_info"
     if record.get("saved"):
-        return "draft_saved" if str(op) == "1" else "pending" if str(op) == "3" else "processing"
+        if str(op) == "1":
+            return "draft_saved"
+        if str(op) == "3":
+            # 已收到保存响应，但没回读到待发布：不能记为成功。
+            return "uncertain"
+        return "uncertain"
     return "needs_info"
 
 

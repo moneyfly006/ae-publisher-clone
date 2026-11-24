@@ -69,7 +69,7 @@ def t1_system_attrs_merged_with_ids():
     assert has("400074001", "23399554847"), "Charge Status 缺失"
     assert has("400000603", "23399591357"), "High-concerned 缺失"
     # 自定义属性用名字
-    assert {"attrName": "Warranty", "attrValue": "1 Year"} in props
+    assert {"attrName": "Warranty", "attrValue": "1Year"} in props
     print("  ✓ 4 个系统属性(id) + 自定义属性(name) 都在")
 
 

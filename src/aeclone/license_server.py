@@ -224,3 +224,19 @@ def software_login(server: str, email: str, password: str, machine_code: str,
     if not verify_token(token):
         return "", "授权 token 验签失败", {}
     return token, "", data
+
+
+def software_logout(server: str, email: str = "", machine_code: str = "",
+                    timeout: int = 6, session=None) -> bool:
+    """软件退出账号：通知后台记录；失败时客户端仍可本地退出。"""
+    base = canonical_server(str(server or "")).rstrip("/")
+    if not base:
+        return False
+    try:
+        sess = session or requests.Session()
+        r = _request_keep_query(sess, "POST", base + "/api.php?action=software_logout",
+                                timeout=timeout,
+                                json={"email": email, "machine_code": machine_code})
+        return r.status_code < 400
+    except Exception:
+        return False

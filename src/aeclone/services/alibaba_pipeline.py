@@ -788,8 +788,45 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                 res.error = ("已提交，但平台发布校验未通过：" +
                              (_err[:300] or "状态=发布失败") + _hint)
                 return res
+            from .publish_outcome import judge
+            _st = str(_state.get("dxmOfflineState") or _state.get("productStatusType")
+                      or _state.get("dxmState") or "")
+            _verifiable = any(_state.get(k) for k in ("dxmState", "dxmOfflineState", "productStatusType"))
+            _out = judge("publish", _st, _err)
+            if _verifiable and not _out.get("ok"):
+                _step(res, "发布结果", False,
+                      f"已提交但未进入审核：{_out.get('label')}（{_st or '状态未知'}）")
+                res.ok = False
+                res.error = f"发布结果未确认：{_out.get('label')}（{_st or '状态未知'}）"
+                return res
+            res.auditing = _out.get("category") == "auditing"
             _step(res, "发布结果", True,
-                  f"平台状态：{_state.get('dxmState')} / {_state.get('productStatusType') or '-'}")
+                  f"{_out.get('label')}（{_st or '-'}）")
+
+        if op == OP_MOVE_PENDING:
+            from .publish_outcome import judge
+            _final = None
+            for _i in range(5):
+                time.sleep(2)
+                try:
+                    _p = c.product_detail(pid)
+                except Exception:
+                    continue
+                if not any(k in _p for k in ("dxmState", "dxmOfflineState", "productStatusType", "errMsg")):
+                    _final = None
+                    break
+                _st = str(_p.get("dxmOfflineState") or _p.get("productStatusType") or _p.get("dxmState") or "")
+                _final = judge("save_to_waiting", _st, str(_p.get("errMsg") or ""))
+                if _final.get("category") in ("pending", "failed"):
+                    break
+            if _final is not None and not _final.get("ok") and _final.get("category") != "uncertain":
+                _step(res, "待发布结果", False,
+                      f"已保存但未进入待发布：{_final.get('label')}（{_final.get('state') or '状态未知'}）")
+                res.ok = False
+                res.error = f"保存后未进入待发布：{_final.get('label')}"
+                return res
+            if _final is not None:
+                _step(res, "待发布结果", True, _final.get("label") or "已进入待发布")
 
         _step(res, "完成", True, "商品已保存/提交")
         return res

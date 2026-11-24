@@ -552,15 +552,26 @@ def _sanitize_payload(p: dict, cfg=None, action: str = "save_only") -> None:
     except Exception:
         pass
 
-    # 自定义属性：只留平台允许字符
+    # 自定义属性：平台只允许英文字母/数字和少量特殊字符（不允许空格）。
+    # 系统属性有 attrNameId/attrValueId，保持原名；自定义属性去掉非法字符。
     try:
         props = json.loads(p.get("aeopAeProductPropertys") or "[]")
+        kept_props = []
         for a in props if isinstance(props, list) else []:
-            if a.get("attrName"):
-                a["attrName"] = _clean_attr(a["attrName"])
-            if a.get("attrValue"):
-                a["attrValue"] = _clean_attr(a["attrValue"])
-        p["aeopAeProductPropertys"] = json.dumps(props, ensure_ascii=False)
+            if not isinstance(a, dict):
+                continue
+            if a.get("attrNameId") or a.get("attrValueId"):
+                kept_props.append(a)
+                continue
+            name = _rs.sub(r"[^A-Za-z0-9㎡≤≥‰±℃℉ΜΩé]", "", str(a.get("attrName") or ""))
+            value = _rs.sub(r"[^A-Za-z0-9㎡≤≥‰±℃℉ΜΩé]", "", str(a.get("attrValue") or ""))
+            if not name:
+                continue
+            a["attrName"] = name
+            if value:
+                a["attrValue"] = value
+            kept_props.append(a)
+        p["aeopAeProductPropertys"] = json.dumps(kept_props, ensure_ascii=False)
     except Exception:
         pass
 
@@ -681,8 +692,12 @@ def build_save_payload(product: dict, template: dict | None = None,
     p["aeopAeProductSKUs"] = json.dumps(_sku_list_all, ensure_ascii=False)
 
     # 无线端描述：为空或被 CSS 污染 → 从 PC 详情重新生成
-    if not mobile_detail_ok(p.get("mobileDetail")):
-        p["mobileDetail"] = build_mobile_detail(p.get("detail") or "")
+    _detail_raw = str(p.get("detail") or "")
+    if "<table" in _detail_raw.lower():
+        # 旧 mobileDetail 可能已把表格压成一行；有表格时强制重建。
+        p["mobileDetail"] = build_mobile_detail(_detail_raw)
+    elif not mobile_detail_ok(p.get("mobileDetail")):
+        p["mobileDetail"] = build_mobile_detail(_detail_raw)
 
     # ★ 数据安全：类目 ID 为空时保存会把商品类目清掉（历史事故），直接拒绝
     if p.get("categoryId") in (None, "", 0, "0"):
@@ -738,6 +753,36 @@ def build_save_payload(product: dict, template: dict | None = None,
 _TEXT_STYLE = {"fontSize": 13, "color": "#434649", "fontWeight": "normal", "align": "left"}
 
 
+def _table_to_mobile_text(table_html: str) -> str:
+    """把 PC 表格转成移动端可读的竖排文本，避免所有单元格黏成一行。"""
+    import html as _html
+    import re as _re
+
+    out = []
+    for row_html in _re.findall(r"<tr\b[^>]*>(.*?)</tr>", str(table_html or ""), _re.I | _re.S):
+        cells = []
+        for cell in _re.findall(r"<t[dh]\b[^>]*>(.*?)</t[dh]>",
+                                row_html, _re.I | _re.S):
+            txt = _re.sub(r"<br\s*/?>", " ", cell, flags=_re.I)
+            txt = _re.sub(r"<[^>]+>", " ", txt)
+            txt = _html.unescape(txt)
+            txt = _re.sub(r"\s+", " ", txt).strip()
+            cells.append(txt)
+        if not any(cells):
+            continue
+        # 两列表格常见于“参数/值”，用冒号更适合手机阅读；多列保留 | 分隔。
+        if len(cells) == 2:
+            out.append(f"{cells[0]}：{cells[1]}")
+        else:
+            out.append(" | ".join(c for c in cells if c))
+    return "\n".join(out)
+
+
+def _split_table_tokens(text: str):
+    import re as _re
+    return _re.split(r"(__AURORA_TABLE_\d+__)", text)
+
+
 def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
     """把 PC 端详情 HTML 转成无线端 moduleList JSON。
 
@@ -753,6 +798,14 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
     html = _re.sub(r"<script[^>]*>.*?</script>", "", html, flags=_re.I | _re.S)
     html = _re.sub(r"<!--.*?-->", "", html, flags=_re.S)
     modules: list[dict] = []
+    _tables = []
+
+    def _protect_table(m):
+        _tables.append(_table_to_mobile_text(m.group(0)))
+        return f"\n__AURORA_TABLE_{len(_tables) - 1}__\n"
+
+    html = _re.sub(r"<table\b[^>]*>.*?</table>", _protect_table, html,
+                   flags=_re.I | _re.S)
     if not html.strip():
         modules.append({"type": "text", "texts": [{"class": "body",
                                                    "content": "", "style": dict(_TEXT_STYLE)}]})
@@ -789,17 +842,37 @@ def build_mobile_detail(detail_html: str, max_images: int = 20) -> str:
                                          "style": {"height": "500", "width": "800", "hasMargin": True}})
                     img_total += 1
             continue
-        # 文字：去标签 → 压缩空白
+        # 文字：去标签 → 压缩空白。table 已替换成占位符，按占位符拆开，
+        # 表格内容单独作为 text 模块，避免表格所有单元格黏成一行。
         txt = _re.sub(r"<br\s*/?>", "\n", part, flags=_re.I)
         txt = _re.sub(r"</p>", "\n", txt, flags=_re.I)
         txt = _re.sub(r"<[^>]+>", "", txt)
         txt = _re.sub(r"[ \t]+", " ", txt)
         txt = _re.sub(r"\n{3,}", "\n\n", txt).strip()
-        if txt:
+        if not txt:
+            continue
+        for segment in _split_table_tokens(txt):
+            if not segment:
+                continue
+            is_table = segment.startswith("__AURORA_TABLE_") and segment.endswith("__")
+            if is_table:
+                try:
+                    idx = int(segment[len("__AURORA_TABLE_"):-2])
+                    seg_txt = _tables[idx]
+                except Exception:
+                    seg_txt = ""
+            else:
+                seg_txt = segment
+            seg_txt = seg_txt.strip()
+            if not seg_txt:
+                continue
             _flush_imgs()
-            modules.append({"type": "text",
-                            "texts": [{"class": "body", "content": txt[:4000],
-                                       "style": dict(_TEXT_STYLE)}]})
+            # 单个 text 模块上限 4000 字符，长表格按段落切开。
+            for start in range(0, len(seg_txt), 4000):
+                modules.append({"type": "text",
+                                "texts": [{"class": "body",
+                                           "content": seg_txt[start:start + 4000],
+                                           "style": dict(_TEXT_STYLE)}]})
     _flush_imgs()
 
     if not modules:

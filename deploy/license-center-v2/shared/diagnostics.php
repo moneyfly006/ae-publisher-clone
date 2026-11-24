@@ -66,7 +66,7 @@ function lc_diag_event(PDO $db,array $ev): bool {
     return $q->rowCount()===1;
 }
 function lc_index_log(PDO $db,array $log): int {
-    $count=0;$rules=function_exists('log_rules')?log_rules():['publish_ok'=>['刊登成功','发布成功'],'publish_fail'=>['发布失败','刊登失败'],'error'=>['[ERROR]','Traceback','Exception'],'draft'=>['保存草稿']];
+    $count=0;$rules=function_exists('log_rules')?log_rules():['publish_ok'=>['刊登成功','发布成功','平台审核中','已提交审核','PRODUCT_IN_AUDITING'],'pending'=>['已保存到待发布','移入待发布'],'publish_fail'=>['发布失败','刊登失败'],'error'=>['[ERROR]','Traceback','Exception'],'draft'=>['保存草稿']];
     $fallback=(string)($log['platform'] ?? '');
     if(!preg_match('/^[a-z][a-z0-9_]{1,31}$/',$fallback))$fallback='';
     $platforms=lc_registry();$aliases=['alibaba'=>['alibaba','国际站'],'aliexpress'=>['aliexpress','速卖通'],'amazon'=>['amazon','亚马逊'],'tiktok'=>['tiktok'],'shopee'=>['shopee']];

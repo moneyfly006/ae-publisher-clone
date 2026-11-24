@@ -1,6 +1,7 @@
 <?php
 $pub = (int)($counts['publish_ok'] ?? 0);
 $draft = (int)($counts['draft'] ?? 0);
+$pending = (int)($counts['pending'] ?? 0);
 $fail = (int)($counts['publish_fail'] ?? 0);
 $errs = (int)($counts['error'] ?? 0);
 $linksN = (int)($counts['link'] ?? 0);
@@ -70,6 +71,7 @@ $licState = $lic ? license_effective_status($lic) : '';
 <div class="kpi-strip">
   <div class="kpi-item"><span class="l">刊登成功</span><b class="n" style="color:var(--ok)"><?= $pub ?></b></div>
   <div class="kpi-item"><span class="l">保存草稿</span><b class="n"><?= $draft ?></b></div>
+  <div class="kpi-item"><span class="l">进入待发布</span><b class="n" style="color:var(--ok)"><?= $pending ?></b></div>
   <div class="kpi-item"><span class="l">刊登失败</span><b class="n" style="color:var(--warn)"><?= $fail ?></b></div>
   <div class="kpi-item"><span class="l">报错</span><b class="n" style="color:var(--bad)"><?= $errs ?></b></div>
   <div class="kpi-item"><span class="l">产品链接</span><b class="n"><?= $linksN ?></b></div>

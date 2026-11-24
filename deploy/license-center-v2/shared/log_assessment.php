@@ -19,11 +19,12 @@ function lc_log_diagnosis_rules(): array {return [
 ];}
 function lc_assess_log(array $log): array {
     $lines=preg_split('/\R/u',(string)($log['content'] ?? '')) ?: [];$total=count($lines);$offset=max(0,$total-8000);
-    $rules=lc_log_diagnosis_rules();$issues=[];$failed=0;$draft=false;$submitted=false;
+    $rules=lc_log_diagnosis_rules();$issues=[];$failed=0;$draft=false;$submitted=false;$pending=false;
     foreach(array_slice($lines,$offset) as $n=>$line){
         $line=trim($line);if($line==='')continue;
         $draft=$draft||preg_match('/保存草稿|存入草稿|已保存草稿/u',$line)===1;
-        $submitted=$submitted||preg_match('/产品已提交发布|刊登成功|发布成功/u',$line)===1;
+        $pending=$pending||preg_match('/已保存到待发布|保存到待发布|移入待发布|已进入待发布/u',$line)===1;
+        $submitted=$submitted||preg_match('/刊登成功|上架成功|发布成功|商品已上线|平台审核中|已提交审核|PRODUCT_IN_AUDITING/u',$line)===1;
         $kind='';
         foreach($rules as $id=>$rule)if(preg_match($rule[5],$line)===1){$kind=$id;break;}
         if($kind===''&&preg_match('/\[(?:ERROR|CRITICAL|FATAL)\]| - (?:ERROR|CRITICAL) - |(?:Exception|Error)\s*:|失败|异常/iu',$line))$kind='other';
@@ -38,8 +39,9 @@ function lc_assess_log(array $log): array {
     uasort($issues,function($a,$b){$r=['高'=>0,'中'=>1,'待核实'=>2];return ($r[$a['priority']]<=>$r[$b['priority']]) ?: ($b['count']<=>$a['count']);});
     if($issues){$status='needs_attention';$summary='记录到 '.count($issues).' 类需要排查的问题';$next='先处理高优先级问题，再用单件商品复测；下列判断基于本份日志，不能证明故障当前仍在发生。';}
     elseif((int)($log['error_count'] ?? 0)>0){$status='unknown';$summary='上传摘要有错误记录，当前文本不足以定位原因';$next='错误可能来自结构化上报或分析范围之外；请补充发生时间、完整响应及对应任务日志。';}
+    elseif($pending){$status='pending';$summary='检测到已保存到待发布；保存到待发布按成功记录，但不等同于已发布';$next='在店小秘「待发布」确认商品存在；需要上架时再提交发布。';}
     elseif($draft){$status='draft';$summary='检测到保存草稿记录，尚不能确认已发布';$next='在店小秘草稿箱和目标平台核对商品状态；需要刊登时，补齐必填项并完成发布流程。';}
-    elseif($submitted){$status='submitted';$summary='检测到提交或成功记录，需核对平台最终状态';$next='确认目标平台商品 ID、审核结果和在售状态；软件日志中的成功记录不等于最终上架结果。';}
+    elseif($submitted){$status='submitted';$summary='检测到审核中/在线/发布成功记录，需核对平台最终状态';$next='确认目标平台商品 ID、审核结果和在售状态；只有最终进入审核中或在线才算发布成功。';}
     else{$status='unknown';$summary='当前日志未提供足够的问题判断依据';$next='不能据此认定运行正常。请核对日志时间和软件版本，补充失败前后的操作与响应。';}
     return ['status'=>$status,'summary'=>$summary,'next'=>$next,'issues'=>array_values($issues),'failure_lines'=>$failed,'total_lines'=>$total,'analyzed_lines'=>min($total,8000),'limited'=>$total>8000];
 }

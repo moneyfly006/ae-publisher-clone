@@ -872,6 +872,21 @@ class App:
             tooltip="启动 / 停止本次任务（⌘R / Ctrl+R）", on_click=self._toggle_run)
         self.license_text = ft.Text("检测中…", color=MUTED, size=11,
                                     max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)
+        self.account_name = ft.Text("未登录账号", size=12.2, color=TEXT,
+                                    weight=ft.FontWeight.BOLD, max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS)
+        self.account_sub = ft.Text("点击登录 / 管理账号", size=10.2, color=MUTED,
+                                   max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
+        self.account_btn = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ACCOUNT_CIRCLE_OUTLINED, size=24, color=ACCENT_2),
+                ft.Column([self.account_name, self.account_sub], spacing=0, expand=True),
+                ft.Icon(ft.Icons.CHEVRON_RIGHT, size=16, color=MUTED),
+            ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=ft.padding.symmetric(horizontal=9, vertical=7),
+            border_radius=10, bgcolor=CARD, ink=True,
+            tooltip="账号登录 / 退出 / 刷新授权",
+            on_click=lambda e: self._open_account_dialog())
         self.search_kw = ft.TextField(
             label="商品标题关键词（留空处理全部）", width=320, dense=True,
             bgcolor=CARD_2, border_color=BORDER, color=TEXT,
@@ -896,7 +911,7 @@ class App:
                 ], spacing=10),
                 ft.Container(height=22), self.nav_search,
                 ft.Column([nav], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO),
-                ft.Divider(color=BORDER, height=20),
+                ft.Divider(color=BORDER, height=12),
                 self.btn_run,
                 ft.TextButton("日志监控", icon=ft.Icons.TERMINAL, height=36,
                               style=ft.ButtonStyle(color=MUTED),
@@ -906,6 +921,7 @@ class App:
                                      clip_behavior=ft.ClipBehavior.HARD_EDGE),
                         muted(f"v{VERSION}", 10)],
                        spacing=5, vertical_alignment=ft.CrossAxisAlignment.START),
+                self.account_btn,
             ], spacing=6, expand=True))
         self.breadcrumb = ft.Text("工作空间 / 概览", size=12, color=MUTED)
         self.store_shortcut = ft.TextButton(
@@ -944,6 +960,10 @@ class App:
         ], expand=True, spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH))
         self._sync_run_button()
         self._apply_platform_shell()
+        try:
+            self._refresh_account_ui()
+        except Exception:
+            pass
         threading.Thread(target=self._check_license, daemon=True).start()
         try:
             if getattr(self, "scheduler", None) is None:
@@ -2721,7 +2741,7 @@ class App:
             except Exception:
                 pass
             return
-        self._log("开始扫描「发布失败」商品…（可能需要 10~30 秒）", "INFO")
+        self._log("开始扫描「发布失败」商品，自动识别并修复问题…（可能需要 10~30 秒）", "INFO")
         try:
             self.toast("正在扫描发布失败商品…")
         except Exception:
@@ -2761,7 +2781,7 @@ class App:
                 _cap = int(self.cfg.edit_sum or 0)
             except Exception:
                 _cap = 0
-            _cap = _cap if _cap > 0 else 20
+            _cap = _cap if _cap > 0 else 100
             if len(rows) > _cap:
                 _left = len(rows) - _cap
                 self._log(f"本次先处理 {_cap} 个，剩余 {_left} 个（再点一次继续）", "INFO")
@@ -2776,18 +2796,21 @@ class App:
                 return
             dxm = DianxiaomiClient(ck, overrides=self.cfg.endpoint_overrides or {})
             pub = Publisher(self.cfg, dxm=dxm, ws_endpoint="")
-            ok = fail = 0
+            ok = fail = pending = 0
             for i, r in enumerate(rows, 1):
                 if getattr(self, "_abort_now", False):
                     self._log("已停止重试发布", "WARN")
                     break
                 pid = r["id"]
                 try:
-                    out = pub.publish_only(pid, PublishResult(product_id=pid, ok=True))
+                    out = pub.publish_failed_auto(pid, PublishResult(product_id=pid, ok=True))
                 except Exception as ex:  # noqa: BLE001
                     out = None
                     self._log(f"[{i}/{len(rows)}] ✗ {pid} 异常：{str(ex)[:90]}", "ERROR")
-                if out is not None and out.ok:
+                if out is not None and getattr(out, "pending", False):
+                    pending += 1
+                    self._log(f"[{i}/{len(rows)}] ⏳ {pid} {out.message[:110]}（不判成功、不重复提交）", "WARN")
+                elif out is not None and out.ok:
                     ok += 1
                     self._log(f"[{i}/{len(rows)}] ✓ {pid} {out.message[:90]}", "INFO")
                     try:
@@ -2802,21 +2825,36 @@ class App:
                         pr.record(pid, _msg, r.get("title") or "")
                     except Exception:
                         pass
-            self._log(f"只重试发布完成：成功 {ok} / 失败 {fail}（未调用 AI，未产生费用）", "INFO")
+            self._log(f"自动修复并发布完成：成功 {ok} / 失败 {fail} / 处理中待确认 {pending}（未调用 AI，未产生费用）", "INFO")
             try:
-                self.toast(f"重试发布：成功 {ok} / 失败 {fail}")
+                self.toast(f"自动修复发布：成功 {ok} / 失败 {fail} / 待确认 {pending}")
+            except Exception:
+                pass
+            try:
+                _left = self._publish_failed_count()
+                if getattr(self, "_pf_retry_btn", None) is not None:
+                    self._pf_retry_btn.text = f"只重试发布失败（{_left} 个·自动修复）"
+                    self._safe_update()
             except Exception:
                 pass
 
         threading.Thread(target=work, daemon=True).start()
 
     def _publish_failed_count(self) -> int:
-        """发布失败列表里的商品数（用于「只重试发布失败」按钮上的数字）。"""
+        """发布失败商品数：优先读店小秘真实列表，其次读本地重试记录。"""
         try:
             from ..services import publish_retry as _prc
-            return int(_prc.count())
+            _local = int(_prc.count())
         except Exception:
-            return 0
+            _local = 0
+        try:
+            from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
+            _dxm = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {}, timeout=8)
+            _rows, _meta = _dxm.product_page(1, 1, self.cfg.store_id or None, "publishFail")
+            _live = int((_meta or {}).get("total") or len(_rows or []))
+            return max(_live, _local)
+        except Exception:
+            return _local
 
     def _rerun_failed(self):
         """只重跑上一次批量里失败/未完成的商品（忽略已编辑记录）。"""
@@ -2828,7 +2866,8 @@ class App:
         ids = list(info.get("failed") or []) + list(info.get("remaining") or [])
         ids = [str(x) for x in dict.fromkeys(ids) if str(x).strip()]
         if not ids:
-            self.toast("没有上次失败/未完成的商品", False)
+            self._log("上次没有记录失败商品，改为扫描全部发布失败商品并自动修复", "INFO")
+            self._retry_publish_failed()
             return
         self._log(f"重跑上次失败/未完成：{len(ids)} 个商品", "INFO")
         self.toast(f"开始重跑 {len(ids)} 个商品")
@@ -6082,11 +6121,13 @@ class App:
 
     def _card_publish(self):
         # ---------------- 发布额外选项 ----------------
-        try:
-            from ..services import publish_retry as _prc
-            _pf_count = _prc.count()
-        except Exception:
-            _pf_count = 0
+        _pf_count = self._publish_failed_count()
+        self._pf_retry_btn = ft.ElevatedButton(
+            f"只重试发布失败（{_pf_count} 个·自动修复）",
+            icon=ft.Icons.CLOUD_UPLOAD,
+            bgcolor=ACCENT, color=ON_ACCENT,
+            tooltip="自动识别主图/手机详情/发货地/SKU/运费模板问题，修复后直接发布；不跑 AI",
+            on_click=lambda e: self._retry_publish_failed())
 
         extra_card = card(ft.Column([
             h1i(ft.Icons.REPLAY, "记录与重试"),
@@ -6096,11 +6137,7 @@ class App:
                     ft.ElevatedButton("重跑上次失败的商品", icon=ft.Icons.REPLAY,
                                       bgcolor=ACCENT_2, color=ON_ACCENT,
                                       on_click=lambda e: self._rerun_failed()),
-                    ft.ElevatedButton(f"只重试发布失败（{_pf_count} 个·不花钱）",
-                                      icon=ft.Icons.CLOUD_UPLOAD,
-                                      bgcolor=ACCENT, color=ON_ACCENT,
-                                      tooltip="这些商品已经编辑成功，只是发布被拒；重试只调发布接口，不跑 AI、不处理图片",
-                                      on_click=lambda e: self._retry_publish_failed())],
+                    self._pf_retry_btn],
                    spacing=10, wrap=True),
         ], spacing=10))
 
@@ -19048,6 +19085,10 @@ class App:
             self.license_text.value = "平台：" + ", ".join(self.entitlements.platforms_list())
         except Exception:
             pass
+        try:
+            self._refresh_account_ui()
+        except Exception:
+            pass
 
     def _schedule_migration_prompt(self) -> None:
         """旧授权客户先用全部平台，运行一段时间后再提醒绑定账号。"""
@@ -19085,6 +19126,186 @@ class App:
                 self._log(f"迁移绑定窗口异常：{ex}", "WARN")
             except Exception:
                 pass
+
+    def _refresh_account_ui(self) -> None:
+        """刷新左下角账号入口（登录邮箱 / 套餐 / 未登录）。"""
+        if not getattr(self, "account_name", None) or not getattr(self, "account_sub", None):
+            return
+        email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
+        bound = bool(getattr(self.cfg, "license_account_bound", False))
+        ent = getattr(self, "entitlements", None)
+        plats = list(getattr(ent, "platforms_list", lambda: [])() or []) if ent else []
+        try:
+            if email:
+                self.account_name.value = email
+                if plats:
+                    self.account_sub.value = f"已登录 · {len(plats)} 个平台 · 点击管理"
+                else:
+                    self.account_sub.value = "已登录 · 点击刷新授权 / 退出"
+            elif bound:
+                self.account_name.value = "已绑定授权账号"
+                self.account_sub.value = "点击登录 / 管理账号"
+            else:
+                self.account_name.value = "未登录账号"
+                self.account_sub.value = "点击登录 / 注册账号"
+            self.account_btn.tooltip = "账号登录 / 退出 / 刷新授权"
+            self._safe_update()
+        except Exception:
+            pass
+
+    def _refresh_account_license(self, dialog_status=None) -> None:
+        """联网刷新账号授权，不退出登录。"""
+        try:
+            from ..license_server import refresh_entitlements
+            if dialog_status is not None:
+                dialog_status.value = "正在刷新授权…"
+                dialog_status.color = MUTED
+                self._safe_update()
+            ent = refresh_entitlements(self.cfg, version=VERSION, save=save_config)
+            self.entitlements = ent
+            plats = ent.platforms_list()
+            try:
+                self.license_text.value = "平台：" + (", ".join(plats) or "无可用套餐")
+                self.license_text.color = SUCCESS_C if plats else WARN_C
+            except Exception:
+                pass
+            try:
+                self._rebuild_nav()
+                self.platform_rail.content = self._build_platform_rail().content
+            except Exception:
+                pass
+            self._refresh_account_ui()
+            self._log("账号授权已刷新：" + (", ".join(plats) or "无可用平台"), "INFO")
+            if dialog_status is not None:
+                dialog_status.value = ("授权已刷新 · " + (", ".join(plats) or "无可用套餐"))
+                dialog_status.color = SUCCESS_C if plats else WARN_C
+                self._safe_update()
+            self.toast("授权已刷新", bool(plats))
+        except Exception as ex:
+            if dialog_status is not None:
+                dialog_status.value = f"刷新失败：{str(ex)[:120]}"
+                dialog_status.color = DANGER_C
+                self._safe_update()
+            self._log(f"账号授权刷新失败：{ex}", "WARN")
+
+    def _account_logout(self, show_login: bool = False) -> None:
+        """退出账号：清除本地 token/账号缓存，并通知后台记录退出。"""
+        from ..account_store import clear_password
+        email = str(getattr(self.cfg, "license_account_email", "") or "")
+        try:
+            from ..license import machine_code as _mc
+            mcode = _mc()
+        except Exception:
+            mcode = ""
+        for key, value in (
+            ("license_token", ""), ("license_token_ts", 0),
+            ("license_account_email", ""), ("license_account_bound", False),
+            ("license_account_save_password", False),
+            ("license_account_password", ""), ("license_legacy_all", False),
+            ("license_cache_ok", False), ("license_cache_legacy", False),
+            ("license_migration_prompted_at", 0),
+        ):
+            self.cfg.set(key, value)
+        try:
+            clear_password(self.cfg)
+            save_config(self.cfg)
+        except Exception:
+            pass
+        try:
+            from ..licensing import load_entitlements
+            self.entitlements = load_entitlements(self.cfg)
+        except Exception:
+            pass
+        try:
+            self.license_text.value = "账号已退出"
+            self.license_text.color = MUTED
+            self._rebuild_nav()
+            self.platform_rail.content = self._build_platform_rail().content
+        except Exception:
+            pass
+        self._refresh_account_ui()
+        self._log("账号已退出：" + (email or "当前账号"), "INFO")
+        self.toast("已退出账号", True)
+
+        def notify():
+            try:
+                from ..license_server import software_logout
+                software_logout(str(getattr(self.cfg, "license_server", "") or ""),
+                                email=email, machine_code=mcode)
+            except Exception:
+                pass
+        threading.Thread(target=notify, daemon=True).start()
+        if show_login:
+            try:
+                self._account_login_dialog(required=False, migration=False)
+            except Exception:
+                pass
+
+    def _open_account_dialog(self) -> None:
+        """左下角账号弹窗：未登录=登录表单；已登录=账号管理。"""
+        try:
+            email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
+            bound = bool(getattr(self.cfg, "license_account_bound", False))
+            server = str(getattr(self.cfg, "license_server", "") or "").strip()
+            if not server:
+                self.toast("未配置授权服务器，无法登录账号", False)
+                return
+            if not (email or bound):
+                self._account_login_dialog(required=False, migration=False)
+                return
+            from ..license import machine_code as _mc
+            mcode = _mc()
+            ent = getattr(self, "entitlements", None)
+            plats = list(getattr(ent, "platforms_list", lambda: [])() or []) if ent else []
+            expiry = str(getattr(ent, "expires_at", "") or getattr(self.cfg, "license_cache_expiry", "") or "")
+            names = {"alibaba": "阿里国际站", "aliexpress": "速卖通", "amazon": "Amazon",
+                     "tiktok": "TikTok", "shopee": "Shopee"}
+            plats_txt = "、".join(names.get(p, p) for p in plats) or "暂无可用平台"
+            status = ft.Text(f"套餐平台：{plats_txt}" + (f" · 到期：{expiry}" if expiry else ""),
+                             size=12.5, color=TEXT if plats else WARN_C)
+            dlg = ft.AlertDialog(modal=True, title=ft.Text("账号中心"),
+                                 content=ft.Column([
+                                     ft.Row([ft.Icon(ft.Icons.ACCOUNT_CIRCLE, size=38, color=ACCENT_2),
+                                             ft.Column([ft.Text(email or "已绑定账号", size=15,
+                                                               weight=ft.FontWeight.BOLD, color=TEXT),
+                                                        muted("已登录 AuroraList", 11)], spacing=2)],
+                                            spacing=10),
+                                     ft.Divider(height=1, color=BORDER),
+                                     status,
+                                     muted(f"机器码：{mcode}", 11),
+                                     muted("退出账号会清除本机登录状态；商品数据不会被删除。", 11),
+                                 ], spacing=9, width=440),
+                                 actions=[])
+            self._dlg = dlg
+
+            def close():
+                self._close_dlg(dlg)
+                self._dlg = None
+
+            def logout(e):
+                close()
+                self._account_logout(show_login=False)
+
+            def refresh(e):
+                threading.Thread(target=self._refresh_account_license,
+                                 args=(status,), daemon=True).start()
+
+            def switch(e):
+                close()
+                self._account_logout(show_login=True)
+
+            dlg.actions = [ft.ElevatedButton("刷新授权", icon=ft.Icons.SYNC,
+                                             bgcolor=ACCENT_2, color=ON_ACCENT,
+                                             on_click=refresh),
+                           ft.OutlinedButton("切换账号", icon=ft.Icons.SWITCH_ACCOUNT,
+                                             on_click=switch),
+                           ft.TextButton("退出登录", icon=ft.Icons.LOGOUT,
+                                         on_click=logout),
+                           ft.TextButton("关闭", on_click=lambda e: close())]
+            self._show_dlg(dlg)
+        except Exception as ex:
+            self._log(f"打开账号中心失败：{ex}", "WARN")
+            self.toast("打开账号中心失败", False)
 
     def _account_login_dialog(self, *, required: bool, migration: bool,
                               auto_password: str = "") -> None:

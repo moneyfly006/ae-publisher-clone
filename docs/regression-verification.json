@@ -1,8 +1,8 @@
 [
   {
     "name": "test_api_save",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_category_map",
@@ -26,8 +26,8 @@
   },
   {
     "name": "test_image_plan_conflicts",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_image_edit_modes",
@@ -51,8 +51,8 @@
   },
   {
     "name": "test_image_hosting_protocol",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_image_hosting_fix",
@@ -101,8 +101,8 @@
   },
   {
     "name": "test_updater",
-    "status": "FAIL",
-    "exit_code": 1
+    "status": "PASS",
+    "exit_code": 0
   },
   {
     "name": "test_preset",
@@ -111,8 +111,8 @@
   },
   {
     "name": "test_ui_pages",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_ai_features_comprehensive",
@@ -206,8 +206,8 @@
   },
   {
     "name": "test_publish_repair",
-    "status": "PASS",
-    "exit_code": 0
+    "status": "FAIL",
+    "exit_code": 1
   },
   {
     "name": "test_alibaba_payload",
@@ -306,6 +306,66 @@
   },
   {
     "name": "test_account_migration",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_failure_soft",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_cookie_report",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_attribute_repair",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_smt_shipping_fix",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_cookie_isolation",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_upgrade_config_preserve",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_alibaba_company_profile",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_prompt_presets",
+    "status": "FAIL",
+    "exit_code": 1
+  },
+  {
+    "name": "test_prompt_clipboard",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_image_bad_download",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_mobile_table",
+    "status": "PASS",
+    "exit_code": 0
+  },
+  {
+    "name": "test_publish_outcome",
     "status": "PASS",
     "exit_code": 0
   },

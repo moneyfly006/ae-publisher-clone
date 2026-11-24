@@ -82,9 +82,12 @@ def _merge_duplicate_rows(rows):
     merged = 0
     for row in rows:
         props = row.get("aeopSKUProperty") or []
+        # 平台查重只看 ID 组合，不看展示名；统一发货地后名称不同但 ID
+        # 相同的 SKU 仍会被平台判重复，所以合并键不能带 propertyValueDefinitionName。
         combo = tuple(sorted(
             (str(p.get("skuPropertyId")), str(p.get("propertyValueId")),
-             str(p.get("propertyValueDefinitionName") or ""))
+             str(p.get("parentPropertyId") or p.get("plug_parent_property_id") or ""),
+             str(p.get("parentValueId") or p.get("plug_parent_value_id") or ""))
             for p in props if isinstance(p, dict)))
         if combo and combo in seen:
             kept = seen[combo]

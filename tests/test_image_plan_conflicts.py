@@ -209,7 +209,7 @@ def t10_publish_retry_no_ai():
     assert out.ok, out
     assert calls["count"] == 1, calls
     assert calls["op"] == 2, calls
-    assert "只发布成功" in out.message
+    assert ("发布已确认" in out.message or "只发布成功" in out.message)
     print("  ✓ 只发 1 次请求，op=2，无 AI 调用")
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ from __future__ import annotations
 import copy
 import os
 import re
+import time
 from dataclasses import dataclass, field
 
 from ..integrations.tiktok import (
@@ -1072,6 +1073,35 @@ def run_tiktok_product(product_id: str, cfg, overrides: dict | None = None,
             msg = msg or _text(res.save_result.get("msg"))
         _step(res, "保存到 TikTok", True,
               f"{OP_LABELS[op]}成功" + (f"：{_short(msg, 110)}" if msg else ""))
+
+        if op in (OP_PUBLISH, OP_MOVE_PENDING):
+            from .publish_outcome import judge
+            _final = None
+            for _i in range(5):
+                time.sleep(2)
+                try:
+                    _raw = client.product_detail(pid)
+                except Exception:
+                    continue
+                _p = _raw.get("product", _raw) if isinstance(_raw, dict) else {}
+                if not isinstance(_p, dict) or not any(
+                        k in _p for k in ("dxmState", "dxmOfflineState", "productStatusType", "errMsg")):
+                    _final = None
+                    break
+                _st = str(_p.get("dxmOfflineState") or _p.get("productStatusType")
+                          or _p.get("status") or _p.get("dxmState") or "")
+                _final = judge("publish" if op == OP_PUBLISH else "save_to_waiting",
+                               _st, str(_p.get("errMsg") or ""))
+                if _final.get("category") in ("pending", "auditing", "online", "failed"):
+                    break
+            if _final is not None and not _final.get("ok"):
+                _step(res, "发布结果", False,
+                      f"已提交但未达成目标：{_final.get('label')}（{_final.get('state') or '状态未知'}）")
+                res.ok = False
+                res.error = f"发布结果未确认：{_final.get('label')}"
+                return res
+            if _final is not None:
+                _step(res, "发布结果", True, _final.get("label") or "已确认")
         _step(res, "完成", True, "商品已保存/提交")
         return res
     except Exception as exc:  # noqa: BLE001

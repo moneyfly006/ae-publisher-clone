@@ -762,8 +762,9 @@ def _classify_publish(raw: dict) -> dict:
         return {"status": "online", "ok": True,
                 "detail": "发布成功" + (f" · ASIN {asin}" if asin else "")}
     if low in ("publishing", "waitpublish"):
-        return {"status": "processing", "ok": True,
-                "detail": f"已提交，平台处理中（{state}）"}
+        # 处理中/待发布都不是“发布成功”；必须等审核中或在线。
+        return {"status": "processing", "ok": False,
+                "detail": f"已提交，平台处理中（{state}），尚未进入审核"}
     if low in ("auditing", "reviewing"):
         return {"status": "reviewing", "ok": True, "detail": "已提交，平台审核中"}
     if low == "publishfail":
@@ -1381,6 +1382,8 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                 elif status == "reviewing":
                     res.warnings.append("平台审核中（非软件失败）：" + res.publish_detail)
                 elif status == "processing":
+                    res.ok = False
+                    res.error = "已提交，平台仍在处理中，尚未进入审核，不能算发布成功"
                     res.warnings.append("已提交，平台处理中（可稍后再核实）")
                 _step(res, "发布结果核实",
                       status in ("online", "processing", "reviewing"),
@@ -1395,6 +1398,31 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                 res.warnings.append(msg)
                 _step(res, "发布结果核实", False, msg)
 
+        if op == OP_MOVE_PENDING:
+            from .publish_outcome import judge
+            _final = None
+            for _i in range(5):
+                time.sleep(2)
+                try:
+                    _p = client.product_detail(pid) if hasattr(client, "product_detail") else {}
+                except Exception:
+                    continue
+                _p = _p.get("product", _p) if isinstance(_p, dict) else {}
+                if not any(k in _p for k in ("dxmState", "dxmOfflineState", "productStatusType", "errMsg")):
+                    _final = None
+                    break
+                _st = str(_p.get("dxmOfflineState") or _p.get("productStatusType") or _p.get("dxmState") or "")
+                _final = judge("save_to_waiting", _st, str(_p.get("errMsg") or ""))
+                if _final.get("category") in ("pending", "failed"):
+                    break
+            if _final is not None and not _final.get("ok"):
+                _step(res, "待发布结果", False,
+                      f"已保存但未进入待发布：{_final.get('label')}（{_final.get('state') or '状态未知'}）")
+                res.ok = False
+                res.error = f"保存后未进入待发布：{_final.get('label')}"
+                return res
+            if _final is not None:
+                _step(res, "待发布结果", True, _final.get("label") or "已进入待发布")
         _step(res, "完成", True, "商品已保存/提交")
         return res
     except Exception as exc:  # noqa: BLE001

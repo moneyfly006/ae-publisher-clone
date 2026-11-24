@@ -108,6 +108,10 @@ def save_to_alibaba(product_id: str, cfg, overrides: dict | None = None,
     product, save, req, issues = prepare_save(product_id, cfg, overrides, client=c)
     if issues and not allow_invalid:
         raise ValueError("保存前校验未通过：" + "；".join(issues))
+    from .image_preflight import preflight_field
+    _img_errors = preflight_field(save, "mainImage", ",", client=c)
+    if _img_errors:
+        raise ValueError("；".join(_img_errors))
     res = c.save_product(product, save, op=op)
     return {"result": res, "issues": issues, "autofilled": save.get("_autofilled") or [],
             "product_id": product.get("id")}

@@ -162,7 +162,17 @@ class FakeClient:
         self.detail_calls += 1
         if isinstance(self.detail, Exception):
             raise self.detail
-        return copy.deepcopy(self.detail)
+        detail = copy.deepcopy(self.detail)
+        # 模拟真实平台：保存后回读到待发布/审核中，而不是永远停在 draft。
+        if self.saved and isinstance(detail, dict):
+            product = detail.get("product")
+            if isinstance(product, dict):
+                op = str(self.saved[-1][1])
+                if op == "3":
+                    product["dxmState"] = "waitPublish"
+                elif op == "2":
+                    product["dxmState"] = "auditing"
+        return detail
 
     def shops(self):
         self.shops_calls += 1

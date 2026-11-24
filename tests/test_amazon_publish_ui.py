@@ -57,8 +57,8 @@ class OpAndPublishStateTests(unittest.TestCase):
     def test_publish_status_mapping(self):
         cases = [
             ({"state": "online", "err_msg": "", "asin": "B0TEST"}, "online", True),
-            ({"state": "publishing", "err_msg": ""}, "processing", True),
-            ({"state": "waitPublish", "err_msg": ""}, "processing", True),
+            ({"state": "publishing", "err_msg": ""}, "processing", False),
+            ({"state": "waitPublish", "err_msg": ""}, "processing", False),
             ({"state": "publishFail",
               "err_msg": "code:100521,我们正在审查这个商品信息"}, "reviewing", True),
             ({"state": "publishFail",

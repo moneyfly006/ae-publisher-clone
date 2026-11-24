@@ -86,6 +86,7 @@ class SaveResult:
     message: str
     title: str = ""
     published: bool = False
+    pending: bool = False       # 平台处理中/结果待确认，既不成功也不失败
     steps: list = field(default_factory=list)
 
 
@@ -2004,6 +2005,161 @@ class Publisher:
         add_step(res, "描述图压缩", True, f"{len(mapping)} 张超 5MB 已压缩并替换")
         return out
 
+    def _dedupe_product_skus(self, target: dict, res=None) -> dict:
+        """统一发货地后可能产生重复规格组合，合并重复 SKU 再提交。"""
+        import json as _j
+        try:
+            from .product_data import sku_rows as _rows, clean_sku_rows as _clean
+            from .sku_recovery import _merge_duplicate_rows
+            rows = _clean(_rows(target.get("aeopAeProductSKUs")))
+            merged, n = _merge_duplicate_rows(rows)
+            if n:
+                out = dict(target)
+                out["aeopAeProductSKUs"] = _j.dumps(merged, ensure_ascii=False)
+                if res is not None:
+                    try:
+                        add_step(res, "SKU 自动合并", True,
+                                 f"发货地统一后合并 {n} 个重复规格组合")
+                    except Exception:
+                        pass
+                return out
+        except Exception:
+            pass
+        return target
+
+    def _repair_ships_from(self, target: dict, res=None) -> dict:
+        """把 SKU 的「发货地」统一成 China Mainland，避免 DAILY_TPL/发货地冲突。"""
+        import json as _js
+        import re as _re
+        if not isinstance(target, dict):
+            return target
+        skus = target.get("aeopAeProductSKUs")
+        if isinstance(skus, str):
+            try:
+                skus = _js.loads(skus or "[]")
+            except Exception:
+                return target
+        if not isinstance(skus, list) or not skus:
+            return target
+        has_ship = any(
+            isinstance(p, dict) and str(p.get("skuPropertyId") or "") == "200007763"
+            for s in skus for p in (s.get("aeopSKUProperty") or [])
+        )
+        if not has_ship:
+            return target
+        cid = str(target.get("categoryId") or "")
+        cache = getattr(self, "_attr_values_cache", None)
+        if not isinstance(cache, dict):
+            cache = self._attr_values_cache = {}
+        attr = cache.get(cid)
+        if attr is None:
+            attr = {}
+            try:
+                for a in (self.dxm.category_attributes(cid) if self.dxm and cid else []):
+                    if str(a.get("arrtNameId") or "") == "200007763":
+                        vals = a.get("values") or "[]"
+                        if isinstance(vals, str):
+                            vals = _js.loads(vals)
+                        for v in vals if isinstance(vals, list) else []:
+                            names = v.get("names") or {}
+                            label = f"{names.get('zh') or ''} {names.get('en') or ''}".strip()
+                            if _re.search(r"china|中国", label, _re.I):
+                                attr = v
+                                break
+            except Exception:
+                pass
+            cache[cid] = attr
+        cn = attr.get("id") if isinstance(attr, dict) else ""
+        names = (attr.get("names") or {}) if isinstance(attr, dict) else {}
+        cn_name = names.get("zh") or names.get("en") or "China Mainland"
+        if not cn:
+            cn, cn_name = "201336100", "China Mainland"
+        changed = 0
+        for s in skus:
+            for prop in (s.get("aeopSKUProperty") or []):
+                if str(prop.get("skuPropertyId") or "") != "200007763":
+                    continue
+                if str(prop.get("propertyValueId") or "") != str(cn):
+                    prop["propertyValueId"] = cn
+                    prop["attrVal"] = cn_name
+                    prop["themeVal"] = "发货地"
+                    prop["attrValEn"] = cn_name
+                    changed += 1
+        if changed:
+            target = dict(target)
+            target["aeopAeProductSKUs"] = _js.dumps(skus, ensure_ascii=False)
+            if res is not None:
+                try:
+                    add_step(res, "发货地自动修复", True,
+                             f"已将 {changed} 个 SKU 发货地统一为 {cn_name}")
+                except Exception:
+                    pass
+        return target
+
+    def _repair_product_images(self, target: dict, tpl: dict | None, res=None) -> dict:
+        """发布失败商品的主图/附加图/详情图统一去死链，优先用有效图替换。"""
+        import re as _re
+        if not isinstance(target, dict):
+            return target
+        cache = getattr(self, "_img_valid_cache", None)
+        if not isinstance(cache, dict):
+            cache = self._img_valid_cache = {}
+
+        def ok(url: str) -> bool:
+            u = str(url or "").strip()
+            if not u.startswith("http"):
+                return False
+            if u not in cache:
+                cache[u] = (self._check_main_image_for_publish([u]) == "")
+            return bool(cache[u])
+
+        def split(v):
+            return [x.strip() for x in _re.split(r"[;|\n]", str(v or "")) if x.strip().startswith("http")]
+
+        main = split(target.get("imageURLs"))
+        extra = split(target.get("extraImages"))
+        tpl_main = split((tpl or {}).get("imageURLs"))
+        tpl_extra = split((tpl or {}).get("extraImages"))
+        detail = str(target.get("detail") or "")
+        detail_imgs = _re.findall(r'<img[^>]+src=["\']([^"\']+)', detail, _re.I)
+        pool = []
+        for u in main + extra + tpl_main + tpl_extra + detail_imgs:
+            if u not in pool and ok(u):
+                pool.append(u)
+        out = dict(target)
+        changed = 0
+        if main:
+            kept = [u for u in main if ok(u)]
+            if not kept and pool:
+                kept = pool[:max(1, min(6, len(pool)))]
+            if kept and kept != main:
+                out["imageURLs"] = ";".join(kept[:6])
+                changed += 1
+        if extra:
+            kept_extra = [u for u in extra if ok(u)]
+            if kept_extra != extra:
+                out["extraImages"] = "|".join(kept_extra)
+                changed += 1
+        if detail_imgs:
+            dead = {u for u in detail_imgs if not ok(u)}
+            if dead:
+                # 失效详情图用第一张有效主图替换；没有有效图就移除该 img，避免平台拒收。
+                repl = (out.get("imageURLs") or "").split(";")[0].strip()
+                new_detail = detail
+                for u in dead:
+                    new_detail = new_detail.replace(u, repl if repl else "")
+                if not repl:
+                    new_detail = _re.sub(r'<img[^>]+>', '', new_detail, flags=_re.I)
+                out["detail"] = new_detail
+                changed += 1
+        if changed and res is not None:
+            try:
+                add_step(res, "图片自动修复", True,
+                         f"已清理失效图片/替换可用图（{changed} 个字段）")
+            except Exception:
+                pass
+        return out
+
     def _repair_main_images(self, target: dict, tpl: dict | None, res=None) -> dict | None:
         """主图 404/失效时，从 extraImages / 模板 / 详情里找可用图替换。"""
         import re as _re
@@ -2038,6 +2194,30 @@ class Publisher:
                 pass
         return out
 
+    def _await_publish_outcome(self, pid: str, action: str, timeout: float = 20.0):
+        """保存/发布后回读最终状态；返回 outcome dict，无法判断时返回 None。"""
+        import time as _t
+        from .publish_outcome import judge
+        deadline = _t.time() + max(2.0, float(timeout))
+        last = None
+        while _t.time() < deadline:
+            _t.sleep(2.0)
+            try:
+                d = self.dxm._get("product_detail", {"id": str(pid)}).get("data", {}).get("product", {})
+            except Exception:
+                continue
+            if not any(k in d for k in ("dxmOfflineState", "dxmState", "productStatusType", "errMsg")):
+                return None
+            state = str(d.get("dxmOfflineState") or d.get("productStatusType") or d.get("dxmState") or "")
+            err = str(d.get("errMsg") or "")
+            last = judge(action, state, err)
+            # 状态字段存在但全为空、也没有错误：无法判断，不能据此判失败（测试桩/旧接口）。
+            if not state and not err:
+                return None
+            if last["category"] in ("pending", "auditing", "online", "failed"):
+                return last
+        return None
+
     def publish_only(self, product_id: str, res) -> "SaveResult":
         """只把已保存的商品重新提交发布（op=2）；不跑 AI、不处理图片、不花钱。
 
@@ -2059,10 +2239,23 @@ class Publisher:
             return SaveResult(ok=False, message="没取到商品详情")
         _state = str(target.get("productStatusType") or target.get("dxmState")
                      or target.get("dxmOfflineState") or "").strip()
-        if _state in ("auditing", "publishing", "online", "onSelling",
-                      "publishSuccess", "waitPublish"):
+        if _state in ("auditing", "online", "onSelling", "publishSuccess"):
             return SaveResult(ok=True, published=True,
-                              message=f"商品当前状态为 {_state}，已在审核/在线/待发布，无需重复提交")
+                              message=f"商品当前状态为 {_state}，已在审核/在线，无需重复提交")
+        if _state == "publishing":
+            # 发布中不能判成功；继续回读，只有进入审核/在线才成功。
+            _out = self._await_publish_outcome(pid, "publish", timeout=30)
+            if _out is not None and _out.get("ok"):
+                return SaveResult(ok=True, published=True,
+                                  message=f"商品已从发布中确认进入：{_out.get('label')}")
+            if _out is not None and _out.get("category") == "failed":
+                return SaveResult(ok=False, published=False,
+                                  message=f"商品发布中后失败：{_out.get('label')}（{_out.get('state')}）")
+            return SaveResult(ok=False, published=False, pending=True,
+                              message="商品当前仍在发布中，平台尚未返回审核结果；结果待确认，请稍后刷新，不要重复发布")
+        if _state in ("waitPublish", "editingRequired"):
+            return SaveResult(ok=False, published=False,
+                              message="商品仍在待发布，未进入平台审核；请提交发布而不是保存")
         tpl = None
         _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
         if _tid:
@@ -2070,6 +2263,13 @@ class Publisher:
                 tpl = _cached_template_edit(self.dxm, _tid)
             except Exception:
                 tpl = None
+        target = self._repair_product_images(target, tpl, res)
+        try:
+            from .api_save import build_mobile_detail as _bmd0
+            target = dict(target)
+            target["mobileDetail"] = _bmd0(str(target.get("detail") or ""))
+        except Exception:
+            pass
         # 平台主图不接受 webp：重试发布同样要先把目标商品 webp 主图/详情图转 JPG
         try:
             _wt = {"images": [x for x in str(target.get("imageURLs") or "").split(";") if x],
@@ -2140,6 +2340,8 @@ class Publisher:
         except Exception:
             pass
 
+        target = self._repair_ships_from(target, res)
+        target = self._dedupe_product_skus(target, res)
         # 发布失败重试也必须走运费模板预审/安全模板切换，否则 DAILY_TPL 会一直失败。
         self._smt_shipping_preflight(target, res, tpl)
         _attr_ov = self._smt_attr_overrides(target, tpl, res)
@@ -2163,7 +2365,15 @@ class Publisher:
             _m = str(_d.get("msg") or resp.get("msg") or "")
             if is_failure_msg(_m):
                 return SaveResult(ok=False, message=f"发布失败：{_m[:200]}")
-            return SaveResult(ok=True, message=f"只发布成功（商品ID {pid}）：{_m[:110]}", published=True)
+            _out = self._await_publish_outcome(pid, "publish")
+            if _out is not None and not _out.get("ok"):
+                _pend = _out.get("category") in ("processing", "uncertain")
+                return SaveResult(ok=False, published=False, pending=_pend,
+                                  message=("已提交，平台仍在处理中，发布结果待确认，不要重复发布"
+                                           if _pend else
+                                           f"已提交但未确认发布成功：{_out.get('label')}（{_out.get('state') or '状态未知'}）"))
+            return SaveResult(ok=True, message=f"发布已确认：{_out.get('label') if _out else '已提交'}（商品ID {pid}）",
+                              published=True)
         _m2 = str(resp.get("msg") or "")
         if any(k in _m2 for k in ("PRODUCT_IN_AUDIT_PENDING", "audit process", "正在审核中", "审核中")):
             return SaveResult(ok=True, published=True,
@@ -2171,9 +2381,51 @@ class Publisher:
         if "DAILY_TPL" in _m2 or "运费模板" in _m2:
             _r = self._smt_retry_freight(payload, target, res)
             if _r is not None:
+                _out = self._await_publish_outcome(pid, "publish")
+                if _out is not None and not _out.get("ok"):
+                    return SaveResult(ok=False, published=False,
+                                      message=f"换模板后仍未进入审核：{_out.get('label')}")
                 return SaveResult(ok=True, published=True,
-                                  message=f"发布成功（已自动切换运费模板）：{pid}")
+                                  message=f"发布已确认进入审核（商品ID {pid}）")
         return SaveResult(ok=False, message=f"发布失败：{_m2[:200]}")
+
+    def publish_failed_auto(self, product_id: str, res, attempts: int = 3,
+                            wait: float = 4.0) -> "SaveResult":
+        """发布失败商品：自动修复 -> 提交 -> 回读，仍有平台错误则再修复重试。"""
+        import time as _t
+        last = None
+        pid = str(product_id)
+        for attempt in range(max(1, int(attempts))):
+            try:
+                out = self.publish_only(pid, res)
+            except Exception as ex:  # noqa: BLE001
+                out = SaveResult(ok=False, message=f"发布异常：{str(ex)[:180]}")
+            last = out
+            if getattr(out, "pending", False):
+                # 平台处理中：不要重复提交，等待用户稍后刷新；这不是失败。
+                return out
+            if not out.ok:
+                if attempt + 1 < attempts:
+                    _t.sleep(1.0)
+                continue
+            # 提交接口成功不代表平台异步处理成功，回读最终状态。
+            try:
+                _t.sleep(max(1.0, float(wait)))
+                d = self.dxm._get("product_detail", {"id": pid}).get("data", {}).get("product", {})
+                st = str(d.get("dxmOfflineState") or d.get("productStatusType") or "")
+                err = str(d.get("errMsg") or "").strip()
+                if err and st == "publishFail":
+                    last = SaveResult(ok=False, message=f"平台仍判失败：{err[:220]}")
+                    continue
+                if st == "publishFail" and not err:
+                    # 状态尚未刷新，继续等一轮；下一轮 publish_only 会重新回读并修复。
+                    if attempt + 1 < attempts:
+                        _t.sleep(1.0)
+                        continue
+                return out
+            except Exception:
+                return out
+        return last or SaveResult(ok=False, message="发布失败")
 
     def _check_main_image_for_publish(self, images, res=None) -> str:
         """发布前校验主图可访问且确实是图片；返回中文错误（空=通过）。
@@ -2683,6 +2935,13 @@ class Publisher:
             tpl = None
             if bool(getattr(self.cfg, "apply_template_on_save", True)):
                 tpl = _cached_template_edit(self.dxm, _tpl_pid)
+            target = self._repair_product_images(target, tpl, res)
+            try:
+                from .api_save import build_mobile_detail as _bmd0
+                target = dict(target)
+                target["mobileDetail"] = _bmd0(str(target.get("detail") or ""))
+            except Exception:
+                pass
         except Exception as ex:
             add_step(res, "API 直存", False, f"读取商品详情失败：{str(ex)[:80]}")
             return None
@@ -2784,6 +3043,8 @@ class Publisher:
                     add_step(res, "详情", True, f"描述图已压缩，详情长度 {len(_new_detail)}")
             except Exception as _ex:  # noqa: BLE001
                 add_step(res, "描述图压缩", False, str(_ex)[:80])
+            target = self._repair_ships_from(target, res)
+            target = self._dedupe_product_skus(target, res)
             self._smt_shipping_preflight(target, res, tpl)
             payload = build_save_payload(
                 target, tpl, action=action, overrides=overrides,
@@ -2810,6 +3071,10 @@ class Publisher:
             if "DAILY_TPL" in _msg or "运费模板" in _msg:
                 _r = self._smt_retry_freight(payload, target, res)
                 if _r is not None:
+                    _out = self._await_publish_outcome(pid, action)
+                    if _out is not None and not _out.get("ok"):
+                        return SaveResult(ok=False, published=False,
+                                          message=f"换模板后仍未达成目标状态：{_out.get('label')}")
                     return SaveResult(ok=True, published=True,
                                       message="发布成功（运费模板已自动修复）")
             if action == "publish":
@@ -2823,8 +3088,9 @@ class Publisher:
                     if _c2 == 0 and not is_failure_msg(_m2):
                         add_step(res, "API 直存", True,
                                  f"发布被拒（{_msg[:80]}），已改为保存到「待发布」，请在店小秘手动发布")
-                        return SaveResult(ok=True, published=False,
-                                          message="已保存到待发布（发布被拒，请手动发布）")
+                        # 直接发布动作不得把“仅保存到待发布”当成功。
+                        return SaveResult(ok=False, published=False,
+                                          message="发布被拒，仅保存到待发布，未进入审核（不算发布成功）")
                 except Exception:
                     pass
             add_step(res, "API 直存", False, f"保存失败：{_msg[:200]}")
@@ -2838,6 +3104,10 @@ class Publisher:
                 if "DAILY_TPL" in _msg or "运费模板" in _msg:
                     _r = self._smt_retry_freight(payload, target, res)
                     if _r is not None:
+                        _out = self._await_publish_outcome(pid, action)
+                        if _out is not None and not _out.get("ok"):
+                            return SaveResult(ok=False, published=False,
+                                              message=f"换模板后仍未达成目标状态：{_out.get('label')}")
                         return SaveResult(ok=True, published=True,
                                           message="发布成功（运费模板已自动修复）")
                 add_step(res, "API 直存", False, f"保存失败：{_msg[:200]}")
@@ -2848,8 +3118,15 @@ class Publisher:
                 _pid2 = str(_d.get("productId") or _d.get("id") or str(p.get("id", "")))
             except Exception:
                 _pid2 = pid
+            _out = self._await_publish_outcome(_pid2, action)
+            if _out is not None and not _out.get("ok"):
+                _pend = _out.get("category") in ("processing", "uncertain")
+                return SaveResult(ok=False, published=False, pending=_pend,
+                                  message=("已提交，平台仍在处理中，发布结果待确认，不要重复发布"
+                                           if _pend else
+                                           f"已提交但未达成目标状态：{_out.get('label')}（{_out.get('state') or '状态未知'}）"))
             return SaveResult(ok=True,
-                              message=f"API 直存成功（商品ID {_pid2}）：{_msg[:110]}",
+                              message=f"已确认{_out.get('label') if _out else '保存'}（商品ID {_pid2}）",
                               published=(action in ("publish", "save_to_waiting")))
         _msg = str(resp.get("msg") or "") or "保存失败"
         return SaveResult(ok=False, message=f"API 直存：{_msg[:200]}")

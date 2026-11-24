@@ -1337,6 +1337,32 @@ def sku_summary(product_sku) -> tuple[bool, int, bool]:
     return True, valid, dims
 
 
+def _duplicate_sku_signatures(product_sku) -> int:
+    """返回重复的 SKU 属性组合数量（平台会拒绝重复变种）。"""
+    obj = _json_container(product_sku)
+    if isinstance(obj, list):
+        rows = obj
+    elif isinstance(obj, dict):
+        rows = obj.get("special_skus") or obj.get("skus") or obj.get("sku_list") or []
+    else:
+        return 0
+    seen, dup = set(), 0
+    for r in rows if isinstance(rows, list) else []:
+        if not isinstance(r, dict) or r.get("exclude"):
+            continue
+        attrs = r.get("attributes") or []
+        sig = tuple(sorted(
+            (str(a.get("attribute_name") or a.get("attributeName") or ""),
+             str(a.get("value_name") or a.get("valueName") or a.get("value") or ""))
+            for a in attrs if isinstance(a, dict)))
+        if not sig:
+            continue
+        if sig in seen:
+            dup += 1
+        seen.add(sig)
+    return dup
+
+
 def validate_alibaba_save(product: dict, save: dict, cfg=None,
                           required_attrs: list | None = None,
                           schema_fields: list | None = None) -> list[str]:
@@ -1375,6 +1401,9 @@ def validate_alibaba_save(product: dict, save: dict, cfg=None,
         issues.append("主图为空")
     elif len(imgs) > MAX_MAIN_IMAGES:
         issues.append(f"主图 {len(imgs)} 张，最多 {MAX_MAIN_IMAGES} 张")
+    bad_imgs = [u for u in imgs if not u.lower().startswith(("http://", "https://"))]
+    if bad_imgs:
+        issues.append(f"主图必须是 HTTP/HTTPS 地址：{bad_imgs[0][:80]}")
 
     ptype = str(save.get("priceType") or "ladder_price")
     tiers = _as_list(save.get("bulkDiscountPrices"))
@@ -1401,8 +1430,14 @@ def validate_alibaba_save(product: dict, save: dict, cfg=None,
                 issues.append("按规格定价（sku_price）但 productSku 无有效 SKU"
                               "（special_skus 为空、全部 exclude 或无价格/规格），"
                               "请补 SKU 或改用按数量定价")
+            _dup_sku = _duplicate_sku_signatures(save.get("productSku"))
+            if _dup_sku:
+                issues.append(f"SKU 属性组合重复 {_dup_sku} 组，平台会拒绝；请合并重复规格")
     elif not tiers:
         issues.append("阶梯价为空（按数量定价必须有数量区间）")
+    _dup_sku_all = _duplicate_sku_signatures(save.get("productSku"))
+    if _dup_sku_all and not any("SKU 属性组合重复" in x for x in issues):
+        issues.append(f"SKU 属性组合重复 {_dup_sku_all} 组，平台会拒绝；请合并重复规格")
     if tiers:
         qs = [int(t.get("start_quantity") or 0) for t in tiers if isinstance(t, dict)]
         if qs != sorted(qs) or len(set(qs)) != len(qs):

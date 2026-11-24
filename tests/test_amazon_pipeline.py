@@ -806,7 +806,7 @@ class PublishVerifyTests(EnvIsolatedCase):
         out = verify_publish("220114595363182310", AppConfig(), client=fake,
                              wait_seconds=0)
         self.assertEqual(out["status"], "processing")
-        self.assertTrue(out["ok"])
+        self.assertFalse(out["ok"])
         self.assertEqual(out["checks"], 1)
 
     def test_verify_publish_polls_until_online(self):

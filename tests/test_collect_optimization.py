@@ -281,8 +281,8 @@ class OptimizationTests(unittest.TestCase):
 
     def test_statuses_never_equate_draft_to_online_publication(self):
         for record, op, expected in ((dict(checked=True, ok=True), "1", "checked"),
-                (dict(saved=True, ok=True), "1", "draft_saved"), (dict(saved=True, ok=True), "3", "pending"),
-                (dict(saved=True, ok=True), "2", "processing"), (dict(state="online"), "2", "published"),
+                (dict(saved=True, ok=True), "1", "draft_saved"), (dict(saved=True, ok=True), "3", "uncertain"),
+                (dict(saved=True, ok=True), "2", "uncertain"), (dict(state="online"), "2", "published"),
                 (dict(saved=True, ok=False, error="回读失败"), "1", "uncertain"),
                 (dict(error="code:100521,正在审查"), "2", "reviewing"),
                 (dict(error="code:100521,正在审查;code:8560,invalid"), "2", "needs_info")):

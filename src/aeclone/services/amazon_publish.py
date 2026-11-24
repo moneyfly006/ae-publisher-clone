@@ -106,6 +106,10 @@ def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False,
     detail, payload, issues, warnings = prepare_save(pid, cfg, overrides, client=c, op=op)
     if issues and not allow_invalid:
         raise ValueError("保存前校验未通过：" + "；".join(issues))
+    from .image_preflight import preflight_field
+    _img_errors = preflight_field(payload, "mainImage", ";", client=c)
+    if _img_errors:
+        raise ValueError("；".join(_img_errors))
     if before_submit:
         before_submit()
     try:

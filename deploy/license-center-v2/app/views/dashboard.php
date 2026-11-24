@@ -21,6 +21,7 @@
 <div class="grid g4" style="margin-bottom:18px">
   <div class="kpi"><div class="n"><?= (int)$todayPub ?></div><div class="l">今日刊登成功</div></div>
   <div class="kpi"><div class="n"><?= (int)$todayDraft ?></div><div class="l">今日保存草稿</div></div>
+  <div class="kpi"><div class="n"><?= (int)$todayPending ?></div><div class="l">今日进入待发布</div></div>
   <div class="kpi"><div class="n" style="color:var(--bad)"><?= (int)$todayErr ?></div><div class="l">今日报错</div></div>
   <div class="kpi"><div class="n"><?= (int)$todayLogs ?></div><div class="l">今日上传日志</div></div>
 </div>

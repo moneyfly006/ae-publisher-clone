@@ -176,6 +176,10 @@ def save_to_tiktok(product_id, cfg, overrides=None, allow_invalid=False,
         raise ValueError("保存包为空：拒绝调用保存接口")
     if issues and not allow_invalid:
         raise ValueError("保存前校验未通过：" + "；".join(issues))
+    from .image_preflight import preflight_field
+    _img_errors = preflight_field(payload, "mainImage", "|", min_count=1, max_count=9, client=c)
+    if _img_errors:
+        raise ValueError("；".join(_img_errors))
 
     # 3) defensive 收尾（删 variationBos / op 写 int），再调唯一写接口
     final_payload = _finalize_payload(payload, op)

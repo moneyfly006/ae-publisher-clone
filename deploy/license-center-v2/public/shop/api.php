@@ -274,6 +274,16 @@ case 'software_login': {
     try{$e=lc_bind((int)$u['id'],trim((string)($in['machine_code'] ?? '')),shop_device_limit_for_user((int)$u['id']));$e['user']=['id'=>$u['id'],'email'=>$u['email'],'name'=>$u['name']];out($e);}
     catch(Throwable $e){fail($e->getMessage());}
 }
+case 'software_logout': {
+    // 软件端退出账号：记录一次退出即可；授权 token 由客户端本地清除。
+    // 不自动解绑设备，避免用户下次登录还要重新绑定。
+    $in=body();
+    $email=trim(strtolower((string)($in['email'] ?? '')));
+    $machine=trim((string)($in['machine_code'] ?? ''));
+    try { db()->prepare('INSERT INTO login_attempts2(email,ip,ok,ts) VALUES(?,?,1,?)')
+        ->execute([$email, $_SERVER['REMOTE_ADDR'] ?? '', time()]); } catch (Throwable $e) {}
+    out(['ok'=>true,'email'=>$email,'machine_code'=>$machine]);
+}
 case 'unbind': {
     $u=require_user();$in=body();$machine=trim((string)($in['machine_code'] ?? ''));
     if($machine==='')fail('请在设备管理中选择要解绑的设备');

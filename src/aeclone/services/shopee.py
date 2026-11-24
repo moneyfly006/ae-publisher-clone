@@ -148,6 +148,17 @@ def validate(payload, *, mode="global", limits=None, required_attrs=None):
     if any(urlparse(u).scheme not in ("http", "https") or not urlparse(u).netloc for u in urls):
         issues.append("商品图片：图片必须使用有效的 HTTP/HTTPS 地址")
     rows = variation_rows(payload, mode)
+    _seen_ids = set()
+    for _row in rows if isinstance(rows, list) else []:
+        if not isinstance(_row, dict):
+            continue
+        _key = str(_row.get("idStr") or _row.get("id") or _row.get("modelIdStr") or _row.get("modelId") or "")
+        if not _key:
+            continue
+        if _key in _seen_ids:
+            issues.append("SKU 与库存：变种 ID 重复，平台会拒绝；请合并重复规格")
+            break
+        _seen_ids.add(_key)
     price_key, stock_key = ("price", "stock") if mode == "site" else ("originalPrice", "normalStock")
     for index, row in enumerate(rows or [payload], 1):
         amount, stock = number(row.get(price_key)), number(row.get(stock_key))
@@ -221,6 +232,11 @@ def save(product_id, cfg, overrides=None, *, op="1", client=None, before_submit=
         result.issues = issues
         if issues:
             raise ValueError("请先修正发布前检查中的缺项")
+        from .image_preflight import preflight_field
+        _sep = ";" if str(getattr(cfg, "shopee_mode", "global")) == "site" else "|"
+        _img_errors = preflight_field(payload, "mainImage", _sep, client=c)
+        if _img_errors:
+            raise ValueError("；".join(_img_errors))
         emit("Shopee · 保存", "开始", "提交平台", product=str(product_id))
         if before_submit is not None:
             before_submit()
@@ -230,11 +246,19 @@ def save(product_id, cfg, overrides=None, *, op="1", client=None, before_submit=
         emit("Shopee · 保存", "已接受", result.message, level="OK", product=str(product_id))
         try:
             latest = c.product_detail(product_id)["product"]
-            result.state = str(latest.get("dxmOfflineState") or latest.get("dxmState") or "")
+            result.state = str(latest.get("dxmOfflineState") or latest.get("productStatusType")
+                                or latest.get("dxmState") or "")
             error = str(latest.get("errMsg") or "")
             if str(op) != "1":
-                result.message = "已提交，平台状态：" + (result.state or "处理中")
-            if error or result.state == "publishFail":
+                from .publish_outcome import judge
+                _out = judge("publish" if str(op) == "2" else "save_to_waiting",
+                             result.state, error)
+                result.ok = bool(_out.get("ok"))
+                result.message = ("已确认：" + str(_out.get("label") or result.state)
+                                  if result.ok else
+                                  "未达成目标状态：" + str(_out.get("label") or result.state)
+                                  + (("：" + error) if error else ""))
+            elif error or result.state == "publishFail":
                 result.ok = False
                 result.message = "已保存，平台处理失败：" + (error or "平台未返回详细原因，请在店小秘查看")
             emit("Shopee · 状态回读", "完成", result.message,

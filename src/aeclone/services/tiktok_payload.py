@@ -946,6 +946,8 @@ def validate_tiktok_payload(payload: dict, *, limits: dict | None = None,
     weight = _to_float(p.get("packageWeight"))
     if weight is None or weight <= 0:
         issues.append("重量必须大于 0（packageWeight 为空或 ≤0，TikTok 物流必填）")
+    if for_publish and not _text(p.get("warehouseId")):
+        issues.append("未选择仓库（warehouseId 为空），TikTok 发布前必须选择发货仓库")
     unit_raw = _text(p.get("packageDimensionUnit"))
     if unit_raw and _normalize_unit(unit_raw) not in ("CENTIMETER", "INCH"):
         issues.append(f"尺寸单位 {unit_raw} 非法（仅支持 CENTIMETER / INCH）")

@@ -113,6 +113,7 @@ function page_dashboard(): void
     $today = today();
     $todayPub  = (int)$db->query("SELECT COUNT(*) FROM usage_events WHERE event='publish_ok' AND created_at LIKE '$today%'")->fetchColumn();
     $todayDraft= (int)$db->query("SELECT COUNT(*) FROM usage_events WHERE event='draft' AND created_at LIKE '$today%'")->fetchColumn();
+    $todayPending=(int)$db->query("SELECT COUNT(*) FROM usage_events WHERE event='pending' AND created_at LIKE '$today%'")->fetchColumn();
     $todayErr  = (int)$db->query("SELECT COUNT(*) FROM usage_events WHERE event='error' AND created_at LIKE '$today%'")->fetchColumn();
     $todayLogs = (int)$db->query("SELECT COUNT(*) FROM app_logs WHERE created_at LIKE '$today%'")->fetchColumn();
     $recent = $db->query('SELECT * FROM licenses ORDER BY id DESC LIMIT 6')->fetchAll();
@@ -120,7 +121,7 @@ function page_dashboard(): void
     $verifies = $db->query('SELECT * FROM verify_logs ORDER BY id DESC LIMIT 8')->fetchAll();
     $lang = $admin;
 
-    render('dashboard', compact('total', 'active', 'expired', 'revoked', 'soon', 'recent', 'audits', 'verifies', 'todayPub', 'todayDraft', 'todayErr', 'todayLogs') + ['title' => '控制台']);
+    render('dashboard', compact('total', 'active', 'expired', 'revoked', 'soon', 'recent', 'audits', 'verifies', 'todayPub', 'todayDraft', 'todayPending', 'todayErr', 'todayLogs') + ['title' => '控制台']);
 }
 
 /* ==================== 授权列表 ==================== */
@@ -751,7 +752,12 @@ function log_rules(): array
 {
     $default = [
         'start'        => ['开始执行', '开始刊登', '开始上架', '开始发布', '启动：配置检查通过'],
-        'publish_ok'   => ['API 直存成功', '产品已提交发布', '刊登成功', '上架成功', '发布成功', '成功发布'],
+        # 只有最终确认（审核中/在线）才算发布成功；“已提交发布”不算。
+        'publish_ok'   => ['刊登成功', '上架成功', '发布成功', '成功发布',
+                          '商品已上线', '已在线', '平台审核中', '已提交审核',
+                          'PRODUCT_IN_AUDITING', '正在审核中'],
+        'pending'      => ['已保存到待发布', '保存到待发布', '移入待发布',
+                          '已进入待发布', '待发布成功'],
         'draft'        => ['保存草稿', '存入草稿', '保存到草稿', '草稿箱', '已保存草稿', '转为草稿'],
         'publish_fail' => [
             '✗ API 直存', '× API 直存', '保存失败：',

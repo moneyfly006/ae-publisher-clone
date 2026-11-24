@@ -28,6 +28,7 @@ class PublishRepairTests(unittest.TestCase):
                      query_customs_metadata=Mock(return_value=response),
                      save_product_via_api=Mock(return_value={"code":0,"data":{}}))
         pub._fix_market_images=Mock(return_value=[])
+        pub._await_publish_outcome=Mock(return_value=None)
         pub._shrink_detail_images=lambda html, res:html
         pub.text=Mock(side_effect=AssertionError("Retry must not use AI"))
         return pub
