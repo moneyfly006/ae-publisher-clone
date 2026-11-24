@@ -86,6 +86,7 @@ class SaveResult:
     message: str
     title: str = ""
     published: bool = False
+    steps: list = field(default_factory=list)
 
 
 # 模板商品 edit.json 的进程内缓存：批量跑时同一模板只取一次（省一次 API 往返）
@@ -2003,6 +2004,40 @@ class Publisher:
         add_step(res, "描述图压缩", True, f"{len(mapping)} 张超 5MB 已压缩并替换")
         return out
 
+    def _repair_main_images(self, target: dict, tpl: dict | None, res=None) -> dict | None:
+        """主图 404/失效时，从 extraImages / 模板 / 详情里找可用图替换。"""
+        import re as _re
+        cands = []
+        def add(v):
+            for u in _re.split(r"[;|\n]", str(v or "")):
+                u = u.strip()
+                if u.startswith("http") and u not in cands:
+                    cands.append(u)
+        add(target.get("imageURLs"))
+        add(target.get("extraImages"))
+        if tpl:
+            add(tpl.get("imageURLs"))
+            add(tpl.get("extraImages"))
+        # 详情 HTML 里的图片作为最后备选
+        add(";".join(_re.findall(r'<img[^>]+src=["\']([^"\']+)', str(target.get("detail") or ""), _re.I)))
+        valid = []
+        for u in cands:
+            if self._check_main_image_for_publish([u]) == "":
+                valid.append(u)
+            if len(valid) >= 6:
+                break
+        if not valid:
+            return None
+        out = dict(target)
+        out["imageURLs"] = ";".join(valid)
+        if res is not None:
+            try:
+                add_step(res, "主图自动修复", True,
+                         f"已移除失效主图，替换为可用图（保留 {len(valid)} 张）")
+            except Exception:
+                pass
+        return out
+
     def publish_only(self, product_id: str, res) -> "SaveResult":
         """只把已保存的商品重新提交发布（op=2）；不跑 AI、不处理图片、不花钱。
 
@@ -2022,6 +2057,12 @@ class Publisher:
             return SaveResult(ok=False, message=f"读取商品失败：{str(ex)[:100]}")
         if not target:
             return SaveResult(ok=False, message="没取到商品详情")
+        _state = str(target.get("productStatusType") or target.get("dxmState")
+                     or target.get("dxmOfflineState") or "").strip()
+        if _state in ("auditing", "publishing", "online", "onSelling",
+                      "publishSuccess", "waitPublish"):
+            return SaveResult(ok=True, published=True,
+                              message=f"商品当前状态为 {_state}，已在审核/在线/待发布，无需重复提交")
         tpl = None
         _tid = str(getattr(self.cfg, "template_product_id", "") or "").strip()
         if _tid:
@@ -2046,7 +2087,14 @@ class Publisher:
         _img_err = self._check_main_image_for_publish(
             [x for x in str(target.get("imageURLs") or "").split(";") if x], res)
         if _img_err:
-            return SaveResult(ok=False, message=_img_err)
+            _fixed_target = self._repair_main_images(target, tpl, res)
+            if _fixed_target is None:
+                return SaveResult(ok=False, message=_img_err)
+            target = _fixed_target
+            _img_err = self._check_main_image_for_publish(
+                [x for x in str(target.get("imageURLs") or "").split(";") if x], res)
+            if _img_err:
+                return SaveResult(ok=False, message=_img_err)
 
         # User-triggered publication retries share the same free data repair checks.
         # Do not rerun AI or submit stale/ambiguous variant data unchanged.
@@ -2092,6 +2140,8 @@ class Publisher:
         except Exception:
             pass
 
+        # 发布失败重试也必须走运费模板预审/安全模板切换，否则 DAILY_TPL 会一直失败。
+        self._smt_shipping_preflight(target, res, tpl)
         _attr_ov = self._smt_attr_overrides(target, tpl, res)
         try:
             payload = build_save_payload(
@@ -2118,6 +2168,11 @@ class Publisher:
         if any(k in _m2 for k in ("PRODUCT_IN_AUDIT_PENDING", "audit process", "正在审核中", "审核中")):
             return SaveResult(ok=True, published=True,
                               message=f"已在审核中（商品ID {pid}）：无需重复发布")
+        if "DAILY_TPL" in _m2 or "运费模板" in _m2:
+            _r = self._smt_retry_freight(payload, target, res)
+            if _r is not None:
+                return SaveResult(ok=True, published=True,
+                                  message=f"发布成功（已自动切换运费模板）：{pid}")
         return SaveResult(ok=False, message=f"发布失败：{_m2[:200]}")
 
     def _check_main_image_for_publish(self, images, res=None) -> str:
@@ -2495,8 +2550,12 @@ class Publisher:
                     _tpl_freight = str((_ts[0] or {}).get("freightTemplateId") or "").strip()
             except Exception:
                 _tpl_freight = ""
-        if _tpl_freight:
-            # 模板商品优先：把模板的运费模板写到目标商品及 SKU，不再自动换安全模板。
+        _old_freight = str(target.get("freightTemplateId") or "").strip()
+        _shipping_failed = (state == "publishFail" or "DAILY_TPL" in err
+                            or "运费模板" in err)
+        if _tpl_freight and not (_shipping_failed and _old_freight == _tpl_freight):
+            # 模板商品优先：把模板的运费模板写到目标商品及 SKU。
+            # 但失败商品若和模板用的是同一个失效模板，必须切安全模板。
             target["freightTemplateId"] = _tpl_freight
             try:
                 import json as _j
@@ -2513,6 +2572,23 @@ class Publisher:
             add_step(res, "运费模板预审", True, f"沿用模板商品运费模板 {_tpl_freight}")
             return True
         safe = self._smt_safe_freight_id(target)
+        if _shipping_failed and safe and safe != _old_freight:
+            target["freightTemplateId"] = safe
+            try:
+                import json as _j
+                skus = target.get("aeopAeProductSKUs")
+                if isinstance(skus, str):
+                    skus = _j.loads(skus or "[]")
+                if isinstance(skus, list):
+                    for sku in skus:
+                        if isinstance(sku, dict):
+                            sku["freightTemplateId"] = safe
+                    target["aeopAeProductSKUs"] = _j.dumps(skus, ensure_ascii=False)
+            except Exception:
+                pass
+            add_step(res, "运费模板预审", True,
+                     f"发布失败商品自动切换运费模板：{_old_freight or '空'} → {safe}")
+            return True
         if not safe:
             add_step(res, "运费模板预审", False, "店铺没有可用运费模板，无法自动切换")
             return False
