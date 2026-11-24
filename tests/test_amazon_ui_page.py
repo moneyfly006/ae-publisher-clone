@@ -772,9 +772,10 @@ class AmazonPageTests(unittest.TestCase):
             dd = self._preset_dropdown("标题预设")
             self.assertIsNotNone(dd, "缺少标题预设下拉")
             self.assertFalse(dd.disabled, "预设库就绪时下拉应可用")
-            self.assertEqual(len(dd.options), 2)
-            key = str(dd.options[0].key)
-            dd.value = key
+            self.assertGreaterEqual(len(dd.options), 3)
+            key = next(str(o.key).replace("builtin:", "") for o in dd.options
+                       if str(o.key).startswith("builtin:"))
+            dd.value = "builtin:" + key
             change(dd)
             prompt = mod.presets["title"][key]["prompt"]
             self.assertEqual(self.app.cfg.amazon_title_prompt, prompt)
@@ -800,7 +801,7 @@ class AmazonPageTests(unittest.TestCase):
                                  ("图片预设", 3)):
                 dd = self._preset_dropdown(label)
                 self.assertIsNotNone(dd, f"缺少预设下拉：{label}")
-                self.assertEqual(len(dd.options), count, label)
+                self.assertGreaterEqual(len(dd.options), count + 1, label)
 
     def test_ai_generate_sku_button_fills_input_only(self):
         self.app._switch(13)
@@ -826,7 +827,7 @@ class AmazonPageTests(unittest.TestCase):
             dd = self._preset_dropdown("图片预设")
             self.assertIsNotNone(dd)
             key = "main_white"
-            dd.value = key
+            dd.value = "builtin:" + key
             change(dd)
             self.assertEqual(self.app.cfg.amazon_image_prompt,
                              mod.presets["image"][key]["prompt"])

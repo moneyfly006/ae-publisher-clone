@@ -163,10 +163,11 @@ class NavigationOperations(unittest.TestCase):
             choice = next(c for c in controls if isinstance(c, ft.Dropdown) and c.label == label + "预设")
             editor = next(c for c in controls if isinstance(c, ft.TextField) and c.label == label + "提示词")
             old = editor.value
-            choice.value = "technical"
+            choice.value = "builtin:technical"
             choice.on_change(NS(control=choice))
             self.assertTrue(editor.value.startswith(old))
-            self.assertIn("专业", choice.options[1].text)
+            self.assertTrue(any("专业" in str(o.text) for o in choice.options),
+                            [o.text for o in choice.options])
             self.assertIn("补充表达要求", editor.value)
 
 

@@ -156,6 +156,13 @@ def upload(path: Path, base: str | None = None, timeout: int = 90,
 
     b, k = _resolve(base, key)
     url = _try_cf_imgbed(path, b, k, folder, timeout) or _try_legacy(path, b, timeout)
+    # 旧配置可能指向已超时的自建地址；失败后回退官方图床，避免整批营销图失败。
+    if not url and b.rstrip("/") != DEFAULT_HOST.rstrip("/"):
+        try:
+            url = (_try_cf_imgbed(path, DEFAULT_HOST, DEFAULT_KEY, folder, timeout)
+                   or _try_legacy(path, DEFAULT_HOST, timeout))
+        except Exception:
+            url = None
     if not url:
         raise HostError(f"上传失败：{b}（两种协议都试过了，检查地址/密钥/网络）")
 

@@ -14,6 +14,7 @@ def copy_page(app):
             3, (1, 30, 31, 32, 3, 5, 4, 33), "当前商品：" + pid)
     from ..config import save_config
     from ..services.alibaba_prompts import resolve_preset
+    from .prompt_presets import bar
     preset = resolve_preset(str(getattr(app.cfg, "alibaba_ai_preset", "") or ""))
     prompts = []
     for key, label in (("title_prompt", "标题"), ("detail_prompt", "详情"), ("keyword_prompt", "关键词")):
@@ -24,8 +25,10 @@ def copy_page(app):
             app.cfg.set(k, str(e.control.value or ""))
             save_config(app.cfg)
         editor.on_change = change
+        _cbar = bar(app, key="alibaba:" + key, prompt_key="alibaba_" + key,
+                    field=editor, label=label + "我的预设")
         prompts.append(ft.ExpansionTile(title=ft.Text(label + "生成规则", color=ui.TEXT),
-            controls=[editor], initially_expanded=(key == "title_prompt"), icon_color=ui.ACCENT))
+            controls=[editor, _cbar], initially_expanded=(key == "title_prompt"), icon_color=ui.ACCENT))
     rules = ui.card(ft.Column([
         ui.h1("Alibaba 文案规则", ui.FS_MD),
         ui.muted("提示词已预设。只作用于 Alibaba；修改自动保存。保存时勾选使用 AI 即可按这些规则生成。"),

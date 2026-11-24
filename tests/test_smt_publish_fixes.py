@@ -104,14 +104,14 @@ class PublishImagePrecheckTests(unittest.TestCase):
 
 
 class NationalPriceModeTests(unittest.TestCase):
-    def test_quote_without_mode_blocks_publish(self):
+    def test_quote_without_mode_is_auto_cleared(self):
         product = {"id": "1", "subject": "T", "categoryId": "100007204",
                    "imageURLs": "https://x/a.jpg", "aeopAeProductPropertys": "[]",
                    "aeopNationalQuoteConfiguration": '{"configurationType": "ABSOLUTE"}'}
-        with self.assertRaises(ValueError) as cm:
-            api_save.build_save_payload(product, {"aeopAeProductPropertys": "[]"},
+        p = api_save.build_save_payload(product, {"aeopAeProductPropertys": "[]"},
                                         action="publish")
-        self.assertIn("区域调价方式", str(cm.exception))
+        self.assertEqual(p.get("nationalPriceMode"), "")
+        self.assertEqual(p.get("aeopNationalQuoteConfiguration"), "")
 
     def test_quote_with_mode_passes(self):
         product = {"id": "1", "subject": "T", "categoryId": "100007204",

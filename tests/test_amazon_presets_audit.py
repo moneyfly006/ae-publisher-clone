@@ -142,7 +142,7 @@ class UiAndIsolationTests(unittest.TestCase):
             widgets = getattr(app, "_amz_preset_widgets", {}) or {}
         self.assertEqual(set(widgets), set(AP.PRESET_KINDS))
         for kind, widget in widgets.items():
-            self.assertEqual(len(widget["dd"].options), len(AP.PRESETS[kind]), kind)
+            self.assertGreaterEqual(len(widget["dd"].options), len(AP.PRESETS[kind]) + 2, kind)
             self.assertTrue(callable(getattr(widget["tf"], "on_change", None)))
 
     def test_cfg_isolation(self):

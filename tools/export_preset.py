@@ -17,6 +17,7 @@ from aeclone.config import DEFAULTS, config_dir  # noqa: E402
 # 绝不写进安装包的键
 SECRET_KEYS = {
     "api_key", "image_host_key", "manual_cookies", "cookies", "cookie",
+    "prompt_presets_data",   # 用户自定义提示词预设/记忆，不随安装包分发
     "password", "token", "secret", "ws_endpoint",
     "store_id", "store_name", "shop_id",
     "template_product_id", "template_product_title", "template_snapshot",

@@ -408,7 +408,15 @@ def build(app, section):
             editor = ft.TextField(label=label + "提示词", multiline=True, min_lines=4, max_lines=10,
                 color=ui.TEXT, bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "shopee_" + kind + "_prompt", "") or service.DEFAULT_PROMPTS[kind]))
             editor.on_change = lambda e, k="shopee_" + kind + "_prompt": set_config(k, str(e.control.value or ""))
-            prompts.append(ft.ExpansionTile(title=ft.Text(label + "生成规则", color=ui.TEXT), controls=[editor]))
+            try:
+                from .prompt_presets import bar as _prompt_bar
+                _cbar = _prompt_bar(app, key="shopee:" + kind,
+                                    prompt_key="shopee_" + kind + "_prompt", field=editor,
+                                    label=label + "我的预设")
+            except Exception:
+                _cbar = None
+            prompts.append(ft.ExpansionTile(title=ft.Text(label + "生成规则", color=ui.TEXT),
+                                            controls=([editor, _cbar] if _cbar is not None else [editor])))
         if getattr(app, "_collect_editor_only", False):
             content += [ui.card(ft.Column([
                 title, title_action,

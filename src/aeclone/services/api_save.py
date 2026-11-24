@@ -570,10 +570,10 @@ def _sanitize_payload(p: dict, cfg=None, action: str = "save_only") -> None:
         _quote = str(p.get("aeopNationalQuoteConfiguration") or "").strip()
         if action == "publish" and _quote and _quote not in ("", "null", "None"):
             # 平台实测 isv.7CHK_BASIC_ONEOF：有区域调价配置但调价方式为空/非法会被拒。
-            raise ValueError(
-                "该商品有区域调价配置但缺少合法「区域调价方式」(nationalPriceMode)，"
-                "发布会被速卖通拒绝（isv.7CHK_BASIC_ONEOF）。"
-                "请到店小秘商品编辑里重新保存一次区域调价，或清空区域调价后再发布。")
+            # 自动修复：清空不合法的区域调价配置，商品按无区域调价发布；
+            # 不再让整件商品因历史脏值永远发不出去。
+            p["aeopNationalQuoteConfiguration"] = ""
+            p["nationalPriceMode"] = ""
         p["nationalPriceMode"] = ""
 
     # PC 详情为空：用标题 + 主图拼一个，避免「PC端为空」

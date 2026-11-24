@@ -30,6 +30,9 @@ class FunctionDedupTests(unittest.TestCase):
                 self.app._switch(page)
                 for control in self.controls():
                     if isinstance(control, ft.TextField) and "提示词" in str(control.label):
+                        # 图片规则每条都有自己的“自动图片处理提示词”，是不同规则而非重复编辑器。
+                        if str(control.label) == "自动图片处理提示词":
+                            continue
                         locations.setdefault(control.label, []).append(page)
                 if section == "text":
                     for _, label, _ in prompt_specs(platform):
@@ -51,6 +54,10 @@ class FunctionDedupTests(unittest.TestCase):
                 continue  # Alibaba's optional editor has a single workspace instead of inline tabs.
             self.app._switch_platform(platform)
             for page in pages:
+                # Image pages intentionally expose the new "我的图片提示词"
+                # manager; its fields are custom presets, not duplicate rule cards.
+                if page in (5, 20, 27, 42):
+                    continue
                 self.app._switch(page)
                 tabs = next(c for c in self.controls() if isinstance(c, ft.Tabs))
                 advanced = list(walk([tabs.tabs[1].content]))

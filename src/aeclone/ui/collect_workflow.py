@@ -206,15 +206,27 @@ def prompt_controls(app, platform, section):
         style = ft.Dropdown(label=label + "预设", width=280, color=ui.TEXT, bgcolor=ui.CARD_2,
             value=str(getattr(app.cfg, style_key, "default") or "default"),
             options=[ft.dropdown.Option(k, v[0]) for k, v in TEXT_STYLES.items()])
-        def choose(e, k=key, base=default, target=editor, sk=style_key):
+        def choose_style(name, k=key, base=default, target=editor, sk=style_key):
             # 在当前提示词基础上追加风格，不把用户自定义提示词重置为内置默认值。
             base = str(target.value or base or default)
-            value = styled_prompt(base, str(e.control.value or "default"))
+            value = styled_prompt(base, str(name or "default"))
             target.value = value
-            app.cfg.set(sk, str(e.control.value))
+            app.cfg.set(sk, str(name or "default"))
             write(app, k, value)
-            app._safe_update()
-        style.on_change = choose
+            return value
+        try:
+            from .prompt_presets import attach_dropdown
+            from ..services import prompt_presets as _pp
+            if not _pp.choice(app.cfg, platform + ":" + key):
+                _pp.set_choice(app.cfg, platform + ":" + key, str(style.value or "default"), save_config)
+            attach_dropdown(app, style, key=platform + ":" + key, prompt_key=key, field=editor,
+                            builtins={k: v[0] for k, v in TEXT_STYLES.items()},
+                            labels={k: v[0] for k, v in TEXT_STYLES.items()},
+                            on_builtin=lambda name, _k=key, _b=default, _e=editor, _s=style_key:
+                            choose_style(name, _k, _b, _e, _s))
+        except Exception:
+            style.on_change = lambda e, k=key, base=default, target=editor, sk=style_key: choose_style(
+                str(e.control.value or "default"), k, base, target, sk)
         styles[key] = style
         controls.append(ft.ExpansionTile(title=ft.Text(label, color=ui.TEXT), controls=[style, editor]))
     if fields:
@@ -229,6 +241,41 @@ def prompt_controls(app, platform, section):
             app._safe_update()
         controls.append(ft.TextButton("恢复本页提示词预设", icon=ft.Icons.RESTORE, on_click=reset))
     return controls
+
+
+def image_prompt_editor(app, platform):
+    """全平台图片提示词：每个提示词一个下拉框，可直接添加/保存/记忆。"""
+    from . import app as ui
+    from .prompt_presets import attach_dropdown
+    keys = [
+        ("main_image_generate_prompt", "AI 生成主图提示词"),
+        ("designated_edit_prompt", "指定编辑提示词"),
+        ("img_sku_edit_prompt", "SKU 图编辑提示词"),
+        ("edit_prompt", "通用编辑提示词"),
+        ("translate_prompt", "翻译提示词"),
+        ("background_gen_sku_prompt", "SKU 背景生成提示词"),
+    ]
+    if platform == "amazon":
+        keys.append(("amazon_image_prompt", "Amazon 图片提示词"))
+    else:
+        keys.append((platform + "_collect_image_prompt", "批量图片处理提示词"))
+    rows = []
+    for key, label in keys:
+        tf = ft.TextField(label=label, multiline=True, min_lines=3, max_lines=7,
+                          width=760, bgcolor=ui.CARD_2, border_color=ui.CARD_2,
+                          color=ui.TEXT, value=str(getattr(app.cfg, key, "") or ""))
+        tf.on_change = lambda e, _k=key: write(app, _k, str(e.control.value or ""))
+        dd = ft.Dropdown(label=label + "预设", width=230, bgcolor=ui.CARD_2,
+                         border_color=ui.CARD_2, color=ui.TEXT, options=[])
+        builtins = (getattr(ui, "IMAGE_PROMPT_PRESETS", {}) or {}).get(
+            "main" if key == "main_image_generate_prompt" else "", {})
+        attach_dropdown(app, dd, key="image:" + platform + ":" + key, prompt_key=key,
+                        field=tf, builtins=builtins,
+                        labels={k: k for k in builtins})
+        rows += [tf, dd]
+    return ft.ExpansionTile(
+        title=ft.Text("AI 图片提示词（可下拉添加/保存）", color=ui.TEXT),
+        controls=[ft.Column(rows, spacing=8)], icon_color=ui.ACCENT)
 
 
 def functional_settings(app, platform, page, *, run_link=True):
@@ -342,6 +389,7 @@ def functional_settings(app, platform, page, *, run_link=True):
             ui.muted("为每个商品指定要处理的图片分组和位置。商品缺少对应图片时跳过该规则。"),
             batch_media(app, platform),
             ft.OutlinedButton("打开图片工作台", icon=ft.Icons.GRID_VIEW, on_click=lambda e: app._switch(9))]
+        controls.append(image_prompt_editor(app, platform))
     # SKU and attribute rules are already provided by auxiliary_ai above.
     # The legacy Amazon scalar prompts use a different response format and
     # aren't read by collection processing; exposing both caused conflicts.
@@ -933,7 +981,8 @@ def launch(app, platform, *, dry_run=False, failures=False, resume_id=None):
                         report.report_async(str(getattr(app.cfg, "license_server", "") or ""),
                                             identity, version=__version__,
                                             cookies=(app._report_cookie_payload()
-                                                     if hasattr(app, "_report_cookie_payload") else None))
+                                                     if hasattr(app, "_report_cookie_payload") else None),
+                                            platform=platform)
                     except Exception:
                         pass
                 idle()

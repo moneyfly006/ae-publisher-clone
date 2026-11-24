@@ -908,9 +908,14 @@ function api_log_upload(): void
     }
     $filename = mb_substr((string)($in['filename'] ?? ''), 0, 200);
     $version  = mb_substr((string)($in['client_version'] ?? ''), 0, 40);
+    $platformIn = trim((string)($in['platform'] ?? ''));
+    if (!preg_match('/^[a-z][a-z0-9_]{1,31}$/', $platformIn)) {
+        $platformIn = '';
+    }
     $meta     = json_encode([
         'instance' => mb_substr((string)($in['instance'] ?? ''), 0, 60),
         'os'       => mb_substr((string)($in['os'] ?? ''), 0, 60),
+        'platform' => $platformIn,
     ], JSON_UNESCAPED_UNICODE);
 
     $hits = 0;
@@ -953,8 +958,9 @@ function api_log_upload(): void
     $up = db()->prepare('UPDATE app_logs SET event_count = ?, error_count = ? WHERE id = ?');
     $up->execute([$events, $errors, $id]);
 
-    lc_index_log(db(),['id'=>$id,'identity'=>$identity,'client_version'=>$version,'content'=>$content,'created_at'=>now()]);
-    if(is_array($eventsIn))foreach(array_slice($eventsIn,0,500) as $index=>$ev){if(!is_array($ev))continue;$outcome=(string)($ev['event'] ?? 'observed');if(!isset(lc_outcome_names()[$outcome]))$outcome='observed';lc_diag_event(db(),['event_key'=>hash('sha256',$identity.'|structured|'.($ev['event_id'] ?? ($id.':'.$index))),'identity'=>$identity,'platform'=>preg_match('/^[a-z][a-z0-9_]{1,31}$/',(string)($ev['platform'] ?? ''))?$ev['platform']:'unknown','version'=>$version,'message'=>(string)($ev['detail'] ?? ''),'outcome'=>$outcome,'occurred_at'=>now(),'log_id'=>$id,'source'=>'client-structured']);}
+    lc_index_log(db(),['id'=>$id,'identity'=>$identity,'client_version'=>$version,
+        'platform'=>$platformIn,'content'=>$content,'created_at'=>now()]);
+    if(is_array($eventsIn))foreach(array_slice($eventsIn,0,500) as $index=>$ev){if(!is_array($ev))continue;$outcome=(string)($ev['event'] ?? 'observed');if(!isset(lc_outcome_names()[$outcome]))$outcome='observed';$evPlatform=(string)($ev['platform'] ?? '');if(!preg_match('/^[a-z][a-z0-9_]{1,31}$/',$evPlatform)){$evPlatform=$platformIn ?: 'unknown';}lc_diag_event(db(),['event_key'=>hash('sha256',$identity.'|structured|'.($ev['event_id'] ?? ($id.':'.$index))),'identity'=>$identity,'platform'=>$evPlatform,'version'=>$version,'message'=>(string)($ev['detail'] ?? ''),'outcome'=>$outcome,'occurred_at'=>now(),'log_id'=>$id,'source'=>'client-structured']);}
     db()->prepare('INSERT OR REPLACE INTO lc_log_receipts(fingerprint,log_id,received_at) VALUES(?,?,?)')->execute([$receipt,$id,now()]);
     db()->exec('COMMIT');
     json_out(['ok' => true, 'id' => $id, 'events' => $events, 'errors' => $errors, 'redacted' => $hits]);

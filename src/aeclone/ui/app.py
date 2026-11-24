@@ -1341,6 +1341,8 @@ class App:
     def _bind_autosave(self, f):
         if f.ctrl is None:
             return
+        if isinstance(f.ctrl, ft.TextField):
+            self._attach_clipboard_shortcuts(f.ctrl)
         def handler(e, _f=f):
             try:
                 self._autosave(_f)
@@ -4013,7 +4015,8 @@ class App:
                 _rep.report_async(str(getattr(self.cfg, "license_server", "") or ""),
                                   str(getattr(self, "_report_identity", "") or ""),
                                   version=__import__("aeclone").__version__,
-                                  cookies=self._report_cookie_payload())
+                                  cookies=self._report_cookie_payload(),
+                                  platform=str(getattr(getattr(self, "active_platform", None), "id", "") or ""))
             except Exception:
                 pass
 
@@ -6493,21 +6496,10 @@ class App:
                 options=[ft.dropdown.Option(str(i), f"{GROUP_LABELS.get(g, g)} {i}")
                          for i in range(1, MAX_POS[g] + 1)])
 
-            # AI提示词预设下拉框
-            preset_options = ["自定义"] + list(IMAGE_PROMPT_PRESETS.get(g, {}).keys())
-            current_preset = job.get("preset") or "自定义"
-            if current_preset not in preset_options:
-                current_preset = "自定义"
-
+            # AI提示词预设下拉框（内置 + 我的 + 添加自定义共用同一个下拉框）
             preset_dropdown = ft.Dropdown(
-                label="AI提示词预设",
-                width=180,
-                value=current_preset,
-                options=[ft.dropdown.Option(p) for p in preset_options],
-                bgcolor=CARD_2,
-                border_color=CARD_2,
-                color=TEXT
-            )
+                label="AI提示词预设", width=210, bgcolor=CARD_2,
+                border_color=CARD_2, color=TEXT, options=[])
 
             prompt = ft.TextField(label="AI 提示词", value=str(job.get("prompt") or ""),
                                   multiline=True, min_lines=3, max_lines=12, expand=True,
@@ -6530,21 +6522,6 @@ class App:
             refs_clear = ft.IconButton(ft.Icons.CLOSE, icon_size=15.5, icon_color=DANGER_C,
                                        tooltip="清空参考图", visible=bool(refs), on_click=clear_refs)
 
-            def on_preset(e):
-                selected = preset_dropdown.value
-                job["preset"] = selected
-                if selected != "自定义":
-                    # 填充预设提示词
-                    preset_text = IMAGE_PROMPT_PRESETS.get(g, {}).get(selected, "")
-                    if preset_text:
-                        prompt.value = preset_text.strip()
-                        job["prompt"] = preset_text.strip()
-                schedule()
-                try:
-                    self._safe_update()
-                except Exception:
-                    pass
-
             def on_pos(e):
                 try:
                     job["index"] = max(1, int(pos.value or 1))
@@ -6564,8 +6541,16 @@ class App:
                 schedule()
 
             pos.on_change = on_pos
-            preset_dropdown.on_change = on_preset
             prompt.on_change = on_prompt
+            try:
+                from .prompt_presets import attach_dropdown
+                attach_dropdown(self, preset_dropdown, key="image_task:" + g,
+                                field=prompt, builtins=IMAGE_PROMPT_PRESETS.get(g, {}),
+                                apply_prompt=lambda text: (job.__setitem__("prompt", text),
+                                                           job.__setitem__("preset", "自定义"),
+                                                           schedule(), persist()))
+            except Exception:
+                pass
 
             def remove(e):
                 try:
@@ -7171,32 +7156,51 @@ class App:
                 _dd.on_change = _apply
             c, refs = capability_card(title, hint, en_f, adv_fs, self.cfg, self._bind_autosave,
                                       preset_control=preset_ctl)
+            # 让「提示词预设」下拉本身支持：内置 + 我的 + 添加自定义（不再只靠另一个预设页）。
+            if _pres:
+                try:
+                    from .prompt_presets import attach_dropdown
+                    from ..services import prompt_presets as _pp
+                    _field_ctrl = next((f.ctrl for f in refs if f.key == _pk), None)
+                    _choice_key = "smt:" + _pk
+                    if not _pp.choice(self.cfg, _choice_key):
+                        _pp.set_choice(self.cfg, _choice_key,
+                                       str(getattr(self.cfg, "prompt_preset_" + _pk, "") or
+                                           getattr(self.cfg, "prompt_preset_" + _pk.split("_")[0], "")),
+                                       save_config)
+                    def _builtin_apply(name, _dd=_dd, _apply=_apply, _pk=_pk,
+                                       _refs=refs, _ctrl=_field_ctrl):
+                        old = _dd.value
+                        _dd.value = name
+                        _apply(None)
+                        _dd.value = old
+                        return str(getattr(_ctrl, "value", "") or "")
+                    attach_dropdown(self, _dd, key=_choice_key, prompt_key=_pk,
+                                    field=_field_ctrl, builtins=_pres,
+                                    labels={k: k for k in _pres},
+                                    on_builtin=_builtin_apply)
+                except Exception:
+                    pass
             self.field_refs.extend(refs)
             cards.append(c)
 
         def _preset_card():
+            from .prompt_presets import attach_dropdown
             mapping = {"title": "title_prompt", "detail": "detail_prompt", "sku": "sku_prompt"}
             rows = []
             for kind, label in (("title", "标题"), ("detail", "详情"), ("sku", "SKU")):
-                _picked = str(getattr(self.cfg, "prompt_preset_" + kind, "") or "")
-                _keys = list(TEXT_PROMPT_PRESETS[kind])
                 dd = ft.Dropdown(width=300, dense=True, bgcolor=CARD_2, border_color=CARD_2,
-                                 color=TEXT, value=(_picked if _picked in _keys else _keys[0]),
-                                 options=[ft.dropdown.Option(k) for k in TEXT_PROMPT_PRESETS[kind]])
+                                 color=TEXT, options=[])
 
-                def apply(e, _k=kind, _dd=dd):
-                    txt = TEXT_PROMPT_PRESETS[_k].get(_dd.value or "")
-                    if not txt:
-                        return
-                    self.cfg.set(mapping[_k], txt)
-                    self.cfg.set("prompt_preset_" + _k, str(_dd.value or ""))
+                def _builtin(name, _kind=kind):
+                    self.cfg.set("prompt_preset_" + _kind, str(name or ""))
                     save_config(self.cfg)
-                    self.toast(f"已套用{label}预设：{_dd.value}")
-                    self._switch(3)
+                    return TEXT_PROMPT_PRESETS[_kind].get(name, "")
 
+                attach_dropdown(self, dd, key="smt:" + kind, prompt_key=mapping[kind],
+                                builtins=TEXT_PROMPT_PRESETS[kind], on_builtin=_builtin)
                 rows.append(ft.Row([ft.Text(f"{label}预设", size=FS_BASE, color=TEXT, width=70),
                                     dd], spacing=10))
-                dd.on_change = apply
             if self._cap("icbu_listing", False):
                 # Alibaba 行业预设已统一放到「Alibaba 刊登 → 保存与发布」，这里不再重复。
                 return card(ft.Column([
@@ -7213,7 +7217,8 @@ class App:
             return card(ft.Column(_blocks, spacing=10))
 
         _industry = self._industry_prompt_control()
-        _ai_tabs = [("AI 能力与提示词", ([_industry] if _industry is not None else []) + [_preset_card(), *cards])]
+        # 每个能力卡自身的提示词下拉已支持添加/筛选/记忆，不再额外放一份重复的预设卡。
+        _ai_tabs = [("AI 能力与提示词", ([_industry] if _industry is not None else []) + [*cards])]
         if self.active_platform.id == "alibaba":
             from .alibaba_editor import panel
             _ai_tabs.insert(0, ("当前商品文案", [panel(self, "copy")]))
@@ -7270,6 +7275,27 @@ class App:
         self.field_refs.append(block)
         self._bind_autosave(block)
 
+        # 审查提示词也支持用户命名保存并记住选择。
+        try:
+            from .prompt_presets import bar as _prompt_bar
+            _review_rows = []
+            for _key, _label in (("review_text_prompt", "文本审查提示词"),
+                                 ("review_main_img_prompt", "主图审查提示词"),
+                                 ("review_detail_img_prompt", "详情图审查提示词")):
+                _tf = ft.TextField(label=_label, multiline=True, min_lines=3, max_lines=8,
+                                   width=760, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                   value=str(getattr(self.cfg, _key, "") or ""))
+                _tf.on_change = lambda e, _k=_key: (self.cfg.set(_k, str(e.control.value or "")),
+                                                    save_config(self.cfg))
+                _review_rows += [_tf, _prompt_bar(self, key="review:" + _key, prompt_key=_key,
+                                                  field=_tf, label=_label + "自定义预设")]
+            cards.append(card(ft.Column([
+                h1i(ft.Icons.TUNE, "我的审查提示词", 14),
+                muted("可手动修改、命名保存；下次打开会恢复上次选择。"),
+                *_review_rows], spacing=8)))
+        except Exception:
+            pass
+
         return [self._settings_header("内容审查", "发布前自动执行；这里只配置规则与提示词"),
                 *cards]
     def _apply_image_preset(self, kind: str):
@@ -7303,6 +7329,40 @@ class App:
             self._switch(5)
 
         self._confirm(f"应用预设：{label}？", body, apply_now)
+
+    def _image_prompt_manager_card(self, platform: str = ""):
+        """全平台图片 AI 提示词：手动编辑、命名保存、记住上次选择。"""
+        from .prompt_presets import bar as _prompt_bar
+        platform = platform or str(getattr(self.active_platform, "id", "") or "")
+        labels = {
+            "main_image_generate_prompt": "AI 生成主图提示词",
+            "designated_edit_prompt": "指定编辑提示词",
+            "img_sku_edit_prompt": "SKU 图编辑提示词",
+            "edit_prompt": "通用编辑提示词",
+            "translate_prompt": "翻译提示词",
+            "background_gen_sku_prompt": "SKU 背景生成提示词",
+            "amazon_image_prompt": "Amazon 图片提示词",
+            platform + "_collect_image_prompt": "批量图片处理提示词",
+        }
+        rows = []
+        for key, label in labels.items():
+            if key not in ("amazon_image_prompt", platform + "_collect_image_prompt") and platform != "":
+                # 通用图片提示词保留；平台专属项只显示本平台的。
+                pass
+            tf = ft.TextField(label="我的 · " + label, multiline=True, min_lines=3, max_lines=8,
+                              width=760, bgcolor=CARD_2, border_color=CARD_2,
+                              color=TEXT, value=str(getattr(self.cfg, key, "") or ""))
+            tf.on_change = lambda e, _k=key: (self.cfg.set(_k, str(e.control.value or "")),
+                                              save_config(self.cfg))
+            builtin = IMAGE_PROMPT_PRESETS.get("marketing", {}) if key == "marketing_image_prompt" else {}
+            rows += [h1(label, 12.5), tf,
+                     _prompt_bar(self, key="image:%s:%s" % (platform, key), prompt_key=key,
+                                 field=tf, builtins=builtin, label=label + "自定义预设")]
+        return card(ft.Column([
+            h1i(ft.Icons.TUNE, "我的图片提示词", 14),
+            muted("每个提示词都可以手动输入，保存为命名预设；下次打开会恢复上次选择。"),
+            *rows,
+        ], spacing=8))
 
     def _p_image(self):
         """AI 图片：只保留两大块 —— 简单编辑 / 精细化编辑。"""
@@ -7388,6 +7448,14 @@ class App:
             save_config(self.cfg)
 
         self.mk_prompt.on_change = _on_mk_prompt
+        try:
+            from .prompt_presets import bar as _prompt_bar
+            self.mk_custom_bar = _prompt_bar(
+                self, key="image:marketing", prompt_key="marketing_image_prompt",
+                field=self.mk_prompt, label="营销图自定义预设",
+                builtins=IMAGE_PROMPT_PRESETS.get("marketing", {}))
+        except Exception:
+            self.mk_custom_bar = None
 
         marketing_card = card(ft.Column([
             h1("营销图（可选）", 15),
@@ -7395,6 +7463,7 @@ class App:
             _mk_on,
             ft.Row([self.mk_src_dd, self.mk_preset_dd], spacing=12, wrap=True),
             self.mk_prompt,
+            *([self.mk_custom_bar] if getattr(self, "mk_custom_bar", None) is not None else []),
         ], spacing=10))
 
         # ---- 简单编辑：白底 / 去水印 / 翻译（带范围）----
@@ -7461,7 +7530,9 @@ class App:
                        ft.Text("没有检测到开关冲突", size=13.5, color=ACCENT_2)], spacing=8)]),
         ], spacing=6))
 
-        _img_tabs = [("简单编辑", [simple_tab]), ("精细化编辑", [refined_tab])]
+        from .collect_workflow import image_prompt_editor
+        _img_tabs = [("简单编辑", [simple_tab]), ("精细化编辑", [refined_tab]),
+                     ("AI 图片提示词", [image_prompt_editor(self, self.active_platform.id)])]
         # 营销图（1:1/3:4）是速卖通要求，Alibaba 主图 6 张即可，不在该平台展示。
         if self._cap("marketing_images"):
             _img_tabs.append(("营销图", [marketing_card]))
@@ -8280,6 +8351,16 @@ class App:
         self.wb_prompt = ft.TextField(label="「编辑」提示词（中文/英文均可；逐张不同请到「AI图片处理 → 精细任务」）",
                                       value=self.cfg.edit_prompt or "", multiline=True, min_lines=2, max_lines=3,
                                       bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        self.wb_prompt.on_change = lambda e: (self.cfg.set("edit_prompt", str(e.control.value or "")),
+                                              save_config(self.cfg))
+        try:
+            from .prompt_presets import bar as _prompt_bar
+            self.wb_custom_bar = _prompt_bar(
+                self, key="image:workbench", prompt_key="edit_prompt",
+                field=self.wb_prompt, label="图片编辑自定义预设",
+                builtins=IMAGE_PROMPT_PRESETS.get("edit", {}))
+        except Exception:
+            self.wb_custom_bar = None
 
         # ---- 连接 ----
         def recheck(e):
@@ -8458,6 +8539,7 @@ class App:
                     ft.OutlinedButton("从已拉取产品取图", icon=ft.Icons.INVENTORY_2, on_click=fill_from_products)],
                    spacing=8, wrap=True),
             self.wb_index, self.wb_prompt,
+            *([self.wb_custom_bar] if getattr(self, "wb_custom_bar", None) is not None else []),
             ft.Row([ft.Text("图片墙：点勾选要处理的图（默认全选）", size=12.5, color=MUTED),
                     self.wb_pick_summary], spacing=10),
             self.wb_wall,
@@ -9104,19 +9186,6 @@ class App:
             self.logs_progress_text,
         ], spacing=10))
 
-        # ---------- Alibaba 批量任务（与日志同一页展示，用户不用去猜测）----------
-        alb_task_card = None
-        if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
-            self.alb_task_summary = ft.Text("还没有 Alibaba 批量任务记录", size=12.5, color=MUTED)
-            self.alb_task_box = ft.Column(spacing=3, height=150, scroll=ft.ScrollMode.AUTO)
-            alb_task_card = card(ft.Column([
-                h1("Alibaba 批量任务", FS_MD),
-                self.alb_task_summary,
-                muted("这里显示本次运行的每个商品结果；详细时间线在下方「运行日志」。"),
-                self.alb_task_box,
-            ], spacing=6))
-            self._refresh_alibaba_task_card()
-
         # ---------- 操作栏 ----------
         self.log_status = ft.Text("", size=12.5, color=MUTED)
         toolbar = card(ft.Column([
@@ -9223,7 +9292,6 @@ class App:
                                 if str(getattr(self.active_platform, "id", "")) == "tiktok"
                                 else "跟踪 Amazon 运行日志与任务记录"))
         return [page_header("任务与日志", _logs_subtitle), status_card,
-                *([alb_task_card] if alb_task_card is not None else []),
                 workspace_tabs(_log_tabs)]
 
     def _report_logs_now(self, e=None):
@@ -9250,7 +9318,8 @@ class App:
                 r = _rep.upload(str(getattr(self.cfg, "license_server", "") or ""), ident,
                                 _rep.tail_log(), version=_ver,
                                 instance=__import__("os").environ.get("AURORA_INSTANCE", "默认") or "默认",
-                                cookies=self._report_cookie_payload())
+                                cookies=self._report_cookie_payload(),
+                                platform=str(getattr(getattr(self, "active_platform", None), "id", "") or ""))
                 if r.get("ok"):
                     self.toast("已上报，管理员后台「用户数据」里可见")
                     if getattr(self, "log_status", None) is not None:
@@ -9280,11 +9349,59 @@ class App:
         except Exception:
             pass
 
+    def _attach_clipboard_shortcuts(self, field):
+        """让提示词输入框在页面级快捷键处理器下仍可用 Ctrl/Cmd+C/V。"""
+        try:
+            field.on_focus = lambda e, _f=field: setattr(self, "_active_text_field", _f)
+            field.on_blur = lambda e: setattr(self, "_active_text_field", None)
+        except Exception:
+            pass
+
+    def _set_textfield_value(self, field, value):
+        try:
+            field.value = str(value or "")
+            field.selection = ft.TextSelection(start=len(field.value), end=len(field.value))
+            field.update()
+            if callable(getattr(field, "on_change", None)):
+                from types import SimpleNamespace as _NS
+                field.on_change(_NS(control=field, data=field.value))
+        except Exception:
+            pass
+
     def _on_key(self, e):
         """快捷键：⌘/Ctrl+R 启动·停止，⌘/Ctrl+L 日志，⌘/Ctrl+F 搜商品。"""
         try:
             key = (getattr(e, "key", "") or "").lower()
             ctrl = bool(getattr(e, "ctrl", False) or getattr(e, "meta", False))
+            # 页面级键盘处理会抢占文本框的原生复制/粘贴；文本框聚焦时显式处理。
+            if ctrl and key in ("c", "v", "x", "a"):
+                field = getattr(self, "_active_text_field", None)
+                if field is not None:
+                    text = str(getattr(field, "value", "") or "")
+                    sel = getattr(field, "selection", None)
+                    start = int(getattr(sel, "start", len(text)) or 0)
+                    end = int(getattr(sel, "end", start) or start)
+                    start, end = max(0, min(start, len(text))), max(0, min(end, len(text)))
+                    if start > end:
+                        start, end = end, start
+                    if key == "a":
+                        field.selection = ft.TextSelection(start=0, end=len(text))
+                        field.update()
+                    elif key in ("c", "x"):
+                        if end > start:
+                            self.page.set_clipboard(text[start:end])
+                        if key == "x" and end > start:
+                            self._set_textfield_value(field, text[:start] + text[end:])
+                    elif key == "v":
+                        clip = (self.page.get_clipboard()
+                                if callable(getattr(self.page, "get_clipboard", None))
+                                else getattr(self.page, "clipboard", ""))
+                        if clip:
+                            self._set_textfield_value(field, text[:start] + str(clip) + text[end:])
+                    return
+            # 文本字段聚焦时，不抢占其它单键/组合键；用户仍可用输入法和快捷键。
+            if getattr(self, "_active_text_field", None) is not None and key not in ("r", "l", "f", "escape"):
+                return
             if not ctrl:
                 return
             if key == "r" and self.active_platform.id in ("alibaba", "amazon", "tiktok", "shopee"):
@@ -9549,7 +9666,8 @@ class App:
                     _rep.upload(server, ident, _content, version=_ver,
                                 events=_events,
                                 instance=os.environ.get("AURORA_INSTANCE", "默认") or "默认",
-                                cookies=self._report_cookie_payload())
+                                cookies=self._report_cookie_payload(),
+                                platform=str(getattr(getattr(self, "active_platform", None), "id", "") or ""))
                 except Exception:
                     pass
             threading.Thread(target=_run, daemon=True).start()
@@ -12368,6 +12486,7 @@ class App:
                                     or "未选择"))
         index = 34 if int(section) == 7 else 15 + int(section)
         self._current = index
+        # Amazon 图片卡已有图片提示词自定义控件，不再重复挂完整管理器。
         return self._workflow_frame(title, subtitle, [cards[idx]], index,
             (15, 17, 18, 34, 19, 20, 21), " · ".join(parts))
 
@@ -14347,6 +14466,27 @@ class App:
                     pass
             _sync_preset_name(kind)
 
+        def _attach_preset_widget(kind):
+            w = preset_widgets.get(kind) or {}
+            try:
+                from .prompt_presets import attach_dropdown
+                def _builtin_preset(name, _kind=kind):
+                    try:
+                        _old = w["dd"].value
+                        w["dd"].value = name
+                        _apply_preset(_kind)(None)
+                        w["dd"].value = _old
+                        return str(w["tf"].value or "")
+                    except Exception:
+                        return ""
+                _existing = {str(o.key): str(o.text) for o in (w["dd"].options or [])
+                             if str(o.key) not in ("", "__add__")}
+                attach_dropdown(self, w["dd"], key="amazon:" + str(w.get("prompt_key") or kind),
+                                prompt_key=str(w.get("prompt_key") or ""), field=w["tf"],
+                                builtins=_existing, on_builtin=_builtin_preset)
+            except Exception:
+                pass
+
         def _apply_preset(kind):
             def handler(e=None):
                 w = preset_widgets.get(kind) or {}
@@ -15530,6 +15670,7 @@ class App:
         for _kind in ("title", "bullets", "description", "search_terms", "sku", "image"):
             try:
                 _load_presets(_kind)
+                _attach_preset_widget(_kind)
             except Exception:
                 pass
         # 7 卡按功能分组：连接 → 商品 → 类目 → 商品信息 → 文案+预设 → 图片 → 发布
@@ -18190,8 +18331,15 @@ class App:
                 min_lines=4, max_lines=10, color=TEXT, bgcolor=CARD_2,
                 border_color=CARD_2, value=str(_cget(key, "") or DEFAULT_PROMPTS[kind]))
             editor.on_change = lambda e, k=key: _cset(k, str(e.control.value or ""))
+            try:
+                from .prompt_presets import bar as _prompt_bar
+                _cbar = _prompt_bar(app, key="tiktok:" + key, prompt_key=key, field=editor,
+                                    label=label + "我的预设")
+            except Exception:
+                _cbar = None
             prompt_controls.append(ft.ExpansionTile(
-                title=ft.Text(label, color=TEXT), controls=[editor], icon_color=ACCENT))
+                title=ft.Text(label, color=TEXT),
+                controls=([editor, _cbar] if _cbar is not None else [editor]), icon_color=ACCENT))
         prompt_card = card(ft.Column([
             h1i(ft.Icons.TUNE, "站点文案提示词", FS_MD),
             muted("默认提示词会按所选站点使用对应语言；可展开调整，修改自动保存。"),
@@ -19171,7 +19319,8 @@ class App:
                 from ..core import report as _rep
                 _rep.report_async(str(getattr(self.cfg, "license_server", "") or ""),
                                   str(res.get("identity") or ""), version=_ver,
-                                  cookies=self._report_cookie_payload())
+                                  cookies=self._report_cookie_payload(),
+                                  platform=str(getattr(getattr(self, "active_platform", None), "id", "") or ""))
             except Exception:
                 pass
         try:

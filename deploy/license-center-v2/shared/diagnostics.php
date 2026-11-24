@@ -67,13 +67,15 @@ function lc_diag_event(PDO $db,array $ev): bool {
 }
 function lc_index_log(PDO $db,array $log): int {
     $count=0;$rules=function_exists('log_rules')?log_rules():['publish_ok'=>['刊登成功','发布成功'],'publish_fail'=>['发布失败','刊登失败'],'error'=>['[ERROR]','Traceback','Exception'],'draft'=>['保存草稿']];
+    $fallback=(string)($log['platform'] ?? '');
+    if(!preg_match('/^[a-z][a-z0-9_]{1,31}$/',$fallback))$fallback='';
     $platforms=lc_registry();$aliases=['alibaba'=>['alibaba','国际站'],'aliexpress'=>['aliexpress','速卖通'],'amazon'=>['amazon','亚马逊'],'tiktok'=>['tiktok'],'shopee'=>['shopee']];
     foreach($platforms as $id=>$p)$aliases[$id]=array_merge($aliases[$id] ?? [],[$id,$p['name']]);
     foreach(array_slice(preg_split('/\R/u',$log['content']) ?: [],-8000) as $lineNo=>$line){
         $line=trim($line);if($line==='')continue;$event='';
         foreach($rules as $kind=>$words){foreach($words as $word)if($word!==''&&strpos($line,$word)!==false){$event=$kind;break 2;}}
         if($event==='' && preg_match('/traceback|exception|失败|异常|\[error\]/iu',$line))$event='error';
-        if($event==='')continue;$platform='unknown';$lower=mb_strtolower($line);
+        if($event==='')continue;$platform=$fallback ?: 'unknown';$lower=mb_strtolower($line);
         foreach($aliases as $id=>$names)foreach($names as $name)if(mb_strpos($lower,mb_strtolower($name))!==false){$platform=$id;break 2;}
         $time=$log['created_at'];$timed=preg_match('/\b(20\d\d-\d\d-\d\d)[ T](\d\d:\d\d:\d\d)(?:[.,]\d+)?/',$line,$m);
         if($timed && strtotime($m[1].' '.$m[2])!==false)$time=$m[1].' '.$m[2];
@@ -84,8 +86,8 @@ function lc_index_log(PDO $db,array $log): int {
 }
 function lc_backfill(int $limit=100): array {
     $db=lc_diag_db();$last=(int)($db->query("SELECT v FROM lc_diagnostic_meta WHERE k='last_log_id'")->fetchColumn() ?: 0);
-    $q=$db->prepare('SELECT id,identity,client_version,content,created_at FROM app_logs WHERE id>? ORDER BY id LIMIT ?');$q->bindValue(1,$last,PDO::PARAM_INT);$q->bindValue(2,max(1,min(500,$limit)),PDO::PARAM_INT);$q->execute();$rows=$q->fetchAll();$count=0;
-    $db->beginTransaction();try{foreach($rows as $row){$count+=lc_index_log($db,$row);$last=$row['id'];}$db->prepare("INSERT INTO lc_diagnostic_meta(k,v) VALUES('last_log_id',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v")->execute([(string)$last]);$db->commit();}catch(Throwable $e){$db->rollBack();throw $e;}
+    $q=$db->prepare('SELECT id,identity,client_version,content,created_at,meta FROM app_logs WHERE id>? ORDER BY id LIMIT ?');$q->bindValue(1,$last,PDO::PARAM_INT);$q->bindValue(2,max(1,min(500,$limit)),PDO::PARAM_INT);$q->execute();$rows=$q->fetchAll();$count=0;
+    $db->beginTransaction();try{foreach($rows as $row){$m=json_decode((string)($row['meta'] ?? ''),true);if(is_array($m)&&!empty($m['platform']))$row['platform']=(string)$m['platform'];$count+=lc_index_log($db,$row);$last=$row['id'];}$db->prepare("INSERT INTO lc_diagnostic_meta(k,v) VALUES('last_log_id',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v")->execute([(string)$last]);$db->commit();}catch(Throwable $e){$db->rollBack();throw $e;}
     return ['logs'=>count($rows),'events'=>$count,'last_log_id'=>$last];
 }
 function lc_diag_filters(): array {

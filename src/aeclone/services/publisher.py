@@ -1501,6 +1501,14 @@ class Publisher:
                         pass
                     if "参数缺失" in _em:
                         _dead = True     # 接口整体不可用，剩余图片直接跳过
+                        # 该接口已确认停用；不再把“失败/参数缺失”写进日志，
+                        # 避免用户把已知无效的店小秘相册错误误判成商品保存问题。
+                        try:
+                            _errs.clear()
+                            failed -= 1
+                            skipped += 1
+                        except Exception:
+                            pass
             p[key] = urls
         if res is not None:
             _msg = f"成功 {done} / 失败 {failed} / 跳过 {skipped}"
@@ -1510,8 +1518,11 @@ class Publisher:
             # 这不是致命错误，图片本来就已经在图床上，商品照常保存。
             _all_param_missing = bool(_errs) and all("参数缺失" in e for e in _errs)
             if _all_param_missing:
-                add_step(res, "传店小秘相册", True,
-                         f"{_msg}（店小秘上传接口已停用，图片沿用图床地址，不影响保存）")
+                # 已知接口停用：不写任何错误/失败步骤，图片沿用原地址。
+                pass
+            elif _dead and done == 0:
+                # 第一次失败后已判定接口不可用：静默跳过。
+                pass
             else:
                 add_step(res, "传店小秘相册", failed == 0 and done > 0, _msg)
         return p
@@ -1820,8 +1831,13 @@ class Publisher:
             import io as _io
             import requests as _rq
             from PIL import Image as _Img
-            raw = _rq.get(str(url), timeout=25).content
-            w, h = _Img.open(_io.BytesIO(raw)).size
+            _url = str(url)
+            if _url.startswith(("http://", "https://")):
+                raw = _rq.get(_url, timeout=25).content
+                _im = _Img.open(_io.BytesIO(raw))
+            else:
+                _im = _Img.open(_url)
+            w, h = _im.size
         except Exception:
             return False
         if ratio == "3:4":
@@ -1857,8 +1873,16 @@ class Publisher:
             return []
         try:
             d = _P(_tf.mkdtemp())
-            src = d / "m0.png"
-            src.write_bytes(_rq.get(str(image_url), timeout=40).content)
+            _raw_url = str(image_url)
+            if _raw_url.startswith(("http://", "https://")):
+                src = d / "m0.png"
+                src.write_bytes(_rq.get(_raw_url, timeout=40).content)
+            else:
+                # 本地裁切图/临时文件不能交给 requests；否则 Windows 会报
+                # No connection adapters were found for 'C:\...\Temp'。
+                src = _P(_raw_url)
+                if not src.is_file():
+                    raise ValueError("营销图主图本地文件不存在")
             # 顺序很重要！店小秘/速卖通规定：
             #   marketImg1 = 场景图，必须 3:4 且最短边 ≥750（生成 800x1067，兼容 ≥800 主图门槛）
             #   marketImg2 = 白底图，必须 ≥800x800 且 1:1
@@ -2606,6 +2630,21 @@ class Publisher:
         try:
             from .sku_recovery import apply_sku_repair
             target = apply_sku_repair(target, p)
+            # 历史/模板合并后仍可能留下相同规格组合；平台会整件拒绝保存。
+            # 按配置自动合并（保留首条、库存累加），避免用户手动改 SKU 才能发。
+            try:
+                import json as _jsk
+                from .product_data import sku_rows as _sku_rows, clean_sku_rows as _clean_skus
+                from .sku_recovery import _merge_duplicate_rows
+                _rows = _clean_skus(_sku_rows(target.get("aeopAeProductSKUs")))
+                _merged, _n = _merge_duplicate_rows(_rows)
+                if _n:
+                    target = dict(target)
+                    target["aeopAeProductSKUs"] = _jsk.dumps(_merged, ensure_ascii=False)
+                    add_step(res, "SKU 自动修复", True,
+                             f"已自动合并 {_n} 个重复规格组合（保留首条、库存累加）")
+            except Exception:
+                pass
             from .customs_metadata import validate_customs_repair
             validate_customs_repair(target, p)
             # 主图数量上限

@@ -99,8 +99,18 @@ def four_in_one(paths: list[Path], out: Path, size: int = 1200, gap: int = 8,
         raise ValueError("没有图片")
     cell = (size - gap) // 2
     canvas = Image.new("RGB", (size, size), bg)
-    for i, p in enumerate(paths[:4]):
-        img = ensure_rgb(Image.open(p))
+    loaded = []
+    for p in paths[:4]:
+        try:
+            img = ensure_rgb(Image.open(p))
+            img.load()
+            loaded.append(img)
+        except Exception:
+            # 下载内容可能是 HTML/损坏的 webp；跳过坏图，不因为一张坏图毁掉整组。
+            continue
+    if len(loaded) < 2:
+        raise ValueError("可用主图不足 2 张，跳过四合一")
+    for i, img in enumerate(loaded[:4]):
         img.thumbnail((cell, cell))
         x = gap + (i % 2) * (cell + gap) + (cell - img.width) // 2
         y = gap + (i // 2) * (cell + gap) + (cell - img.height) // 2

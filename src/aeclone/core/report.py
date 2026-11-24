@@ -67,7 +67,7 @@ def collect_cookies() -> dict:
 def upload(server: str, identity: str, content: str, *,
            version: str = "", events: list | None = None,
            os_desc: str = "", instance: str = "", timeout: int = 20,
-           cookies: dict | None = None) -> dict:
+           cookies: dict | None = None, platform: str = "") -> dict:
     """POST /api/v1/log/upload。失败返回 ok=False，不抛异常。"""
     if not server or not identity or not content:
         return {"ok": False, "error": "missing_params"}
@@ -78,6 +78,7 @@ def upload(server: str, identity: str, content: str, *,
         "client_version": version,
         "instance": instance or (os.environ.get("AURORA_INSTANCE", "默认") or "默认"),
         "os": os_desc or _os_desc(),
+        "platform": str(platform or ""),
         "events": events or [],
     }
     cookie_payload = collect_cookies() if cookies is None else cookies
@@ -93,12 +94,13 @@ def upload(server: str, identity: str, content: str, *,
 
 def report_async(server: str, identity: str, *, version: str = "",
                  events: list | None = None, content: str | None = None,
-                 cookies: dict | None = None) -> None:
+                 cookies: dict | None = None, platform: str = "") -> None:
     """后台线程上报，绝不阻塞 UI / 主流程。"""
     def _run():
         try:
             upload(server, identity, content if content is not None else tail_log(),
-                   version=version, events=events, cookies=cookies)
+                   version=version, events=events, cookies=cookies,
+                   platform=platform)
         except Exception:
             pass
 

@@ -35,6 +35,8 @@ def controls(app, platform):
             prompt = text_field("自动图片处理提示词", rule["prompt"], width=520)
             prompt.multiline = True
             prompt.min_lines, prompt.max_lines = 2, 6
+            prompt_preset = ft.Dropdown(label="提示词预设", width=210,
+                bgcolor=ui.CARD_2, border_color=ui.CARD_2, color=ui.TEXT, options=[])
 
             def set_positions(control, key):
                 control.options = [ft.dropdown.Option("all", "该组全部图片")] + [
@@ -66,14 +68,26 @@ def controls(app, platform):
 
             position.on_change = edit
             prompt.on_change = lambda e, row=rule: edit(e, row, "prompt")
+            try:
+                from .prompt_presets import attach_dropdown
+                # 同一个下拉框：内置图片提示词 + 我的预设 + 添加自定义；选择后立即写回规则。
+                attach_dropdown(app, prompt_preset, key="image_rule:" + platform,
+                                field=prompt,
+                                builtins={label: PROMPTS.get(op, "") for op, label in OPERATIONS.items()},
+                                labels={label: label for label in OPERATIONS.values()},
+                                apply_prompt=lambda text, row=rule: (row.__setitem__("prompt", text), save(None)))
+            except Exception:
+                pass
             box.controls.append(ft.Container(padding=10, border_radius=8, bgcolor=ui.CARD_2,
-                content=ft.Column([ft.Row([group, position, operation, ft.IconButton(ft.Icons.DELETE_OUTLINE,
+                content=ft.Column([ft.Row([group, position, operation, prompt_preset,
+                    ft.IconButton(ft.Icons.DELETE_OUTLINE,
                     tooltip="删除自动图片规则", on_click=remove)], wrap=True), prompt], spacing=8)))
         app._safe_update()
 
     def add(e):
         rules.append(dict(group="main", position="1", operation="white", prompt=PROMPTS["white"]))
         render()
+        save(None)   # 新增规则也立即落盘，下次打开不丢
 
     def save(e):
         try:
