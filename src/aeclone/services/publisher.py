@@ -1846,6 +1846,60 @@ class Publisher:
             return w >= 750 and h >= 1000 and abs(w / max(h, 1) - 0.75) <= 0.03
         return w >= 800 and h >= 800 and abs(w / max(h, 1) - 1.0) <= 0.05
 
+    def _fallback_market_images(self, target: dict, tpl: dict | None, res=None) -> list[str]:
+        """图床失败时，用模板营销图/原图里的合规图兜底，避免平台报“请补充营销图”。"""
+        out1 = out2 = ""
+        # 1) 模板商品已有营销图，直接复用（最稳，尺寸已合规）
+        for src in (tpl or {},):
+            try:
+                m1 = str(src.get("marketImg1") or "").strip()
+                m2 = str(src.get("marketImg2") or "").strip()
+                if m1 and self._market_ok(m1, "3:4"):
+                    out1 = m1
+                if m2 and self._market_ok(m2, "1:1"):
+                    out2 = m2
+            except Exception:
+                pass
+        # 2) 目标商品原有营销图
+        try:
+            cur1 = str(target.get("marketImg1") or "").strip()
+            cur2 = str(target.get("marketImg2") or "").strip()
+            if not out1 and cur1 and self._market_ok(cur1, "3:4"):
+                out1 = cur1
+            if not out2 and cur2 and self._market_ok(cur2, "1:1"):
+                out2 = cur2
+        except Exception:
+            pass
+        # 3) 从主图/附加图里找 3:4、1:1 合规图，直接用 CDN 地址
+        if not out1 or not out2:
+            try:
+                import requests as _rq, io as _io
+                from PIL import Image as _Img
+                cands = []
+                for key in ("imageURLs", "extraImages"):
+                    raw = str(target.get(key) or "")
+                    for u in raw.replace("|", ";").split(";"):
+                        u = u.strip()
+                        if u.startswith("http") and u not in cands:
+                            cands.append(u)
+                for u in cands[:12]:
+                    try:
+                        im = _Img.open(_io.BytesIO(_rq.get(u, timeout=20).content))
+                        w, h = im.size
+                        if not out1 and abs(w / max(h, 1) - 0.75) <= 0.03 and w >= 750 and h >= 1000:
+                            out1 = u
+                        if not out2 and abs(w / max(h, 1) - 1.0) <= 0.05 and w >= 800 and h >= 800:
+                            out2 = u
+                    except Exception:
+                        continue
+                    if out1 and out2:
+                        break
+            except Exception:
+                pass
+        if res is not None and (out1 or out2):
+            add_step(res, "营销图", True, "图床不可用，已使用模板/原图合规营销图兜底")
+        return [x for x in (out1, out2) if x]
+
     def _fix_market_images(self, cur1: str, cur2: str, base_img: str, res=None) -> list[str]:
         """已有营销图不合规（尺寸/比例不对）就重新生成，返回 [m1, m2]（可能为空）。
 
@@ -2321,6 +2375,8 @@ class Publisher:
             _mk = self._fix_market_images(
                 str(target.get("marketImg1") or ""),
                 str(target.get("marketImg2") or ""), _base, res)
+            if not _mk:
+                _mk = self._fallback_market_images(target, tpl, res)
             if _mk:
                 target = dict(target)
                 target["marketImg1"] = _mk[0]
@@ -2716,6 +2772,44 @@ class Publisher:
             except Exception as ex2:  # noqa: BLE001
                 add_step(res, "视频上传", False, f"{str(ex)[:50]} / 兜底失败：{str(ex2)[:50]}")
 
+    def _category_sku_score(self, category_id: str, target: dict) -> int:
+        """类目与现有 SKU 属性值的匹配分：越高越适合当前 SKU。"""
+        if not category_id or self.dxm is None:
+            return 0
+        cache = getattr(self, "_cat_sku_score_cache", None)
+        if not isinstance(cache, dict):
+            cache = self._cat_sku_score_cache = {}
+        key = (str(category_id), str(target.get("aeopAeProductSKUs") or ""))
+        if key in cache:
+            return cache[key]
+        try:
+            import json as _j
+            defs = self.dxm.category_attributes(str(category_id)) or []
+            vals = {}
+            for a in defs:
+                if not isinstance(a, dict) or not a.get("sku"):
+                    continue
+                raw = a.get("values") or "[]"
+                if isinstance(raw, str):
+                    raw = _j.loads(raw)
+                vals[str(a.get("arrtNameId") or "")] = {
+                    str(v.get("id") or "") for v in raw if isinstance(v, dict)}
+            skus = target.get("aeopAeProductSKUs")
+            if isinstance(skus, str):
+                skus = _j.loads(skus or "[]")
+            score = 0
+            for row in skus if isinstance(skus, list) else []:
+                for prop in (row.get("aeopSKUProperty") or []):
+                    pid = str(prop.get("skuPropertyId") or "")
+                    vid = str(prop.get("propertyValueId") or "")
+                    if pid in vals:
+                        score += 2 if vid in vals[pid] else -2
+            cache[key] = score
+            return score
+        except Exception:
+            cache[key] = 0
+            return 0
+
     def _resolve_auto_category(self, target: dict, res=None) -> dict:
         """在属性补全前确定类目：关键词规则 → 商品类目 → 平台预测类目。"""
         if not isinstance(target, dict):
@@ -2724,6 +2818,28 @@ class Publisher:
             return target
         cid = str(target.get("categoryId") or "").strip()
         if cid and cid not in ("0", "-1", "None", "null"):
+            # 已有类目也可能是上一轮自动预测错误留下的；如果它与 SKU 明显不兼容，
+            # 而模板类目兼容，则在自动模式下纠正。
+            try:
+                _tpl_id = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+                if _tpl_id and self.dxm is not None:
+                    _tpl = self.dxm._get("product_detail", {"id": _tpl_id}).get("data", {}).get("product", {}) or {}
+                    _tpl_cat = str(_tpl.get("categoryId") or "").strip()
+                    if _tpl_cat and _tpl_cat != cid:
+                        _s_cur = self._category_sku_score(cid, target)
+                        _s_tpl = self._category_sku_score(_tpl_cat, target)
+                        if _s_tpl >= 2 and _s_tpl > _s_cur + 2:
+                            target = dict(target)
+                            target["categoryId"] = _tpl_cat
+                            if res is not None:
+                                try:
+                                    add_step(res, "自动类目", True,
+                                             f"原类目 {cid} 与 SKU 不兼容，已纠正为模板类目 {_tpl_cat}")
+                                except Exception:
+                                    pass
+                            return target
+            except Exception:
+                pass
             return target
         title = str(target.get("subject") or target.get("title") or "")
         mapped = ""
@@ -2739,12 +2855,35 @@ class Publisher:
             except Exception:
                 mapped = ""
         if mapped and mapped not in ("0", "-1", "None", "null"):
+            _mapped = mapped
+            # 平台预测类目不一定兼容采集数据里的 SKU 属性值（如插件/颜色 id）。
+            # 若模板类目与 SKU 更匹配，优先模板类目，避免 CHK_BASIC_ONEOF。
+            try:
+                from .product_data import sku_rows as _sku_rows
+                _tpl_id = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+                if _tpl_id and _tpl_id != _mapped and self.dxm is not None:
+                    _tpl = self.dxm._get("product_detail", {"id": _tpl_id}).get("data", {}).get("product", {}) or {}
+                    _tpl_cat = str(_tpl.get("categoryId") or "").strip()
+                    if _tpl_cat and _tpl_cat != _mapped:
+                        _s_new = self._category_sku_score(_mapped, target)
+                        _s_tpl = self._category_sku_score(_tpl_cat, target)
+                        if _s_tpl > _s_new:
+                            if res is not None:
+                                try:
+                                    add_step(res, "自动类目", True,
+                                             f"平台预测类目 {_mapped} 与 SKU 不兼容，改用模板类目 {_tpl_cat}")
+                                except Exception:
+                                    pass
+                            _mapped = _tpl_cat
+            except Exception:
+                pass
             target = dict(target)
-            target["categoryId"] = mapped
+            target["categoryId"] = _mapped
             if res is not None:
                 try:
-                    add_step(res, "自动类目", True,
-                             f"自动采用类目 {mapped}，随后按该类目检查属性")
+                    if not any(s.name == "自动类目" for s in getattr(res, "steps", [])):
+                        add_step(res, "自动类目", True,
+                                 f"自动采用类目 {_mapped}，随后按该类目检查属性")
                 except Exception:
                     pass
         return target
@@ -2898,6 +3037,16 @@ class Publisher:
         _old_freight = str(target.get("freightTemplateId") or "").strip()
         _shipping_failed = (state == "publishFail" or "DAILY_TPL" in err
                             or "运费模板" in err)
+        # 模板商品可能来自另一个店铺；它自己的运费模板在目标店铺不存在。
+        # 必须检查目标店铺模板列表，不能跨店铺套用模板 id。
+        try:
+            _choices_ids = {str(x.get("templateId") or "") for x in self._smt_freight_choices(target)}
+        except Exception:
+            _choices_ids = set()
+        if _tpl_freight and _choices_ids and _tpl_freight not in _choices_ids:
+            add_step(res, "运费模板预审", True,
+                     f"模板商品模板 {_tpl_freight} 不属于当前店铺，已改用当前店铺模板")
+            _tpl_freight = ""
         if _tpl_freight and not (_shipping_failed and _old_freight == _tpl_freight):
             # 模板商品优先：把模板的运费模板写到目标商品及 SKU。
             # 但失败商品若和模板用的是同一个失效模板，必须切安全模板。
@@ -3139,6 +3288,19 @@ class Publisher:
             target = self._repair_ships_from(target, res)
             target = self._dedupe_product_skus(target, res)
             target = self._resolve_auto_category(target, res)
+            try:
+                _mk_cur = self._fix_market_images(
+                    str(target.get("marketImg1") or ""), str(target.get("marketImg2") or ""),
+                    next(iter([x for x in str(target.get("imageURLs") or "").split(";") if x]), ""), res)
+                if not _mk_cur:
+                    _mk_cur = self._fallback_market_images(target, tpl, res)
+                if _mk_cur:
+                    target = dict(target)
+                    target["marketImg1"] = _mk_cur[0]
+                    if len(_mk_cur) > 1:
+                        target["marketImg2"] = _mk_cur[1]
+            except Exception:
+                pass
             self._smt_shipping_preflight(target, res, tpl)
             payload = build_save_payload(
                 target, tpl, action=action, overrides=overrides,
@@ -3854,6 +4016,18 @@ class Publisher:
                     add_step(res, "营销图", False, str(ex)[:80] + "（已跳过）")
 
             if getattr(self.cfg, "write_detail_html_to_product", True):
+                # 只加本地详情图时必须保留原采集描述：部分采集商品 p 里没有 detail，
+                # 只有 raw/detail；缺了它 compose_detail 会把正文当成空而只剩本地图。
+                if not str(p.get("detail") or "").strip():
+                    try:
+                        _orig_detail = str((p.get("raw") or {}).get("detail") or "")
+                        if not _orig_detail and self.dxm is not None:
+                            _od = self.dxm._get("product_detail", {"id": str(p.get("id") or "")}).get("data", {}).get("product", {}) or {}
+                            _orig_detail = str(_od.get("detail") or "")
+                        if _orig_detail:
+                            p["detail"] = _orig_detail
+                    except Exception:
+                        pass
                 from .detail_content import compose_detail
                 _detail = compose_detail(p, self.cfg)
                 if _detail:

@@ -388,12 +388,16 @@ def merge_skus(product: dict, template: dict | None) -> list[dict]:
         tpl_skus = (tr or [])[0] if isinstance(tr, list) and tr else None
 
     out = []
-    # 选了模板商品后，物流/运费模板以模板为准（用户期望：模板的物流方式直接沿用）。
-    _tpl_freight = str((template or {}).get("freightTemplateId") or "").strip() if template else ""
-    if not _tpl_freight and tpl_skus:
+    # 选了模板商品后，物流/运费模板以模板为准；
+    # 但模板商品与目标商品不在同一店铺时，模板的运费模板 id 在目标店铺无效，不能套用。
+    _prod_shop = str((product or {}).get("shopId") or "").strip()
+    _tpl_shop = str((template or {}).get("shopId") or "").strip() if template else ""
+    _cross_shop = bool(_prod_shop and _tpl_shop and _prod_shop != _tpl_shop)
+    _tpl_freight = "" if _cross_shop else str((template or {}).get("freightTemplateId") or "").strip() if template else ""
+    if not _tpl_freight and tpl_skus and not _cross_shop:
         _tpl_freight = str(tpl_skus.get("freightTemplateId") or "").strip()
     _prod_freight = _tpl_freight or str((product or {}).get("freightTemplateId") or "").strip()
-    if not _prod_freight and template is not None:
+    if not _prod_freight and template is not None and not _cross_shop:
         _prod_freight = str((template or {}).get("freightTemplateId") or "").strip()
     for sku in skus:
         s = deepcopy(sku)
@@ -647,8 +651,12 @@ def build_save_payload(product: dict, template: dict | None = None,
     else:
         p.pop("categoryId", None)  # 让下面的模板补齐逻辑接管
     # 模板商品已选：商品级运费模板强制跟模板，而不是保留目标商品旧模板。
-    _tpl_freight = str((template or {}).get("freightTemplateId") or "").strip() if template else ""
-    if not _tpl_freight and template:
+    # 但模板商品可能属于另一个店铺；跨店铺模板 id 在目标店铺不存在，不能套用。
+    _prod_shop = str(p.get("shopId") or product.get("shopId") or "").strip()
+    _tpl_shop = str((template or {}).get("shopId") or "").strip() if template else ""
+    _cross_shop = bool(_prod_shop and _tpl_shop and _prod_shop != _tpl_shop)
+    _tpl_freight = "" if _cross_shop else str((template or {}).get("freightTemplateId") or "").strip() if template else ""
+    if not _tpl_freight and template and not _cross_shop:
         try:
             _ts = template.get("aeopAeProductSKUs")
             if isinstance(_ts, str):
@@ -667,6 +675,8 @@ def build_save_payload(product: dict, template: dict | None = None,
               "hsCode", "ladderPriceListJson", "sizeChartIdListJson",
               "deliveryTime", "bulkOrder", "bulkDiscount",
               "aeopQualificationStructList", "specialProductTypeList"):
+        if _cross_shop and k in ("freightTemplateId", "shippingTempateName", "promiseTemplateId"):
+            continue
         if not p.get(k) and template is not None and template.get(k) not in (None, "", 0, "0"):
             p[k] = template.get(k)
 

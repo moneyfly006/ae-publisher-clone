@@ -33,6 +33,14 @@ class DetailTests(unittest.TestCase):
         self.assertIn('New description',result)
         self.assertIn('https://old/image',result)
 
+    def test_local_images_keep_original_collected_detail(self):
+        result=compose_detail(dict(detail='<p>Original collected description</p>',
+                                   detail_local_images_html='<img src="https://local/image">'),
+            self.config(custom_detail_text_enable=True,detail_local_image_position='head'))
+        self.assertIn('Original collected description',result)
+        self.assertIn('https://local/image',result)
+        self.assertTrue(result.startswith('<img'))
+
     def test_local_images_both_and_generated_text_are_not_duplicated(self):
         result=compose_detail(dict(detail_html='<p>AI text</p>',detail_local_images_html='<img src="https://local/image">'),
             self.config(custom_detail_text_enable=True,detail_local_image_position='both',delete_detail_text=True))
