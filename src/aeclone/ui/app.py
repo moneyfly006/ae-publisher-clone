@@ -3180,7 +3180,9 @@ class App:
         dlg = ft.AlertDialog(
             title=ft.Text("类目自动匹配"),
             content=ft.Column([
-                ft.Text("匹配顺序：关键词规则 → 学习表 → 商品自带类目 → 模板类目", size=12.5, color=MUTED),
+                ft.Text("匹配顺序：关键词规则 → 学习表 → 商品自带类目 → 平台预测类目 → 模板类目", size=12.5, color=MUTED),
+                ft.Text("规则里填的是速卖通类目 ID；只影响速卖通，不要填 Alibaba/Amazon/TikTok/Shopee 的类目 ID。",
+                        size=11.5, color=MUTED),
                 tf, info,
             ], spacing=8, width=580),
             actions=[ft.TextButton("从历史商品学习", on_click=do_learn),
@@ -4515,7 +4517,7 @@ class App:
         self.cat_mode_dd = ft.Dropdown(
             label="类目来源", width=210, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value="auto" if bool(getattr(self.cfg, "auto_detect_category", True)) else "template",
-            options=[ft.dropdown.Option("auto", "自动分类（用商品自带类目）"),
+            options=[ft.dropdown.Option("auto", "自动分类（关键词/商品类目/平台预测）"),
                      ft.dropdown.Option("template", "使用模板类目")],
         )
         def _on_cat_mode(e):
@@ -5879,7 +5881,7 @@ class App:
             h1i(ft.Icons.CATEGORY_OUTLINED, "类目"),
             muted("类目来源在「店铺设置 → 选择模板」里切换，这里只显示当前生效方式"),
             ft.Row([
-                ft.Text("当前：" + ("自动分类（关键词规则 → 商品自带类目 → 模板兜底）"
+                ft.Text("当前：" + ("自动分类（关键词规则 → 商品自带类目 → 平台预测类目 → 模板兜底）"
                                    if _auto_cat_on else "统一使用模板类目"),
                         size=13.5, color=ACCENT_2),
                 ft.TextButton("去店铺设置切换", icon=ft.Icons.ARROW_FORWARD,

@@ -2342,6 +2342,7 @@ class Publisher:
 
         target = self._repair_ships_from(target, res)
         target = self._dedupe_product_skus(target, res)
+        target = self._resolve_auto_category(target, res)
         # 发布失败重试也必须走运费模板预审/安全模板切换，否则 DAILY_TPL 会一直失败。
         self._smt_shipping_preflight(target, res, tpl)
         _attr_ov = self._smt_attr_overrides(target, tpl, res)
@@ -2715,6 +2716,39 @@ class Publisher:
             except Exception as ex2:  # noqa: BLE001
                 add_step(res, "视频上传", False, f"{str(ex)[:50]} / 兜底失败：{str(ex2)[:50]}")
 
+    def _resolve_auto_category(self, target: dict, res=None) -> dict:
+        """在属性补全前确定类目：关键词规则 → 商品类目 → 平台预测类目。"""
+        if not isinstance(target, dict):
+            return target
+        if not bool(getattr(self.cfg, "auto_detect_category", True)):
+            return target
+        cid = str(target.get("categoryId") or "").strip()
+        if cid and cid not in ("0", "-1", "None", "null"):
+            return target
+        title = str(target.get("subject") or target.get("title") or "")
+        mapped = ""
+        try:
+            from .category_map import match as _cat_match
+            mapped = str(_cat_match(title) or "").strip()
+        except Exception:
+            mapped = ""
+        if not mapped:
+            try:
+                from .smt_attributes import suggest_category_id
+                mapped = str(suggest_category_id(target) or "").strip()
+            except Exception:
+                mapped = ""
+        if mapped and mapped not in ("0", "-1", "None", "null"):
+            target = dict(target)
+            target["categoryId"] = mapped
+            if res is not None:
+                try:
+                    add_step(res, "自动类目", True,
+                             f"自动采用类目 {mapped}，随后按该类目检查属性")
+                except Exception:
+                    pass
+        return target
+
     def _smt_attr_overrides(self, target: dict, tpl: dict | None, res) -> dict:
         """保存/发布前补齐速卖通类目必填属性（只补缺失、不覆盖已有；纯本地规则）。
 
@@ -2750,12 +2784,71 @@ class Publisher:
             new_json = (rep.get("payload") or {}).get("aeopAeProductPropertys")
             if not new_json:
                 return {}
+            # 采集数据的品牌/产地常是不在新类目枚举里的自由文本；平台会拒绝。
+            # 按类目枚举选择安全值：品牌优先 NONE，产地优先中国大陆，其余唯一值兜底。
+            _repaired_enum = 0
+            _fixed_missing = set()
+            try:
+                import json as _j
+                _defs = [a for a in attrs if isinstance(a, dict)]
+                _by_id = {str(a.get("arrtNameId") or ""): a for a in _defs}
+                _props = _j.loads(new_json or "[]")
+                if not isinstance(_props, list):
+                    _props = []
+                for miss in (rep.get("missing") or []):
+                    if not isinstance(miss, dict):
+                        continue
+                    _nid = str(miss.get("name_id") or "")
+                    _def = _by_id.get(_nid)
+                    if not _def:
+                        continue
+                    _vals = _def.get("values") or "[]"
+                    if isinstance(_vals, str):
+                        _vals = _j.loads(_vals)
+                    _label = (str(_def.get("nameEn") or "") + " " + str(_def.get("nameZh") or "")).lower()
+                    _prefs = []
+                    if "brand" in _label or "品牌" in _label:
+                        _prefs = ["none", "no brand", "unbranded"]
+                    elif "origin" in _label or "产地" in _label:
+                        _prefs = ["mainland china", "china", "中国大陆"]
+                    _pick = None
+                    for _p in _prefs:
+                        for _v in _vals if isinstance(_vals, list) else []:
+                            _names = (_v.get("names") or {})
+                            _txt = (str(_names.get("en") or "") + " " +
+                                    str(_names.get("zh") or "")).lower()
+                            if _p in _txt:
+                                _pick = _v
+                                break
+                        if _pick:
+                            break
+                    if not _pick and isinstance(_vals, list) and len(_vals) == 1:
+                        _pick = _vals[0]
+                    if not _pick:
+                        continue
+                    _nm = str(_def.get("nameEn") or _def.get("nameZh") or "")
+                    _props = [x for x in _props if not (
+                        isinstance(x, dict) and
+                        (str(x.get("attrName") or "").strip().lower() == _nm.strip().lower()
+                         or str(x.get("attrNameId") or "") == _nid))]
+                    _props.append({"attrNameId": _nid,
+                                   "attrValueId": str(_pick.get("id") or ""),
+                                   "attrName": _nm})
+                    _repaired_enum += 1
+                    _fixed_missing.add(_nid)
+                if _repaired_enum:
+                    new_json = _j.dumps(_props, ensure_ascii=False)
+            except Exception:
+                _repaired_enum = 0
             before = rep.get("before") or {}
             after = rep.get("after") or {}
-            missing = rep.get("missing") or []
+            missing = [m for m in (rep.get("missing") or [])
+                       if str((m or {}).get("name_id") or "") not in _fixed_missing]
             detail = (f"系统属性 {before.get('system_attributes', '?')}→"
                       f"{after.get('system_attributes', '?')}；"
                       f"自定义属性 {after.get('custom_attributes', '?')}")
+            if _repaired_enum:
+                detail += f"；已按类目枚举自动替换 {_repaired_enum} 项"
             if missing:
                 _r = str((missing[0] or {}).get("reason") or "").strip()
                 detail += f"；仍缺必填 {len(missing)} 项" + (f"（{_r[:40]}）" if _r else "")
@@ -3045,6 +3138,7 @@ class Publisher:
                 add_step(res, "描述图压缩", False, str(_ex)[:80])
             target = self._repair_ships_from(target, res)
             target = self._dedupe_product_skus(target, res)
+            target = self._resolve_auto_category(target, res)
             self._smt_shipping_preflight(target, res, tpl)
             payload = build_save_payload(
                 target, tpl, action=action, overrides=overrides,

@@ -623,16 +623,27 @@ def build_save_payload(product: dict, template: dict | None = None,
     _auto_cat = bool(getattr(cfg, "auto_detect_category", True)) if cfg is not None else True
     # 类目优先级：关键词映射 → 商品自带 → 模板兜底
     _kw_cat = ""
+    _forecast_cat = ""
     if _auto_cat:
         try:
             from .category_map import match as _cat_match
             _kw_cat = _cat_match(str(product.get("subject") or product.get("title") or ""))
         except Exception:
             _kw_cat = ""
+        if not _kw_cat:
+            try:
+                # 店小秘采集数据常带平台预测类目 forecastCategoryId；
+                # 商品没有 categoryId 时用它，比模板类目更贴近商品本身。
+                from .smt_attributes import suggest_category_id
+                _forecast_cat = str(suggest_category_id(product) or "").strip()
+            except Exception:
+                _forecast_cat = ""
     if _kw_cat:
         p["categoryId"] = _kw_cat
     elif _auto_cat and str(p.get("categoryId") or "").strip() not in ("", "0"):
         p["categoryId"] = str(p.get("categoryId") or "").strip()   # 保留商品自带类目（去空格）
+    elif _auto_cat and _forecast_cat:
+        p["categoryId"] = _forecast_cat   # 平台预测类目（不是模板类目）
     else:
         p.pop("categoryId", None)  # 让下面的模板补齐逻辑接管
     # 模板商品已选：商品级运费模板强制跟模板，而不是保留目标商品旧模板。

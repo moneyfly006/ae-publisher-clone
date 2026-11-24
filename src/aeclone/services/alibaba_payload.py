@@ -234,6 +234,14 @@ def resolve_category(product: dict, cfg=None, overrides: dict | None = None) -> 
 
     cid = _pick(ov.get("category_id"), ov.get("categoryId"),
                 _cfg_get(cfg, "alibaba_category_id"), product.get("categoryId"))
+    # 自动类目：商品没有类目时，用平台预测候选（forecastCategoryId）兜底；
+    # 类目确定后再由 run_alibaba_product 按该类目拉取并补全必填属性。
+    if not cid and bool(_cfg_get(cfg, "auto_detect_category", True)):
+        try:
+            from .smt_attributes import suggest_category_id
+            cid = str(suggest_category_id(product) or "").strip()
+        except Exception:
+            cid = ""
     full = _pick(ov.get("full_cid"), ov.get("fullCid"),
                  _cfg_get(cfg, "alibaba_full_cid"), product.get("fullCid"))
     parts = [p.strip() for p in full.split(",") if p.strip()] if full else []
