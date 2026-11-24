@@ -6,6 +6,8 @@ import os
 import threading
 from pathlib import Path
 
+from .alibaba_company import COMPANY_PROFILE, company_desc, company_faq
+
 APP_NAME = "AuroraList"
 _SAVE_LOCK = threading.RLock()
 
@@ -388,10 +390,12 @@ DEFAULTS: dict = {
     "alibaba_category_name": "其他混凝土机械 / Other Concrete Machinery",
     "alibaba_full_cid": "201943703,1326,100010658,127726092",
     "alibaba_keywords": "",
-    "alibaba_company_name": "",
-    "alibaba_company_desc": "We are a professional machinery manufacturer with 15 years of experience. Our factory supports OEM/ODM orders and provides installation and after-sales service.",
-    "alibaba_company_faq": "Q: What is the MOQ? A: One set. Q: How long is the delivery time? A: 15-30 days.",
-    "alibaba_company_website": "",
+    "alibaba_company_name": COMPANY_PROFILE["company_name"],
+    "alibaba_company_desc": company_desc(),
+    "alibaba_company_faq": company_faq(),
+    "alibaba_company_website": COMPANY_PROFILE["website"],
+    "alibaba_collect_company_desc": company_desc(),
+    "alibaba_collect_company_faq": company_faq(),
     "alibaba_min_order_quantity": 1,
     "alibaba_unit_type": "Piece",
     "alibaba_price_tiers": "",

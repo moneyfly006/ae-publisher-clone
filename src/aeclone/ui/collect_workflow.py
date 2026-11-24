@@ -260,13 +260,33 @@ def functional_settings(app, platform, page, *, run_link=True):
             controls.append(visual_editor(app, platform, "price_tiers", "阶梯报价", []))
             controls.append(visual_editor(app, platform, "wholesale_trade", "包装、库存与交期", {}))
         if platform == "alibaba" and section == "company":
+            from ..alibaba_company import FACTS, apply_profile
             controls += [ui.muted("公司介绍及 FAQ 沿用商品真实资料。此处填写后应用于本次批量；不会自动添加年限、认证或工厂声明。")]
-            for suffix, label in (("company_desc", "公司介绍"), ("company_faq", "公司 FAQ")):
+            _company_fields = {}
+            for suffix, label in (("company_desc", "公司介绍（英文）"), ("company_faq", "公司 FAQ（英文）")):
                 key = platform + "_collect_" + suffix
-                field = ft.TextField(label=label, multiline=True, min_lines=3, color=ui.TEXT,
+                field = ft.TextField(label=label, multiline=True, min_lines=4, color=ui.TEXT,
                     bgcolor=ui.CARD_2, value=str(getattr(app.cfg, key, "") or ""))
                 field.on_change = lambda e, k=key: write(app, k, str(e.control.value or ""))
+                _company_fields[suffix] = field
                 controls.append(field)
+
+            def _use_company(e=None):
+                values = apply_profile(app.cfg, save_config)
+                for suffix, source in (("company_desc", "alibaba_company_desc"),
+                                       ("company_faq", "alibaba_company_faq")):
+                    # 批量预设键也同步，批量任务才能真正带上公司资料。
+                    app.cfg.set("alibaba_collect_" + suffix, values[source])
+                    _company_fields[suffix].value = values[source]
+                save_config(app.cfg)
+                app.toast("已填入参考店铺公司资料", True)
+                app._log("Alibaba 公司资料预设已填入（来源：参考店铺公开资料）", "INFO")
+                app._safe_update()
+
+            controls += [ft.Row([ft.ElevatedButton("填入参考店铺资料", icon=ft.Icons.BUSINESS,
+                                                   bgcolor=ui.ACCENT_2, color=ui.ON_ACCENT,
+                                                   on_click=_use_company)], spacing=8, wrap=True),
+                         ui.muted("已核实事实：" + FACTS, 11)]
     elif section == "text":
         enabled = ft.Switch(label="启用自动AI文案（付费）", active_color=ui.ACCENT,
             value=bool(getattr(app.cfg, platform + "_collect_ai", False)))
@@ -721,9 +741,11 @@ def run_page(app, platform):
         site = str(getattr(app.cfg, "amazon_site_code", "") or getattr(app.cfg, "amazon_site", "") or "未选站点")
         shop_info = [ft.Row([ui.muted("当前店铺：" + shop + (" · " + site if amazon else "")),
             ft.TextButton("连接与店铺", on_click=lambda e: app._switch(CONNECTION_PAGE[platform]))], wrap=True)]
+    readiness = [alibaba_readiness(app)] if alibaba else []
     return [ui.page_header("运行与结果" if simple else "自动处理与发布",
                            "设置范围和保存去向，然后运行。可先检查本次范围。" if simple else
                            "自动读取采集箱 → 按各功能页设置处理 → 校验保存 → 回读结果。无需手动选商品。"),
+        *readiness,
         ui.card(ft.Column([ui.h1("处理范围", ui.FS_MD), *shop_info,
             ft.Row([keyword, limit,
                     ft.OutlinedButton("选择商品", icon=ft.Icons.CHECKLIST, on_click=open_picker),
@@ -774,6 +796,38 @@ def overview(app, platform):
                 ft.TextButton("连接与店铺", on_click=lambda e: app._switch(CONNECTION_PAGE[platform]))], wrap=True, spacing=12),
         ], spacing=16)), ui.card(ft.Column([ui.h1("按功能设置", ui.FS_MD),
             ft.Row([ft.OutlinedButton(p.label, on_click=lambda e, n=p.index: app._switch(n)) for p in shortcuts], wrap=True, spacing=12)], spacing=12))]
+
+
+def alibaba_readiness(app):
+    """发品前准备清单：在“运行与结果”页直接显示还缺什么、点一下去哪里补。"""
+    from . import app as ui
+    cfg = app.cfg
+    kw = [x.strip() for x in str(getattr(cfg, "alibaba_keywords", "") or "").split(",") if x.strip()]
+    try:
+        presets = json.loads(str(getattr(cfg, "alibaba_attr_presets", "") or "{}"))
+    except (ValueError, TypeError):
+        presets = {}
+    rows = [
+        ("店铺已连接", bool(str(getattr(cfg, "alibaba_shop_id", "") or "").strip()), CONNECTION_PAGE["alibaba"]),
+        ("类目已选择", bool(str(getattr(cfg, "alibaba_category_id", "") or "").strip()), ALIBABA_RULES_PAGE),
+        ("属性预设已填写", bool(presets), ALIBABA_RULES_PAGE),
+        ("关键词≥3个", len(kw) >= 3, ALIBABA_RULES_PAGE),
+        ("公司介绍/FAQ已填写", bool(str(getattr(cfg, "alibaba_company_desc", "") or "").strip())
+         and bool(str(getattr(cfg, "alibaba_company_faq", "") or "").strip()), ALIBABA_RULES_PAGE),
+        ("运费模板已选择", bool(str(getattr(cfg, "alibaba_freight_template_id", "") or "").strip()), ALIBABA_RULES_PAGE),
+    ]
+    done = sum(1 for _label, ok, _page in rows if ok)
+    controls = [ft.Row([ui.h1("发品准备清单", ui.FS_MD),
+                        ui.muted(f"{done}/{len(rows)} 项完成 · 发布前会再执行评分（≥4.5）")], wrap=True, spacing=10),
+                ui.muted("先补齐资料，再点“开始自动处理”；每件商品的最终阻断项会写进日志。")]
+    for label, ok, page in rows:
+        controls.append(ft.Row([ft.Text("✅" if ok else "⚠️", size=15, width=24),
+                                ft.Text(label, size=12.5, color=(ui.SUCCESS_C if ok else ui.WARN_C), width=180),
+                                ft.Text("已完成" if ok else "待处理", size=11.5, color=ui.MUTED, width=60),
+                                ft.TextButton("去设置", icon=ft.Icons.CHEVRON_RIGHT,
+                                              on_click=lambda e, p=page: app._switch(p))],
+                               spacing=6, wrap=True))
+    return ui.card(ft.Column(controls, spacing=4))
 
 
 def launch(app, platform, *, dry_run=False, failures=False, resume_id=None):

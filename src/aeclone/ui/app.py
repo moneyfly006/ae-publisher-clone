@@ -11552,6 +11552,24 @@ class App:
             _show_dlg(dlg)
 
         _refresh_preset_summary()
+        from ..alibaba_company import FACTS as _COMPANY_FACTS
+        company_name_tf = tf("alibaba_company_name", "公司名称（本地）", 280)
+        company_site_tf = tf("alibaba_company_website", "公司网站（本地）", 280)
+        company_desc_tf = tf("alibaba_company_desc", "公司介绍（英文，会提交 companyDesc）", 720, True)
+        company_faq_tf = tf("alibaba_company_faq", "公司 FAQ（英文，会提交 companyFaqDesc）", 720, True)
+        company_status = muted("以下为参考店铺已核实资料，可一键填入后继续修改；不会覆盖你已保存的其他商品设置。", 11)
+
+        def use_company_profile(e=None):
+            from ..alibaba_company import apply_profile
+            values = apply_profile(self.cfg, save_config)
+            company_name_tf.value = values["alibaba_company_name"]
+            company_site_tf.value = values["alibaba_company_website"]
+            company_desc_tf.value = values["alibaba_company_desc"]
+            company_faq_tf.value = values["alibaba_company_faq"]
+            company_status.value = "已填入店铺资料；请按实际报价/交期复核后再发布。"
+            self.toast("已填入公司资料预设", True)
+            self._log("Alibaba 公司资料预设已填入（来源：参考店铺公开资料）", "INFO")
+            self._safe_update()
 
         preset_card = card(ft.Column([
             h1("预设资料（必填自动填写）", FS_MD),
@@ -11559,10 +11577,14 @@ class App:
                   "公司名称、网站、贸易条款等仅本地保存。"),
             ft.Row([tf("alibaba_group_id", "产品分组 ID", 200), tf("alibaba_group_name", "分组名称（本地）", 220),
                     tf("alibaba_keywords", "默认关键词（Alibaba 必填 3 个，逗号分隔，最多 5 个）", 420)], spacing=10, wrap=True),
-            ft.Row([tf("alibaba_company_name", "公司名称（本地）", 260),
-                    tf("alibaba_company_website", "公司网站（本地）", 260)], spacing=10, wrap=True),
-            tf("alibaba_company_desc", "公司介绍（英文，会提交 companyDesc）", 720, True),
-            tf("alibaba_company_faq", "公司 FAQ（英文，会提交 companyFaqDesc）", 720, True),
+            ft.Row([company_name_tf, company_site_tf], spacing=10, wrap=True),
+            company_desc_tf,
+            company_faq_tf,
+            ft.Row([ft.ElevatedButton("填入参考店铺资料", icon=ft.Icons.BUSINESS,
+                                      bgcolor=ACCENT_2, color=ON_ACCENT, on_click=use_company_profile)],
+                   spacing=8, wrap=True),
+            company_status,
+            muted("已核实事实：" + _COMPANY_FACTS, 11),
         ], spacing=8))
 
         cat_card.content.controls.extend([
@@ -11914,11 +11936,55 @@ class App:
         except Exception:
             pass
 
+        def readiness_card():
+            try:
+                _presets = _json.loads(str(getattr(self.cfg, "alibaba_attr_presets", "") or "{}"))
+            except Exception:
+                _presets = {}
+            _, _state = state_for(self)
+            _prod = _state.get("product") or {}
+            _kw = [x.strip() for x in str(getattr(self.cfg, "alibaba_keywords", "") or "").split(",") if x.strip()]
+            _checks = [
+                ("店铺已连接", bool(str(getattr(self.cfg, "alibaba_shop_id", "") or "").strip()), 1,
+                 "连接店铺"),
+                ("已选择商品", bool(str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()), 29,
+                 "选择商品"),
+                ("类目已选择", bool(str(getattr(self.cfg, "alibaba_category_id", "") or "").strip()), 30,
+                 "选择类目"),
+                ("属性预设已填写", bool(_presets), 30, "编辑属性"),
+                ("标题/详情已就绪", bool(str(_prod.get("subject") or "").strip())
+                 and bool(str(_prod.get("textDesc") or "").strip()), 3, "编辑文案"),
+                ("关键词≥3个", len(_kw) >= 3, 31, "设置关键词"),
+                ("公司介绍/FAQ已填写", bool(str(getattr(self.cfg, "alibaba_company_desc", "") or "").strip())
+                 and bool(str(getattr(self.cfg, "alibaba_company_faq", "") or "").strip()), 31, "公司资料"),
+                ("运费模板已选择", bool(str(getattr(self.cfg, "alibaba_freight_template_id", "") or "").strip()), 32,
+                 "设置运费"),
+            ]
+            _done = sum(1 for _c in _checks if _c[1])
+            _rows = []
+            for _label, _ok, _page, _action in _checks:
+                _rows.append(ft.Row([
+                    ft.Text("✅" if _ok else "⚠️", size=15, width=24),
+                    ft.Text(_label, size=12.5, color=(SUCCESS_C if _ok else WARN_C), width=190),
+                    ft.Text("已完成" if _ok else "待处理", size=11.5, color=MUTED, width=60),
+                    ft.TextButton(_action, icon=ft.Icons.CHEVRON_RIGHT,
+                                  on_click=lambda e, _p=_page: self._switch(_p)),
+                ], spacing=6, wrap=True))
+            return card(ft.Column([
+                ft.Row([h1("发品准备清单", 14),
+                        ft.Container(content=muted(f"{_done}/{len(_checks)} 项完成 · 发布前还会执行评分（≥4.5）", 11),
+                                     expand=True),
+                        ft.TextButton("刷新", icon=ft.Icons.REFRESH,
+                                      on_click=lambda e: self._switch(33))], spacing=10, wrap=True),
+                muted("按顺序完成：商品 → 类目/属性 → 文案 → 公司资料 → 价格/运费 → 保存/发布。", 11),
+                *_rows,
+            ], spacing=4))
+
         if section is not None:
             sections = ([prod_card], [cat_card, panel(self, "attributes")], [panel(self, "profile"), preset_card],
                         [panel(self, "trade"), ft.ExpansionTile(title=ft.Text("批量默认资料", color=TEXT),
                              controls=[trade_card], initially_expanded=False)],
-                        [rules_card, score_card, check_card, batch_card])
+                        [readiness_card(), rules_card, score_card, check_card, batch_card])
             if getattr(self, "_collect_editor_only", False):
                 # Old platform-wide company/trade defaults do not drive the
                 # collection service. Keep only actual item edits here.

@@ -165,7 +165,7 @@
  "dropship_discount": "5",
  "edit_enable": false,
  "edit_prompt": "清理并本地化这张商品图：去掉水印、Logo、二维码和促销贴纸；保持商品本体颜色、形状、材质不变；输出干净可直接上架的电商图，画面里不要出现任何文字。",
- "edit_sum": "2",
+ "edit_sum": "3",
  "editor_main_images_max": 6,
  "enable_ai_detail": false,
  "enable_ai_sku": false,
