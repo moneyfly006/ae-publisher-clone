@@ -41,6 +41,19 @@ def main():
  payload=build_save_payload(_prod,_prod,action="save_only",overrides=ov,cfg=cfg)
  chk("手机详情同步本地图", "https://local/x.jpg" in str(payload.get("mobileDetail")), str(payload.get("mobileDetail"))[:200])
  chk("手机详情保留原描述", "Original collected text" in str(payload.get("mobileDetail")), str(payload.get("mobileDetail"))[:200])
+
+ # AI 描述 + 本地图片前置
+ from aeclone.services.detail_content import compose_detail
+ composed=compose_detail({"detail_html":"<p>AI generated description</p>",
+                          "detail_local_images_html":'<p><img src="https://local/ai-prefix.jpg" /></p>'},
+                         SimpleNamespace(custom_detail_text_enable=True,delete_detail_text=False,
+                                         detail_text_info="",detail_text_info_tail="",
+                                         detail_text_position="head",detail_local_image_position="head",
+                                         copy_sku_to_detail=False,move_detail_text=False))
+ chk("AI描述前成功插入本地图", composed.startswith('<p><img src="https://local/ai-prefix.jpg"') and "AI generated description" in composed, composed[:120])
+ ai_ov=build_ai_overrides({"detail":"<p>old</p>"},{"detail_html":composed},cfg)
+ chk("AI描述+本地图写入detail", "AI generated description" in ai_ov.get("detail","") and "https://local/ai-prefix.jpg" in ai_ov.get("detail",""), ai_ov.get("detail","")[:160])
+ chk("AI描述+本地图同步mobileDetail", "AI generated description" in str(ai_ov.get("mobileDetail")) and "https://local/ai-prefix.jpg" in str(ai_ov.get("mobileDetail")), str(ai_ov.get("mobileDetail"))[:160])
  print("="*60)
  if FAILED: print(f"FAILED: {len(FAILED)}"); return 1
  print("PASS: 全部通过"); return 0

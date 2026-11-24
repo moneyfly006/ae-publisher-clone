@@ -7,7 +7,10 @@ def compose_detail(product: dict, cfg) -> str:
     original = str(product.get("detail") or (product.get("raw") or {}).get("detail") or "")
     content = generated or original
     images = [str(url) for url in product.get("detail_images") or [] if str(url).startswith(("https://", "http://"))]
-    if getattr(cfg, "delete_detail_text", False) and not generated:
+    # 只有「添加自定义详情」开启时才允许删除原详情文字；否则用户只选了
+    # “删除原文字”但没有 AI/自定义替代内容，会把整段采集描述清空。
+    if (getattr(cfg, "delete_detail_text", False) and not generated
+            and getattr(cfg, "custom_detail_text_enable", False)):
         content = "".join(re.findall(r'<img\b[^>]*>', content, re.I))
     if images:
         remaining = iter(images)

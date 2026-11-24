@@ -86,6 +86,53 @@ def check(cfg) -> list[Conflict]:
             "没有前缀可用", "同时打开「自定义 SKU 前缀」并填好前缀",
             ("only_sku_prefix_checkbox", "custom_sku_prefix_enable"))
 
+    # ---------- 标题前后缀：没有 AI 标题时不会生效 ----------
+    if (_s(cfg, "title_prefix") or _s(cfg, "title_suffix")) and not _b(cfg, "enable_ai_title"):
+        add("warn", "标题前后缀已填写，但 AI 标题未开启",
+            "当前标题前后缀只在 AI 标题生成时拼接，关闭 AI 标题后不会生效",
+            "开启「AI 标题」，或把标题前后缀留空",
+            ("title_prefix", "title_suffix", "enable_ai_title"))
+
+    # ---------- 详情本地图/文字：总开关或写回开关关闭时不会生效 ----------
+    _has_detail_extra = bool(_s(cfg, "detail_text_info") or _s(cfg, "detail_text_info_tail"))
+    try:
+        import json as _jd
+        _detail_imgs = _jd.loads(_s(cfg, "detail_local_images", "[]") or "[]")
+    except Exception:
+        _detail_imgs = []
+    if (_has_detail_extra or _detail_imgs) and not _b(cfg, "custom_detail_text_enable"):
+        add("warn", "详情文字/本地图片已填写，但详情内容增强总开关关闭",
+            "总开关关闭时这些内容不会插入商品详情",
+            "开启「详情内容增强」，或清空详情文字/本地图片",
+            ("custom_detail_text_enable", "detail_text_info", "detail_local_images"))
+    if (_has_detail_extra or _detail_imgs or _b(cfg, "custom_detail_text_enable")) \
+            and not _b(cfg, "write_detail_html_to_product"):
+        add("warn", "详情内容增强已配置，但详情写回商品关闭",
+            "write_detail_html_to_product 关闭时，详情文字和本地图不会写入商品",
+            "开启「详情写回商品」，或关闭详情内容增强",
+            ("write_detail_html_to_product", "custom_detail_text_enable"))
+    if _b(cfg, "delete_detail_text") and not _b(cfg, "enable_ai_detail") \
+            and not _b(cfg, "custom_detail_text_enable"):
+        add("warn", "删除原详情文字已开启，但没有 AI 详情或自定义详情替代",
+            "这会删除原采集描述且不生成替换正文，商品详情可能为空",
+            "关闭「删除详情原有文本」，或开启 AI 详情/自定义详情",
+            ("delete_detail_text", "enable_ai_detail", "custom_detail_text_enable"))
+
+    # ---------- SKU 前缀：不写回商品时不会生效 ----------
+    if (_s(cfg, "custom_sku_prefix") or _b(cfg, "only_sku_prefix_checkbox") or _b(cfg, "auto_generate_sku_code")) \
+            and not _b(cfg, "write_sku_codes_to_product"):
+        add("warn", "SKU 编码规则已配置，但 SKU 编码写回商品关闭",
+            "前缀/自动编码/只用前缀都不会写回商品，实际保留原 SKU 编码",
+            "开启「SKU 编码写回商品」，或清空 SKU 编码规则",
+            ("write_sku_codes_to_product", "custom_sku_prefix", "only_sku_prefix_checkbox"))
+
+    if (_b(cfg, "only_sku_prefix_checkbox") and _b(cfg, "custom_sku_prefix_enable")
+            and not _s(cfg, "custom_sku_prefix") and _b(cfg, "auto_generate_sku_code")):
+        add("warn", "已开「只用前缀」但前缀为空",
+            "当前会退化为生成 SKU-001，而不是只保留前缀",
+            "填写 SKU 前缀，或关闭「只用前缀」",
+            ("only_sku_prefix_checkbox", "custom_sku_prefix"))
+
     # ---------- 视频来源互斥 ----------
     if (_s(cfg, "video_source") not in ("collected", "template", "generated", "none")
             and _b(cfg, "use_template_video") and _b(cfg, "generate_main_video")):
