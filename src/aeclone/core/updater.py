@@ -17,13 +17,20 @@ GITHUB_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 
 
 def _parse(v: str) -> tuple:
+    """解析版本，支持 1.0.7、1.0.7.1、1.0.7.1-beta 等多段版本。
+
+    旧实现只取前三段，导致 1.0.7.1 被当成 1.0.7，客户端永远看不到
+    四段版本的更新。这里保留全部数字段；空段/非数字段按 0 处理。
+    """
     parts = []
-    for p in (v or "").replace("v", "").split("."):
+    for p in (v or "").replace("v", "").replace("V", "").split("."):
         try:
-            parts.append(int(p))
-        except ValueError:
+            parts.append(int(str(p).split("-")[0].split("+")[0]))
+        except (ValueError, TypeError):
             parts.append(0)
-    return tuple(parts[:3])
+    while len(parts) > 1 and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts) if parts else (0,)
 
 
 def _machine_arch() -> str:
