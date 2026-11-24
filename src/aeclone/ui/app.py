@@ -760,8 +760,11 @@ class App:
             from .collect_workflow import RUN_PAGE
             initial_page = RUN_PAGE[self.active_platform.id]
         self._switch(initial_page)
+        self._startup_update_started = False
+        self._startup_login_open = False
+        _needs_login = False
         try:
-            self._maybe_license_login()
+            _needs_login = bool(self._maybe_license_login())
         except Exception:
             pass
         self._log("运行实例：" + ("日常运行（写入保护已启用）" if self._preview_mode else "日常运行")
@@ -771,11 +774,12 @@ class App:
             self._refresh_store_counts()
         except Exception:
             pass
-        # 启动强制版本检查：有新版必须更新后才能继续使用
-        try:
-            self._startup_update_gate()
-        except Exception:
-            pass
+        # 版本检查必须等登录窗口关闭/自动登录成功后再弹，否则两个 modal 互相阻塞。
+        if not _needs_login:
+            try:
+                self._finish_startup_login()
+            except Exception:
+                pass
         # 设置里用到 ffmpeg 却没装：启动即提示下载
         try:
             self._startup_ffmpeg_gate()
@@ -18863,11 +18867,26 @@ class App:
         )
         self._show_dlg(dlg)
 
+    def _finish_startup_login(self) -> None:
+        """登录流程结束（成功/关闭/无需登录）后才允许启动更新检查。"""
+        if getattr(self, "_startup_login_open", False):
+            return
+        if getattr(self, "_startup_update_started", False):
+            return
+        self._startup_update_started = True
+        try:
+            self._startup_update_gate()
+        except Exception:
+            pass
+
     def _startup_update_gate(self):
         """启动时检查版本：有更新则阻断使用，后台自动下载并给出安装按钮。"""
         import os as _os
         if str(_os.environ.get("AURORA_SKIP_UPDATE", "") or "") == "1":
             return
+        if getattr(self, "_startup_update_started", False) and getattr(self, "_startup_update_gate_done", False):
+            return
+        self._startup_update_started = True
 
         def go():
             from ..core import updater as _up
@@ -19359,6 +19378,11 @@ class App:
                     except Exception:
                         pass
                 self._dlg = None
+                self._startup_login_open = False
+                try:
+                    self._finish_startup_login()
+                except Exception:
+                    pass
 
             def submit(e=None):
                 email_v = str(email.value or "").strip()
@@ -19420,6 +19444,7 @@ class App:
                 dlg.actions = [ft.ElevatedButton("登录并激活", bgcolor=ACCENT, color=ON_ACCENT, on_click=submit),
                                ft.TextButton("去购买 / 续费", on_click=go_buy),
                                ft.TextButton("稍后", on_click=lambda e: close())]
+            self._startup_login_open = True
             try:
                 self.page.show_dialog(dlg)
             except Exception:
@@ -19439,21 +19464,23 @@ class App:
         """启动授权/迁移入口：旧客户先全平台使用；绑定后下次必须登录。"""
         try:
             if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
-                return
+                return False
             if bool(getattr(self.cfg, "license_account_bound", False)):
                 self._account_login_dialog(required=True, migration=False,
                                            auto_password=self._saved_account_password())
-                return
+                return True
             if self.entitlements.platforms_list():
                 self._schedule_migration_prompt()
-                return
+                return False
             # 没有平台授权也不是旧授权：保留原来的可选登录窗口。
             self._account_login_dialog(required=False, migration=False)
+            return True
         except Exception as ex:
             try:
                 self._log(f"授权登录入口异常：{ex}", "WARN")
             except Exception:
                 pass
+            return False
 
     def _heartbeat_payload(self):
         """(server, machine, payload)：平台状态 + 最近刊登产品。"""
