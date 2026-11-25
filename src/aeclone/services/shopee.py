@@ -227,6 +227,22 @@ class SaveResult:
     state: str = ""
 
 
+
+
+def _attribute_rows(value) -> list[dict]:
+    """Shopee 属性候选统一成 list[dict]；字符串 JSON/异常值安全降级。"""
+    if isinstance(value, dict):
+        for key in ("attributeValueList", "valueList", "values", "list"):
+            if isinstance(value.get(key), list):
+                value = value[key]
+                break
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            return []
+    return [x for x in value if isinstance(x, dict)] if isinstance(value, list) else []
+
 def autofill_required_attributes(product, payload, definitions, cfg=None):
     """发布前按类目必填属性补空值：原商品值 → 候选枚举 → 基础文本。"""
     current = json_value(payload.get("attributes"), [])
@@ -252,8 +268,9 @@ def autofill_required_attributes(product, payload, definitions, cfg=None):
         if values:
             entry = {"attribute_id": key, "attribute_value_list": list(values)}
         else:
-            choices = rows(definition.get("attributeValueList") or definition.get("valueList")
-                           or definition.get("values") or [])
+            choices = _attribute_rows(definition.get("attributeValueList")
+                                      or definition.get("valueList")
+                                      or definition.get("values") or [])
             if choices:
                 selected = choices[0]
                 entry = {"attribute_id": key, "attribute_value_list": [{

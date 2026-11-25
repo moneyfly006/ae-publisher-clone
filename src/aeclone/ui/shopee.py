@@ -485,20 +485,24 @@ def build(app, section):
                 return
             snapshot = overrides()
             def action():
+                # 只有「提交发布(op=2)」算刊登；保存草稿/移入待发布不计数
+                is_publish = bool(app._publish_op_counts("shopee", op))
                 try:
                     result = service.save(pid, app.cfg, snapshot, op=op)
                 except Exception:
                     # 真实提交抛错也算一次失败（用户取消不会走到这里）
-                    try:
-                        app._count_publish("shopee", False)
-                    except Exception:
-                        pass
+                    if is_publish:
+                        try:
+                            app._record_publish_result("shopee", str(pid), False)
+                        except Exception:
+                            pass
                     raise
                 state["issues"], state["result"] = result.issues, result.message
-                try:
-                    app._count_publish("shopee", bool(result.ok))
-                except Exception:
-                    pass
+                if is_publish:
+                    try:
+                        app._record_publish_result("shopee", str(pid), bool(result.ok))
+                    except Exception:
+                        pass
                 if not result.ok:
                     raise ValueError(result.message)
                 return result.message
