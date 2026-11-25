@@ -27,6 +27,11 @@ DEFAULTS: dict = {
     "license_account_save_password": False,                # 记住密码
     "license_account_password": "",                        # 加密后的密码，不是明文（account_store）
     "license_auto_login": True,                            # 本地 token 有效时启动静默登录
+    # ---- 每平台今日刊登成功/失败计数（按天持久化，心跳上报；服务端同日取 MAX）----
+    "publish_counts_day": "",                              # 计数所属日期 YYYY-MM-DD
+    "publish_counts": "{}",                                # JSON: {pid:{"success":n,"fail":m}}
+    "publish_seen": "{}",                                  # JSON: {pid:{product_id:"success"|"fail"}}
+    "publish_total": "{}",                                 # JSON: {"success":n,"fail":m}（累计，跨天不清）
     "heartbeat_interval": 120,                               # 开发/过渡：手动覆盖（alibaba:listing+ai_text）
     "active_platform": "alibaba",
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
@@ -120,7 +125,8 @@ DEFAULTS: dict = {
     "template_library": "{}",
     "auto_detect_category": True,                        # 自动识别类目：优先用商品自带 categoryId
     "apply_template_on_save": True,
-    "smt_attr_autofill": True,                           # 保存/发布前补齐速卖通类目必填属性（只补缺失，不覆盖已有）
+    "smt_attr_autofill": True,
+    "smt_attr_ai_autofill": True,                    # 本地补不出的速卖通必填属性，AI 按类目枚举补一次                           # 保存/发布前补齐速卖通类目必填属性（只补缺失，不覆盖已有）
     # AI 主图生成 / 指定图片编辑
     "main_image_generate_enable": False,
     "main_image_generate_prompt": "电商主图：{title}，让 {subject} 居中并占画面约 80%，纯白背景（#FFFFFF），柔和棚拍光，阴影自然，细节清晰，颜色准确，1:1 正方形，画册级质感。不要文字、不要水印、不要 Logo、不要多余道具、不要人物、不要边框。",

@@ -2,7 +2,7 @@
 ; 构建：先 pyinstaller --noconfirm --clean app.spec，再 ISCC.exe installer.iss
 
 #define MyAppName "AuroraList"
-#define MyAppVersion "1.0.12"
+#define MyAppVersion "1.0.13"
 #define MyAppPublisher "AuroraList"
 #define MyAppExeName "AuroraList.exe"
 

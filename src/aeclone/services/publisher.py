@@ -2938,6 +2938,7 @@ class Publisher:
         - 类目属性定义来自店小秘只读接口 ``category_attributes``；
         - 只返回 ``aeopAeProductPropertys`` 覆盖项，失败不阻断保存（add_step 记录原因）。
         """
+        self._smt_attr_missing = []
         if not bool(getattr(self.cfg, "smt_attr_autofill", True)):
             return {}
         if self.dxm is None or not isinstance(target, dict):
@@ -3026,6 +3027,44 @@ class Publisher:
             after = rep.get("after") or {}
             missing = [m for m in (rep.get("missing") or [])
                        if str((m or {}).get("name_id") or "") not in _fixed_missing]
+            # AI 兜底：只对“本地补不出的必填属性”调用一次，按类目枚举校验后写入。
+            if missing and bool(getattr(self.cfg, "smt_attr_ai_autofill", True)) \
+                    and str(getattr(self.cfg, "api_key", "") or "").strip():
+                try:
+                    from . import model_of as _model_of
+                    from ..api import ApiClient as _ApiClient
+                    from .smt_attributes import (ai_suggest_missing as _ai_suggest,
+                        parse_category_attributes as _parse_cats)
+                    _api = _ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
+                    _model = _model_of(self.cfg, "text")
+                    def _chat(messages, max_tokens=400):
+                        return _api.chat(_model, messages, max_tokens=max_tokens)
+                    _cats = _parse_cats(attrs)
+                    _sugg = _ai_suggest(missing, _cats, _chat,
+                                        title=str(target.get("subject") or ""),
+                                        detail=str(target.get("detail") or ""))
+                    _ai_fixed = 0
+                    for _nid, _v in (_sugg or {}).items():
+                        _nm = str(_v.get("name") or _nid)
+                        _vid = str(_v.get("value_id") or "")
+                        _text = str(_v.get("value") or "")
+                        _prop = ({"attrNameId": _nid, "attrValueId": _vid, "attrName": _nm}
+                                 if _vid else {"attrName": _nm, "attrValue": _text})
+                        _props = [x for x in _props if not (
+                            isinstance(x, dict) and
+                            (str(x.get("attrNameId") or "") == _nid or
+                             str(x.get("attrName") or "").strip().lower() == _nm.strip().lower()))]
+                        _props.append(_prop)
+                        _fixed_missing.add(_nid)
+                        _ai_fixed += 1
+                    if _ai_fixed:
+                        new_json = _j.dumps(_props, ensure_ascii=False)
+                        missing = [m for m in missing
+                                   if str((m or {}).get("name_id") or "") not in _fixed_missing]
+                        add_step(res, "属性AI补全", True, f"AI 按类目枚举补了 {_ai_fixed} 项必填属性")
+                except Exception as _ai_ex:  # noqa: BLE001
+                    add_step(res, "属性AI补全", False, f"AI 属性建议跳过：{str(_ai_ex)[:80]}")
+            self._smt_attr_missing = missing
             detail = (f"系统属性 {before.get('system_attributes', '?')}→"
                       f"{after.get('system_attributes', '?')}；"
                       f"自定义属性 {after.get('custom_attributes', '?')}")
@@ -3300,6 +3339,17 @@ class Publisher:
                     overrides.update(_attr_ov)
             except Exception as _attr_ex:  # noqa: BLE001
                 add_step(res, "属性补全", False, f"跳过（{str(_attr_ex)[:60]}）")
+            _missing_req = list(getattr(self, "_smt_attr_missing", None) or [])
+            if _missing_req and action == "publish":
+                _names = []
+                for _m in _missing_req[:8]:
+                    _n = str((_m or {}).get("name") or (_m or {}).get("name_en") or "").strip()
+                    if _n and _n not in _names:
+                        _names.append(_n)
+                _detail = "发布前预检：类目必填属性仍缺失：" + ("、".join(_names) or "未识别属性")
+                add_step(res, "属性预检", False, _detail)
+                return SaveResult(ok=False, published=False,
+                                  message=_detail + "；已停止发布，商品未提交平台")
 
             # 营销图是发布必填项：没有就本地裁切补上（免费，不做会报「请补充营销图」）
             try:
