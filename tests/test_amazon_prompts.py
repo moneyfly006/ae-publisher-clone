@@ -97,7 +97,7 @@ class PromptBuilderTests(unittest.TestCase):
     def test_cfg_prompt_override(self):
         cfg = {"amazon_title_prompt": "CUSTOM TITLE INSTRUCTION {title_limit}"}
         text = build_title_prompt(SAMPLE_PRODUCT, cfg, "ATVPDKIKX0DER")
-        self.assertIn("CUSTOM TITLE INSTRUCTION 200", text)
+        self.assertIn("CUSTOM TITLE INSTRUCTION 75", text)
         self.assertNotIn("资深 listing 运营专家", text)
 
     def test_empty_product_does_not_crash(self):

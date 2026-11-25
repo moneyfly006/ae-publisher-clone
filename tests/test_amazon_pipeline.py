@@ -34,7 +34,7 @@ def make_product(**over):
         "shopId": "9408005",
         "marketPlaceId": "A2EUQ1WTGCTBG2",
         "currency": "CAD",
-        "title": "5 Ton Diesel Wheeled Backhoe Loader Heavy Duty Construction Machine",
+        "title": "5 Ton Diesel Wheeled Backhoe Loader 4x4",
         "titleDifferentiation": None,
         "categoryId": "13553005011",
         "categoryBrowsePath": "6299024011/6256963011/6256964011/13553005011",
@@ -518,11 +518,9 @@ class RealSavePathTests(EnvIsolatedCase):
 
 
 def _hw_detail(**over):
-    return make_detail(title="5 Ton Diesel Wheeled Backhoe Loader 4x4 HW20-28 "
-                             "Heavy Duty Construction Machine",
+    return make_detail(title="5 Ton Diesel Backhoe Loader 4x4 HW20-28",
                        description="<p>Heavy duty backhoe loader, made in China.</p>",
                        **over)
-
 
 class AutofillAttributesTests(unittest.TestCase):
     """task-8：必填属性自动补齐（错误驱动 + 同类在线商品模板）。"""

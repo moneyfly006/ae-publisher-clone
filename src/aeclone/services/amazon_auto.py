@@ -13,7 +13,7 @@
 
 核心接口
 --------
-``auto_publish(product_id, cfg, overrides=None, *, op="2", max_rounds=3,
+``auto_publish(product_id, cfg, overrides=None, *, op="3", max_rounds=3,
 wait_seconds=90, auto_fix_attrs=True, auto_fix_title=True,
 auto_fix_description=True, auto_ai_fix=False, client=None) -> AutoPublishResult``
 
@@ -32,7 +32,7 @@ from .amazon_payload import (
     has_contact_number, remove_contact_numbers,
 )
 from .amazon_pipeline import (
-    OP_PUBLISH, OP_SAVE, _autofill_attributes_with_notes, prepare_save,
+    OP_MOVE_PENDING, OP_PUBLISH, OP_SAVE, _autofill_attributes_with_notes, prepare_save,
     required_attributes_from_schema, verify_publish,
 )
 from .amazon_prompts import (
@@ -697,7 +697,7 @@ def _round_record(round_no: int, op: str, state: str, status: str, err: str,
 
 
 def auto_publish(product_id: str, cfg, overrides: dict | None = None, *,
-                 op: str = OP_PUBLISH, max_rounds: int = 3,
+                 op: str = OP_SAVE, max_rounds: int = 3,
                  wait_seconds: int = 90, auto_fix_attrs: bool = True,
                  auto_fix_title: bool = True, auto_fix_description: bool = True,
                  auto_ai_fix: bool = False, client=None) -> AutoPublishResult:

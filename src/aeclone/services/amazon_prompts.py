@@ -51,7 +51,8 @@ SITE_META: dict[str, dict] = {
 }
 
 # schema 实测硬上限（getAttrJsUrl 下发的 CA/OUTDOOR_LIVING）
-TITLE_MAX = 200
+TITLE_MAX = 75
+HIGHLIGHT_MAX = 125
 BULLET_MAX_ITEMS = 10
 BULLET_MAX_CHARS = 700
 BULLET_SUGGEST_CHARS = 500
@@ -134,7 +135,20 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "4) 保留原文真实型号与规格（功率/容量/尺寸/材质/数量），不得编造原文没有的认证、参数、产地；\n"
         "5) 禁止 emoji、HTML、引号、全角符号、联系方式（邮箱/电话/网址/WhatsApp）、促销词"
         "（best/No.1/100%/free shipping/sale/guarantee 等）与竞品品牌；\n"
-        "6) 只输出一行标题，不要解释、不要编号、不要 Markdown、不要引号包裹。"
+        "6) 禁止出现 SKU、商品 ID、内部编码、纯编号/字母数字编号串；标题只描述产品本身；\n"
+        "7) 只输出一行标题，不要解释、不要编号、不要 Markdown、不要引号包裹。"
+    ),
+    "highlight": (
+        "你是 Amazon 商品亮点（titleDifferentiation）文案专家。请为 {country} 站点"
+        "（Amazon {code}）商品写商品亮点。\n"
+        "硬性要求：\n"
+        "1) 最多 {highlight_limit} 个字符（含空格），单行；\n"
+        "2) 使用{language}（站点语言），非中文站点禁止中文；\n"
+        "3) 用英文逗号分隔的短语，例如 `耐高温不锈钢, 适合2-4岁, 免工具安装`；\n"
+        "4) 不要写成完整句子；不要重复标题已有的核心词；重点补充材质、适用型号、独特功能、使用场景；\n"
+        "5) 禁止主观评价（Best Seller/No.1/100% 等）、促销语（Free shipping/Sale 等）、"
+        "特殊符号、emoji、HTML、联系方式；不得编造原文没有的参数；\n"
+        "6) 只输出一行亮点本身，不要解释、不要引号、不要编号。"
     ),
     "bullets": (
         "你是 Amazon listing 卖点文案专家。请为 {country} 站点（Amazon {code}）商品写五点描述。\n"
@@ -199,6 +213,7 @@ DEFAULT_PROMPTS: dict[str, str] = {
 # 配置键 → DEFAULT_PROMPTS 键（``amazon_attribute_prompt`` 可选，UI 未强制暴露）
 _PROMPT_CFG_KEYS = {
     "title": "amazon_title_prompt",
+    "highlight": "amazon_highlight_prompt",
     "bullets": "amazon_bullet_prompt",
     "description": "amazon_description_prompt",
     "search_terms": "amazon_search_terms_prompt",
@@ -272,6 +287,7 @@ def _common_mapping(marketplace_id: str, count: int = BULLET_DEFAULT_COUNT) -> d
         "language": meta.get("lang_name") or "英语",
         "lang": meta.get("lang") or "en",
         "title_limit": TITLE_MAX,
+        "highlight_limit": HIGHLIGHT_MAX,
         "bullet_limit": BULLET_MAX_CHARS,
         "bullet_suggest": BULLET_SUGGEST_CHARS,
         "count": int(count or BULLET_DEFAULT_COUNT),
@@ -282,11 +298,35 @@ def _common_mapping(marketplace_id: str, count: int = BULLET_DEFAULT_COUNT) -> d
 
 def build_title_prompt(product, cfg, marketplace_id) -> str:
     mapping = _common_mapping(marketplace_id)
+    # 标题上下文不能带 SKU/商品 ID，否则模型会把内部编码写进标题。
+    context_lines = []
+    for line in _product_context(product).splitlines():
+        low = line.strip().lower()
+        if low.startswith(("- sku", "- 商品 id", "- 商品id", "- 品牌", "- 制造商")):
+            continue
+        context_lines.append(line)
     return "\n\n".join([
         _site_line(marketplace_id),
         _render(_prompt_cfg(cfg, "title"), mapping),
-        _product_context(product),
+        "\n".join(context_lines),
+        "标题绝对不能包含 SKU、商品 ID、内部编码或纯编号字符串；只写产品名称、型号/规格和用途。",
         "请直接输出最终标题（一行，不要引号、不要解释）。",
+    ])
+
+
+def build_highlight_prompt(product, cfg, marketplace_id) -> str:
+    mapping = _common_mapping(marketplace_id)
+    context_lines = []
+    for line in _product_context(product).splitlines():
+        low = line.strip().lower()
+        if low.startswith(("- sku", "- 商品 id", "- 商品id", "- 品牌", "- 制造商")):
+            continue
+        context_lines.append(line)
+    return "\n\n".join([
+        _site_line(marketplace_id),
+        _render(_prompt_cfg(cfg, "highlight"), mapping),
+        "\n".join(context_lines),
+        "请直接输出商品亮点（一行，英文逗号分隔短语，不要引号与解释）。",
     ])
 
 
@@ -697,16 +737,33 @@ def parse_sku(text: str) -> str:
     return clean_sku(text)
 
 
+_HIGHLIGHT_BAD_RE = re.compile(r"[!！?？#★●]|\b(?:best\s*seller|free\s*shipping|no\.?\s*1|100%|sale|discount|hot\s*sale)\b", re.I)
+
+
+def clean_highlight(text: str, limit: int = HIGHLIGHT_MAX) -> str:
+    """商品亮点清洗：单行、去 HTML/emoji/促销词，按字符截断。"""
+    s = str(text or "").strip()
+    s = _CODE_FENCE_RE.sub("", s)
+    s = re.sub(r"^\s*(?:highlight|亮点|商品亮点)\s*[:：]\s*", "", s, flags=re.I)
+    s = strip_html(s)
+    s = remove_emoji(s)
+    s = _HIGHLIGHT_BAD_RE.sub("", s)
+    s = s.replace("；", ",").replace(";", ",").replace("，", ",")
+    s = re.sub(r"\s+", " ", s).strip(" ,")
+    s = re.sub(r",\s*,+", ",", s)
+    return s[:max(1, int(limit))].strip(" ,")
+
+
 __all__ = [
     "SITE_META", "DEFAULT_PROMPTS", "PROMO_WHITELIST", "ATTRIBUTE_HINTS",
-    "TITLE_MAX", "BULLET_MAX_ITEMS", "BULLET_MAX_CHARS", "BULLET_SUGGEST_CHARS",
+    "TITLE_MAX", "HIGHLIGHT_MAX", "BULLET_MAX_ITEMS", "BULLET_MAX_CHARS", "BULLET_SUGGEST_CHARS",
     "BULLET_MIN_AI", "BULLET_DEFAULT_COUNT", "DESCRIPTION_MAX_BYTES",
     "SEARCH_TERMS_MAX_CHARS", "SEARCH_TERMS_MAX_BYTES", "SEARCH_TERMS_SUGGEST_BYTES",
     "language_for_site", "site_meta", "is_chinese_site", "attribute_hint",
-    "build_title_prompt", "build_bullets_prompt", "build_description_prompt",
+    "build_title_prompt", "build_highlight_prompt", "build_bullets_prompt", "build_description_prompt",
     "build_search_terms_prompt", "build_sku_prompt",
     "build_attributes_prompt", "parse_attribute_suggestion",
     "parse_bullets", "parse_search_terms", "parse_sku", "clean_sku",
-    "clean_title", "clean_bullet", "sanitize_description", "clean_for_site",
+    "clean_title", "clean_highlight", "clean_bullet", "sanitize_description", "clean_for_site",
     "remove_emoji", "has_chinese", "strip_html", "truncate_words", "truncate_bytes",
 ]

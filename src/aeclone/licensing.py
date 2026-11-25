@@ -18,6 +18,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import time
 from dataclasses import dataclass, field
 
@@ -35,7 +36,37 @@ PLATFORM_FEATURES = {
 ALL_FEATURES = sorted({f for v in PLATFORM_FEATURES.values() for f in v})
 
 # 离线宽限：token 超过这么多天没刷新就要求重新登录（契约 §10.3）
+# 旧客户端风险（1.0.10 / 1.0.6，无法靠新代码修复，只能提示升级）：
+#   - 没有心跳 license_rev，也没有解绑/禁用后自动重登；
+#   - 后台撤销/解绑/禁用后，旧客户端最多仍可离线使用 7 天（或到下次启动/刷新）；
+#   - 需要用户升级到 1.0.11+ 才能获得即时失效 + 自动重新登录绑定。
 OFFLINE_GRACE_DAYS = 7
+
+# 服务端明确失效（刷新时检测到）→ 本地 token 被清空，需要重新登录以重新绑定本机
+SOURCE_DEVICE_UNBOUND = "device-unbound"        # 后台解除本机设备绑定
+SOURCE_ACCOUNT_DISABLED = "account-disabled"    # 账号被禁用
+INVALID_SOURCE_REASONS = {
+    SOURCE_DEVICE_UNBOUND: "unbound",
+    SOURCE_ACCOUNT_DISABLED: "disabled",
+}
+
+# 各失效原因的登录页提示（客户端统一文案）
+INVALID_SOURCE_MESSAGES = {
+    "unbound": "本设备授权已失效（可能已在后台解绑），请重新登录以重新绑定本机",
+    "disabled": "账号已被禁用，请联系客服；如需恢复使用请重新登录",
+}
+
+
+def entitlements_invalid_reason(ent) -> str:
+    """返回 '' / 'unbound' / 'disabled'（供 UI 决定是否弹重新登录）。"""
+    try:
+        return INVALID_SOURCE_REASONS.get(str(getattr(ent, "source", "") or ""), "")
+    except Exception:
+        return ""
+
+
+def invalid_source_message(reason: str) -> str:
+    return INVALID_SOURCE_MESSAGES.get(str(reason or ""), "")
 
 
 def _canonical(payload: dict) -> bytes:
@@ -106,6 +137,7 @@ class Entitlements:
     expires_at: str = ""
     machine_code: str = ""
     # override / token / token-offline-expired / machine-mismatch / invalid / none
+    # device-unbound / account-disabled（刷新时服务端明确失效，本地 token 已清）
     source: str = "none"
     expired: bool = False
     platform_expiries: dict[str, str] = field(default_factory=dict)
@@ -130,10 +162,25 @@ class Entitlements:
         return not self.platforms_list()
 
 
+# 隐藏覆盖 `license_platforms` 只有在显式开发/测试环境下才生效，
+# 普通用户即使配置文件里被写入该键也不会绕过服务端授权。
+LICENSE_OVERRIDE_ENVS = ("AURORA_LICENSE_OVERRIDE", "AURORA_TEST", "AURORA_NO_SAVE")
+
+
+def override_enabled() -> bool:
+    """隐藏平台覆盖是否允许生效（仅显式开发/测试环境）。"""
+    return any(str(os.environ.get(key, "") or "").strip() == "1"
+               for key in LICENSE_OVERRIDE_ENVS)
+
+
 def _override_entitlements(cfg) -> Entitlements | None:
-    """测试/调试用平台覆盖（`license_platforms`，隐藏能力，正常登录不使用）。"""
+    """测试/调试用平台覆盖（`license_platforms`，隐藏能力，正常登录不使用）。
+
+    仅当 `AURORA_LICENSE_OVERRIDE=1`（或 AURORA_TEST/AURORA_NO_SAVE=1）时生效；
+    生产环境下即使 config.json 里有 `license_platforms` 也直接忽略。
+    """
     override = str(getattr(cfg, "license_platforms", "") or "").strip()
-    if not override:
+    if not override or not override_enabled():
         return None
     plats: dict[str, list[str]] = {}
     for part in override.split(","):

@@ -29,7 +29,7 @@ FIELDS = {
         "stock": [],
     },
     "amazon": {
-        "category": [("category_id", "统一类目 ID（可选）"), ("category_path", "类目路径（可选）")],
+        "category": [],
         "price": [("standard_price", "统一售价（可选）"), ("fulfillment", "配送方式"),
                   ("shipping_template", "运费模板（可选）")],
         "stock": [("quantity", "统一库存（可选，0 表示清零）"), ("brand", "品牌（可选）"),
@@ -295,6 +295,59 @@ def functional_settings(app, platform, page, *, run_link=True):
                        "stock" if k == "normalStock" and getattr(app.cfg, "shopee_mode", "global") == "site" else k, label)
                       for k, label in fields]
         controls.append(ft.Row([option_field(app, platform, k, label) for k, label in fields], wrap=True, spacing=12))
+        if platform == "amazon" and section == "stock":
+            _pfx = ft.TextField(label="SKU 前缀（可选）", width=220, color=ui.TEXT,
+                bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "amazon_sku_prefix", "") or ""),
+                hint_text="例如 QH-")
+            _sfx = ft.TextField(label="SKU 后缀（可选）", width=220, color=ui.TEXT,
+                bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "amazon_sku_suffix", "") or ""),
+                hint_text="例如 -CA")
+            _preview = ft.Text("", size=12, color=ui.ACCENT_2, selectable=True)
+            def _refresh_sku_preview(e=None):
+                base = "SKU-001"
+                _preview.value = "编码示例：" + str(_pfx.value or "") + base + str(_sfx.value or "")
+                try: app._safe_update()
+                except Exception: pass
+            def _save_skus(e=None):
+                app.cfg.set("amazon_sku_prefix", str(_pfx.value or ""))
+                app.cfg.set("amazon_sku_suffix", str(_sfx.value or ""))
+                try:
+                    save_config(app.cfg)
+                    from ..core.platform_config import save as _save_platform
+                    _save_platform(app.cfg, "amazon")
+                except Exception:
+                    pass
+                _refresh_sku_preview()
+            _pfx.on_change = _save_skus
+            _sfx.on_change = _save_skus
+            _refresh_sku_preview()
+            controls += [ft.Row([_pfx, _sfx], wrap=True),
+                         _preview,
+                         ui.muted("填写即保存。保存商品时按「前缀 + 自动生成 SKU + 后缀」写入 Amazon；原 SKU 已包含相同前后缀时不会重复添加。", 11)]
+        if platform == "amazon" and section == "category":
+            _kw = ft.TextField(label="采集箱关键词筛选（标题/SKU/ID）", width=420,
+                color=ui.TEXT, bgcolor=ui.CARD_2,
+                value=str(getattr(app.cfg, "amazon_batch_keyword", "") or ""),
+                hint_text="运行自动处理时只处理包含该关键词的采集箱商品")
+            _kw.on_change = lambda e: write(app, "amazon_batch_keyword", str(e.control.value or ""))
+            _cat_text = ft.Text("", size=12, color=ui.ACCENT_2, selectable=True)
+            def _cat_label():
+                cid = str(getattr(app.cfg, "amazon_category_id", "") or "")
+                cpath = str(getattr(app.cfg, "amazon_category_path", "") or "")
+                cname = str(getattr(app.cfg, "amazon_category_name", "") or "")
+                _cat_text.value = (f"已选类目：{cname or cid}" + (f" · {cpath}" if cpath else "")) if cid else "尚未选择类目"
+                try: app._safe_update()
+                except Exception: pass
+            def _pick_cat(e=None):
+                app._open_amazon_category_picker(str(_kw.value or ""), on_pick=lambda cid, path, name: (
+                    app.cfg.set("amazon_category_id", cid),
+                    app.cfg.set("amazon_category_path", path),
+                    app.cfg.set("amazon_category_name", name),
+                    save_config(app.cfg), _cat_label()))
+            _cat_label()
+            controls += [_kw, _cat_text,
+                         ft.Row([ft.ElevatedButton("搜索/选择类目", icon=ft.Icons.SEARCH, on_click=_pick_cat)], wrap=True),
+                         ui.muted("关键词只用于筛选采集箱商品；类目从右侧弹窗选择，选中后本次商品优先使用该类目。", 11)]
         if section == "category":
             controls.append(ui.muted("默认逐商品沿用类目与属性。只有同类商品才填写统一类目；换类目后请先检查必填属性。"))
             if platform == "alibaba":
@@ -362,7 +415,7 @@ def functional_settings(app, platform, page, *, run_link=True):
                                               on_click=lambda e: app._open_alibaba_required_attrs()),
                             ui.muted("MOQ 在「价格与贸易 → 物流与包装」设置", 11)],
                            spacing=10, wrap=True)]
-            if platform != "alibaba":
+            if platform not in ("alibaba", "amazon"):
                 controls.append(visual_editor(app, platform, "attributes" if platform != "tiktok" else "product_attributes",
                     "批量属性", [] if platform in ("shopee", "tiktok") else {}))
             controls += auxiliary_ai(app, platform, "attributes")
@@ -521,7 +574,7 @@ def functional_settings(app, platform, page, *, run_link=True):
         except (ValueError, TypeError):
             selected = []
             controls.append(ft.Text("AI字段选择格式无效，请重新勾选需要的字段。", color=ui.DANGER_C))
-        names = {"title": "标题", "description": "描述", "bullets": "完整五点", "search_terms": "搜索词", "keywords": "关键词", "key_features": "五点（US）"}
+        names = {"title": "标题", "highlight": "商品亮点", "description": "描述", "bullets": "完整五点", "search_terms": "搜索词", "keywords": "关键词", "key_features": "五点（US）"}
         def selection(e, kind):
             try:
                 current = json.loads(getattr(app.cfg, platform + "_collect_ai_fields", "[]"))
@@ -635,6 +688,14 @@ def auxiliary_ai(app, platform, kind):
     title = ("自动补齐已有变种的缺失SKU（付费AI）" if platform == "alibaba" else "自动生成缺失父SKU（付费AI）") if kind == "sku" else "AI建议有原文依据的缺失属性（付费）"
     switch = ft.Switch(label=title, active_color=ui.ACCENT, value=bool(getattr(app.cfg, platform + "_collect_" + suffix, False)))
     switch.on_change = lambda e: write(app, platform + "_collect_" + suffix, bool(e.control.value))
+    _mode_dd = None
+    if platform == "amazon" and kind == "sku":
+        _mode_dd = ft.Dropdown(label="SKU 生成方式", width=300, color=ui.TEXT, bgcolor=ui.CARD_2,
+            value=str(getattr(app.cfg, "amazon_sku_generate_mode", "local") or "local"),
+            options=[ft.dropdown.Option("local", "规则生成（默认，不使用 AI）"),
+                     ft.dropdown.Option("ai", "AI 提示词生成（付费）")])
+        _mode_dd.on_change = lambda e: write(app, "amazon_sku_generate_mode", str(e.control.value or "local"))
+        switch.label = "自动生成缺失 SKU"
     field = ft.TextField(label="自动SKU提示词" if kind == "sku" else "自动属性建议提示词", multiline=True,
         min_lines=4, max_lines=10, value=str(getattr(app.cfg, prompt_key, "") or default), color=ui.TEXT, bgcolor=ui.CARD_2)
     field.on_change = lambda e: write(app, prompt_key, str(e.control.value or ""))
@@ -650,7 +711,11 @@ def auxiliary_ai(app, platform, kind):
         write(app, prompt_key, field.value)
         app._safe_update()
     chooser.on_change = choose
-    return [switch, ui.muted("现有父SKU与变种编码保留，缺失编码加商品ID避免重复。" if kind == "sku" else
+    _lead = []
+    if _mode_dd is not None:
+        _lead = [_mode_dd, ui.muted("默认规则生成：原 SKU/型号/标题 + 商品 ID，不调用 AI；"
+                                    "只有选择 AI 才读取下方提示词。前缀/后缀在 SKU 页填写，生成后自动叠加。", 11)]
+    return [*_lead, switch, ui.muted("现有父SKU与变种编码保留，缺失编码加商品ID避免重复。" if kind == "sku" else
         "只采用原文证据与平台候选一致的建议；认证、产地、重量尺寸、识别码、价格库存等不会由AI猜测。"),
         ft.ExpansionTile(title=ft.Text("AI编码规则" if kind == "sku" else "AI属性建议规则", color=ui.TEXT), controls=[chooser, field])]
 

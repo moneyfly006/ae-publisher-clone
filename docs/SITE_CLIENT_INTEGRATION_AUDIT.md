@@ -64,6 +64,20 @@
 4. **客户端发布**：本轮客户端改动（心跳生命周期、缓存清理、设备管理、强制登录）需要重新构建安装包后才会对客户生效。
 5. **旧客户端兼容开关**：`legacy_verify_compat=1` 目前让 v1.0.8 等旧客户端继续可用；全部客户升级后可关闭。
 
+
+## 六、日志上报 Cookie 记录（2026-11-25 补齐）
+
+**问题**：客户端 `core/report.py` 上传 `/api/v1/log/upload` 时会附带 `cookies`（用户已保存的平台/店小秘 Cookie，按平台分组；未配置时为空）。v3 后端 `log_ingest()` 原先**丢弃了 `cookies` 字段**（未记录），旧系统（v2 `app_log_cookies`）才有记录 —— 这是迁移时遗漏的对接点。
+
+**已修复并上线**：
+- 新库新增 `log_cookies(log_id PK, user_id, machine_code, platform, cookies, size, created_at)`；日志入库时若带 Cookie 则同步保存（重复日志也会更新），单条上限 512KB。
+- 后台「日志中心」列表对带 Cookie 的日志显示 **Cookie** 标记；日志详情新增「上报 Cookie（仅管理员可见）」区块：平台、大小、上报时间、格式化 JSON + 一键复制，并提示“勿外传、勿写入工单/截图”。
+- 历史数据：旧库 `app_log_cookies` **198 条已全部导入**（`bin/import-log-cookies.php`，幂等；迁移脚本 `bin/migrate.php` 也已加入该步骤），大小约 766KB。
+- 清理：`bin/cron.php` 会删除已不存在日志对应的 Cookie 记录，跟随日志保留策略（`log_keep_days`）。
+- 权限：Cookie 只在后台管理员日志详情可见；前台/客户端/API 均不返回；对外 JSON 响应仅含 `ok/id/events/errors/category`，不含 Cookie。
+- 实测：客户端模块带 `cookies` 上传 → 服务端入库（log_id 关联、用户/机器码归属正确）→ 后台列表 Cookie 标记 + 详情可查看/复制；测试数据已清理。
+- 说明：客户端只在用户已配置 Cookie（手动粘贴或已保存平台 Cookie）时上报；未配置的日志无 Cookie 记录。旧库 `app_cookie_profiles`（每设备每平台最近一份 Cookie，20 条）未导入，仍保留在备份中，需要的话可再补一个导入/后台查看入口。
+
 ## 五、回归与证据
 
 - 服务端本地 e2e：**43/43 PASS**（注册/登录/报价/下单/模拟回调/绑机/唯一性/上限/解绑/设备管理 API/心跳/日志/后台 11 页）。

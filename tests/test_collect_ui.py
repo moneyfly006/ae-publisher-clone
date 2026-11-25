@@ -152,8 +152,6 @@ class CollectUiTests(unittest.TestCase):
         self.assertEqual(self.cfg.amazon_collect_overrides, broken)
         self.assertIn("修复", price.error_text)
         self.app._switch(17)
-        save_attrs = next(c for c in self.controls() if getattr(c, "text", "") == "保存批量属性")
-        save_attrs.on_click(None)
         self.assertEqual(self.cfg.amazon_collect_overrides, broken)
         repair = next(c for c in self.controls() if getattr(c, "text", "") == "备份并修复预设")
         repair.on_click(None)
@@ -165,11 +163,7 @@ class CollectUiTests(unittest.TestCase):
         self.assertEqual(backup.read_text(), broken)
         self.assertEqual(json.loads(self.cfg.amazon_collect_overrides), {})
         self.assertFalse(self.app._collect_errors["amazon"])
-        next(c for c in self.controls() if getattr(c, "text", "") == "添加属性").on_click(None)
-        next(c for c in self.controls() if getattr(c, "label", "") == "属性名称").value = "material"
-        next(c for c in self.controls() if getattr(c, "label", "") == "属性值").value = "Steel"
-        next(c for c in self.controls() if getattr(c, "text", "") == "保存批量属性").on_click(None)
-        self.assertEqual(json.loads(self.cfg.amazon_collect_overrides), {"attributes": {"material": "Steel"}})
+        # Amazon 批量属性已移除
 
     def test_repair_keeps_valid_fields_from_old_preset(self):
         self.app._switch_platform("amazon")

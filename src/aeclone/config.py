@@ -452,11 +452,16 @@ DEFAULTS: dict = {
     "amazon_brand": "",
     "amazon_manufacturer": "",
     "amazon_sku": "",
+    "amazon_sku_generate_mode": "local",
+    "amazon_sku_prefix": "",
+    "amazon_sku_suffix": "",
     "amazon_bullet_count": 5,       # AI 生成条数（5）；加载已有商品最多 10 条，保存不得截断
-    "amazon_op": 1,
+    "amazon_op": 1,   # 默认保存到采集箱，不直接提交线上
+    "amazon_auto_op": "1",  # 自动流程默认同样只保存，禁止默认发线上
     "amazon_use_ai": False,
     "amazon_ai_preset": "generic",
-    "amazon_title_prompt": "",        # 空=内置
+    "amazon_title_prompt": "",
+    "amazon_highlight_prompt": "",        # 空=内置
     "amazon_bullet_prompt": "",
     "amazon_description_prompt": "",
     "amazon_search_terms_prompt": "",

@@ -102,7 +102,9 @@ def sandbox(*, threads=False, external_calls=None):
         stack.enter_context(patch.object(config, "_base_dir", lambda: Path(folder) / "config"))
         stack.enter_context(patch.dict("os.environ", {"AURORA_INSTANCE": "", "AURORA_PAGE": "0",
                                                      "AURORA_CONFIG_DIR": "",
-                                                     "AURORA_PAGE_FILE": "", "AURORA_THEME": "dark"}))
+                                                     "AURORA_PAGE_FILE": "", "AURORA_THEME": "dark",
+                                                     # 隐藏平台覆盖仅在显式开发环境生效
+                                                     "AURORA_LICENSE_OVERRIDE": "1"}))
         data = deepcopy(config.DEFAULTS)
         # 页面构建测试需要能进入真实页面（而不是授权锁定页 / 强制登录页）。授权属于
         # licensing/登录测试，不应让 UI 回归全部退化成 _render_locked；这里用隐藏的

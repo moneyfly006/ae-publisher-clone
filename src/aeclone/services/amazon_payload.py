@@ -24,7 +24,7 @@ import re
 from .amazon_prompts import (
     BULLET_MAX_CHARS, BULLET_MAX_ITEMS, BULLET_SUGGEST_CHARS,
     DESCRIPTION_MAX_BYTES, SEARCH_TERMS_MAX_BYTES, SEARCH_TERMS_MAX_CHARS,
-    SITE_META, TITLE_MAX, has_chinese, is_chinese_site, remove_emoji,
+    HIGHLIGHT_MAX, SITE_META, TITLE_MAX, has_chinese, is_chinese_site, remove_emoji,
     site_meta as prompt_site_meta, strip_html,
 )
 
@@ -46,7 +46,7 @@ OVERRIDE_KEYS = (
     "standard_price", "sale_price", "quantity", "category_id", "category_path",
     "marketplace_id", "currency", "fulfillment", "handling_time", "shipping_template",
     "attributes", "required_attributes",
-    "main_image", "extra_images", "native_fields",
+    "main_image", "extra_images", "native_fields", "title_differentiation",
 )
 
 # 发布（op=2）实测必填的通用属性（不同类目还会有额外项，见 errMsg/schema）
@@ -544,7 +544,8 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     out["id"] = _text(p.get("idStr") or p.get("id") or p.get("productId"))
     shop_id = _text(p.get("shopIdStr") or p.get("shopId"))
     out["shopId"] = shop_id if shop_id not in ("", "0", "-1") else _text(_cfg_value(cfg, "amazon_shop_id", ""))
-    out["titleDifferentiation"] = p.get("titleDifferentiation")
+    out["titleDifferentiation"] = _text(_override(ov, "title_differentiation",
+                                                   p.get("titleDifferentiation")))
     out["audience"] = _text(p.get("audience"), "all") or "all"
     out["fullCid"] = _text(p.get("fullCid"))
     out["sourceUrl"] = _text(p.get("sourceUrl") or p.get("source_url"))
@@ -605,7 +606,14 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     sku = _override(ov, "sku", p.get("sku"))
     if not _text(sku) and _has_cfg(cfg, "amazon_sku"):
         sku = _cfg_value(cfg, "amazon_sku")
-    out["sku"] = _text(sku)
+    sku = _text(sku)
+    _prefix = _text(_cfg_value(cfg, "amazon_sku_prefix", ""))
+    _suffix = _text(_cfg_value(cfg, "amazon_sku_suffix", ""))
+    if sku and (_prefix or _suffix) and not sku.startswith(_prefix):
+        sku = _prefix + sku
+    if sku and _suffix and not sku.endswith(_suffix):
+        sku = sku + _suffix
+    out["sku"] = sku
 
     # 价格 / 库存
     # 价格：overrides > 商品原值 > cfg 兜底（cfg 只在商品没价时生效，避免静默改价）
@@ -853,6 +861,16 @@ def validate_amazon_payload(payload: dict, *, product: dict | None = None,
         issues.append("标题为空")
     elif len(title) > TITLE_MAX:
         issues.append(f"标题超过 {TITLE_MAX} 字符（{len(title)}）")
+    highlight = str(p.get("titleDifferentiation") or "").strip()
+    if highlight:
+        if len(highlight) > HIGHLIGHT_MAX:
+            issues.append(f"商品亮点超过 {HIGHLIGHT_MAX} 个字符（{len(highlight)}）")
+        if "\n" in highlight:
+            issues.append("商品亮点不能换行，请用英文逗号分隔短语")
+        if any(ch in highlight for ch in ("!", "！", "?", "？", "#", "★", "●")):
+            issues.append("商品亮点不能包含感叹号/问号/特殊符号")
+        if any(w in highlight.lower() for w in ("best seller", "free shipping", "sale", "discount", "hot sale", "no.1", "100%")):
+            issues.append("商品亮点不能包含主观评价或促销词")
 
     # 1b) Amazon 标题同一单词最多出现 2 次（实测平台 code:100470 直接拒绝）
     if title:

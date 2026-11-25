@@ -50,9 +50,9 @@ def prompt_specs(platform, section="text"):
     if platform in ("amazon", "tiktok"):
         from importlib import import_module
         module = import_module("aeclone.services." + platform + "_prompts")
-        labels = {"title": "标题", "bullets": "五点描述", "description": "产品描述", "search_terms": "搜索词",
+        labels = {"title": "标题", "highlight": "商品亮点", "bullets": "五点描述", "description": "产品描述", "search_terms": "搜索词",
                   "key_features": "五点卖点（US）", "sku": "SKU 编码", "attribute": "属性建议"}
-        kinds = ("title", "bullets", "description", "search_terms") if platform == "amazon" else (
+        kinds = ("title", "highlight", "bullets", "description", "search_terms") if platform == "amazon" else (
             "title", "description", "key_features", "search_terms")
         # Auxiliary collection rules live in collect_ai and have their own
         # response contracts. Don't expose the old scalar rules beside them.
@@ -94,7 +94,7 @@ def styled_prompt(default, style):
 
 def ai_fields(platform):
     return {"alibaba": ("title", "description", "keywords"),
-            "amazon": ("title", "bullets", "description", "search_terms"),
+            "amazon": ("title", "highlight", "bullets", "description", "search_terms"),
             "tiktok": ("title", "description", "key_features", "search_terms"),
             "shopee": ("title", "description")}.get(platform, ())
 

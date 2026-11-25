@@ -22,7 +22,8 @@ import time
 
 import requests
 
-from .licensing import (Entitlements, apply_license_token, load_entitlements,
+from .licensing import (SOURCE_ACCOUNT_DISABLED, SOURCE_DEVICE_UNBOUND,
+                        Entitlements, apply_license_token, load_entitlements,
                         verify_token)
 from .license import canonical_server, machine_code as local_machine_code
 
@@ -84,6 +85,30 @@ def classify_login_error(msg: str) -> tuple[str, str]:
     return "server", text
 
 
+_REV_KEYS = ("license_rev", "licenseRev", "license_version", "licenseVersion")
+
+
+def _extract_license_rev(body) -> tuple[str, bool]:
+    """从授权响应里取 (license_rev, 字段是否存在)；'' 是合法 rev（无任何权限）。"""
+    if not isinstance(body, dict):
+        return "", False
+    sources = []
+    data = body.get("data")
+    if isinstance(data, dict):
+        sources.append(data)
+    sources.append(body)
+    for src in sources:
+        for key in _REV_KEYS:
+            if key not in src:
+                continue
+            value = src.get(key)
+            if isinstance(value, bool) or value is None:
+                continue
+            if isinstance(value, (int, float)) or isinstance(value, str):
+                return str(value).strip(), True
+    return "", False
+
+
 def _request_keep_query(session, method: str, url: str, *, timeout: int = 10, **kw):
     """发送请求并手动跟随 3xx；Location 缺 query 时补回原 query。
 
@@ -127,8 +152,11 @@ def _norm_machine(value: str) -> str:
 
 def fetch_entitlement_token(server: str, machine_code: str, version: str = "",
                             product: str = "AuroraList", timeout: int = 8,
-                            session=None) -> tuple[str, str]:
-    """按机器码拉取 token（登录后刷新用）。返回 (token, error)。"""
+                            session=None, meta: dict | None = None) -> tuple[str, str]:
+    """按机器码拉取 token（登录后刷新用）。返回 (token, error)。
+
+    `meta`（可选）：输出响应里的 license_rev，供调用方更新本地授权版本基线。
+    """
     base = canonical_server(str(server or "")).rstrip("/")
     if not base:
         return "", "未配置授权服务器"
@@ -143,6 +171,10 @@ def fetch_entitlement_token(server: str, machine_code: str, version: str = "",
             r = _request_keep_query(s, "POST", url, json=payload, timeout=timeout)
             if r.status_code < 400:
                 body = r.json()
+                if meta is not None:
+                    rev, present = _extract_license_rev(body)
+                    meta["license_rev"] = rev
+                    meta["license_rev_present"] = bool(present)
                 tok = _extract_token(body)
                 if tok:
                     return tok, ""
@@ -165,7 +197,12 @@ def fetch_entitlement_token(server: str, machine_code: str, version: str = "",
                                     params={"machine_code": payload["machine_code"],
                                             "version": version, "product": product})
             if r.status_code < 400:
-                tok = _extract_token(r.json())
+                body = r.json()
+                if meta is not None:
+                    rev, present = _extract_license_rev(body)
+                    meta["license_rev"] = rev
+                    meta["license_rev_present"] = bool(present)
+                tok = _extract_token(body)
                 if tok:
                     return tok, ""
         except Exception:
@@ -178,18 +215,39 @@ def fetch_entitlement_token(server: str, machine_code: str, version: str = "",
 
 def refresh_entitlements(cfg, version: str = "", timeout: int = 8,
                          save=None, session=None,
-                         machine: str | None = None) -> Entitlements:
+                         machine: str | None = None,
+                         status: dict | None = None) -> Entitlements:
     """向授权服务器刷新 token；验签+机器码匹配成功才写入配置。
 
     失败时保留本地缓存（7 天宽限由 licensing.load_entitlements 控制）。
     未登录（无邮箱/无 token）时不发请求。
+
+    `status`（可选，输出 dict）：
+    - result: ok / unbound / disabled / network / invalid-token / machine-mismatch /
+              not-logged-in
+    - license_rev / license_rev_present：服务端授权版本号（新后端；旧后端 absent）
+    调用方据此判断「本次刷新是否拿到明确结果」并更新本地 rev 基线。
     """
     mcode = str(machine or local_machine_code())
+
+    def _done(ent: Entitlements, result: str, meta: dict | None = None) -> Entitlements:
+        if status is not None:
+            status["result"] = result
+            status["license_rev"] = str((meta or {}).get("license_rev") or "")
+            status["license_rev_present"] = bool(
+                (meta or {}).get("license_rev_present"))
+        return ent
+
     if not str(getattr(cfg, "license_account_email", "") or "").strip():
+        if status is not None:
+            status.update({"result": "not-logged-in", "license_rev": "",
+                           "license_rev_present": False})
         return load_entitlements(cfg, machine=mcode)
     server = str(getattr(cfg, "license_server", "") or "")
+    meta: dict = {}
     tok, err = fetch_entitlement_token(server, mcode, version=version,
-                                       session=session, timeout=timeout)
+                                       session=session, timeout=timeout,
+                                       meta=meta)
     if not tok:
         # 服务端明确返回“设备已解绑/账号被禁用”时，清掉本地 token，立即锁定平台。
         # （其它错误如网络失败/服务器异常仍保留 7 天离线宽限，避免断网误锁。）
@@ -200,22 +258,42 @@ def refresh_entitlements(cfg, version: str = "", timeout: int = 8,
             cfg.set("license_token_ts", 0)
             if save:
                 save(cfg)
-            return load_entitlements(cfg, machine=mcode)
+            ent = load_entitlements(cfg, machine=mcode)
+            # 标记失效来源，UI 据此弹「重新登录以重新绑定本机」（只弹一次）
+            ent.source = (SOURCE_ACCOUNT_DISABLED if str(err).startswith("DISABLED:")
+                          else SOURCE_DEVICE_UNBOUND)
+            ent.expired = True
+            return _done(ent, "disabled" if str(err).startswith("DISABLED:")
+                         else "unbound", meta)
+        rev = str(meta.get("license_rev") or "")
+        rev_present = bool(meta.get("license_rev_present"))
+        if rev_present and str(rev or "") == "":
+            # 新服务端明确：当前没有任何未撤销平台权限（账号无套餐 / 权限被撤销）。
+            # 清掉本地 token 立即锁定平台（与旧服务端「保留缓存」区分开）。
+            if str(getattr(cfg, "license_token", "") or "").strip():
+                log.info("服务端返回无有效权限（license_rev 为空），清除本地 token")
+                cfg.set("license_token", "")
+                cfg.set("license_token_ts", 0)
+                if save:
+                    save(cfg)
+            ent = load_entitlements(cfg, machine=mcode)
+            ent.expired = True
+            return _done(ent, "no-entitlement", meta)
         log.info("授权服务器未返回 token：%s", err)
-        return load_entitlements(cfg, machine=mcode)
+        return _done(load_entitlements(cfg, machine=mcode), "network", meta)
     payload = verify_token(tok)
     if not payload:
         log.warning("授权服务器返回的 token 验签失败，忽略")
-        return load_entitlements(cfg, machine=mcode)
+        return _done(load_entitlements(cfg, machine=mcode), "invalid-token", meta)
     if _norm_machine(payload.get("machine_code")) != _norm_machine(mcode):
         log.warning("token 机器码不匹配：%s != %s", payload.get("machine_code"), mcode)
-        return load_entitlements(cfg, machine=mcode)
+        return _done(load_entitlements(cfg, machine=mcode), "machine-mismatch", meta)
     ent = apply_license_token(cfg, tok, save=save, machine=mcode)
     cfg.set("license_token_ts", int(time.time()))
     if save:
         save(cfg)
     log.info("平台授权已刷新：%s", ", ".join(ent.platforms_list()) or "无")
-    return ent
+    return _done(ent, "ok", meta)
 
 
 def software_login(server: str, email: str, password: str, machine_code: str,

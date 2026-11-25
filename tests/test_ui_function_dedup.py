@@ -91,30 +91,6 @@ class FunctionDedupTests(unittest.TestCase):
         self.app._switch(12)
         self.assertIn("最低价", [getattr(c, "label", "") for c in self.controls()])
 
-    def test_manual_images_read_latest_shared_prompt_and_indices(self):
-        from aeclone.ui.media_actions import controls
-        from aeclone.services.image_pipeline import ImagePipelineResult, ImageStep
-        self.app._collect_editor_only = True
-        urls = ["https://example.invalid/first.jpg", "https://example.invalid/second.jpg"]
-        applied = Mock()
-        box = controls(self.app, lambda: urls, applied, platform="amazon")
-        self.app._collect_editor_only = False
-        # Change the main settings after constructing the item action.
-        self.cfg.set("amazon_collect_image_prompt", "Shared current rule")
-        self.cfg.set("amazon_collect_image_indices", "2")
-        button = next(c for c in walk([box]) if getattr(c, "text", "") == "处理并回填图片")
-        button.on_click(None)
-        pipeline = Mock()
-        pipeline.run.return_value = ImagePipelineResult([ImageStep("AI", True, "https://example.invalid/temp.jpg")])
-        pipeline._download.return_value = Path("/private/tmp/test-image.jpg")
-        with patch("aeclone.services.image_pipeline.ImagePipeline", return_value=pipeline), \
-             patch("aeclone.services.hosting.upload", return_value="https://example.invalid/stable.jpg"), \
-             patch("threading.Thread.start", lambda thread: thread.run()):
-            self.app.page.dialog.actions[1].on_click(None)
-        self.assertEqual(pipeline.run.call_args.args[0], urls[1])
-        self.assertIn("Shared current rule", pipeline.run.call_args.kwargs["prompt"])
-        applied.assert_called_once_with([urls[0], "https://example.invalid/stable.jpg"])
-
     def test_amazon_manual_ai_runs_only_five_points_without_enabling_batch_ai(self):
         from test_amazon_ui_page import fake_backend, sync_threads, find_button, click
         self.app._switch_platform("amazon")

@@ -47,8 +47,7 @@ def make_product(**over):
         "shopId": "9408005",
         "marketPlaceId": SITE,
         "currency": "CAD",
-        "title": ("4X4 Wheel Loader Backhoe Loader 85KW Diesel Engine Hydraulic "
-                  "Excavator Construction Landscaping"),
+        "title": "4X4 Wheel Loader Backhoe 85KW Diesel Excavator",
         "titleDifferentiation": None,
         "categoryId": "13553005011",
         "categoryBrowsePath": "6299024011/6256963011/6256964011/13553005011",

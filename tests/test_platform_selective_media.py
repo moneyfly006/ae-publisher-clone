@@ -153,7 +153,7 @@ class SelectiveMediaTests(unittest.TestCase):
 
     def test_amazon_discards_only_legacy_description_image_rules(self):
         first = dict(group="detail", position="all", operation="white", prompt="legacy")
-        second = dict(group="main", position="2", operation="white", prompt="keep")
+        second = dict(group="extra", position="2", operation="white", prompt="keep")
         cfg = AppConfig({"amazon_collect_image_rules": json.dumps([first, second])})
         self.assertEqual(batch_rules(cfg, "amazon"), [second])
 

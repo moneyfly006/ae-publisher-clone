@@ -38,7 +38,8 @@ from .amazon_publish import (
 from .amazon_prompts import (
     BULLET_DEFAULT_COUNT, build_attributes_prompt, build_bullets_prompt,
     build_description_prompt, build_search_terms_prompt, build_sku_prompt,
-    build_title_prompt, clean_bullet, clean_for_site, clean_title,
+    build_highlight_prompt, build_title_prompt, clean_bullet, clean_for_site,
+    clean_highlight, clean_title, HIGHLIGHT_MAX,
     parse_attribute_suggestion, parse_bullets, parse_search_terms, parse_sku,
     sanitize_description, site_meta as prompt_site_meta, strip_html,
 )
@@ -52,11 +53,11 @@ OP_LABELS = {
     OP_PUBLISH: "保存并发布",
 }
 
-AI_FIELDS = ("title", "bullets", "description", "search_terms")
+AI_FIELDS = ("title", "highlight", "bullets", "description", "search_terms")
 # sku 只支持单字段生成（不参与「AI 一键生成全部」的 4 次调用）
 AI_EXTRA_FIELDS = ("sku",)
-AI_LABELS = {"title": "标题", "bullets": "五点描述", "description": "产品描述",
-             "search_terms": "Search Terms", "sku": "SKU"}
+AI_LABELS = {"title": "标题", "highlight": "商品亮点", "bullets": "五点描述",
+             "description": "产品描述", "search_terms": "Search Terms", "sku": "SKU"}
 
 
 @dataclass
@@ -910,13 +911,14 @@ def ai_generate_field(product: dict, cfg, field: str,
         notes.append("未读取到站点，按英语处理")
     builders = {
         "title": lambda: build_title_prompt(product, cfg, mp),
+        "highlight": lambda: build_highlight_prompt(product, cfg, mp),
         "bullets": lambda: build_bullets_prompt(product, cfg, mp, want),
         "description": lambda: build_description_prompt(product, cfg, mp),
         "search_terms": lambda: build_search_terms_prompt(product, cfg, mp),
         "sku": lambda: build_sku_prompt(product, cfg, mp),
     }
-    max_tokens = {"title": 320, "bullets": 1800, "description": 2200,
-                  "search_terms": 220, "sku": 120}
+    max_tokens = {"title": 320, "highlight": 220, "bullets": 1800,
+                  "description": 2200, "search_terms": 220, "sku": 120}
     try:
         client = _ai_client(cfg)
         text = client.chat(_ai_model(cfg), [
@@ -936,6 +938,13 @@ def ai_generate_field(product: dict, cfg, field: str,
         if len(value) >= TITLE_MAX:
             notes.append(f"标题已按 {TITLE_MAX} 字符词边界截断")
         notes.append(f"已生成（{len(value)} 字符）")
+        return value, notes
+
+    if name == "highlight":
+        value = clean_highlight(clean_for_site(text, mp), HIGHLIGHT_MAX)
+        if not value:
+            return "", [f"{AI_LABELS[name]}生成失败：清洗后为空"]
+        notes.append(f"已生成（{len(value)}/{HIGHLIGHT_MAX} 字符）")
         return value, notes
 
     if name == "bullets":
@@ -976,13 +985,21 @@ def _empty_ai_value(name: str):
 
 
 def ai_generate_all(product: dict, cfg, marketplace_id: str = "",
-                    count: int = 5) -> tuple[dict, list[str]]:
-    """一次生成 4 个字段；每字段独立 try/except，失败只进 notes。"""
-    out: dict = {"title": "", "bullets": [], "description": "", "search_terms": ""}
+                    count: int = 5, fields=None) -> tuple[dict, list[str]]:
+    """生成指定字段（默认全部 AI_FIELDS）；每字段独立 try/except，失败只进 notes。"""
+    out: dict = {"title": "", "highlight": "", "bullets": [], "description": "", "search_terms": ""}
     notes: list[str] = []
-    for name in AI_FIELDS:
+    for name in (list(fields) if fields is not None else list(AI_FIELDS)):
         try:
             value, field_notes = ai_generate_field(product, cfg, name, marketplace_id, count)
+            if name == "title" and value:
+                # 双保险：即使模型忽略提示词，也移除本商品 SKU/商品 ID。
+                for token in (str(product.get("sku") or "").strip(),
+                              str(product.get("id") or "").strip(),
+                              str(product.get("idStr") or "").strip()):
+                    if len(token) >= 4 and token in str(value):
+                        value = str(value).replace(token, " ")
+                value = re.sub(r"\s{2,}", " ", str(value)).strip(" ,;-")
             out[name] = value
             notes.extend(f"{AI_LABELS[name]}：{n}" for n in field_notes)
         except Exception as exc:  # noqa: BLE001
@@ -1156,7 +1173,7 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
             if missing:
                 ai_product = _product_for_ai(product, ov, detail)
                 generated, ai_notes = ai_generate_all(
-                    ai_product, cfg, mp, _bullets_count(cfg, 0))
+                    ai_product, cfg, mp, _bullets_count(cfg, 0), fields=missing)
                 res.ai_used = True
                 ok_fields = 0
                 for name in missing:
