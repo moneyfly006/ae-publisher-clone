@@ -53,9 +53,9 @@ SITE_META: dict[str, dict] = {
 # schema 实测硬上限（getAttrJsUrl 下发的 CA/OUTDOOR_LIVING）
 TITLE_MAX = 75
 HIGHLIGHT_MAX = 125
-BULLET_MAX_ITEMS = 10
+BULLET_MAX_ITEMS = 5
 BULLET_MAX_CHARS = 700
-BULLET_SUGGEST_CHARS = 500
+BULLET_SUGGEST_CHARS = 350
 BULLET_MIN_AI = 3
 BULLET_DEFAULT_COUNT = 5
 DESCRIPTION_MAX_BYTES = 20000
@@ -129,22 +129,24 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "你是 Amazon 跨境电商资深 listing 运营专家。请根据商品原始信息，为 {country} 站点"
         "（Amazon {code}）写一个可直接上架的英文/当地语言商品标题。\n"
         "硬性要求：\n"
-        "1) 使用{language}（站点语言），非中文站点禁止出现任何中文字符；\n"
-        "2) 长度 ≤ {title_limit} 字符（按字符数，不是字节），超过按词边界截断；\n"
-        "3) 结构：核心产品词 + 关键规格/型号 + 核心卖点 + 适用场景；关键词自然融入，不堆砌；\n"
-        "4) 保留原文真实型号与规格（功率/容量/尺寸/材质/数量），不得编造原文没有的认证、参数、产地；\n"
-        "5) 禁止 emoji、HTML、引号、全角符号、联系方式（邮箱/电话/网址/WhatsApp）、促销词"
-        "（best/No.1/100%/free shipping/sale/guarantee 等）与竞品品牌；\n"
-        "6) 禁止出现 SKU、商品 ID、内部编码、纯编号/字母数字编号串；标题只描述产品本身；\n"
-        "7) 只输出一行标题，不要解释、不要编号、不要 Markdown、不要引号包裹。"
+        "1) 新的亚马逊标题结构为 title + 商品亮点两段文案；本提示词只输出 title 部分，"
+        "title 不超过 {title_limit} 个字符（含空格）；title 要根据关键词、谷歌趋势和亚马逊平台搜索习惯，"
+        "智能推荐各大平台用户搜索量较高的热门词汇；\n"
+        "2) 使用{language}（站点语言），非中文站点禁止出现任何中文字符；\n"
+        "3) 结构：一级核心产品词 + 二级关键词 + 核心卖点 + 适用场景；关键词自然融入，不堆砌；\n"
+        "4) 不得编造原文没有的认证、参数、产地；\n"
+        "5) 禁止 diesel、emoji、HTML、引号、全角符号、联系方式（邮箱/电话/网址/WhatsApp）、"
+        "促销词（best/No.1/100%/free shipping/sale/guarantee 等）与竞品品牌；\n"
+        "6) 只输出一行 title，不要解释、不要编号、不要 Markdown、不要引号包裹。"
     ),
     "highlight": (
-        "你是 Amazon 商品亮点（titleDifferentiation）文案专家。请为 {country} 站点"
+        "你是 Amazon 商品亮点（Item Highlights）文案专家。请为 {country} 站点"
         "（Amazon {code}）商品写商品亮点。\n"
         "硬性要求：\n"
-        "1) 最多 {highlight_limit} 个字符（含空格），单行；\n"
+        "1) Item Highlights 不超过 {highlight_limit} 个字符（含空格），单行；首字母大写，所有介词小写；"
+        "该字段具备独立搜索索引权重，标题中无法容纳的关键词可在此补充承接；\n"
         "2) 使用{language}（站点语言），非中文站点禁止中文；\n"
-        "3) 用英文逗号分隔的短语，例如 `耐高温不锈钢, 适合2-4岁, 免工具安装`；\n"
+        "3) 用英文逗号分隔的短语，例如 `Stainless Steel, Ages 2-4, Tool-Free Installation`；\n"
         "4) 不要写成完整句子；不要重复标题已有的核心词；重点补充材质、适用型号、独特功能、使用场景；\n"
         "5) 禁止主观评价（Best Seller/No.1/100% 等）、促销语（Free shipping/Sale 等）、"
         "特殊符号、emoji、HTML、联系方式；不得编造原文没有的参数；\n"
@@ -153,27 +155,32 @@ DEFAULT_PROMPTS: dict[str, str] = {
     "bullets": (
         "你是 Amazon listing 卖点文案专家。请为 {country} 站点（Amazon {code}）商品写五点描述。\n"
         "硬性要求：\n"
-        "1) 恰好输出 {count} 条卖点（JSON 字符串数组），每条 ≤ {bullet_suggest} 字符（schema 硬上限 "
-        "{bullet_limit} 字符），单条不换行；\n"
-        "2) 使用{language}（站点语言），非中文站点禁止出现中文字符；\n"
-        "3) 每条以 2~5 个词的卖点/利益点短语开头，后接冒号（例如 `75 KW DIESEL ENGINE: ...` / "
-        "`Compact 4x4 Chassis: ...`），句子里自然融入核心关键词；禁止把 `Benefit:`、`Feature:`、"
-        "`feature:`、`FEATURE:` 等占位词本身写进输出；\n"
-        "4) 不得包含 ±、●、emoji、HTML 标签、Markdown、联系方式（邮箱/电话/网址/微信/WhatsApp）；\n"
-        "5) 禁止促销/绝对化表述（best、No.1、100%、free shipping、sale、guarantee、cheapest 等）"
+        "1) 恰好输出 {count} 条卖点（JSON 字符串数组），每条 ≤ {bullet_suggest} 字符"
+        "（schema 硬上限 {bullet_limit} 字符），单条不换行；超过 5 条之外的内容全部删除；\n"
+        "2) 第一条为引流内容，主要说明：下单前请联系我们，产品有多种型号，支持定制，"
+        "页面价格仅供参考且不含运输；\n"
+        "3) 使用{language}（站点语言），非中文站点禁止出现中文字符；\n"
+        "4) 每条以产品核心卖点/利益点短语开头，后接冒号（例如 `Compact 4x4 Chassis: ...`）"
+        "衔接描述产品的优质核心优势、卖点和用途，句子里自然融入核心关键词；禁止把 `Benefit:`、"
+        "`Feature:`、`feature:`、`FEATURE:` 等占位词本身写进输出；\n"
+        "5) 不得包含 ±、●、emoji、HTML 标签、Markdown、HW、free、cost、fee、diesel；\n"
+        "6) 禁止促销/绝对化表述（best、No.1、100%、free shipping、sale、guarantee、cheapest 等）"
         "与医疗功效承诺；\n"
-        "6) 型号、尺寸、功率、材质、认证只能来自原文，不得编造；\n"
         "7) 只输出 JSON 数组（例如 [\"...\",\"...\"]），不要解释、不要代码块围栏。"
     ),
     "description": (
-        "你是 Amazon 产品描述文案专家。请为 {country} 站点（Amazon {code}）商品写产品描述。\n"
+        "你是 Amazon 产品描述文案专家。请基于商品原始信息中的【原产品描述】，为 {country} 站点"
+        "（Amazon {code}）做修改优化，不要从零重写。\n"
+        "必须保留原文真实的产品名称、用途、结构、参数和适用场景；只调整表达、结构和合规问题。\n"
         "硬性要求：\n"
-        "1) 输出 HTML 片段，只允许 <p> <ul> <li> <b> <br> 标签；禁止 <script>/<style>/<iframe>/<img>；\n"
-        "2) 使用{language}（站点语言），3–5 段 + 一个参数列表（<ul><li>），建议 ≤2000 字符"
+        "1) 输出 HTML 片段，只允许 <p> <ul> <li> <b> <br> 标签；"
+        "禁止 <script>/<style>/<iframe>/<img>；\n"
+        "2) 使用{language}（站点语言），3 段 + 一个参数列表（<ul><li>），建议 ≤2000 字符"
         "（schema 硬上限 {desc_bytes} 字节）；\n"
-        "3) 内容结构：产品用途/适用场景 → 核心参数（只写原文有的）→ 结构与操作/维护 → 包装与服务；\n"
-        "4) 禁止联系方式、网址、二维码、促销返现、绝对化/医疗表述，不得编造认证与参数；\n"
-        "5) 只输出 HTML 片段，不要 Markdown 代码块围栏，不要解释。"
+        "3) 内容结构：产品名称/产品用途/适用场景 → 核心参数（只写原文有的）→ 结构与操作/维护 → 包装与服务；\n"
+        "4) 禁止联系方式、网址、二维码、促销返现、医疗表述，不得编造认证与参数；\n"
+        "5) 删除原描述中的内嵌图片、Brand Name、Place of Origin、HW、free、cost、fee、diesel、sale、discount、guarantee 等不合规内容；\n"
+        "6) 只输出 HTML 片段，不要 Markdown 代码块围栏，不要解释。"
     ),
     "search_terms": (
         "你是 Amazon 后台 Search Terms（generic_keyword）优化专家。请为 {country} 站点"
@@ -185,7 +192,9 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "4) 去重，不重复单复数（如已用 loader 不再写 loaders）；\n"
         "5) 不含停用词（a the for with and of to in on by or）；\n"
         "6) 不含品牌词/他人品牌/竞品名，不含促销词与联系方式；\n"
-        "7) 只输出关键词本身，不要解释。"
+        "7) 不使用介词；\n"
+        "8) 只输出关键词本身，不要解释；\n"
+        "9) 帮助产品获得更多自然搜索曝光，覆盖标题、五点描述和商品属性中没有充分体现的相关关键词。"
     ),
     "sku": (
         "你是 Amazon 卖家 SKU 命名专家。请根据商品信息生成一个后台 Seller SKU。\n"
@@ -196,7 +205,6 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "4) 不编造品牌、认证与不存在的系列；同一商品 SKU 需唯一（可加站点/序号后缀）；\n"
         "5) 只输出 SKU 本身，不要解释、不要引号、不要代码块围栏。"
     ),
-    # 类目必填属性兜底（只有确定性映射补不了的文本属性才会走这里）
     "attribute": (
         "你是 Amazon 类目属性填写专家。请根据商品事实，为 {country} 站点"
         "（Amazon {code}）商品补齐一个必填属性。\n"
@@ -475,6 +483,18 @@ def truncate_bytes(text: str, max_bytes: int, sep: str = " ") -> str:
         cut.append(ch)
         total += n
     return "".join(cut).strip()
+
+
+_AI_BANNED_RE = re.compile(
+    r"\b(?:diesel|HW|free|cost|fee)\b|Brand\s*Name|Place\s*of\s*Origin", re.I)
+
+
+def strip_ai_banned(text: str) -> str:
+    """删除本店 Amazon 文案硬禁词；生成后双保险，不依赖模型完全遵守提示词。"""
+    s = _AI_BANNED_RE.sub(" ", str(text or ""))
+    s = re.sub(r"[ \t]{2,}", " ", s)
+    s = re.sub(r"\s+([,.;:!?])", r"\1", s)
+    return s.strip()
 
 
 def clean_title(text: str, limit: int = TITLE_MAX) -> str:
@@ -764,6 +784,6 @@ __all__ = [
     "build_search_terms_prompt", "build_sku_prompt",
     "build_attributes_prompt", "parse_attribute_suggestion",
     "parse_bullets", "parse_search_terms", "parse_sku", "clean_sku",
-    "clean_title", "clean_highlight", "clean_bullet", "sanitize_description", "clean_for_site",
+    "clean_title", "clean_highlight", "clean_bullet", "strip_ai_banned", "sanitize_description", "clean_for_site",
     "remove_emoji", "has_chinese", "strip_html", "truncate_words", "truncate_bytes",
 ]

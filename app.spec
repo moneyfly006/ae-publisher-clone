@@ -92,8 +92,8 @@ if sys.platform == "darwin":
         info_plist={
             "CFBundleName": "AuroraList",
             "CFBundleDisplayName": "AuroraList",
-            "CFBundleShortVersionString": "1.0.12",
-            "CFBundleVersion": "1.0.12",
+            "CFBundleShortVersionString": "1.0.14",
+            "CFBundleVersion": "1.0.14",
             "NSHighResolutionCapable": True,
             "LSApplicationCategoryType": "public.app-category.productivity",
             "LSMinimumSystemVersion": "11.0",

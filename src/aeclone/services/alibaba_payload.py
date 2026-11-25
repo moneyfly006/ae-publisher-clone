@@ -63,6 +63,69 @@ def main_images_from(product: dict, images: list | None = None) -> list[str]:
     return uniq[:MAX_MAIN_IMAGES]
 
 
+_PLATFORM_UNREADABLE_HOSTS = ("image.moneyfly.club",)
+
+
+def _platform_readable(url: str) -> bool:
+    low = str(url or "").lower()
+    return not any(host in low for host in _PLATFORM_UNREADABLE_HOSTS)
+
+
+def _original_main_images(product: dict) -> list[str]:
+    out = []
+    for key in ("mainImage", "draftImgUrl", "imgUrl"):
+        raw = str((product or {}).get(key) or "")
+        for part in raw.replace("|", ",").split(","):
+            u = part.strip()
+            if u.startswith(("http://", "https://")) and u not in out:
+                out.append(u)
+    # 原商品主图可能已被替换成 AE 托管图；productAttr/详情里仍保留 alicdn 原图。
+    try:
+        blob = json.dumps(product or {}, ensure_ascii=False)
+        for u in re.findall(r'https?://[^"\\,\s]+?\.(?:jpg|jpeg|png|webp)', blob, re.I):
+            if "alicdn.com" in u and u not in out:
+                out.append(u)
+    except Exception:
+        pass
+    return out
+
+
+def _original_detail_urls(product: dict) -> list[str]:
+    out = []
+    for row in _as_list((product or {}).get("detailImage")):
+        u = str((row or {}).get("url") or "").strip() if isinstance(row, dict) else ""
+        if u.startswith(("http://", "https://")) and u not in out:
+            out.append(u)
+    return out
+
+
+def _ensure_platform_images(imgs: list[str], product: dict, cfg=None) -> list[str]:
+    """平台读不到的托管图回退原图；必要时补足 4 张主图。"""
+    all_originals = [u for u in _original_main_images(product) if _platform_readable(u)]
+    alicdn = [u for u in all_originals if "alicdn.com" in u]
+    originals = alicdn or all_originals
+    require_ali = bool(_cfg_get(cfg, "alibaba_ensure_min_images", False))
+    out = []
+    for index, url in enumerate(imgs or []):
+        if _platform_readable(url) and not (require_ali and originals and "alicdn.com" not in url):
+            out.append(url)
+        elif originals:
+            out.append(originals[index % len(originals)])
+        # 没有可读原图时丢弃平台读不到的托管图，避免整件发布因图片失败。
+    if require_ali:
+        for url in originals:
+            if len(out) >= 4:
+                break
+            if url not in out:
+                out.append(url)
+    # 主图内部去重，避免平台报重复图片。
+    uniq = []
+    for u in out:
+        if u not in uniq:
+            uniq.append(u)
+    return uniq[:MAX_MAIN_IMAGES]
+
+
 def detail_urls(product: dict, images: list | None = None) -> list[str]:
     if images:
         return [str(u).strip() for u in images if str(u).strip()]
@@ -74,6 +137,62 @@ def detail_urls(product: dict, images: list | None = None) -> list[str]:
         elif isinstance(r, str):
             out.append(r)
     return out
+
+
+def ensure_save_platform_images(save: dict, product: dict, cfg=None) -> list[str]:
+    """图片兼容处理会替换成托管图；此处在保存前再回退平台读不到的主图/详情图。"""
+    if not isinstance(save, dict):
+        return []
+    notes = []
+    imgs = [u.strip() for u in str(save.get("mainImage") or "").split(",") if u.strip()]
+    fixed = _ensure_platform_images(imgs, product or {}, cfg)
+    if fixed != imgs:
+        save["mainImage"] = ",".join(fixed)
+        save["draftImgUrl"] = "|".join(fixed)
+        notes.append("主图已回退为平台可读原图")
+    try:
+        rows = _as_list(save.get("detailImage"))
+    except Exception:
+        rows = []
+    if rows and isinstance(rows, list):
+        require_ali = bool(_cfg_get(cfg, "alibaba_ensure_min_images", False))
+        originals = [u for u in _original_detail_urls(product or {}) if _platform_readable(u)]
+        _main_urls = {u.strip() for u in str(save.get("mainImage") or "").split(",") if u.strip()}
+        alicdn_detail = []
+        for u in originals + _original_main_images(product or {}):
+            if ("alicdn.com" in u and _platform_readable(u)
+                    and u not in alicdn_detail and u not in _main_urls):
+                alicdn_detail.append(u)
+        if require_ali and alicdn_detail:
+            # 只用唯一的 alicdn 图，避免平台报「详情图片重复」；不足则精简，不循环。
+            keep = min(len(rows), len(alicdn_detail))
+            out = []
+            for index in range(keep):
+                row = dict(rows[index]) if isinstance(rows[index], dict) else {}
+                row["url"] = alicdn_detail[index]
+                out.append(row)
+            save["detailImage"] = json.dumps(out, ensure_ascii=False) if out else "[]"
+            notes.append("详情图已替换为唯一 alicdn 图片")
+        else:
+            changed = False
+            out = []
+            for index, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    continue
+                url = str(row.get("url") or "").strip()
+                if _platform_readable(url):
+                    out.append(row)
+                elif originals:
+                    row = dict(row)
+                    row["url"] = originals[index % len(originals)]
+                    out.append(row)
+                    changed = True
+            if changed:
+                save["detailImage"] = json.dumps(out, ensure_ascii=False)
+                notes.append("详情图已回退为平台可读原图")
+    if notes:
+        save.setdefault("_autofilled", []).extend(notes)
+    return notes
 
 
 def clean_keywords(text: str, limit: int = MAX_KEYWORDS) -> list[str]:
@@ -655,7 +774,8 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
 
     if "main_images" in ov and len(ov["main_images"]) > 6:
         raise ValueError("Alibaba 商品主图最多 6 张，请删减后重试")
-    imgs = main_images_from(product, ov.get("main_images"))
+    imgs = _ensure_platform_images(
+        main_images_from(product, ov.get("main_images")), product, cfg)
     if imgs or "main_images" in ov:
         if "main_images" in ov and not ov["main_images"]:
             imgs = []
@@ -663,7 +783,9 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         save["draftImgUrl"] = "|".join(imgs)
 
     if "detail_images" in ov and len(ov["detail_images"]) > MAX_DETAIL_IMAGES:
-        raise ValueError(f"Alibaba 详情图片最多 {MAX_DETAIL_IMAGES} 张，请删减后重试")
+        ov["detail_images"] = list(ov["detail_images"])[:MAX_DETAIL_IMAGES]
+        save.setdefault("_autofilled", []).append(
+            f"详情图超过 {MAX_DETAIL_IMAGES} 张，已自动保留前 {MAX_DETAIL_IMAGES} 张")
     det = detail_urls(product, ov.get("detail_images"))
     if det or "detail_images" in ov:
         originals = _as_list(product.get("detailImage"))
@@ -673,7 +795,14 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         for row in originals:
             if isinstance(row, dict) and row.get("url"):
                 metadata.setdefault(str(row["url"]), []).append(row)
-        det = det[:MAX_DETAIL_IMAGES]
+        _det_originals = [u for u in _original_detail_urls(product) if _platform_readable(u)]
+        _det_fixed = []
+        for _di, _du in enumerate(det):
+            if _platform_readable(_du):
+                _det_fixed.append(_du)
+            elif _det_originals:
+                _det_fixed.append(_det_originals[_di % len(_det_originals)])
+        det = _det_fixed[:MAX_DETAIL_IMAGES]
         rows = []
         for url in det:
             source = metadata.get(url, [])
@@ -736,6 +865,16 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
     if attr_defs:
         attrs, filled, unresolved = autofill_required_attributes(
             {"attributes": attrs}, attr_defs, cfg, ov, reasons=attr_reasons)
+    # Brand Name 占位值（NoEnName_Null / 空）会被平台判为数据不完整。
+    _brand = str(_cfg_get(cfg, "alibaba_brand", "") or "Generic").strip() or "Generic"
+    _bad_brand = {"", "noennname_null", "noenname_null", "none", "null", "n/a", "no brand"}
+    for _a in attrs:
+        if not isinstance(_a, dict):
+            continue
+        if str(_a.get("attribute_name") or "").strip().casefold() == "brand name":
+            if str(_a.get("value_name") or "").strip().casefold() in _bad_brand:
+                _a["value_name"] = _brand
+                _a["value_id"] = "-1"
     if attrs:
         save["attributes"] = json.dumps(attrs, ensure_ascii=False)
     save["_autofilled"] = filled
@@ -767,6 +906,24 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
     else:
         ptype = cfg_ptype or (prod_ptype if prod_ptype in _VALID_PTYPES else "ladder_price")
     tiers = price_tiers(cfg, ov)
+    _force_ladder = bool(_cfg_get(cfg, "alibaba_force_ladder_price", False))
+    if _force_ladder and ptype != "fob_price":
+        ptype = "ladder_price"
+        if not tiers:
+            # 从原 SKU 价提取首档，转为单档阶梯价；没有 SKU 时用标准价/商品阶梯价。
+            try:
+                _ps = json.loads(product.get("productSku") or "{}")
+                _skus = _ps.get("special_skus") or [] if isinstance(_ps, dict) else []
+                _p = next((float(x.get("price")) for x in _skus
+                           if isinstance(x, dict) and x.get("price")), 0)
+            except Exception:
+                _p = 0
+            if _p <= 0:
+                try:
+                    _p = float(_first_text(product, ("bulkDiscountPrices", "price")) or 0)
+                except Exception:
+                    _p = 0
+            tiers = [{"start_quantity": 1, "price": round(_p, 2)}] if _p > 0 else []
     if ptype == "fob_price":
         fob = {
             "fob_unit_type": str(_cfg_get(cfg, "alibaba_unit_type", "") or ""),
@@ -791,6 +948,8 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
     elif tiers:
         save["priceType"] = "ladder_price"
         save["bulkDiscountPrices"] = json.dumps(tiers, ensure_ascii=False)
+        save.pop("productSku", None)
+        save.pop("productSkuObj", None)
     else:
         save["priceType"] = ptype
 

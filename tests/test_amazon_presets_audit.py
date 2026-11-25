@@ -39,11 +39,11 @@ def _cfg():
 
 class ContentAuditTests(unittest.TestCase):
     def test_counts(self):
-        expected = {"title": 10, "bullets": 7, "description": 7,
-                    "search_terms": 6, "sku": 6, "image": 14}
+        expected = {"title": 10, "highlight": 5, "bullets": 7, "description": 7,
+                    "search_terms": 6, "sku": 6, "image": 15}
         actual = {kind: len(AP.PRESETS[kind]) for kind in AP.PRESET_KINDS}
         self.assertEqual(actual, expected)
-        self.assertEqual(sum(actual.values()), 50)
+        self.assertEqual(sum(actual.values()), 56)
 
     def test_names_desc_prompt_quality(self):
         for kind, presets in AP.PRESETS.items():

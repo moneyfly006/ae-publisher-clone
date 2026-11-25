@@ -324,6 +324,69 @@ def functional_settings(app, platform, page, *, run_link=True):
             controls += [ft.Row([_pfx, _sfx], wrap=True),
                          _preview,
                          ui.muted("填写即保存。保存商品时按「前缀 + 自动生成 SKU + 后缀」写入 Amazon；原 SKU 已包含相同前后缀时不会重复添加。", 11)]
+            _contact = ft.TextField(label="制造商联系信息", width=300, color=ui.TEXT, bgcolor=ui.CARD_2,
+                value=str(getattr(app.cfg, "amazon_manufacturer_contact", "Generic, CN") or ""),
+                hint_text="例如 Generic, CN")
+            _id_type = ft.TextField(label="产品 ID 类型（UPC/EAN/GTIN）", width=220, color=ui.TEXT,
+                bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "amazon_standard_product_type", "") or ""))
+            _id_val = ft.TextField(label="产品 ID（留空不生成）", width=260, color=ui.TEXT,
+                bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "amazon_standard_product_id", "") or ""))
+            _asin_tf = ft.TextField(label="Merchant Suggested ASIN（留空自动）", width=300, color=ui.TEXT,
+                bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "amazon_merchant_suggested_asin", "") or ""))
+            _auto_asin = ft.Switch(label="自动生成缺失 Merchant ASIN", value=bool(getattr(app.cfg, "amazon_auto_merchant_asin", True)), active_color=ui.ACCENT)
+            _gtin_sw = ft.Switch(label="已获批 GTIN/UPC 豁免（不填 UPC）", value=bool(getattr(app.cfg, "amazon_gtin_exemption", False)), active_color=ui.ACCENT)
+            _auto_id = ft.Switch(label="自动生成缺失 UPC（仅在允许时开启）", value=bool(getattr(app.cfg, "amazon_auto_product_id", False)), active_color=ui.ACCENT)
+            def _save_missing(e=None):
+                vals = {
+                    "amazon_manufacturer_contact": str(_contact.value or "").strip(),
+                    "amazon_standard_product_type": str(_id_type.value or "").strip(),
+                    "amazon_standard_product_id": str(_id_val.value or "").strip(),
+                    "amazon_merchant_suggested_asin": str(_asin_tf.value or "").strip(),
+                    "amazon_auto_merchant_asin": bool(_auto_asin.value),
+                    "amazon_auto_product_id": bool(_auto_id.value),
+                    "amazon_gtin_exemption": bool(_gtin_sw.value),
+                }
+                for k,v in vals.items(): app.cfg.set(k,v)
+                try:
+                    save_config(app.cfg)
+                    from ..core.platform_config import save as _save_platform
+                    _save_platform(app.cfg, "amazon")
+                except Exception:
+                    pass
+            for _w in (_contact,_id_type,_id_val,_asin_tf,_auto_asin,_auto_id,_gtin_sw):
+                try: _w.on_change = _save_missing
+                except Exception: pass
+            controls += [ft.Row([_contact, _id_type], wrap=True),
+                         ft.Row([_id_val, _asin_tf], wrap=True),
+                         ft.Row([_auto_asin, _auto_id, _gtin_sw], wrap=True),
+                         ui.muted("填写即保存；Merchant ASIN 可自动生成，真实 UPC/EAN/GTIN 建议优先填写，不要虚构。", 11)]
+            _defs = {}
+            for _k,_label,_hint in (
+                ("amazon_default_country_of_origin","默认原产国","CN"),
+                ("amazon_default_included_components","默认包含组件","1"),
+                ("amazon_default_unit_count","默认单位数","1"),
+                ("amazon_default_power_source_type","默认动力来源","diesel"),
+                ("amazon_default_voltage","默认电压","220"),
+                ("amazon_default_dg_regulation","默认危险品规管","not_applicable"),
+                ("amazon_default_dimensions","默认尺寸 cm（长x宽x高）","10x10x10"),
+                ("amazon_upc_prefix","UPC 前缀（自动生成 UPC，如 012345）",""),
+            ):
+                _tf = ft.TextField(label=_label, width=220, color=ui.TEXT, bgcolor=ui.CARD_2,
+                    value=str(getattr(app.cfg,_k,_hint) or _hint))
+                _defs[_k]=_tf
+            def _save_defs(e=None):
+                for _k,_tf in _defs.items(): app.cfg.set(_k,str(_tf.value or "").strip())
+                if str(_defs.get("amazon_upc_prefix").value or "").strip():
+                    app.cfg.set("amazon_auto_product_id", True)
+                try:
+                    save_config(app.cfg)
+                    from ..core.platform_config import save as _sp
+                    _sp(app.cfg, "amazon")
+                except Exception: pass
+            for _tf in _defs.values(): _tf.on_change=_save_defs
+            controls += [ui.h1("缺失必填项默认值", 13),
+                         ft.Row(list(_defs.values()), wrap=True, spacing=8),
+                         ui.muted("填写即保存；开启智能属性后，发布前按类目 schema 使用。", 11)]
         if platform == "amazon" and section == "category":
             _kw = ft.TextField(label="采集箱关键词筛选（标题/SKU/ID）", width=420,
                 color=ui.TEXT, bgcolor=ui.CARD_2,
@@ -348,6 +411,22 @@ def functional_settings(app, platform, page, *, run_link=True):
             controls += [_kw, _cat_text,
                          ft.Row([ft.ElevatedButton("搜索/选择类目", icon=ft.Icons.SEARCH, on_click=_pick_cat)], wrap=True),
                          ui.muted("关键词只用于筛选采集箱商品；类目从右侧弹窗选择，选中后本次商品优先使用该类目。", 11)]
+        if platform == "amazon" and section == "category":
+            controls.append(_inline_picker(app, platform, "amazon_collect_"))
+            _tpl_tf = ft.TextField(label="模板产品 ID（可选，先读模板必填项）", width=420,
+                color=ui.TEXT, bgcolor=ui.CARD_2,
+                value=str(getattr(app.cfg, "template_product_id", "") or ""),
+                hint_text="填写同店铺有完整属性的商品 ID，后续按模板补必填项")
+            def _save_tpl(e=None):
+                app.cfg.set("template_product_id", str(_tpl_tf.value or "").strip())
+                try:
+                    save_config(app.cfg)
+                    from ..core.platform_config import save as _sp
+                    _sp(app.cfg, "amazon")
+                except Exception: pass
+            _tpl_tf.on_change = _save_tpl
+            controls += [_tpl_tf,
+                         ui.muted("发布前会先检测模板商品的类目/必填属性，再按当前商品基础信息补全。", 11)]
         if section == "category":
             controls.append(ui.muted("默认逐商品沿用类目与属性。只有同类商品才填写统一类目；换类目后请先检查必填属性。"))
             if platform == "alibaba":
@@ -737,7 +816,8 @@ def wrap(app, platform, page, editor):
     return tabs
 
 
-def runtime_controls(app, platform):
+def runtime_controls(app, platform, *, embedded=False):
+    """运行参数控件；embedded=True 时不带卡片标题，供「高级运行参数」折叠区合并。"""
     from . import app as ui
     from ..services.collect_runtime import PARAMETERS, PRESETS, parameter_value, apply_preset
     prefix = platform + "_collect_"
@@ -795,6 +875,15 @@ def runtime_controls(app, platform):
         current.value = current_label()
         app.toast("已应用" + PRESETS[chooser.value][0] + "参数；下次任务生效")
         app._safe_update()
+    if embedded:
+        # 合并进「高级运行参数 / AI 预算」折叠区：直接展示字段，不再套一层折叠。
+        return ft.Column([
+            current,
+            ft.Row([chooser, ft.OutlinedButton("应用运行预设", icon=ft.Icons.TUNE, on_click=apply)], wrap=True, spacing=12),
+            preview,
+            ft.Row(list(editors.values()), wrap=True, spacing=12),
+            ui.muted("只调整当前平台的运行速度与保护阈值，保留商品设置和AI开关。网络异常不重发保存/发布；停止在当前商品结束或重试等待结束时生效。"),
+        ], spacing=10)
     return ui.card(ft.Column([
         ui.h1("运行参数", ui.FS_MD),
         current,
@@ -1100,8 +1189,8 @@ def _inline_picker(app, platform, prefix):
     ], spacing=10))
 
 
-def _cost_estimate(app, platform, prefix):
-    """费用预估卡片：根据选中数量和配置实时估算。"""
+def _cost_estimate(app, platform, prefix, *, embedded=False):
+    """费用预估：根据选中数量和配置实时估算。embedded=True 只返回内容，供合并卡片使用。"""
     from . import app as ui
     cost_text = ft.Text("加载中…", size=13, color=ui.TEXT, selectable=True)
 
@@ -1139,15 +1228,18 @@ def _cost_estimate(app, platform, prefix):
     refresh()
     # 暴露刷新方法，供 limit/选择变化时调用
     app._cost_refresh = refresh
+    note = ui.muted("实际费用以服务商账单为准；缓存命中和缺项商品会减少调用。", 11)
+    if embedded:
+        return ft.Column([cost_text, note], spacing=6)
     return ui.card(ft.Column([
         ui.h1i(ft.Icons.ACCOUNT_BALANCE_WALLET, "费用预估", ui.FS_MD),
         cost_text,
-        ui.muted("实际费用以服务商账单为准；缓存命中和缺项商品会减少调用。", 11),
+        note,
     ], spacing=8))
 
 
-def _queue_tab(app, platform, prefix):
-    """任务队列 Tab：多任务排队、顺序执行。"""
+def _queue_tab(app, platform, prefix, *, embedded=False):
+    """任务队列：多任务排队、顺序执行。embedded=True 只返回内容，供折叠卡片使用。"""
     from . import app as ui
     from ..services import task_profiles as _tp
 
@@ -1254,8 +1346,7 @@ def _queue_tab(app, platform, prefix):
     app._refresh_inline_queue = refresh_list
     refresh_list()
 
-    return ui.card(ft.Column([
-        ui.h1i(ft.Icons.QUEUE, "任务队列（多任务批量处理）", ui.FS_MD),
+    body = [
         ui.muted("把当前配置加入队列，可排队多条任务，点「执行全部」顺序处理。"
                  "每条任务是独立配置快照，互不影响。要并行请用设置里的「新实例运行」。", 11),
         ft.Row([q_name, q_keyword, q_qty,
@@ -1267,7 +1358,104 @@ def _queue_tab(app, platform, prefix):
                 ft.OutlinedButton("清理已完成/失败", icon=ft.Icons.CLEANING_SERVICES,
                                   on_click=clear_finished)], spacing=8),
         q_list,
+    ]
+    if embedded:
+        return ft.Column(body, spacing=10)
+    return ui.card(ft.Column([
+        ui.h1i(ft.Icons.QUEUE, "任务队列（多任务批量处理）", ui.FS_MD),
+        *body,
     ], spacing=10))
+
+
+def _card_body(panel, drop_texts=()):
+    """拆出 ui.card(...) 的内部控件，用于把多张卡片合并成一张。"""
+    content = getattr(panel, "content", None)
+    controls = list(getattr(content, "controls", []) or []) if isinstance(content, ft.Column) else [panel]
+    if drop_texts:
+        controls = [c for c in controls
+                    if not (isinstance(c, ft.Text) and str(getattr(c, "value", "") or "") in drop_texts)]
+    return controls
+
+
+def _alibaba_task_card(app, platform, prefix, keyword, limit, selected_text, op, repair, summary, halted):
+    """页面 33「本次任务」：合并原处理范围与操作 + 费用预估；运行参数/AI 预算收进折叠区。"""
+    from . import app as ui
+    shop_id = str(getattr(app.cfg, platform + "_shop_id", "") or "")
+    shop = str(getattr(app.cfg, platform + "_shop_name", "") or shop_id) if shop_id else "未选店铺"
+    advanced = ft.ExpansionTile(
+        title=ft.Text("高级运行参数 / AI 预算", color=ui.TEXT),
+        controls=[
+            ui.muted("运行速度与保护：只影响本次任务的请求节奏，不改商品设置和 AI 开关。", 11),
+            runtime_controls(app, platform, embedded=True),
+            ui.muted("AI 预算与结果复用：按本次任务预约调用；实际费用以服务商账单为准。", 11),
+            budget_controls(app, platform, embedded=True),
+        ],
+        initially_expanded=False)
+    return ui.card(ft.Column([
+        ui.h1i(ft.Icons.TUNE, "本次任务", ui.FS_MD),
+        ft.Row([
+            ui.muted("当前店铺：" + shop),
+            ft.TextButton("连接与店铺", on_click=lambda e: app._switch(CONNECTION_PAGE[platform])),
+            ft.TextButton("去采集箱商品", icon=ft.Icons.INVENTORY_2_OUTLINED,
+                          on_click=lambda e: app._switch(29)),
+        ], wrap=True, spacing=10),
+        ft.Row([keyword, limit], wrap=True, spacing=12),
+        selected_text,
+        ui.muted("默认前 10 件、保存草稿、保留原商品资料。关键词匹配后再限制数量；每件失败原因写入日志。"),
+        ft.Row([op, repair], wrap=True, spacing=12),
+        ui.muted("低于 4.5 分时用商品已有资料补齐并复评。只有已启用的 AI 文案字段会追加调用。"),
+        ft.Row([
+            ft.OutlinedButton("检查本次范围", icon=ft.Icons.FACT_CHECK,
+                on_click=lambda e: launch(app, platform, dry_run=True)),
+            ft.ElevatedButton("开始自动处理", icon=ft.Icons.PLAY_ARROW,
+                on_click=lambda e: launch(app, platform)),
+            ft.OutlinedButton("停止", icon=ft.Icons.STOP, on_click=lambda e: app._request_stop()),
+            ft.TextButton("查看全过程日志", on_click=lambda e: app._switch(10)),
+            ft.TextButton("检查配置冲突", on_click=lambda e: app._check_conflicts()),
+            ft.TextButton("查看任务结果", on_click=lambda e: app.content.scroll_to(key="collect-results", duration=200)),
+        ], spacing=10, wrap=True),
+        ft.Text(summary, color=ui.TEXT, selectable=True),
+        *([ft.Text("运行已停止：" + halted, color=ui.DANGER_C, selectable=True)] if halted else []),
+        _cost_estimate(app, platform, prefix, embedded=True),
+        advanced,
+    ], spacing=14))
+
+
+def _alibaba_results_card(app, platform, attempts):
+    """页面 33「结果与修复」：合并任务结果面板与发布失败自动处理。"""
+    from . import app as ui
+    panel = results_panel(app, platform)
+    body = _card_body(panel, drop_texts=("任务结果",))
+    card = ui.card(ft.Column([
+        ui.h1i(ft.Icons.FACT_CHECK, "结果与修复", ui.FS_MD),
+        ui.muted("先回读当前错误。审核中自动跳过；确定的格式与字段问题自动修复；经营权限、真实识别码和缺失资料会列出处理办法。"),
+        attempts,
+        ft.Row([
+            ft.OutlinedButton("分析发布失败", icon=ft.Icons.FACT_CHECK,
+                on_click=lambda e: launch(app, platform, dry_run=True, failures=True)),
+            ft.ElevatedButton("修复发布失败商品", icon=ft.Icons.AUTO_FIX_HIGH,
+                on_click=lambda e: launch(app, platform, failures=True)),
+        ], spacing=10, wrap=True),
+        ui.muted("修复使用「本次任务」的数量、关键词与完成后去向。默认保存修复结果；选择提交发布时，仍有阻断项的商品不会重发。"),
+        *body,
+    ], spacing=12, horizontal_alignment=ft.CrossAxisAlignment.STRETCH))
+    # 「查看任务结果」按钮滚动到这里；collect_results 的卡片标题不再单独出现。
+    card.key = "collect-results"
+    return card
+
+
+def _alibaba_queue_card(app, platform, prefix):
+    """页面 33「任务队列（默认折叠）」：保留原队列全部功能，默认收起。"""
+    from . import app as ui
+    body = _queue_tab(app, platform, prefix, embedded=True)
+    return ui.card(ft.Column([
+        ft.ExpansionTile(
+            leading=ft.Icon(ft.Icons.QUEUE, color=ui.ACCENT),
+            title=ft.Text("任务队列（默认折叠）", color=ui.TEXT, weight=ft.FontWeight.BOLD, size=ui.FS_MD),
+            controls=[body],
+            initially_expanded=False,
+        ),
+    ], spacing=4))
 
 
 def run_page(app, platform):
@@ -1327,7 +1515,7 @@ def run_page(app, platform):
         options=[ft.dropdown.Option(str(i), str(i) + " 次") for i in (1, 2, 3)])
     attempts.on_change = lambda e: write(app, prefix + "max_attempts", int(e.control.value))
     recovery = []
-    if platform in ("alibaba", "amazon"):
+    if platform == "amazon":
         recovery = [ui.card(ft.Column([ui.h1("发布失败自动处理", ui.FS_MD),
             ui.muted("先回读当前错误。审核中自动跳过；确定的格式与字段问题自动修复；经营权限、真实识别码和缺失资料会列出处理办法。"),
             attempts, ft.Row([
@@ -1339,6 +1527,16 @@ def run_page(app, platform):
         ], spacing=12))]
     summary = "尚未运行" if not results else f"已处理 {len(results)} 件 · 成功 {sum(r['ok'] for r in results)} · 失败 {sum(not r['ok'] for r in results)}"
     halted = results[-1].get("halt_reason", "") if results else ""
+    if alibaba:
+        # 页面 33 固定 4 张卡：发品进度 → 本次任务 → 结果与修复 → 任务队列（默认折叠）。
+        return [
+            ui.page_header("检查与发布",
+                           "按六步流程：补齐发品资料 → 设置本次任务 → 开始处理 → 结果与修复；选品统一在「采集箱商品」。"),
+            alibaba_readiness(app),
+            _alibaba_task_card(app, platform, prefix, keyword, limit, selected_text, op, repair, summary, halted),
+            _alibaba_results_card(app, platform, attempts),
+            _alibaba_queue_card(app, platform, prefix),
+        ]
     extra = [runtime_controls(app, platform), budget_controls(app, platform), *recovery]
     shop_info = []
     if simple:
@@ -1351,8 +1549,8 @@ def run_page(app, platform):
         shop_info = [ft.Row([ui.muted("当前店铺：" + shop + (" · " + site if amazon else "")),
             ft.TextButton("连接与店铺", on_click=lambda e: app._switch(CONNECTION_PAGE[platform]))], wrap=True)]
 
-    # 立即处理 Tab：选品 + 范围/操作 + 结果 + 高级
-    picker_card = _inline_picker(app, platform, prefix)
+    # 立即处理 Tab：Amazon 选品卡已移到「处理规则 → 类目与属性」。
+    picker_card = None if amazon else _inline_picker(app, platform, prefix)
     cost_card = _cost_estimate(app, platform, prefix)
     range_card = ui.card(ft.Column([ui.h1("处理范围与操作", ui.FS_MD), *shop_info,
         ft.Row([keyword, limit], wrap=True, spacing=12),
@@ -1372,7 +1570,7 @@ def run_page(app, platform):
         *([ft.Text("运行已停止：" + halted, color=ui.DANGER_C, selectable=True)] if halted else [])], spacing=14))
     # 顺序：发品清单 → 处理范围 → 结果 → 选择商品（放到最下面）。
     immediate_controls = [range_card, cost_card,
-                          results_panel(app, platform), *extra, picker_card]
+                          results_panel(app, platform), *extra] + ([picker_card] if picker_card is not None else [])
 
     # 任务队列 Tab
     queue_card = _queue_tab(app, platform, prefix)
@@ -1380,11 +1578,10 @@ def run_page(app, platform):
     tabs = ui.workspace_tabs([("立即处理", immediate_controls),
                                ("任务队列", [queue_card])])
 
-    readiness = [alibaba_readiness(app)] if alibaba else []
     return [ui.page_header("运行与结果" if simple else "自动处理与发布",
                            "选择商品 → 设置范围 → 开始处理；多任务排队请在「任务队列」Tab。" if simple else
                            "自动读取采集箱 → 按各功能页设置处理 → 校验保存 → 回读结果。多任务排队请切到「任务队列」Tab。"),
-        *readiness, tabs]
+        tabs]
 
 
 def overview(app, platform):
@@ -1423,28 +1620,44 @@ def alibaba_readiness(app):
     from . import app as ui
     cfg = app.cfg
     kw = [x.strip() for x in str(getattr(cfg, "alibaba_keywords", "") or "").split(",") if x.strip()]
+    product = {}
+    try:
+        from .alibaba_editor import state_for as _alibaba_state
+        _, _st = _alibaba_state(app)
+        product = (_st or {}).get("product") or {}
+    except Exception:
+        product = {}
+    if not kw:
+        kw = [x.strip() for x in str((product or {}).get("keywords") or "").split(",") if x.strip()]
+    if not kw:
+        try:
+            from ..services.alibaba_payload import smart_keywords_from_title
+            kw = smart_keywords_from_title(str((product or {}).get("subject") or ""), 3)
+        except Exception:
+            kw = []
     try:
         presets = json.loads(str(getattr(cfg, "alibaba_attr_presets", "") or "{}"))
     except (ValueError, TypeError):
         presets = {}
     rows = [
         ("店铺已连接", bool(str(getattr(cfg, "alibaba_shop_id", "") or "").strip()), CONNECTION_PAGE["alibaba"]),
-        ("类目已选择", bool(str(getattr(cfg, "alibaba_category_id", "") or "").strip()), ALIBABA_RULES_PAGE),
-        ("属性预设已填写", bool(presets), ALIBABA_RULES_PAGE),
-        ("关键词≥3个", len(kw) >= 3, ALIBABA_RULES_PAGE),
+        # 六步流程：29 采集箱 / 30 类目与属性 / 31 公司与商品资料（含关键词、运费）/ 3 文案与图片。
+        ("类目已选择", bool(str(getattr(cfg, "alibaba_category_id", "") or "").strip()), 30),
+        ("属性预设已填写", bool(presets), 30),
+        ("关键词≥3个", len(kw) >= 3, 31),
         ("公司介绍/FAQ已填写", bool(str(getattr(cfg, "alibaba_company_desc", "") or "").strip())
-         and bool(str(getattr(cfg, "alibaba_company_faq", "") or "").strip()), ALIBABA_RULES_PAGE),
-        ("运费模板已选择", bool(str(getattr(cfg, "alibaba_freight_template_id", "") or "").strip()), ALIBABA_RULES_PAGE),
+         and bool(str(getattr(cfg, "alibaba_company_faq", "") or "").strip()), 31),
+        ("运费模板已选择", bool(str(getattr(cfg, "alibaba_freight_template_id", "") or "").strip()), 31),
     ]
     done = sum(1 for _label, ok, _page in rows if ok)
-    controls = [ft.Row([ui.h1("发品准备清单", ui.FS_MD),
+    controls = [ft.Row([ui.h1i(ft.Icons.CHECKLIST, "发品进度", ui.FS_MD),
                         ui.muted(f"{done}/{len(rows)} 项完成 · 发布前会再执行评分（≥4.5）")], wrap=True, spacing=10),
                 ui.muted("先补齐资料，再点“开始自动处理”；每件商品的最终阻断项会写进日志。")]
     for label, ok, page in rows:
         controls.append(ft.Row([ft.Text("✅" if ok else "⚠️", size=15, width=24),
                                 ft.Text(label, size=12.5, color=(ui.SUCCESS_C if ok else ui.WARN_C), width=180),
                                 ft.Text("已完成" if ok else "待处理", size=11.5, color=ui.MUTED, width=60),
-                                ft.TextButton("去设置", icon=ft.Icons.CHEVRON_RIGHT,
+                                ft.TextButton("去查看" if ok else "去处理", icon=ft.Icons.CHEVRON_RIGHT,
                                               on_click=lambda e, p=page: app._switch(p))],
                                spacing=6, wrap=True))
     return ui.card(ft.Column(controls, spacing=4))
@@ -1505,6 +1718,13 @@ def launch(app, platform, *, dry_run=False, failures=False, resume_id=None):
             app.toast("原任务参数无法继续：" + "；".join(item.detail for item in problems), False)
             return
     def start():
+        # 统一所有平台：任务真正启动时自动打开实时日志（顶部含进度/累计花费）。
+        try:
+            opener = getattr(app, "_open_log_on_task", None)
+            if callable(opener):
+                opener()
+        except Exception:
+            pass
         if not hasattr(app, "_media_jobs_lock"):
             app._media_jobs_lock = threading.Lock()
         with app._media_jobs_lock:
@@ -1632,7 +1852,8 @@ def results_panel(app, platform):
             ft.TextButton("查看任务日志", on_click=lambda e: app._switch(10))], spacing=12))
 
 
-def budget_controls(app, platform):
+def budget_controls(app, platform, *, embedded=False):
+    """AI 预算与复用控件；embedded=True 时不带卡片标题，供「高级运行参数」折叠区合并。"""
     from . import app as ui
     prefix = platform + "_collect_"
     fields = []
@@ -1656,7 +1877,13 @@ def budget_controls(app, platform):
         fields.append(field)
     reuse = ft.Switch(label="复用相同商品与规则的AI结果", value=bool(getattr(app.cfg, prefix + "ai_cache", True)), active_color=ui.ACCENT)
     reuse.on_change = lambda e: write(app, prefix + "ai_cache", bool(e.control.value))
-    return ui.card(ft.Column([ui.h1("AI预算与复用", ui.FS_MD), reuse,
-        ui.muted("已生成结果保留30天；商品资料、提示词或模型变化会重新生成。复用命中不增加调用。金额按填写的预算单价预约，实际费用以服务商账单为准。"),
+    note = ui.muted("已生成结果保留30天；商品资料、提示词或模型变化会重新生成。复用命中不增加调用。金额按填写的预算单价预约，实际费用以服务商账单为准。")
+    if embedded:
+        return ft.Column([
+            reuse,
+            note,
+            ft.Row(fields, wrap=True, spacing=12),
+        ], spacing=10)
+    return ui.card(ft.Column([ui.h1("AI预算与复用", ui.FS_MD), reuse, note,
         ft.ExpansionTile(title=ft.Text("AI预算设置", color=ui.TEXT), controls=[ft.Row(fields, wrap=True, spacing=12)]),
     ], spacing=12))

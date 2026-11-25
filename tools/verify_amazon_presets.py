@@ -41,7 +41,7 @@ MIN_COUNTS = {"title": 6, "bullets": 5, "description": 5,
               "search_terms": 5, "sku": 5, "image": 10}
 PLACEHOLDER_WHITELIST = {
     "country", "code", "language", "lang", "title_limit", "bullet_limit",
-    "bullet_suggest", "count", "desc_bytes", "st_bytes", "title", "subject",
+    "bullet_suggest", "count", "desc_bytes", "st_bytes", "highlight_limit", "title", "subject",
 }
 BANNED_TERMS = (
     r"\bbest\b", r"\bno\.?\s*1\b", r"100\s*%", r"\bfree\s+shipping\b",

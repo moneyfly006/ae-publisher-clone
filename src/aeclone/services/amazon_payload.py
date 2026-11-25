@@ -28,6 +28,29 @@ from .amazon_prompts import (
     site_meta as prompt_site_meta, strip_html,
 )
 
+def _auto_merchant_asin(product_id: str, sku: str = "") -> str:
+    """生成稳定的 Amazon 10 位 Merchant Suggested ASIN（仅补齐缺失字段）。"""
+    import hashlib
+    seed = str(product_id or sku or "AURORA").encode("utf-8")
+    digest = hashlib.sha1(seed).hexdigest().upper()
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    tail = "".join(alphabet[int(digest[i:i+2], 16) % len(alphabet)] for i in range(0, 16, 2))
+    return "B0" + tail[:8]
+
+
+def _auto_upc(product_id: str, gs1_prefix: str = "") -> str:
+    """按 GS1 前缀生成带校验位的 UPC-A；没有前缀返回空，绝不伪造。"""
+    import hashlib
+    prefix = re.sub(r"\D", "", str(gs1_prefix or ""))
+    # UPC-A 需要 11 位主体（含 GS1 前缀）；过短/过长都不生成，避免非法识别码。
+    if not prefix or len(prefix) < 6 or len(prefix) > 11:
+        return ""
+    seed = hashlib.sha1(str(product_id or "").encode("utf-8")).hexdigest()
+    body = (prefix + "".join(ch for ch in seed if ch.isdigit()))[:11]
+    body = (body + "0" * 11)[:11]
+    total = sum((3 if i % 2 else 1) * int(ch) for i, ch in enumerate(body))
+    return body + str((10 - total % 10) % 10)
+
 # 真实保存包 39 键，顺序与抓包一致（不得增删/重排）
 SAVE_KEYS: list[str] = [
     "id", "shopId", "marketPlaceId", "currency", "title", "titleDifferentiation",
@@ -117,12 +140,13 @@ def split_bullets(bullet_point: str) -> list[str]:
 
 
 def join_bullets(bullets: list[str]) -> str:
-    """列表 → 五点描述字符串（``±`` 连接，去空）。"""
+    """列表 → 五点描述字符串（``±`` 连接，去空）；硬性最多 5 条，超出丢弃。"""
     if not bullets:
         return ""
     if isinstance(bullets, str):
-        bullets = [bullets]
-    return "±".join(str(b).strip() for b in bullets if b and str(b).strip())
+        bullets = split_bullets(bullets)
+    values = [str(b).strip() for b in bullets if b and str(b).strip()]
+    return "±".join(values[:BULLET_MAX_ITEMS])
 
 
 def _to_float(value):
@@ -549,8 +573,15 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     out["audience"] = _text(p.get("audience"), "all") or "all"
     out["fullCid"] = _text(p.get("fullCid"))
     out["sourceUrl"] = _text(p.get("sourceUrl") or p.get("source_url"))
-    out["standardProductType"] = p.get("standardProductType")
-    out["standardProductId"] = p.get("standardProductId")
+    out["standardProductType"] = p.get("standardProductType") or _cfg_value(cfg, "amazon_standard_product_type", "")
+    out["standardProductId"] = p.get("standardProductId") or _cfg_value(cfg, "amazon_standard_product_id", "")
+    _upc_prefix = str(_cfg_value(cfg, "amazon_upc_prefix", "")
+                      or _cfg_value(cfg, "amazon_gs1_prefix", "") or "").strip()
+    if (not out["standardProductType"] or not out["standardProductId"]) \
+            and (_upc_prefix or bool(_cfg_value(cfg, "amazon_auto_product_id", False))):
+        out["standardProductType"] = out["standardProductType"] or "UPC"
+        out["standardProductId"] = out["standardProductId"] or _auto_upc(
+            out["id"] or p.get("sku") or "", _upc_prefix)
     out["conditionType"] = p.get("conditionType")
     out["conditionValue"] = _text(p.get("conditionValue"))
     out["variationTheme"] = _text(p.get("variationTheme"))
@@ -598,11 +629,12 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     brand = _override(ov, "brand", p.get("brand"))
     if not _text(brand) and _has_cfg(cfg, "amazon_brand"):
         brand = _cfg_value(cfg, "amazon_brand")
-    out["brand"] = _text(brand)
+    # 无品牌/无制造商也必须是平台可接受的占位值，不能留空。
+    out["brand"] = _text(brand) or "Generic"
     manufacturer = _override(ov, "manufacturer", p.get("manufacturer"))
     if not _text(manufacturer) and _has_cfg(cfg, "amazon_manufacturer"):
         manufacturer = _cfg_value(cfg, "amazon_manufacturer")
-    out["manufacturer"] = _text(manufacturer)
+    out["manufacturer"] = _text(manufacturer) or "Generic"
     sku = _override(ov, "sku", p.get("sku"))
     if not _text(sku) and _has_cfg(cfg, "amazon_sku"):
         sku = _cfg_value(cfg, "amazon_sku")
@@ -631,9 +663,17 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
         sale_price = 0
     elif _to_float(sale_price) in (None, 0.0) and _has_cfg(cfg, "amazon_sale_price"):
         sale_price = _cfg_value(cfg, "amazon_sale_price")
+    # 促销价必须小于标准价；否则自动清空促销价，避免保存前校验失败。
+    _std_f = _to_float(out.get("standardPrice"))
+    _sale_f = _to_float(_price(sale_price))
+    if _sale_f is not None and _sale_f > 0 and (_std_f is None or _sale_f >= _std_f):
+        sale_price = 0
+        out["saleStartDateStr"] = out["saleEndDateStr"] = None
     out["saleSalePrice"] = _price(sale_price)
-    out["saleStartDateStr"] = native.get("saleStartDateStr", p.get("saleStartDateStr"))
-    out["saleEndDateStr"] = native.get("saleEndDateStr", p.get("saleEndDateStr"))
+    if out.get("saleStartDateStr") is None:
+        out["saleStartDateStr"] = native.get("saleStartDateStr", p.get("saleStartDateStr"))
+    if out.get("saleEndDateStr") is None:
+        out["saleEndDateStr"] = native.get("saleEndDateStr", p.get("saleEndDateStr"))
     if ov.get("sale_price") == 0:
         out["saleStartDateStr"] = out["saleEndDateStr"] = None
     qty = _override(ov, "quantity", None)
@@ -682,6 +722,22 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     attrs_ov = _override(ov, "attributes", None)
     has_attrs_ov = isinstance(attrs_ov, dict) and bool(attrs_ov)
     attr_data = parse_product_attr(raw_attr)
+    _gtin_exempt = bool(_cfg_value(cfg, "amazon_gtin_exemption", False))
+    if _gtin_exempt:
+        # 店小秘「GTIN 豁免」：不填 UPC，声明 supplier_declared_has_product_identifier_exemption=Yes。
+        out["standardProductType"] = ""
+        out["standardProductId"] = ""
+        attr_data["supplier_declared_has_product_identifier_exemption"] = [{
+            "value": "Yes", "language_tag": language_tag_for(new_mp or out.get("marketPlaceId") or ""),
+            "marketplace_id": new_mp or out.get("marketPlaceId") or ""}]
+        attr_data.pop("externally_assigned_product_identifier", None)
+    _ext_type = str(out.get("standardProductType") or "").strip().upper()
+    _ext_value = str(out.get("standardProductId") or "").strip()
+    if _ext_type and _ext_value and not attr_data.get("externally_assigned_product_identifier"):
+        attr_data["externally_assigned_product_identifier"] = [{
+            "type": _ext_type, "value": _ext_value,
+            "language_tag": language_tag_for(new_mp or out.get("marketPlaceId") or ""),
+            "marketplace_id": new_mp or out.get("marketPlaceId") or ""}]
     filled: dict = {}
     attr_notes: list[str] = []
     if _attr_json_ok(raw_attr):
@@ -695,6 +751,46 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
         if filled:
             attr_data = merge_attributes(attr_data, filled, new_mp,
                                          language_tag_for(new_mp))
+        _asin = str(_cfg_value(cfg, "amazon_merchant_suggested_asin", "") or "").strip()
+        if not _asin and bool(_cfg_value(cfg, "amazon_auto_merchant_asin", True)):
+            _asin = _auto_merchant_asin(out.get("id") or "", out.get("sku") or "")
+        if _asin and "merchant_suggested_asin" not in attr_data:
+            attr_data["merchant_suggested_asin"] = [{
+                "value": _asin, "language_tag": "en_CA",
+                "marketplace_id": new_mp or out.get("marketPlaceId") or ""}]
+        _contact = str(_cfg_value(cfg, "amazon_manufacturer_contact", "") or "").strip()
+        if _contact:
+            _contact_key = "manufacturer_contact_information"
+            _has_contact = False
+            for _k, _v in attr_data.items():
+                if str(_k).casefold() in ("manufacturer_contact_information", "manufacturercontactinformation"):
+                    if isinstance(_v, list) and _v:
+                        _has_contact = True
+                    break
+            if not _has_contact:
+                attr_data[_contact_key] = [{
+                    "value": _contact, "language_tag": "en_CA",
+                    "marketplace_id": new_mp or out.get("marketPlaceId") or ""}]
+    else:
+        pass
+    # 智能属性模式才追加联系信息/建议 ASIN；普通保存保持 productAttr 原样往返。
+    if bool(_cfg_value(cfg, "amazon_smart_attributes", False)):
+        _asin = str(_cfg_value(cfg, "amazon_merchant_suggested_asin", "") or "").strip()
+        if not _asin and bool(_cfg_value(cfg, "amazon_auto_merchant_asin", True)):
+            _asin = _auto_merchant_asin(out.get("id") or "", out.get("sku") or "")
+        if _asin and "merchant_suggested_asin" not in attr_data:
+            attr_data["merchant_suggested_asin"] = [{
+                "value": _asin, "language_tag": "en_CA",
+                "marketplace_id": new_mp or out.get("marketPlaceId") or ""}]
+        _contact = str(_cfg_value(cfg, "amazon_manufacturer_contact", "") or "").strip()
+        if _contact:
+            _existing_contact = attr_data.get("manufacturer_contact_information")
+            if not (isinstance(_existing_contact, list) and _existing_contact):
+                attr_data["manufacturer_contact_information"] = [{
+                    "value": _contact, "language_tag": "en_CA",
+                    "marketplace_id": new_mp or out.get("marketPlaceId") or ""}]
+        out["productAttr"] = json.dumps(attr_data, ensure_ascii=False)
+    elif has_attrs_ov or rewrite_mp or filled:
         out["productAttr"] = json.dumps(attr_data, ensure_ascii=False)
     else:
         # 无需改写时保持原样回写（真实写 #1 的 productAttr 往返一致）
@@ -773,6 +869,21 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
             if notes is not None and synced:
                 notes.append("已同步编辑字段与平台属性：" + "、".join(sorted(synced)))
 
+    # Amazon 普通描述只接受文字：源商品描述里的内嵌图片自动移除，避免保存前校验失败。
+    _INLINE_MEDIA_TAG = re.compile(
+        r"<\s*(?:img|picture|source|svg|video|iframe|object|embed)\b[^>]*>", re.I)
+    try:
+        from .platform_media import has_inline_media as _has_inline_media
+        if _has_inline_media(out.get("description") or ""):
+            out["description"] = _INLINE_MEDIA_TAG.sub("", out["description"])
+            if notes is not None:
+                notes.append("已自动移除产品描述中的内嵌图片（Amazon 描述仅支持文字）")
+        if out.get("productAttr") and _has_inline_media(str(out["productAttr"])):
+            out["productAttr"] = _INLINE_MEDIA_TAG.sub("", str(out["productAttr"]))
+            if notes is not None:
+                notes.append("已自动清理描述属性中的内嵌图片")
+    except Exception:
+        pass
     if notes is not None:
         if filled:
             notes.append("自动补齐发布必填属性：" + format_attribute_summary(filled))

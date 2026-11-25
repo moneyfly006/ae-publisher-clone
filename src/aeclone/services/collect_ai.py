@@ -27,7 +27,10 @@ def generate_copy(platform, product, cfg, overrides):
         if not is_us_site(product.get("site") or getattr(cfg, "tiktok_site", "")):
             selected = [k for k in selected if k in ("title", "description")]
     pid = str(product.get("idStr") or product.get("id") or "")
+    from .collect_runtime import stop_requested, RunStopped
     for kind in selected:
+        if stop_requested():
+            raise RunStopped("用户已请求停止，AI 文案不再继续")
         native, key = fields[kind]
         if platform == "shopee" and kind == "description" and ov.get("descriptionType", product.get("descriptionType")) == "extended":
             native = key = "descriptionInfoStr"

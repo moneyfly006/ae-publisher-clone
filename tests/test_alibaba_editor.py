@@ -58,21 +58,25 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(cfg.as_dict(), before)
 
     def test_product_edits_are_separate_and_logs_persist_without_overview(self):
+        # 六步重构：旧 12 号单品工作台已删除（12→29），单品字段编辑改在
+        # 31「商品资料与价格」的当前商品面板；仍要求按商品 ID 隔离覆盖值。
         with sandbox():
             app = build_app()
             app.cfg.set("alibaba_test_product_id", "A")
-            remember_product(app, dict(make_product(), id="A"))
-            app._switch(12)
+            remember_product(app, dict(make_product(), id="A", idStr="A"))
+            app._switch(31)
             field = next(c for c in walk(app.content.controls) if isinstance(c, ft.TextField)
-                         and c.label == "商品标题（最多 128 字符）")
-            field.value = "Edited title A"
+                         and c.label == "来源链接")
+            field.value = "https://example.invalid/edited-a"
             field.on_change(SimpleNamespace(control=field))
-            app._switch(32)
-            self.assertEqual(current_overrides(app)["subject"], "Edited title A")
+            app._switch(3)
+            self.assertEqual(current_overrides(app)["editor_fields"]["sourceUrl"],
+                             "https://example.invalid/edited-a")
             app.cfg.set("alibaba_test_product_id", "B")
-            self.assertNotIn("subject", current_overrides(app))
+            self.assertNotIn("sourceUrl", current_overrides(app).get("editor_fields", {}))
             app.cfg.set("alibaba_test_product_id", "A")
-            self.assertEqual(current_overrides(app)["subject"], "Edited title A")
+            self.assertEqual(current_overrides(app)["editor_fields"]["sourceUrl"],
+                             "https://example.invalid/edited-a")
             app.ov_progress = None
             event = Event(ts=1, stage="Alibaba · 校验", action="完成", product="A")
             app._on_progress(event)

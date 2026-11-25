@@ -69,6 +69,40 @@ def verified_product(detail, product_id):
     return product
 
 
+_STOP_REQUESTED = False
+_RUN_ACTIVE = False
+
+
+def begin_run() -> None:
+    """进入一次真实批处理会话；单元测试直接调用服务时不激活。"""
+    global _STOP_REQUESTED, _RUN_ACTIVE
+    _STOP_REQUESTED = False
+    _RUN_ACTIVE = True
+
+
+def end_run() -> None:
+    global _STOP_REQUESTED, _RUN_ACTIVE
+    _STOP_REQUESTED = False
+    _RUN_ACTIVE = False
+
+
+def request_stop() -> None:
+    """UI 停止按钮写当前运行会话的中止信号，所有耗时段尽快退出。"""
+    global _STOP_REQUESTED
+    if _RUN_ACTIVE:
+        _STOP_REQUESTED = True
+
+
+def clear_stop() -> None:
+    global _STOP_REQUESTED, _RUN_ACTIVE
+    _STOP_REQUESTED = False
+    _RUN_ACTIVE = False
+
+
+def stop_requested() -> bool:
+    return bool(_RUN_ACTIVE and _STOP_REQUESTED)
+
+
 class RunStopped(RuntimeError):
     pass
 

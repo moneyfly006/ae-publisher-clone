@@ -46,27 +46,30 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.cfg.alibaba_test_product_id, "")
 
     def test_alibaba_manual_workspace_changes_product_and_preserves_drafts(self):
+        # 六步重构：旧 12 号单品工作台重定向到 29「采集箱商品」；这里保留
+        # 「按 ID 打开多次切换商品、只读取不保存」的回归意图。
         self.cfg.set("alibaba_cookies", "ali=test")
         client = Mock()
-        client.product_detail.side_effect = lambda pid: {"idStr": pid, "subject": f"Original {pid}"}
+        client.product_detail.side_effect = lambda pid: {"idStr": pid, "id": pid,
+                                                          "subject": f"Original {pid}"}
         with patch("aeclone.integrations.alibaba.AlibabaClient", return_value=client), \
              patch("threading.Thread.start", lambda thread: thread.run()):
             self.app._switch(12)
+            self.assertEqual(self.app._current, 29)
             field = next(c for c in self.controls() if getattr(c, "label", "") == "按商品 ID 打开（可空）")
             open_item = next(c for c in self.controls() if getattr(c, "text", "") == "按 ID 打开")
             self.assertFalse(any(getattr(c, "text", "") == "保存草稿" for c in self.controls()))
-            for pid, expected in (("A", "Original A"), ("B", "Original B"), ("A", "Edited A")):
+            for pid in ("A", "B", "A"):
                 field.value = pid
                 open_item.on_click(None)
-                title = next(c for c in self.controls() if getattr(c, "label", "") == "商品标题（最多 128 字符）")
-                self.assertEqual(title.value, expected)
-                if pid == "A" and expected == "Original A":
-                    title.value = "Edited A"
-                    title.on_change(SimpleNamespace(control=title))
+                texts = {str(getattr(c, "value", "")) for c in self.controls()
+                         if isinstance(c, ft.Text)}
+                self.assertIn(f"当前商品：{pid} · Original {pid}", texts)
+                self.assertEqual(self.cfg.alibaba_test_product_id, pid)
         self.assertEqual([call.args[0] for call in client.product_detail.call_args_list], ["A", "B", "A"])
 
     def test_alibaba_pages_have_only_their_own_actions(self):
-        expected = {30: "保存模板到本地", 32: "保存阶梯报价", 33: "开始自动处理"}
+        expected = {30: "保存模板到本地", 31: "添加价格档位", 33: "开始自动处理"}
         for theme in ("dark", "light"):
             ui.apply_theme(theme)
             for index, action in expected.items():
@@ -84,21 +87,25 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("保存模板到本地", [getattr(c, "text", "") for c in self.controls()])
 
     def test_alibaba_price_survives_navigation_and_next_step_works(self):
+        # 六步重构：旧 44 处理规则页重定向到 33，旧 32 价格页重定向到 31；
+        # 价格/贸易默认值现在维护在 31「商品资料与价格」，切页后必须保留。
         self.app._switch(44)
-        tabs = next(c for c in self.controls() if isinstance(c, ft.Tabs))
-        tabs.selected_index = 3
-        tabs.on_change(SimpleNamespace(control=tabs))
-        field = next(c for c in self.controls()
-                     if isinstance(c, ft.TextField) and c.label == "统一售价（可选）")
-        field.value = "126.75"
-        field.on_change(SimpleNamespace(control=field))
-        next_step = next(c for c in self.controls() if getattr(c, "text", "") == "去运行与结果")
-        next_step.on_click(None)
         self.assertEqual(self.app._current, 33)
         self.app._switch(32)
+        self.assertEqual(self.app._current, 31)
         field = next(c for c in self.controls()
-                     if isinstance(c, ft.TextField) and c.label == "统一售价（可选）")
-        self.assertEqual(field.value, "126.75")
+                     if isinstance(c, ft.TextField) and c.label == "MOQ")
+        field.value = "126"
+        field.on_change(SimpleNamespace(control=field))
+        self.assertEqual(str(self.cfg.alibaba_min_order_quantity), "126")
+        self.app._switch(3)
+        self.app._switch(31)
+        field = next(c for c in self.controls()
+                     if isinstance(c, ft.TextField) and c.label == "MOQ")
+        self.assertEqual(field.value, "126")
+        previous = next(c for c in self.controls() if getattr(c, "text", "") == "上一步 · 类目与属性")
+        previous.on_click(None)
+        self.assertEqual(self.app._current, 30)
 
     def test_aliexpress_navigation_and_all_existing_pages_preserved(self):
         self.assertEqual([p.index for p in ALIEXPRESS.pages],

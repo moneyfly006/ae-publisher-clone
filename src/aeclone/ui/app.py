@@ -222,8 +222,7 @@ IMAGE_PROMPT_PRESETS = {
 2. 纯白或浅灰背景，突出商品
 3. 柔和自然光，无突兀阴影
 4. 不添加任何文字，去除logo、水印
-5. 如出现人物：人物身高必须与设备真实比例一致（不得高于设备主体，操作姿势合理），严禁人比机器还高
-6. 一个欧洲面孔的美女正在操作机器，""",
+5. 一个欧洲面孔的美女正在操作机器，旁边有两个工人辅助""",
         "高端质感主图": """生成高端质感电商主图：
 1. 深色或渐变背景，突出金属/机械质感
 2. 侧逆光勾勒轮廓，保留产品细节
@@ -703,11 +702,17 @@ class App:
         self._report_identity = ""
         self._login_gate_dlg = None
         self._device_dlg = None
-        # 每平台「今日刊登成功/失败」计数（心跳上报；跨天自动重置、重启归零）
+        # 每平台「今日刊登成功/失败」计数（心跳上报；按天持久化到 config）
         self._publish_counts: dict[str, dict[str, int]] = {}
+        self._publish_seen: dict[str, dict[str, str]] = {}
         self._publish_total = {"success": 0, "fail": 0}
         self._publish_day = time.strftime("%Y-%m-%d")
         self._publish_lock = threading.Lock()
+        self._publish_save_timer = None
+        try:
+            self._load_publish_state()
+        except Exception:
+            pass
         # 解绑/禁用后自动弹登录页：同一事件只提示一次（登录成功后清空）
         self._relogin_prompted_for = ""
         # 登录态周期授权刷新（后台解绑/禁用最迟约 5 分钟感知）
@@ -1557,7 +1562,11 @@ class App:
                 sync(self, platform)
             except (ValueError, TypeError) as exc:
                 collect_workflow.record_error(self, platform, "profiles", str(exc))
-        legacy = {"alibaba": (8, 29), "tiktok": (23,), "shopee": (37,)}
+        # 旧路由兼容：Alibaba 六步重构后，旧页面跳转到新步骤。
+        if platform == "alibaba":
+            _alias = {12: 29, 32: 31, 5: 3, 44: 33}
+            idx = _alias.get(int(idx), idx)
+        legacy = {"alibaba": (8,), "tiktok": (23,), "shopee": (37,)}
         if int(idx) in legacy.get(platform, ()):
             idx = RUN_PAGE[platform]
         pages = self.active_platform.pages
@@ -1644,8 +1653,24 @@ class App:
         self._page_idx = idx
         self._building_page = True
         try:
-            from .collect_workflow import RUN_PAGE, SECTIONS, run_page, wrap
-            if idx == RUN_PAGE.get(platform):
+            from .collect_workflow import (RUN_PAGE, SECTIONS, functional_settings,
+                                           run_page, wrap)
+            if platform == "alibaba" and idx in (29, 30, 31):
+                # 六步固定页：29 采集箱、30 类目属性、31 资料价格。
+                _sec = {29: 0, 30: 1, 31: 2}[idx]
+                controls = self._p_alibaba_section(_sec, self.active_platform.page(idx).label,
+                                                   "完成当前步骤后继续下一步。")
+            elif platform == "alibaba" and idx == 3:
+                # 页面3 = 文案 + 图片（旧5合并），处理规则收进各自批量覆盖。
+                self._current = 3
+                controls = [page_header("文案与图片", "先完成 AI 文案，再处理图片；两项都作用于本次批量。"),
+                            ft.Row([ft.ElevatedButton("去检查与发布", icon=ft.Icons.ARROW_FORWARD,
+                                                      on_click=lambda e: self._switch(33))], wrap=True),
+                            ft.Tabs(selected_index=0, height=1000, tabs=[
+                                ft.Tab(text="AI 文案", content=functional_settings(self, "alibaba", 3)),
+                                ft.Tab(text="AI 图片", content=functional_settings(self, "alibaba", 5)),
+                            ])]
+            elif idx == RUN_PAGE.get(platform):
                 controls = run_page(self, platform)
             elif platform == "amazon" and idx == 16:
                 controls = self._p_amazon_single()
@@ -1668,6 +1693,17 @@ class App:
         finally:
             self._building_page = False
         self._locked_item = None
+        # Alibaba 六步：所有主流程页统一显示步骤条（旧页号已在上方重定向）。
+        if platform == "alibaba" and idx in (1, 29, 30, 31, 3, 33) and isinstance(controls, list):
+            try:
+                from .alibaba_flow import alibaba_stepper, save_next_bar
+                controls.insert(1, alibaba_stepper(self, idx))
+                _seq = {1: (None, 29), 29: (1, 30), 30: (29, 31),
+                        31: (30, 3), 3: (31, 33), 33: (3, None)}
+                _prev, _next = _seq.get(idx, (None, None))
+                controls.append(save_next_bar(self, _prev, _next))
+            except Exception:
+                pass
         self.content.controls = controls
         try:
             self._collect_scope_ctx = getattr(self, "_collect_scope_ctx", {}) or {}
@@ -3147,6 +3183,10 @@ class App:
                     self._log(f"[{i}/{len(rows)}] ⏳ {pid} {out.message[:110]}（不判成功、不重复提交）", "WARN")
                 elif out is not None and out.ok:
                     ok += 1
+                    try:
+                        self._record_publish_result(self.active_platform.id, pid, True)
+                    except Exception:
+                        pass
                     self._log(f"[{i}/{len(rows)}] ✓ {pid} {out.message[:90]}", "INFO")
                     try:
                         pr.remove(pid)
@@ -3154,16 +3194,16 @@ class App:
                         pass
                 else:
                     fail += 1
+                    try:
+                        self._record_publish_result(self.active_platform.id, pid, False)
+                    except Exception:
+                        pass
                     _msg = (out.message if out is not None else "异常")
                     self._log(f"[{i}/{len(rows)}] ✗ {pid} {_msg[:110]}", "WARN")
                     try:
                         pr.record(pid, _msg, r.get("title") or "")
                     except Exception:
                         pass
-            try:
-                self._add_publish(self.active_platform.id, ok, fail)
-            except Exception:
-                pass
             self._log(f"自动修复并发布完成：成功 {ok} / 失败 {fail} / 处理中待确认 {pending}（未调用 AI，未产生费用）", "INFO")
             try:
                 self.toast(f"自动修复发布：成功 {ok} / 失败 {fail} / 待确认 {pending}")
@@ -3772,6 +3812,24 @@ class App:
         self._show_dlg(dlg)
         do_search()
 
+    @staticmethod
+    def _publish_ids(items) -> list[str]:
+        """从批量发布响应的 success/failed 列表提取商品 ID（兼容 str/dict）。"""
+        out: list[str] = []
+        try:
+            rows = list(items or [])
+        except TypeError:
+            return out
+        for item in rows:
+            if isinstance(item, dict):
+                key = item.get("id") or item.get("productId") or item.get("product_id")
+            else:
+                key = item
+            key = str(key or "").strip()
+            if key and key not in out:
+                out.append(key)
+        return out
+
     def _publish_one(self, pid: str, on_done=None):
         """单独发布 / 重试一个商品。"""
         if self._is_tiktok():
@@ -3804,26 +3862,29 @@ class App:
             return
 
         def go():
+            ok = False
+            bad = ""
+            err = ""
             try:
                 from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
                 c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
                 r = c.batch_publish([str(pid)])
                 ok = bool(r.get("success"))
                 bad = (r.get("failed") or [{}])[0].get("msg", "") if not ok else ""
+            except Exception as ex:  # noqa: BLE001
+                err = str(ex)[:100]
+            # 结果已确定 → 只计一次（成功/失败都算，重试时同产品只保留最终结果）
+            try:
+                self._record_publish_result(self.active_platform.id, str(pid), ok)
+            except Exception:
+                pass
+            if err:
+                self._log(f"✗ 发布失败：{pid} {err}", "ERROR")
+                self.toast(f"发布失败：{err[:60]}", False)
+            else:
                 self._log(("✓ 发布成功：" if ok else "✗ 发布失败：") + f"{pid} {bad}"[:120],
                           "INFO" if ok else "WARN")
                 self.toast(("已提交发布：" if ok else f"发布失败：{bad[:60]}") + str(pid), ok)
-                try:
-                    self._count_publish(self.active_platform.id, ok)
-                except Exception:
-                    pass
-            except Exception as ex:  # noqa: BLE001
-                self._log(f"✗ 发布失败：{pid} {str(ex)[:100]}", "ERROR")
-                self.toast(f"发布失败：{str(ex)[:60]}", False)
-                try:
-                    self._count_publish(self.active_platform.id, False)
-                except Exception:
-                    pass
             if on_done:
                 try:
                     on_done()
@@ -4034,9 +4095,21 @@ class App:
                     from ..integrations.dianxiaomi import DianxiaomiClient as _DXC
                     c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
                     r = c.batch_publish(ids)
-                    ok, bad = len(r.get("success") or []), len(r.get("failed") or [])
+                    ok_items, bad_items = r.get("success") or [], r.get("failed") or []
+                    ok, bad = len(ok_items), len(bad_items)
+                    _ok_ids = self._publish_ids(ok_items)
+                    _bad_ids = self._publish_ids(bad_items)
                     try:
-                        self._add_publish(self.active_platform.id, ok, bad)
+                        if _ok_ids or _bad_ids:
+                            for _pid in _ok_ids:
+                                self._record_publish_result(self.active_platform.id,
+                                                            _pid, True)
+                            for _pid in _bad_ids:
+                                self._record_publish_result(self.active_platform.id,
+                                                            _pid, False)
+                        else:
+                            # 服务端只给计数、没有 ID：退回聚合计数（不重复计）
+                            self._add_publish(self.active_platform.id, ok, bad)
                     except Exception:
                         pass
                     self._log(f"批量发布（已选）：成功 {ok} / 失败 {bad}", "INFO" if not bad else "WARN")
@@ -4129,8 +4202,16 @@ class App:
             self._log(label + f"：开始发布 {len(ids)} 个商品…", "INFO")
             r = dxm.batch_publish(ids)
             ok, bad = r.get("success") or [], r.get("failed") or []
+            _ok_ids = self._publish_ids(ok)
+            _bad_ids = self._publish_ids(bad)
             try:
-                self._add_publish(self.active_platform.id, len(ok), len(bad))
+                if _ok_ids or _bad_ids:
+                    for _pid in _ok_ids:
+                        self._record_publish_result(self.active_platform.id, _pid, True)
+                    for _pid in _bad_ids:
+                        self._record_publish_result(self.active_platform.id, _pid, False)
+                else:
+                    self._add_publish(self.active_platform.id, len(ok), len(bad))
             except Exception:
                 pass
             self._log(label + f"：成功 {len(ok)} / 失败 {len(bad)}", "INFO" if not bad else "WARN")
@@ -4226,7 +4307,12 @@ class App:
     def _request_stop(self, e=None):
         if getattr(self, "_collect_running", None):
             self._stop_requested = True
-            self._log("已请求停止：当前商品结束后停止，不再领取下一件商品", "WARN")
+            try:
+                from ..services.collect_runtime import request_stop as _req
+                _req()
+            except Exception:
+                pass
+            self._log("已请求停止：当前阶段结束立即中止，不再处理下一件商品", "WARN")
             self._sync_run_button()
             self._safe_update()
             return
@@ -4445,6 +4531,7 @@ class App:
             audit_streak = 0
             lock = threading.Lock()
             failed_ids: list[str] = []
+            ok_ids: list[str] = []
             processed_ids: list[str] = []
 
             def work(item):
@@ -4489,6 +4576,8 @@ class App:
                             audit_streak = 0
                             ok_n += 1 if res.ok else 0
                             fail_n += 0 if res.ok else 1
+                            if res.ok and not getattr(res, "preview", False):
+                                ok_ids.append(str(prod.get("id", "")))
                             if res.ok and any(not step.ok for step in res.steps):
                                 warning_n += 1
                         if res.ok:
@@ -4505,8 +4594,9 @@ class App:
                             self._log(f"✓ {_result_label}：{prod['id']} "
                                       f"{(prod.get('title') or '')[:44]}", "WARN" if any(not s.ok for s in res.steps) else "INFO")
                         else:
-                            with lock:
-                                failed_ids.append(str(prod.get("id", "")))
+                            if not getattr(res, "preview", False):
+                                with lock:
+                                    failed_ids.append(str(prod.get("id", "")))
                             self._log(f"✗ 编辑失败：{prod['id']} "
                                       f"{(prod.get('title') or '')[:44]} · "
                                       f"{str(res.error or '')[:80]}", "WARN")
@@ -4558,7 +4648,10 @@ class App:
             _stop = "（已按请求停止）" if self._stop_requested else ""
             if not getattr(self, "_preview_mode", False):
                 try:
-                    self._add_publish(self.active_platform.id, ok_n, fail_n)
+                    for _pid in ok_ids:
+                        self._record_publish_result(self.active_platform.id, _pid, True)
+                    for _pid in failed_ids:
+                        self._record_publish_result(self.active_platform.id, _pid, False)
                 except Exception:
                     pass
             self._log(f"完成：成功 {ok_n} / 失败 {fail_n}{_tail}{_stop}", "INFO")
@@ -4691,7 +4784,7 @@ class App:
                 card(ft.Column([
                     ft.Row([cookie, connect_button], spacing=10, wrap=True), self.cookie_status,
                     shop_sel, self.store_status,
-                    ft.Row([ft.OutlinedButton("设置处理规则", on_click=lambda e: self._switch(44)),
+                    ft.Row([ft.OutlinedButton("设置处理规则", on_click=lambda e: self._switch(30)),
                             ft.TextButton("去运行与结果", icon=ft.Icons.ARROW_FORWARD,
                                           on_click=lambda e: self._switch(33))], spacing=10, wrap=True),
                 ], spacing=12))]
@@ -9988,7 +10081,8 @@ class App:
                      ft.DataColumn(ft.Text("级别", size=12.5, color=MUTED)),
                      ft.DataColumn(ft.Text("内容", size=12.5, color=MUTED)),
                      ft.DataColumn(ft.Text("按产品筛选", size=12.5, color=MUTED))],
-            rows=[], column_spacing=18, heading_row_height=36, data_row_min_height=ROW_MIN_H,
+            rows=[], column_spacing=18, heading_row_height=36,
+            data_row_min_height=ROW_MIN_H, data_row_max_height=180,
             heading_text_style=ft.TextStyle(size=FS_SM, color=MUTED),
             data_text_style=ft.TextStyle(size=FS_BASE, color=TEXT),
         )
@@ -10724,7 +10818,8 @@ class App:
                 ft.DataCell(ft.Text(t, size=12, color=MUTED, width=62)),
                 ft.DataCell(ft.Text(x, size=12, width=48, weight=ft.FontWeight.BOLD,
                                     color=log_level_color(x))),
-                ft.DataCell(ft.Text(m, size=12.5, color=TEXT, width=600, selectable=True)),
+                ft.DataCell(ft.Text(m, size=12.5, color=TEXT, width=600, selectable=True,
+                                     max_lines=6, overflow=ft.TextOverflow.ELLIPSIS)),
                 ft.DataCell(self._filter_cell(m)),
             ]) for t, x, m in shown[-300:]
         ]
@@ -11905,17 +12000,23 @@ class App:
                             return
 
                         def save_work():
+                            _counted_result = False
+                            _is_publish = self._publish_op_counts("alibaba", op)
                             try:
                                 # 与 AI 链路共用唯一的真实保存实现：dry_run=False + use_ai=False
                                 # 也会做 is_failure_msg 判定，避免「code=0 但 msg 是失败」被显示成成功。
                                 from ..services.alibaba_pipeline import run_alibaba_product
                                 res = run_alibaba_product(pid, config, dry_run=False,
                                                           op=op, use_ai=use_ai, overrides=edit_overrides)
-                                try:
-                                    self._count_publish("alibaba",
-                                                        bool(getattr(res, "saved", False)))
-                                except Exception:
-                                    pass
+                                # 只有「提交发布(op=2)」算刊登；草稿/移入待发布不计
+                                if _is_publish:
+                                    try:
+                                        self._record_publish_result(
+                                            "alibaba", pid,
+                                            bool(getattr(res, "saved", False)))
+                                    except Exception:
+                                        pass
+                                _counted_result = True
                                 if res.saved:
                                     msg = str(((res.save_result or {}).get("data") or {}).get("msg")
                                               or res.save_result or "")
@@ -11952,10 +12053,11 @@ class App:
                                     self._log(f"Alibaba 保存失败：{pid} op={op} · "
                                               f"{(res.error or res.completion_label)[:80]}", "ERROR")
                             except Exception as ex:  # noqa: BLE001
-                                try:
-                                    self._count_publish("alibaba", False)
-                                except Exception:
-                                    pass
+                                if _is_publish and not _counted_result:
+                                    try:
+                                        self._record_publish_result("alibaba", pid, False)
+                                    except Exception:
+                                        pass
                                 status.value = f"保存失败：{str(ex)[:200]}"
                                 status.color = DANGER_C
                             try:self._safe_update()
@@ -12137,10 +12239,16 @@ class App:
                     ok_n = sum(1 for x in results if x.get("ok"))
                     skip_n = sum(1 for x in results if x.get("skipped"))
                     fail_n = len(results) - ok_n - skip_n
-                    try:
-                        self._add_publish("alibaba", ok_n, fail_n)
-                    except Exception:
-                        pass
+                    if self._publish_op_counts("alibaba", op):
+                        try:
+                            for rec in results:
+                                rec_id = str(rec.get("id") or "").strip()
+                                if not rec_id or rec.get("skipped"):
+                                    continue
+                                self._record_publish_result(
+                                    "alibaba", rec_id, bool(rec.get("ok")))
+                        except Exception:
+                            pass
                     batch_status.value = (f"批量完成：成功 {ok_n} / 跳过 {skip_n} / 失败 {fail_n}")
                     batch_status.color = (ACCENT_2 if fail_n == 0 else WARN_C)
                     try:
@@ -13018,7 +13126,21 @@ class App:
             ], spacing=4))
 
         if section is not None:
-            sections = ([prod_card], [cat_card, panel(self, "attributes")], [panel(self, "profile"), preset_card],
+            # 六步：页面31 = 商品资料 + 价格/贸易（原32合并）
+            from .collect_workflow import functional_settings as _fs
+            sections = ([prod_card],
+                        # 页面30：类目/属性 + 批量模板与属性覆盖（原处理规则类目Tab）
+                        [cat_card, panel(self, "attributes"),
+                         ft.ExpansionTile(title=ft.Text("批量覆盖 / 模板", color=TEXT),
+                             controls=[_fs(self, "alibaba", 30, run_link=False)],
+                             initially_expanded=False)],
+                        # 页面31 商品资料与价格：公司资料 + 价格/贸易（原32合并）
+                        [panel(self, "profile"), preset_card, panel(self, "trade"),
+                         ft.ExpansionTile(title=ft.Text("批量默认资料", color=TEXT),
+                             controls=[trade_card], initially_expanded=False),
+                         ft.ExpansionTile(title=ft.Text("批量覆盖（公司资料/关键词）", color=TEXT),
+                             controls=[_fs(self, "alibaba", 31, run_link=False)],
+                             initially_expanded=False)],
                         [panel(self, "trade"), ft.ExpansionTile(title=ft.Text("批量默认资料", color=TEXT),
                              controls=[trade_card], initially_expanded=False)],
                         [readiness_card(), rules_card, score_card, check_card, batch_card])
@@ -14269,6 +14391,7 @@ class App:
         # (kind, 显示名, 提示词 cfg 键, 预设标记 cfg 键)
         _PRESET_KINDS = (
             ("title", "标题", "amazon_title_prompt", "amazon_title_preset"),
+            ("highlight", "商品亮点", "amazon_highlight_prompt", "amazon_highlight_preset"),
             ("bullets", "五点描述", "amazon_bullet_prompt", "amazon_bullet_preset"),
             ("description", "产品描述", "amazon_description_prompt",
              "amazon_description_preset"),
@@ -14447,8 +14570,8 @@ class App:
                 highlight_count.color = DANGER_C if len(hl) > 125 else MUTED
                 values = _bullet_values()
                 longest = max((len(x) for x in values), default=0)
-                bullets_count.value = f"{len(values)} 条卖点 · 最长 {longest}/700 字符"
-                bullets_count.color = DANGER_C if longest > 700 or len(values) > 10 else MUTED
+                bullets_count.value = f"{len(values)} 条卖点 · 最长 {longest}/700 字符（最多 5 条）"
+                bullets_count.color = DANGER_C if longest > 700 or len(values) > 5 else MUTED
                 d = str(desc_tf.value or "")
                 desc_count.value = f"{len(d)}/2000"
                 desc_count.color = DANGER_C if len(d) > 2000 else MUTED
@@ -14475,7 +14598,8 @@ class App:
         bullets_tf.on_change = _on_bullet_edit
 
         def _render_bullet_rows(n=None):
-            # 旧详情可能超过五条，原样显示；切页和保存不会丢失第 6–10 条。
+            # Amazon 硬性规定：只显示/保存前 5 条。
+            form["bullets"] = list(form.get("bullets") or [])[:5]
             bullets_tf.value = "\n".join(str(x) for x in (form.get("bullets") or []))
             _sync_counts()
 
@@ -15044,8 +15168,8 @@ class App:
             bullets = _split_bullets(str(_pick(p, "bulletPoint", "bullet_point")))
             while len(bullets) < 5:
                 bullets.append("")
-            # 契约/schema：卖点最多 10 条；绝不截断成 5 条（真实写会丢掉 6~10 条）。
-            bullets = bullets[:10]
+            # Amazon 硬性规定：卖点最多 5 条，超出直接删除。
+            bullets = bullets[:5]
             form["bullets"] = bullets
             form["description"] = str(_pick(p, "description"))
             form["search_terms"] = str(_pick(p, "searchTerms", "search_terms"))
@@ -16127,6 +16251,7 @@ class App:
             _status(save_status, "正在自动补齐必填属性并重试发布（op=2）…", MUTED)
 
             def work():
+                _counted_result = False
                 try:
                     _make, _payload, pipeline = _backend()
                     mid = str(_cget("amazon_site", "") or
@@ -16165,9 +16290,13 @@ class App:
                                     _amz_st2,
                                     str(getattr(res, "publish_error", "") or ""),
                                     str(getattr(res, "publish_detail", "") or ""))[3])
-                        self._count_publish("amazon", _amz_ok2)
+                    except Exception:
+                        _amz_ok2 = False
+                    try:
+                        self._record_publish_result("amazon", str(pid), _amz_ok2)
                     except Exception:
                         pass
+                    _counted_result = True
                     state = str(getattr(res, "publish_state", "") or "")
                     label, color, _icon, ok = _publish_badge(
                         state, str(getattr(res, "publish_error", "") or ""),
@@ -16186,10 +16315,11 @@ class App:
                         _status(save_status, f"重试发布未成功：{err[:140]}", DANGER_C)
                         _toast(f"重试发布未成功：{err[:70]}", False)
                 except Exception as ex:
-                    try:
-                        self._count_publish("amazon", False)
-                    except Exception:
-                        pass
+                    if not _counted_result:
+                        try:
+                            self._record_publish_result("amazon", str(pid), False)
+                        except Exception:
+                            pass
                     _status(save_status, f"重试发布失败：{str(ex)[:180]}", DANGER_C)
                     _toast(f"重试发布失败：{str(ex)[:70]}", False)
                 finally:
@@ -16366,6 +16496,8 @@ class App:
             _ui()
 
             def work():
+                _counted_result = False
+                _is_publish = self._publish_op_counts("amazon", snap.get("op"))
                 try:
                     try:
                         mod = self._amazon_auto()
@@ -16386,10 +16518,12 @@ class App:
                              auto_fix_description=snap["auto_fix_description"],
                              auto_ai_fix=snap["auto_ai_fix"])
                     d, ok = _render_auto_result(res)
-                    try:
-                        self._count_publish("amazon", bool(ok))
-                    except Exception:
-                        pass
+                    if _is_publish:
+                        try:
+                            self._record_publish_result("amazon", str(pid), bool(ok))
+                        except Exception:
+                            pass
+                    _counted_result = True
                     label, color, _icon, _badge_ok = _publish_badge(
                         str(d.get("final_state") or d.get("publish_state") or ""),
                         str(d.get("publish_error") or d.get("error") or ""),
@@ -16406,10 +16540,11 @@ class App:
                     if ok:
                         _refresh_after_save()
                 except Exception as ex:
-                    try:
-                        self._count_publish("amazon", False)
-                    except Exception:
-                        pass
+                    if _is_publish and not _counted_result:
+                        try:
+                            self._record_publish_result("amazon", str(pid), False)
+                        except Exception:
+                            pass
                     _status(auto_status, f"自动发布失败：{str(ex)[:160]}", DANGER_C)
                     _toast(f"自动发布失败：{str(ex)[:70]}", False)
                     try:
@@ -16483,6 +16618,8 @@ class App:
                      if str(op) == "2" else f"正在保存（op={op} · {op_text}）…"), MUTED)
 
             def work():
+                _counted_result = False
+                _is_publish = self._publish_op_counts("amazon", op)
                 try:
                     _make, _payload, pipeline = _backend()
                     if client is not None:
@@ -16490,18 +16627,20 @@ class App:
                     res = pipeline.run_amazon_product(
                         pid, snapshot_cfg, overrides=overrides, dry_run=False,
                         use_ai=False, op=op, confirm_write=True, client=client)
-                    try:
-                        _amz_ok = bool(getattr(res, "saved", False))
-                        if _amz_ok and str(op) == "2":
-                            _amz_st = str(getattr(res, "publish_state", "") or "")
-                            if _amz_st:
-                                _amz_ok = bool(_publish_badge(
-                                    _amz_st,
-                                    str(getattr(res, "publish_error", "") or ""),
-                                    str(getattr(res, "publish_detail", "") or ""))[3])
-                        self._count_publish("amazon", _amz_ok)
-                    except Exception:
-                        pass
+                    _amz_ok = bool(getattr(res, "saved", False))
+                    if _amz_ok and _is_publish:
+                        _amz_st = str(getattr(res, "publish_state", "") or "")
+                        if _amz_st:
+                            _amz_ok = bool(_publish_badge(
+                                _amz_st,
+                                str(getattr(res, "publish_error", "") or ""),
+                                str(getattr(res, "publish_detail", "") or ""))[3])
+                    if _is_publish:
+                        try:
+                            self._record_publish_result("amazon", str(pid), _amz_ok)
+                        except Exception:
+                            pass
+                    _counted_result = True
                     if target != _edit_context():
                         _toast(f"商品 {pid} · {getattr(res, 'error', '') or ('已提交，请查询发布结果' if op == '2' else '已保存')}", bool(res.ok))
                         return
@@ -16538,10 +16677,11 @@ class App:
                         except Exception:
                             pass
                 except Exception as ex:
-                    try:
-                        self._count_publish("amazon", False)
-                    except Exception:
-                        pass
+                    if _is_publish and not _counted_result:
+                        try:
+                            self._record_publish_result("amazon", str(pid), False)
+                        except Exception:
+                            pass
                     _status(save_status, f"保存失败：{str(ex)[:180]}", DANGER_C)
                     _toast(f"保存失败：{str(ex)[:70]}", False)
                     try:
@@ -16842,7 +16982,7 @@ class App:
 
         text_card = card(ft.Column([
             h1i(ft.Icons.EDIT_NOTE, "⑤ 文案与 AI", FS_MD),
-            muted("标题 ≤75 字符；商品亮点 ≤125 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条"
+            muted("标题 ≤75 字符；商品亮点 ≤125 字符；五点卖点建议 ≤350 字符（上限 700）、最少 3 条"
                   "（建议 5 条，最多 10 条）；描述为 HTML；Search Terms ≤250 字节。"
                   "AI 结果全部可编辑。"),
             ft.Row([ft.Container(content=title_tf, expand=True),
@@ -16887,8 +17027,9 @@ class App:
             *[ft.ExpansionTile(title=ft.Text(label + "提示词", color=TEXT),
                  controls=[ft.Column(_preset_block(kind, label), spacing=8)],
                  initially_expanded=(kind == "bullets"), icon_color=ACCENT)
-              for kind, label in (("title", "标题"), ("bullets", "五点描述"),
-                  ("description", "产品描述"), ("search_terms", "关键词"), ("sku", "SKU"))],
+              for kind, label in (("title", "标题"), ("highlight", "商品亮点"),
+                  ("bullets", "五点描述"), ("description", "产品描述"),
+                  ("search_terms", "关键词"), ("sku", "SKU"))],
         ], spacing=10))
         if not editor_only:
             text_card = workspace_tabs([("商品文案", [text_card]), ("提示词预设", [text_presets])])
@@ -16996,7 +17137,7 @@ class App:
         if list_state.get("state"):
             _sync_state_buttons()
         # 预设库延迟加载（后端未就绪时下拉禁用，页面不崩）
-        for _kind in ("title", "bullets", "description", "search_terms", "sku", "image"):
+        for _kind in ("title", "highlight", "bullets", "description", "search_terms", "sku", "image"):
             try:
                 _load_presets(_kind)
                 _attach_preset_widget(_kind)
@@ -19298,6 +19439,8 @@ class App:
             _status(save_status, f"正在保存（op={op} · {op_text}）…", MUTED)
 
             def work():
+                _counted_result = False
+                _is_publish = self._publish_op_counts("tiktok", op, save_mode)
                 try:
                     _make, _payload, pipeline = _backend()
                     res = pipeline.run_tiktok_product(
@@ -19305,10 +19448,14 @@ class App:
                         use_ai=False, op=op, save_mode=save_mode,
                         confirm_write=True)
                     _render_result(res, "保存结果", preview=False)
-                    try:
-                        self._count_publish("tiktok", bool(getattr(res, "saved", False)))
-                    except Exception:
-                        pass
+                    if _is_publish:
+                        try:
+                            self._record_publish_result(
+                                "tiktok", str(pid),
+                                bool(getattr(res, "saved", False)))
+                        except Exception:
+                            pass
+                    _counted_result = True
                     if bool(getattr(res, "saved", False)):
                         _status(save_status, f"保存成功（op={op} · {op_text}）", SUCCESS_C)
                         _toast(f"已保存到 TikTok（op={op}）", True)
@@ -19332,10 +19479,11 @@ class App:
                         except Exception:
                             pass
                 except Exception as ex:
-                    try:
-                        self._count_publish("tiktok", False)
-                    except Exception:
-                        pass
+                    if _is_publish and not _counted_result:
+                        try:
+                            self._record_publish_result("tiktok", str(pid), False)
+                        except Exception:
+                            pass
                     _status(save_status, f"保存失败：{str(ex)[:180]}", DANGER_C)
                     _toast(f"保存失败：{str(ex)[:70]}", False)
                     try:
@@ -21146,22 +21294,152 @@ class App:
         except Exception:
             pass
 
-    # ---------- 每平台今日刊登成功/失败计数（心跳上报） ----------
+    # ---------- 每平台今日刊登成功/失败计数（心跳上报 + 按天持久化） ----------
+    # 计数规则（task-30 审计）：
+    #   - 只统计「真正提交刊登/发布」的最终结果（成功/失败各一次）；
+    #   - 保存草稿 / 移入待发布 / 编辑 / 预览 不计；
+    #   - 同一产品当天多阶段/重试只保留最终结果一次（失败→成功时回滚失败计数）；
+    #   - 计数按天落盘到 config（publish_counts_day/publish_counts/publish_seen），
+    #     重启后同一天继续累计（服务端同日取 MAX，重启不会被低估）。
+    PUBLISH_OP_OPTIONS = {
+        # 平台 → 允许计数的保存动作（op）。未列出的平台默认只认 "2"（发布）
+        "alibaba": ("2",),
+        "amazon": ("2",),
+        "tiktok": ("2",),
+        "shopee": ("2",),
+    }
+    PUBLISH_SEEN_LIMIT = 3000          # 单日最多记忆的产品数（防止 config 无限膨胀）
+    PUBLISH_SAVE_DELAY_MS = 1500       # 计数后延迟写盘（合并高频计数）
+
     @staticmethod
     def _publish_today() -> str:
         return time.strftime("%Y-%m-%d")
 
+    @staticmethod
+    def _publish_json_dict(raw, default=None):
+        try:
+            import json as _json
+            value = _json.loads(str(raw or "{}"))
+            return value if isinstance(value, dict) else (default if default is not None else {})
+        except Exception:
+            return default if default is not None else {}
+
+    @staticmethod
+    def _publish_json_dump(value) -> str:
+        try:
+            import json as _json
+            return _json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        except Exception:
+            return "{}"
+
+    def _publish_counting_allowed(self) -> bool:
+        """预览/测试保护模式下不做刊登计数（避免把假成功上报给后台）。"""
+        try:
+            if getattr(self, "_preview_mode", False):
+                return False
+            if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
+                return False
+        except Exception:
+            pass
+        return True
+
+    def _load_publish_state(self) -> None:
+        """启动时加载当天持久化的计数；跨天清零（累计 total 保留）。"""
+        today = self._publish_today()
+        saved_day = str(getattr(self.cfg, "publish_counts_day", "") or "").strip()
+        saved_total = self._publish_json_dict(
+            getattr(self.cfg, "publish_total", ""), {"success": 0, "fail": 0})
+        total = {"success": int(saved_total.get("success", 0) or 0),
+                 "fail": int(saved_total.get("fail", 0) or 0)}
+        self._publish_total = total
+        if saved_day == today:
+            counts = self._publish_json_dict(getattr(self.cfg, "publish_counts", ""))
+            seen = self._publish_json_dict(getattr(self.cfg, "publish_seen", ""))
+            clean_counts: dict[str, dict[str, int]] = {}
+            for pid, cur in counts.items():
+                if not isinstance(cur, dict):
+                    continue
+                clean_counts[str(pid)] = {
+                    "success": max(0, int(cur.get("success", 0) or 0)),
+                    "fail": max(0, int(cur.get("fail", 0) or 0)),
+                }
+            clean_seen = {str(pid): {str(k): str(v) for k, v in (rows or {}).items()
+                                     if str(v) in ("success", "fail")}
+                          for pid, rows in seen.items() if isinstance(rows, dict)}
+            self._publish_counts = clean_counts
+            self._publish_seen = clean_seen
+            self._publish_day = today
+            return
+        # 跨天 / 首次运行：今日计数清零，累计 total 保留
+        self._publish_day = today
+        self._publish_counts = {}
+        self._publish_seen = {}
+        if saved_day:
+            self._schedule_publish_save()
+
     def _ensure_publish_day(self) -> bool:
-        """跨天自动重置今日计数；返回是否发生重置。"""
+        """跨天自动重置今日计数/去重表；返回是否发生重置。"""
         today = self._publish_today()
         if str(getattr(self, "_publish_day", "") or "") == today:
             return False
         self._publish_day = today
         self._publish_counts = {}
+        self._publish_seen = {}
+        try:
+            self._schedule_publish_save()
+        except Exception:
+            pass
         return True
 
+    def _schedule_publish_save(self) -> None:
+        """延迟合并写盘：计数后 1.5 秒写一次 config（避免每次计数都落盘）。"""
+        try:
+            if not callable(getattr(self.cfg, "set", None)):
+                return
+            old = getattr(self, "_publish_save_timer", None)
+            if old is not None and getattr(old, "is_alive", lambda: False)():
+                return
+            if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
+                return
+            timer = threading.Timer(self.PUBLISH_SAVE_DELAY_MS / 1000.0,
+                                    self._flush_publish_state)
+            timer.daemon = True
+            self._publish_save_timer = timer
+            timer.start()
+        except Exception:
+            pass
+
+    def _flush_publish_state(self) -> None:
+        """把当天计数/去重表/累计值写入配置并落盘（幂等）。"""
+        try:
+            lock = getattr(self, "_publish_lock", None)
+            if lock is None:
+                lock = threading.Lock()
+                self._publish_lock = lock
+            with lock:
+                day = str(getattr(self, "_publish_day", "") or self._publish_today())
+                counts = dict(getattr(self, "_publish_counts", {}) or {})
+                seen = dict(getattr(self, "_publish_seen", {}) or {})
+                total = dict(getattr(self, "_publish_total", {}) or {})
+            try:
+                self.cfg.set("publish_counts_day", day)
+                self.cfg.set("publish_counts", self._publish_json_dump(counts))
+                self.cfg.set("publish_seen", self._publish_json_dump(seen))
+                self.cfg.set("publish_total", self._publish_json_dump(total))
+            except Exception:
+                pass
+            # 只有真正的 AppConfig 才落盘（测试用的轻量 cfg 对象仅更新键值）
+            if callable(getattr(self.cfg, "save", None)):
+                try:
+                    from ..config import save_config as _save_cfg
+                    _save_cfg(self.cfg)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     def _add_publish(self, pid: str, success: int = 0, fail: int = 0) -> None:
-        """累加指定平台今日的刊登成功/失败数（线程安全；取消/未选不要调用）。"""
+        """直接累加（无产品 ID 的批量场景/兼容旧调用；UI 发布路径请用 _record_publish_result）。"""
         try:
             pid = str(pid or "").strip()
             if not pid:
@@ -21194,12 +21472,110 @@ class App:
                     self._publish_total = total
                 total["success"] = int(total.get("success", 0) or 0) + s
                 total["fail"] = int(total.get("fail", 0) or 0) + f
+            try:
+                self._schedule_publish_save()
+            except Exception:
+                pass
         except Exception:
             pass
 
-    def _count_publish(self, pid: str, ok: bool, n: int = 1) -> None:
-        """单条/单批结果计数：ok=True 记成功，否则失败（成功/失败都计入）。"""
+    def _count_publish(self, pid: str, ok: bool, n: int = 1,
+                       product_id: str = "") -> bool:
+        """单条结果计数（成功/失败都计）。带 product_id 时按产品去重。"""
+        if product_id:
+            return self._record_publish_result(pid, product_id, ok)
         self._add_publish(pid, success=n if ok else 0, fail=0 if ok else n)
+        return True
+
+    def _record_publish_result(self, pid: str, product_id, ok: bool) -> bool:
+        """记录一个产品的「最终刊登结果」，同一产品当天只保留一次。
+
+        - 同结果重复（多阶段/延迟回调）→ 忽略；
+        - 失败→成功（重试后成功）→ 失败计数 -1、成功 +1（最终结果为准）；
+        - 成功→失败（极少见）→ 成功 -1、失败 +1；
+        返回是否真的改动了计数。
+        """
+        try:
+            if not self._publish_counting_allowed():
+                return False
+            pid = str(pid or "").strip()
+            if not pid:
+                pid = str(getattr(getattr(self, "active_platform", None), "id", "") or "")
+            key = str(product_id if product_id is not None else "").strip()
+            if not pid:
+                return False
+            if not key:
+                self._add_publish(pid, success=1 if ok else 0, fail=0 if ok else 1)
+                return True
+            try:
+                self._ensure_publish_day()
+            except Exception:
+                pass
+            lock = getattr(self, "_publish_lock", None)
+            if lock is None:
+                lock = threading.Lock()
+                self._publish_lock = lock
+            target = "success" if ok else "fail"
+            changed = False
+            with lock:
+                seen = getattr(self, "_publish_seen", None)
+                if not isinstance(seen, dict):
+                    seen = {}
+                    self._publish_seen = seen
+                rows = seen.setdefault(pid, {})
+                prev = rows.get(key)
+                if prev == target:
+                    return False
+                counts = getattr(self, "_publish_counts", None)
+                if not isinstance(counts, dict):
+                    counts = {}
+                    self._publish_counts = counts
+                cur = counts.setdefault(pid, {"success": 0, "fail": 0})
+                total = getattr(self, "_publish_total", None)
+                if not isinstance(total, dict):
+                    total = {"success": 0, "fail": 0}
+                    self._publish_total = total
+
+                def _bump(name: str, delta: int) -> None:
+                    cur[name] = max(0, int(cur.get(name, 0) or 0) + delta)
+                    total[name] = max(0, int(total.get(name, 0) or 0) + delta)
+
+                if prev == "fail" and target == "success":
+                    _bump("fail", -1)
+                    _bump("success", 1)
+                elif prev == "success" and target == "fail":
+                    _bump("success", -1)
+                    _bump("fail", 1)
+                else:
+                    _bump(target, 1)
+                rows[key] = target
+                # 单日去重表上限：超过后丢弃最早的旧记录（仅影响重复判定）
+                if len(rows) > self.PUBLISH_SEEN_LIMIT:
+                    for old_key in list(rows.keys())[:len(rows) - self.PUBLISH_SEEN_LIMIT]:
+                        rows.pop(old_key, None)
+                changed = True
+            if changed:
+                try:
+                    self._schedule_publish_save()
+                except Exception:
+                    pass
+            return changed
+        except Exception:
+            return False
+
+    @classmethod
+    def _publish_op_counts(cls, pid: str, op, save_mode: str = "") -> bool:
+        """该保存动作是否算「刊登/发布」（草稿/移入待发布/发布为草稿 不算）。"""
+        pid = str(pid or "").strip()
+        op_s = str(op if op is not None else "").strip()
+        if pid in ("alibaba", "amazon", "shopee"):
+            return op_s in cls.PUBLISH_OP_OPTIONS.get(pid, ("2",))
+        if pid == "tiktok":
+            # op=2 且 save_mode 不是 AS_DRAFT（发布为草稿不算刊登）
+            return op_s in cls.PUBLISH_OP_OPTIONS["tiktok"] and \
+                str(save_mode or "").strip().upper() != "AS_DRAFT"
+        # 速卖通（店小秘）批量/单发：batch_publish 本身就是提交发布
+        return True
 
     def _publish_snapshot(self) -> dict:
         """今日各平台计数快照：{pid: {"success": n, "fail": m}}（只含有数据的平台）。"""
