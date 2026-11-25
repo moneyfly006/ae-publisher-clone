@@ -359,6 +359,27 @@ def muted(t, s=FS_SM):
     return ft.Text(t, size=s, color=MUTED)
 
 
+def _walk_controls(controls):
+    """递归遍历 Flet 控件树（日志/提示词预设等内部 UI 使用）。"""
+    seen = set()
+    def walk(items):
+        for item in items or []:
+            if item is None or id(item) in seen:
+                continue
+            seen.add(id(item))
+            yield item
+            for attr in ("controls", "content", "tabs"):
+                try:
+                    child = getattr(item, attr, None)
+                except Exception:
+                    child = None
+                if isinstance(child, (list, tuple)):
+                    yield from walk(child)
+                elif isinstance(child, ft.Control):
+                    yield from walk([child])
+    yield from walk(controls)
+
+
 def page_header(title: str, subtitle: str = "", actions=None):
     """页面顶栏：大标题 + 一句说明，统一各页层级。"""
     cols = [h1(title)]
@@ -1873,7 +1894,7 @@ class App:
             save_config(self.cfg)
             self._switch(self._current)
             self.toast("已恢复默认")
-            self._close_dlg(self.dlg)
+            self._close_dlg(getattr(self, "_dlg", None))
         
         self.dlg = ft.AlertDialog(
             modal=True,
@@ -3281,11 +3302,11 @@ class App:
         self._log("启动前发现开关冲突：" + "；".join(c["title"] for c in hard[:4]), "WARN")
 
         def go_fix(e):
-            self._close_dlg(dlg)
+            self._close_dlg(getattr(self, "_dlg", None))
             self._switch(5)   # AI 图片页
 
         def go_anyway(e):
-            self._close_dlg(dlg)
+            self._close_dlg(getattr(self, "_dlg", None))
             self._log("用户选择忽略冲突继续启动", "WARN")
             self._start(ignore_conflicts=True)
 
@@ -7475,14 +7496,14 @@ class App:
                 self.toast(f"已套用 Alibaba 预设：{preset.get('name')}，可继续手工微调")
                 _tab_idx = 0
                 try:
-                    _t = next(c for c in walk(self.content.controls)
+                    _t = next(c for c in _walk_controls(self.content.controls)
                               if isinstance(c, ft.Tabs))
                     _tab_idx = int(_t.selected_index or 0)
                 except Exception:
                     pass
                 try:
                     self._switch(self._page_idx)
-                    _t2 = next(c for c in walk(self.content.controls)
+                    _t2 = next(c for c in _walk_controls(self.content.controls)
                                if isinstance(c, ft.Tabs))
                     _t2.selected_index = _tab_idx
                     self._safe_update()
@@ -19819,7 +19840,7 @@ class App:
             editor.on_change = lambda e, k=key: _cset(k, str(e.control.value or ""))
             try:
                 from .prompt_presets import bar as _prompt_bar
-                _cbar = _prompt_bar(app, key="tiktok:" + key, prompt_key=key, field=editor,
+                _cbar = _prompt_bar(self, key="tiktok:" + key, prompt_key=key, field=editor,
                                     label=label + "我的预设")
             except Exception:
                 _cbar = None

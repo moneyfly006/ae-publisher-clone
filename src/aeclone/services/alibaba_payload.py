@@ -920,7 +920,11 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
                 _p = 0
             if _p <= 0:
                 try:
-                    _p = float(_first_text(product, ("bulkDiscountPrices", "price")) or 0)
+                    _raw_price = product.get("bulkDiscountPrices") or product.get("price") or 0
+                    if isinstance(_raw_price, str):
+                        _raw_price = json.loads(_raw_price)[0].get("price", 0) \
+                            if _raw_price.strip().startswith("[") else _raw_price
+                    _p = float(_raw_price or 0)
                 except Exception:
                     _p = 0
             tiers = [{"start_quantity": 1, "price": round(_p, 2)}] if _p > 0 else []
