@@ -983,17 +983,12 @@ class App:
             self.scheduler = None
         except Exception as ex:
             self._log(f"调度器启动失败：{ex}", "WARN")
-        def _start_heartbeat():
-            try:
-                if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
-                    return
-                if getattr(self, "_heartbeat", None) is None:
-                    self._heartbeat = HeartbeatLoop(self._heartbeat_payload,
-                                                    interval=int(getattr(self.cfg, "heartbeat_interval", 120) or 120))
-                    self._heartbeat.start()
-            except Exception as ex:
-                self._log(f"心跳线程启动失败：{ex}", "WARN")
-        threading.Thread(target=_start_heartbeat, daemon=True).start()
+        # 心跳只在“已登录且本地 token 有效”时启动；退出登录会停止（避免未登录仍上报设备在线）
+        try:
+            if silent_login_allowed(self.cfg, machine=self.machine_code()):
+                self._start_heartbeat()
+        except Exception as ex:
+            self._log(f"心跳启动判断失败：{ex}", "WARN")
 
         def _detect_cookie():
             try:
@@ -20113,6 +20108,7 @@ class App:
         from ..account_store import clear_credentials
         email = str(getattr(self.cfg, "license_account_email", "") or "")
         mcode = self.machine_code()
+        self._stop_heartbeat()
         try:
             clear_credentials(self.cfg)
             save_config(self.cfg)
@@ -20558,6 +20554,7 @@ class App:
             self._apply_account_token(tok, email_done, bool(remember_cb.value),
                                       bool(auto_cb.value), str(pass_field.value or ""))
             self._log("账号登录成功：" + email_done, "INFO")
+            self._start_heartbeat()
             close_gate()
             try:
                 pages = self.active_platform.pages
@@ -20661,11 +20658,41 @@ class App:
                 self._log("本地授权 token 有效，自动登录")
                 self.entitlements = load_entitlements(self.cfg,
                                                       machine=self.machine_code())
+                self._start_heartbeat()
                 return False
         except Exception as ex:
             self._log(f"本地授权校验失败，需要登录：{ex}", "WARN")
         self._show_login_gate()
         return True
+
+    def _start_heartbeat(self) -> None:
+        """登录成功后启动心跳；未登录/退出登录不启动（幂等）。"""
+        try:
+            if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
+                return
+            if getattr(self, "_heartbeat", None) is not None:
+                return
+            if not str(getattr(self.cfg, "license_account_email", "") or "").strip():
+                return
+            self._heartbeat = HeartbeatLoop(
+                self._heartbeat_payload,
+                interval=int(getattr(self.cfg, "heartbeat_interval", 120) or 120))
+            self._heartbeat.start()
+        except Exception as ex:
+            try:
+                self._log(f"心跳线程启动失败：{ex}", "WARN")
+            except Exception:
+                pass
+
+    def _stop_heartbeat(self) -> None:
+        """退出登录/会话失效时停止心跳，避免后台仍显示设备在线。"""
+        hb = getattr(self, "_heartbeat", None)
+        if hb is not None:
+            try:
+                hb.stop()
+            except Exception:
+                pass
+            self._heartbeat = None
 
     def _heartbeat_payload(self):
         """(server, machine, payload)：平台状态 + 最近刊登产品。"""

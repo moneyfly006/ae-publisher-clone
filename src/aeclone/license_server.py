@@ -142,11 +142,17 @@ def fetch_entitlement_token(server: str, machine_code: str, version: str = "",
         try:
             r = _request_keep_query(s, "POST", url, json=payload, timeout=timeout)
             if r.status_code < 400:
-                tok = _extract_token(r.json())
+                body = r.json()
+                tok = _extract_token(body)
                 if tok:
                     return tok, ""
+                data = (body or {}).get("data") or {}
+                if isinstance(data, dict) and data.get("disabled"):
+                    return "", "DISABLED:账号已被禁用，请联系客服"
+                if isinstance(data, dict) and data.get("bound") is False:
+                    return "", "UNBOUND:该设备未绑定账号"
                 try:
-                    msg = str((r.json() or {}).get("msg") or "")
+                    msg = str((body or {}).get("msg") or "")
                 except Exception:
                     msg = ""
                 empty_ok = msg or "ok"
@@ -185,6 +191,16 @@ def refresh_entitlements(cfg, version: str = "", timeout: int = 8,
     tok, err = fetch_entitlement_token(server, mcode, version=version,
                                        session=session, timeout=timeout)
     if not tok:
+        # 服务端明确返回“设备已解绑/账号被禁用”时，清掉本地 token，立即锁定平台。
+        # （其它错误如网络失败/服务器异常仍保留 7 天离线宽限，避免断网误锁。）
+        if str(err).startswith("UNBOUND:") or str(err).startswith("DISABLED:"):
+            reason = str(err).split(":", 1)[1]
+            log.warning("授权已失效（%s），清除本地 token", reason)
+            cfg.set("license_token", "")
+            cfg.set("license_token_ts", 0)
+            if save:
+                save(cfg)
+            return load_entitlements(cfg, machine=mcode)
         log.info("授权服务器未返回 token：%s", err)
         return load_entitlements(cfg, machine=mcode)
     payload = verify_token(tok)

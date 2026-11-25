@@ -31,7 +31,7 @@ MODULES = (
     "test_amazon_auto_audit",
     # 授权：token 解析 / 授权服务器登录与 308 query 保留 / 契约兼容 / 设备管理对话框
     "test_licensing", "test_license_server", "test_license_compatibility",
-    "test_machine_identity", "test_device_manager",
+    "test_machine_identity", "test_device_manager", "test_entitlement_state",
     # TikTok Shop 刊登（task-5 接入；AURORA_TEST=1 下应全绿）
     "test_tiktok_client", "test_tiktok_payload", "test_tiktok_prompts",
     "test_tiktok_pipeline", "test_tiktok_contract", "test_tiktok_ui_page",
