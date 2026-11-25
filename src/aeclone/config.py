@@ -17,28 +17,16 @@ DEFAULTS: dict = {
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "api_balance": -1.0,                                  # 最近一次已知余额（-1=未知）
+    # ---- 账号制授权（契约 §10：登录拿 token，只认 token）----
     "license_server": "https://license.moneyfly.club",
-    "license_enforce": True,                              # 未授权时禁止开始上架
-    "license_identity": "",                               # 可选：已有设备授权 ID
-    "license_cache_ok": False,                            # 上次授权结果（避免每次启动阻塞网络）
-    "license_cache_legacy": True,                         # 区分原设备授权与套餐账号的兼容凭证
-    "license_cache_expiry": "",
-    "license_cache_ts": 0,
-    "license_public_key": "",                             # 可选：服务端换公钥时覆盖内置公钥
-    "license_voucher": "",                                # 服务端签发的 ECDSA 凭证（核心层验签用）
-    "license_signature": "",
-    "license_expiry": "",
-    "license_voucher_ts": 0,
-    "license_client_type": "local",
-    "license_token": "",                                   # 平台+功能包授权 token
-    "license_token_ts": 0,
-    "license_platforms": "",
-    "license_account_email": "",
-    "license_account_bound": False,                        # 已完成旧授权→账号迁移
-    "license_account_save_password": False,                # 用户勾选“保存密码”
-    "license_account_password": "",                        # 加密后的密码，不是明文
-    "license_legacy_all": False,                           # 旧授权迁移期：全部平台可用
-    "license_migration_prompted_at": 0,                    # 上次提醒绑定账号的时间
+    "license_enforce": True,                              # 未授权平台禁止开始上架
+    "license_token": "",                                   # software_login 下发的签名授权 token
+    "license_token_ts": 0,                                 # token 最近刷新时间（离线宽限 7 天）
+    "license_platforms": "",                              # 仅测试/调试：平台权限覆盖（隐藏，正常登录不使用）
+    "license_account_email": "",                           # 登录邮箱
+    "license_account_save_password": False,                # 记住密码
+    "license_account_password": "",                        # 加密后的密码，不是明文（account_store）
+    "license_auto_login": True,                            # 本地 token 有效时启动静默登录
     "heartbeat_interval": 120,                               # 开发/过渡：手动覆盖（alibaba:listing+ai_text）
     "active_platform": "alibaba",
     "api_purchase_url": "https://api.moneyfly.club",      # API 购买/充值后台
@@ -631,6 +619,25 @@ ALIASES = {
     "single_edit_prompt": "edit_prompt",
 }
 
+# 旧版「设备授权码 / ECDSA voucher / 迁移引导」配置键：契约 §10 已删除。
+# 老 config.json 里出现这些键时直接忽略（不报错、不参与逻辑），下次保存即清掉。
+LEGACY_LICENSE_KEYS = (
+    "license_identity",
+    "license_cache_ok",
+    "license_cache_legacy",
+    "license_cache_expiry",
+    "license_cache_ts",
+    "license_public_key",
+    "license_voucher",
+    "license_signature",
+    "license_expiry",
+    "license_voucher_ts",
+    "license_client_type",
+    "license_account_bound",
+    "license_legacy_all",
+    "license_migration_prompted_at",
+)
+
 
 class AppConfig:
     """字典式配置对象：cfg.xxx 读写，自动持久化。"""
@@ -642,6 +649,9 @@ class AppConfig:
         for old, new in ALIASES.items():
             if old in src and new not in src:
                 src[new] = src[old]
+        # 旧版设备授权相关键已废弃（契约 §10）：升级时静默忽略，不留进新配置。
+        for legacy_key in LEGACY_LICENSE_KEYS:
+            src.pop(legacy_key, None)
         d = {**DEFAULTS, **src}
         # 升级不覆盖用户自定义提示词：只补缺失的新键，不再按前缀自动改值。
         # 营销图来源：老配置没有该键 → 默认本地（免费）

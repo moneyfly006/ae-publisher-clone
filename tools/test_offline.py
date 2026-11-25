@@ -29,8 +29,9 @@ MODULES = (
     "test_amazon_publish_ui",
     "test_amazon_presets_audit",
     "test_amazon_auto_audit",
-    # 授权：token 解析 / 授权服务器地址归一化与 308 query 保留
-    "test_licensing", "test_license_server",
+    # 授权：token 解析 / 授权服务器登录与 308 query 保留 / 契约兼容 / 设备管理对话框
+    "test_licensing", "test_license_server", "test_license_compatibility",
+    "test_machine_identity", "test_device_manager",
     # TikTok Shop 刊登（task-5 接入；AURORA_TEST=1 下应全绿）
     "test_tiktok_client", "test_tiktok_payload", "test_tiktok_prompts",
     "test_tiktok_pipeline", "test_tiktok_contract", "test_tiktok_ui_page",
@@ -45,7 +46,6 @@ MODULES = (
     "test_ui_redesign", "test_ui_function_dedup", "test_collect_runtime", "test_collect_optimization",
     "test_platforms",
     "test_macos_app",
-    "test_license_compatibility",
 )
 
 

@@ -887,6 +887,38 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                       "平台审核中（已提交成功；审核结果可在「发布队列」查看）")
                 _step(res, "完成", True, "商品已提交审核")
                 return res
+            # SKU 价商品在部分类目会被平台要求“阶梯价和 SKU 价不能同时存在”。
+            # 自动降级为单档阶梯价并移除 productSku，再提交一次（保留标题/图片/属性）。
+            if _err and ("PRICE_CONTENT_ERROR" in _err or "阶梯价和sku价" in _err):
+                try:
+                    import json as _json
+                    _ps = _json.loads(save.get("productSku") or "{}")
+                    _skus = _ps.get("special_skus") or [] if isinstance(_ps, dict) else []
+                    _price = next((float(x.get("price")) for x in _skus
+                                   if isinstance(x, dict) and x.get("price")), 0)
+                    if _price > 0:
+                        save["priceType"] = "ladder_price"
+                        save["bulkDiscountPrices"] = _json.dumps(
+                            [{"start_quantity": 1, "price": _price}], ensure_ascii=False)
+                        save["productSku"] = ""
+                        _r2 = c.save_product(product, save, op=op)
+                        _d2 = (_r2 or {}).get("data") if isinstance(_r2, dict) else {}
+                        _m2 = str((_d2 or {}).get("msg") or (_r2 or {}).get("msg") or "")
+                        if "已提交发布" in _m2 or "成功" in _m2:
+                            res.warnings.append(
+                                "平台要求阶梯价与 SKU 价互斥：已自动降级为单档阶梯价并重新提交")
+                            _step(res, "价格模式修复", True,
+                                  f"SKU 价冲突，已改为单档阶梯价 US${_price:g} 重新提交")
+                            time.sleep(9)
+                            _p2 = c.product_detail(pid) or {}
+                            _state = {"dxmState": _p2.get("dxmState"),
+                                      "dxmOfflineState": _p2.get("dxmOfflineState"),
+                                      "productStatusType": _p2.get("productStatusType"),
+                                      "errMsg": str(_p2.get("errMsg") or ""),
+                                      "solutionMsg": str(_p2.get("solutionMsg") or "")}
+                            _err = str(_state.get("errMsg") or "")
+                except Exception as _ex:
+                    res.warnings.append("价格模式自动修复失败：" + str(_ex)[:120])
             if _err or _state.get("dxmOfflineState") == "publishFail":
                 _hint = ""
                 if "CAT_PUB_RESTRICT" in _err or "经营类目" in _err:

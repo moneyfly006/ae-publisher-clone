@@ -96,7 +96,9 @@ class ShopeeClient:
 
 
 def make_client(cfg):
-    raw = getattr(cfg, "shopee_cookies", "") or getattr(cfg, "manual_cookies", {})
+    from .cookie_parse import normalize_cookie
+    raw = normalize_cookie(getattr(cfg, "shopee_cookies", "")
+                           or getattr(cfg, "manual_cookies", {}))
     if not raw:
         from .browser_cookies import resolve
         source = resolve("dianxiaomi.com")

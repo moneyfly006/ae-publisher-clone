@@ -167,17 +167,10 @@ class _Retryable(Exception):
     """内部信号：本次失败可重试（最终对外仍抛 TikTokError）。"""
 
 
-def parse_cookie(text: str) -> dict:
-    """``a=1; b=2`` → dict（忽略没有 ``=`` 的片段）。"""
-    out: dict[str, str] = {}
-    for part in str(text or "").split(";"):
-        if "=" not in part:
-            continue
-        key, value = part.split("=", 1)
-        key, value = key.strip(), value.strip()
-        if key:
-            out[key] = value
-    return out
+def parse_cookie(text) -> dict:
+    """``a=1; b=2`` → dict；兼容 ``Cookie:`` 前缀/换行/JSON（见 cookie_parse）。"""
+    from .cookie_parse import parse_cookie_text
+    return parse_cookie_text(text)
 
 
 def zip_payload(payload: dict) -> bytes:

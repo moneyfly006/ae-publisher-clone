@@ -112,7 +112,7 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
         self.app._switch(11)
         tabs = find_tabs(self.app)
         self.assertEqual([t.text for t in tabs.tabs],
-                         ["账号与连接", "界面与实例", "维护与诊断"],
+                         ["账号与连接", "界面", "维护与诊断"],
                          "Amazon 设置应隐藏「图片与模型」tab")
         self.assertNotIn("图片与模型", [t.text for t in tabs.tabs])
         ff = [b for b in buttons(self.app)
@@ -122,23 +122,16 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
         current = texts(self.app)
         self.assertIn("诊断（出问题时再点）", current, "其它诊断项应保留")
         # 设置副标题去掉「图片服务」
-        self.assertIn("管理 API、授权、界面与多开实例", current,
+        self.assertIn("管理 API、授权、界面与维护", current,
                       "Amazon 设置副标题应去掉「图片服务」")
         self.assertFalse(any("图片服务" in t for t in current))
-        # 界面与实例说明不出现 SMT 措辞
-        self.assertTrue(any("多开 / 多任务" in t for t in current),
-                        "Amazon 界面应保留多开/多任务说明")
+        # 已移除多开实例/任务配置卡片
+        self.assertFalse(any("多开 / 多任务" in t for t in current))
         self.assertFalse(any("任务队列与定时发布" in t for t in current))
-        # 维护与诊断：恢复图床/图床提示隐藏，保留恢复 API + 全部恢复
-        self.assertNotIn("图床", current, "Amazon 不应显示图床提示")
-        restore_host = [b for b in buttons(self.app)
-                        if str(getattr(b, "text", "")) == "恢复图床"]
-        self.assertFalse(any(bool(getattr(b, "visible", True)) for b in restore_host),
-                         "Amazon 不应显示「恢复图床」")
-        restore_api = [b for b in buttons(self.app)
-                       if str(getattr(b, "text", "")) == "恢复 API 地址"]
-        self.assertTrue(any(bool(getattr(b, "visible", True)) for b in restore_api),
-                        "Amazon 应保留「恢复 API 地址」")
+        # 推荐配置卡片已移除
+        self.assertNotIn("推荐配置", current)
+        self.assertFalse(any(str(getattr(b, "text", "")) in ("恢复图床", "恢复 API 地址", "全部恢复推荐值")
+                             for b in buttons(self.app)))
         # 诊断时也不应探测/展示 ffmpeg（Amazon 无视频能力）
         with patch.object(ui, "video_probe") as probe:
             self.app._run_diag()
@@ -247,17 +240,15 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
         self.app._switch(11)
         tabs = find_tabs(self.app)
         self.assertEqual([t.text for t in tabs.tabs],
-                         ["账号与连接", "图片与模型", "界面与实例", "维护与诊断"])
+                         ["账号与连接", "图片与模型", "界面", "维护与诊断"])
         current = texts(self.app)
         self.assertTrue(any("图片服务" in t for t in current),
                         "AliExpress 设置副标题应保留「图片服务」")
-        self.assertTrue(any("新实例运行" in t for t in current),
-                        "AliExpress 应保留多任务说明")
-        self.assertIn("图床", current, "AliExpress 应保留图床提示")
-        restore_host = [b for b in buttons(self.app)
-                        if str(getattr(b, "text", "")) == "恢复图床"]
-        self.assertTrue(any(bool(getattr(b, "visible", True)) for b in restore_host),
-                        "AliExpress 应保留「恢复图床」按钮")
+        self.assertNotIn("推荐配置", current)
+        self.assertFalse(any("新实例运行" in t for t in current),
+                         "已移除多开实例说明")
+        self.assertEqual([b for b in buttons(self.app)
+                          if str(getattr(b, "text", "")) == "恢复图床"], [])
 
     # ---------- 平台隔离：Alibaba 保持既有 caps 行为 ----------
     def test_alibaba_keeps_existing_caps_behavior(self):

@@ -16,16 +16,14 @@ import flet as ft
 
 from ..api import ApiClient, ApiError
 from ..config import AppConfig, config_dir, get_config, save_config
-from ..license import verify as verify_license
 from ..services import BatchRunner, ImageService, model_of
 from ..services.publisher import Publisher
 from ..integrations.dianxiaomi import DianxiaomiClient
 from ..services.video import generate_carousel_video, probe as video_probe
 from ..core import updater
-from ..core.instances import list_instances, create_instance, launch_instance
 from ..services import history
 from .navigation import DESTINATIONS, destination
-from ..licensing import load_entitlements
+from ..licensing import load_entitlements, silent_login_allowed
 from ..platforms import PLATFORMS, cap, get_platform
 from ..services.heartbeat import HeartbeatLoop
 
@@ -701,6 +699,10 @@ class App:
         self.video_picker = ft.FilePicker(on_result=self._on_video_file)
         self.api_state: dict = {}
         self.license_state: dict = {}
+        self._machine_cache = ""
+        self._report_identity = ""
+        self._login_gate_dlg = None
+        self._device_dlg = None
         self.cookie_src = None
         self._cookie_ts = 0.0
 
@@ -745,7 +747,7 @@ class App:
         page.overlay.append(self.wm_picker)
         page.overlay.append(self.video_picker)
         page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
-        self.entitlements = load_entitlements(self.cfg)
+        self.entitlements = load_entitlements(self.cfg, machine=self.machine_code())
         self.active_platform = get_platform(getattr(self.cfg, "active_platform", "") or "alibaba")
         try:
             self._seed_alibaba_defaults()
@@ -760,11 +762,13 @@ class App:
         self._switch(initial_page)
         self._startup_update_started = False
         self._startup_login_open = False
+        self._login_gate_dlg = None
+        # 强制登录门禁（契约 §10.1）：登录成功前不显示主界面；本地 token 有效才静默直登。
         _needs_login = False
         try:
             _needs_login = bool(self._maybe_license_login())
         except Exception:
-            pass
+            _needs_login = False
         self._log("运行实例：" + ("日常运行（写入保护已启用）" if self._preview_mode else "日常运行")
                   + f" · 配置目录：{config_dir()} · 程序：{sys.executable}")
         # 无论从哪一页启动，都拉一次各状态数量（概览/发布队列都要用）
@@ -772,6 +776,11 @@ class App:
             self._refresh_store_counts()
         except Exception:
             pass
+        if not _needs_login:
+            try:
+                self._sync_license_state()
+            except Exception:
+                pass
         # 版本检查必须等登录窗口关闭/自动登录成功后再弹，否则两个 modal 互相阻塞。
         if not _needs_login:
             try:
@@ -872,12 +881,12 @@ class App:
             height=44, bgcolor=ACCENT, color=ON_ACCENT,
             style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
             tooltip="启动 / 停止本次任务（⌘R / Ctrl+R）", on_click=self._toggle_run)
-        self.license_text = ft.Text("检测中…", color=MUTED, size=11,
+        self.license_text = ft.Text("未登录", color=MUTED, size=11,
                                     max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)
         self.account_name = ft.Text("未登录账号", size=12.2, color=TEXT,
                                     weight=ft.FontWeight.BOLD, max_lines=1,
                                     overflow=ft.TextOverflow.ELLIPSIS)
-        self.account_sub = ft.Text("点击登录 / 管理账号", size=10.2, color=MUTED,
+        self.account_sub = ft.Text("点击登录 / 注册账号", size=10.2, color=MUTED,
                                    max_lines=1, overflow=ft.TextOverflow.ELLIPSIS)
         self.account_btn = ft.Container(
             content=ft.Row([
@@ -887,7 +896,7 @@ class App:
             ], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             padding=ft.padding.symmetric(horizontal=9, vertical=7),
             border_radius=10, bgcolor=CARD, ink=True,
-            tooltip="账号登录 / 退出 / 刷新授权",
+            tooltip="账号中心 / 设备管理 / 退出登录",
             on_click=lambda e: self._open_account_dialog())
         self.search_kw = ft.TextField(
             label="商品标题关键词（留空处理全部）", width=320, dense=True,
@@ -950,20 +959,26 @@ class App:
         self.content_slot = ft.Container(
             expand=True, content=self.content,
             padding=ft.padding.symmetric(horizontal=28, vertical=22))
+        self.license_banner = self._build_license_banner()
         self.platform_rail = self._build_platform_rail()
-        self.page.add(ft.Row([
+        # 主界面根节点：强制登录期间整体隐藏，登录成功后再显示（契约 §10.1）。
+        self._shell_root = ft.Row([
             self.platform_rail,
             sidebar,
-            ft.Column([topbar, self.content_slot],
+            ft.Column([topbar, self.license_banner, self.content_slot],
                 spacing=0, expand=True),
-        ], expand=True, spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH))
+        ], expand=True, spacing=0, vertical_alignment=ft.CrossAxisAlignment.STRETCH)
+        self.page.add(self._shell_root)
         self._sync_run_button()
         self._apply_platform_shell()
         try:
             self._refresh_account_ui()
         except Exception:
             pass
-        threading.Thread(target=self._check_license, daemon=True).start()
+        try:
+            self._sync_license_state()
+        except Exception:
+            pass
         try:
             self.scheduler = None
         except Exception as ex:
@@ -983,7 +998,7 @@ class App:
         def _detect_cookie():
             try:
                 from ..integrations.browser_cookies import describe, resolve
-                src = resolve("dianxiaomi.com", manual=getattr(self.cfg, "manual_cookies", None))
+                src = resolve("dianxiaomi.com", manual=self._platform_cookie_value())
                 self.cookie_src = src
                 self._cookie_ts = time.time()
                 self._log(f"Cookie 源：{describe(src)}" + ("" if src.ok else f"（{src.error[:60]}）"),
@@ -1115,6 +1130,9 @@ class App:
         except Exception:
             pass
         self._cookie_cache = None
+        # Cookie 状态也按平台缓存：不重置会把上一平台的「已连接」显示带到新平台。
+        self.cookie_src = None
+        self._cookie_ts = 0.0
         pf = get_platform(pid)
         self.active_platform = pf
         try:
@@ -1122,7 +1140,7 @@ class App:
             save_config(self.cfg)
         except Exception:
             pass
-        self.entitlements = load_entitlements(self.cfg)
+        self.entitlements = load_entitlements(self.cfg, machine=self.machine_code())
         self._rebuild_nav()
         # 平台栏重绘（锁状态/高亮）
         try:
@@ -1162,29 +1180,252 @@ class App:
         ], spacing=10))]
         self._safe_update()
 
+    def _platform_price_hint(self) -> str:
+        """价格提示（客户端不缓存价格，以授权中心价格页为准）。"""
+        return ("单平台约 ¥999 / 年（365 天），多平台自由组合最高 25% 折扣，"
+                "具体以授权中心价格页为准。")
+
+    def _buy_platform(self, platform: str = "") -> None:
+        """打开授权中心价格页（带平台/机器码/邮箱，购买后自动开通本机）。"""
+        try:
+            from ..license import pricing_url
+            email = str(getattr(self.cfg, "license_account_email", "") or "")
+            url = pricing_url(str(getattr(self.cfg, "license_server", "") or ""),
+                              platform=str(platform or ""),
+                              machine=self.machine_code(), email=email)
+        except Exception:
+            url = "https://license.moneyfly.club/pricing"
+        if not self._open_url(url):
+            self.toast(f"无法打开浏览器，请手动访问：{url}", False)
+
+    def _platform_display_name(self, pid: str) -> str:
+        try:
+            return str(PLATFORMS[pid].name)
+        except Exception:
+            return {"alibaba": "Alibaba 国际站", "aliexpress": "速卖通",
+                    "amazon": "Amazon", "tiktok": "TikTok Shop",
+                    "shopee": "Shopee"}.get(pid, pid)
+
+    def _show_licensed_platforms(self) -> None:
+        """列出已开通平台与到期日（锁定页次按钮）。"""
+        ent = getattr(self, "entitlements", None)
+        plats = list(getattr(ent, "platforms_list", lambda: [])() or []) if ent else []
+        rows = []
+        for pid in plats:
+            exp = ""
+            try:
+                exp = ent.platform_expiry(pid)
+            except Exception:
+                exp = ""
+            rows.append(ft.Row([
+                ft.Icon(ft.Icons.VERIFIED, size=16, color=SUCCESS_C),
+                ft.Text(self._platform_display_name(pid), size=13, color=TEXT, width=170),
+                muted(f"到期：{exp}" if exp else "长期有效", 11),
+            ], spacing=8))
+        body = rows or [muted("还没有开通任何平台，购买套餐后即可使用。", 12.5)]
+        dlg = ft.AlertDialog(
+            modal=True, title=ft.Text("已开通平台"),
+            content=ft.Column(body, spacing=8, width=420),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
+        self._show_dlg(dlg)
+
     def _render_locked(self, item):
+        """未开通平台锁定页：平台名 + 未开通 + 价格提示 + 去开通。"""
         pf = self.active_platform
+        licensed = bool(self.entitlements.has_platform(pf.id))
         feats = sorted(self.entitlements.platforms.get(pf.id, set()))
-        from ..license import shop_url as _shop_url
-        site = _shop_url(str(getattr(self.cfg, "license_server", "") or ""))
-        need = f"{item.group} / {item.label}"
-        desc = ("当前授权未包含该平台。" if not self.entitlements.has_platform(pf.id)
-                else f"当前授权未包含「{item.feature}」功能包。")
-        cta = ft.ElevatedButton(
-            "去授权网站开通", icon=ft.Icons.OPEN_IN_NEW, bgcolor=ACCENT, color=ON_ACCENT,
-            on_click=lambda e: self.page.launch_url(site))
+        if licensed:
+            title = f"{pf.name} · 功能未开通"
+            desc = f"当前授权未包含「{item.feature}」功能包，续费/升级套餐后可解锁。"
+            cta = ft.ElevatedButton("续费 / 升级套餐", icon=ft.Icons.OPEN_IN_NEW,
+                                    bgcolor=ACCENT, color=ON_ACCENT,
+                                    on_click=lambda e: self._buy_platform(pf.id))
+        else:
+            title = f"{pf.name} · 未开通"
+            desc = (f"当前账号还没有开通「{pf.name}」。{self._platform_price_hint()}"
+                    "购买后回到软件点「刷新授权」即可自动开通。")
+            cta = ft.ElevatedButton("去开通 / 购买套餐", icon=ft.Icons.OPEN_IN_NEW,
+                                    bgcolor=ACCENT, color=ON_ACCENT,
+                                    on_click=lambda e: self._buy_platform(pf.id))
+        secondary = ft.OutlinedButton("查看已开通平台", icon=ft.Icons.VERIFIED,
+                                      on_click=lambda e: self._show_licensed_platforms())
         self.content.controls = [card(ft.Column([
             ft.Row([ft.Icon(ft.Icons.LOCK_OUTLINE, size=26, color=WARN_C),
-                    ft.Text(f"{pf.name} · 功能未开通", size=FS_LG, weight=ft.FontWeight.BOLD,
-                            color=TEXT)], spacing=10),
+                    ft.Text(title, size=FS_LG, weight=ft.FontWeight.BOLD, color=TEXT)],
+                   spacing=10),
             muted(desc),
             ft.Divider(color=BORDER, height=18),
-            muted("已开通的平台：" + (", ".join(self.entitlements.platforms_list()) or "无")),
+            muted("已开通的平台：" + ("、".join(self.entitlements.platforms_list()) or "无")),
             muted("当前平台已授权功能：" + (", ".join(feats) or "无")),
-            muted(f"需要：{need} · 功能包 {item.feature}"),
-            ft.Container(height=6), cta,
+            muted(f"入口：{item.group} / {item.label} · 功能包 {item.feature}"),
+            ft.Container(height=6),
+            ft.Row([cta, secondary], spacing=10, wrap=True),
         ], spacing=10))]
         self._safe_update()
+
+    # ---------- 账号制授权（token）公共状态 ----------
+    def machine_code(self) -> str:
+        """本机机器码（进程内缓存；登录/心跳/购买链接共用）。"""
+        cached = str(getattr(self, "_machine_cache", "") or "")
+        if cached:
+            return cached
+        try:
+            from ..license import machine_code as _mc
+            value = _mc()
+        except Exception:
+            value = ""
+        self._machine_cache = value
+        return value
+
+    def _device_env(self) -> dict:
+        """登录上报的设备环境（后台设备列表展示用，取不到就留空）。"""
+        env = {"os_version": "", "machine_name": "", "store_name": ""}
+        try:
+            import platform as _pf
+            try:
+                os_desc = str(_pf.platform(terse=True))
+            except Exception:
+                os_desc = ""
+            if not os_desc:
+                os_desc = " ".join(x for x in (
+                    _pf.system(), _pf.release(), _pf.machine()) if x)
+            env["os_version"] = os_desc[:120]
+            try:
+                env["machine_name"] = str(_pf.node() or "")[:120]
+            except Exception:
+                env["machine_name"] = str(os.environ.get("COMPUTERNAME")
+                                          or os.environ.get("HOSTNAME") or "")[:120]
+        except Exception:
+            pass
+        try:
+            env["store_name"] = str(getattr(self.cfg, "store_name", "") or "")[:120]
+        except Exception:
+            pass
+        return env
+
+    def _external_url(self) -> str:
+        return str(getattr(self.cfg, "license_server", "") or "")
+
+    def _open_url(self, url: str) -> bool:
+        """浏览器打开授权中心链接（注册/忘记密码/购买/设备管理）。"""
+        if not url:
+            return False
+        try:
+            import webbrowser
+            if webbrowser.open(str(url)):
+                return True
+        except Exception:
+            pass
+        try:
+            self.page.launch_url(str(url))
+            return True
+        except Exception:
+            return False
+
+    def _license_override_active(self) -> bool:
+        """测试/调试用的平台覆盖（隐藏能力）；正常账号登录不依赖它。"""
+        return bool(str(getattr(self.cfg, "license_platforms", "") or "").strip())
+
+    def _license_test_bypass(self) -> bool:
+        """测试/CI 开关：AURORA_TEST / AURORA_NO_SAVE / AURORA_SKIP_LICENSE。"""
+        return (os.environ.get("AURORA_TEST") == "1"
+                or os.environ.get("AURORA_NO_SAVE") == "1"
+                or str(os.environ.get("AURORA_SKIP_LICENSE", "")) == "1")
+
+    def _logged_in(self) -> bool:
+        return bool(str(getattr(self.cfg, "license_account_email", "") or "").strip()
+                    and str(getattr(self.cfg, "license_token", "") or "").strip())
+
+    def _license_active(self) -> bool:
+        """当前平台是否可用（测试开关 / 隐藏覆盖 / 真实 token 权限）。"""
+        try:
+            if self._license_test_bypass() or self._license_override_active():
+                return True
+            return bool(self.entitlements.has_platform(self.active_platform.id))
+        except Exception:
+            return False
+
+    def _has_any_platform(self) -> bool:
+        try:
+            return bool(self.entitlements.platforms_list())
+        except Exception:
+            return False
+
+    def _build_license_banner(self):
+        """顶部提示条：任何平台都没开通时展示 + 去购买按钮。"""
+        self.license_banner_text = ft.Text("", size=12.5, color=WARN_C, expand=True)
+        self.license_banner_btn = ft.ElevatedButton(
+            "去购买套餐", icon=ft.Icons.OPEN_IN_NEW, bgcolor=WARN_C, color=ON_ACCENT,
+            on_click=lambda e: self._buy_platform(self.active_platform.id))
+        return ft.Container(
+            visible=False, bgcolor=CARD, margin=ft.margin.only(left=28, right=28, top=10),
+            border=ft.border.all(1, WARN_C), border_radius=10,
+            padding=ft.padding.symmetric(horizontal=14, vertical=10),
+            content=ft.Row([
+                ft.Icon(ft.Icons.LOCK_OUTLINE, size=18, color=WARN_C),
+                self.license_banner_text, self.license_banner_btn,
+            ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER))
+
+    def _refresh_license_banner(self) -> None:
+        banner = getattr(self, "license_banner", None)
+        if banner is None:
+            return
+        show = not self._license_test_bypass() and not self._license_override_active()
+        show = show and not self._has_any_platform()
+        try:
+            banner.visible = bool(show)
+            if show:
+                email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
+                who = f"（{email}）" if email else ""
+                self.license_banner_text.value = (
+                    f"你还没有开通任何平台{who}：登录可正常使用，但所有平台功能都已锁定。")
+            self._safe_update()
+        except Exception:
+            pass
+
+    def _sync_license_state(self) -> None:
+        """把 token 解析结果同步到概览页/侧栏/顶部提示条（替代旧 verify 结果）。"""
+        try:
+            ent = self.entitlements
+        except Exception:
+            ent = None
+        plats = list(getattr(ent, "platforms_list", lambda: [])() or []) if ent else []
+        if plats:
+            message = "已开通：" + "、".join(plats)
+        elif self._license_test_bypass() or self._license_override_active():
+            message = "测试模式"
+        elif not self._logged_in():
+            message = "未登录账号"
+        elif str(getattr(ent, "source", "") or "") == "token-offline-expired":
+            message = "离线超过 7 天，请重新登录"
+        elif getattr(ent, "expired", False):
+            message = "授权已过期，请续费"
+        else:
+            message = "未开通任何平台"
+        self.license_state = {
+            "ok": bool(plats) or self._license_test_bypass(),
+            "message": message,
+            "expiry": str(getattr(ent, "expires_at", "") or "") if ent else "",
+        }
+        self._report_identity = self.machine_code()
+        try:
+            if getattr(self, "license_text", None) is not None:
+                self.license_text.value = ("平台：" + "、".join(plats)) if plats else message
+                self.license_text.color = SUCCESS_C if plats else WARN_C
+        except Exception:
+            pass
+        try:
+            self._apply_license_state()
+        except Exception:
+            pass
+        try:
+            self._refresh_account_ui()
+        except Exception:
+            pass
+        try:
+            self._refresh_license_banner()
+        except Exception:
+            pass
 
     @staticmethod
     def _nav_style(selected):
@@ -1195,7 +1436,6 @@ class App:
             alignment=ft.alignment.center_left,
             shape=ft.RoundedRectangleBorder(radius=8),
             overlay_color=ft.Colors.with_opacity(0.10, ACCENT))
-
     def _filter_navigation(self, query):
         q = str(query or "")
         # 统一走 PageItem.matches：除 label/group 外还匹配搜索别名
@@ -1679,7 +1919,7 @@ class App:
             _today_cost = "¥0.00"
 
         def recheck_auth(e):
-            self.stat_auth.value = "检测中…"
+            self.stat_auth.value = "刷新中…"
             self.stat_auth.color = MUTED
             try:
                 self._safe_update()
@@ -1689,8 +1929,8 @@ class App:
 
         auth_card = svc("授权状态", self.stat_auth, ft.Icons.VERIFIED_OUTLINED, ACCENT_2,
                         sub=self.stat_auth_detail,
-                        action=ft.TextButton("重新检测", on_click=recheck_auth))
-        self._apply_license_state()
+                        action=ft.TextButton("刷新授权", on_click=recheck_auth))
+        self._sync_license_state()
         self._apply_api_state()
         self._apply_balance_state()
 
@@ -1771,7 +2011,7 @@ class App:
             # Cookie
             try:
                 from ..integrations.browser_cookies import describe, resolve
-                src = resolve("dianxiaomi.com", manual=getattr(self.cfg, "manual_cookies", None))
+                src = resolve("dianxiaomi.com", manual=self._platform_cookie_value())
                 self.cookie_src = src
                 self._cookie_ts = time.time()
                 self.ready_cookie.value = "✓ " + describe(src) if (src.ok and src.cookies) else "✗ 未读到（点这里去粘贴）"
@@ -2162,13 +2402,6 @@ class App:
                             on_click=open_big, ink=True,
                             tooltip="点击放大")
 
-    def _open_url(self, url: str):
-        try:
-            import webbrowser
-            webbrowser.open(str(url))
-        except Exception:
-            self.toast("无法打开链接", False)
-
     def _diff_card(self):
         """改前后对比预览（标题 / 主图 / 详情长度）。"""
         try:
@@ -2558,7 +2791,7 @@ class App:
                 ctrl.value = "未授权"
                 ctrl.color = DANGER_C
                 if detail is not None:
-                    detail.value = str(st.get("message") or "点「重新检测」或检查网络")[:40]
+                    detail.value = str(st.get("message") or "请登录账号并购买套餐")[:40]
             self._safe_update()
         except Exception:
             pass
@@ -2984,25 +3217,14 @@ class App:
             self._switch(10)
         except Exception:
             pass
-        # 授权校验：未授权不允许开始；但不要在 UI 线程里阻塞等网络
+        # 授权门禁：当前平台未开通不允许开始（账号制 token，本地校验，不等网络）
         try:
-            if getattr(self.cfg, "license_enforce", True) and not (self.license_state or {}).get("ok"):
-                state = self.license_state or {}
-                cached_ok = bool(getattr(self.cfg, "license_cache_ok", False)) and \
-                    (time.time() - float(getattr(self.cfg, "license_cache_ts", 0) or 0) < 72 * 3600)
-                exp = str(getattr(self.cfg, "license_cache_expiry", "") or "")
-                if cached_ok and exp and exp < __import__("datetime").date.today().isoformat():
-                    cached_ok = False
-                if not state:
-                    threading.Thread(target=self._check_license, daemon=True).start()
-                    if not cached_ok:
-                        self._log("授权检测中，本次启动已阻止（请 1~3 秒后再点启动）", "WARN")
-                        self.toast("正在检测授权，请稍后再点启动", False)
-                        return
-                    self._log("使用上次授权缓存启动，后台复核中…", "INFO")
-                else:
-                    self._show_license_block(str(state.get("message") or "未授权"))
-                    return
+            if getattr(self.cfg, "license_enforce", True) and not self._license_active():
+                self.entitlements = load_entitlements(self.cfg, machine=self.machine_code())
+                self._sync_license_state()
+                self._log("当前平台未开通，已阻止开始（可去授权中心购买套餐）", "WARN")
+                self._show_license_block()
+                return
         except Exception as ex:
             self._log(f"授权检查异常：{ex}", "WARN")
         if getattr(self, "_running", False):
@@ -3863,25 +4085,27 @@ class App:
         self._show_dlg(dlg)
 
     def _show_license_block(self, message: str = ""):
-        from ..license import machine_code as _mc
-        code = _mc()
-        st = getattr(self, "license_text", None)
-        if st is not None:
-            st.value = "未授权"
-            st.color = DANGER_C
+        """当前平台未开通：提示购买套餐（不再让用户找管理员登记机器码）。"""
+        pf = getattr(self, "active_platform", None)
+        plat_name = str(getattr(pf, "name", "") or "当前平台")
+        plats = self.entitlements.platforms_list() if getattr(self, "entitlements", None) else []
+        body = str(message or "").strip()
+        if not body:
+            body = (f"「{plat_name}」未开通。" if not plats else
+                    f"「{plat_name}」未开通；已开通：" + "、".join(plats) + "。")
         dlg = ft.AlertDialog(
-            title=ft.Text("未授权，暂时不能开始"),
+            title=ft.Text("当前平台未开通，暂时不能开始"),
             content=ft.Column([
-                ft.Text("把这台电脑的机器码发给管理员登记后，点「重新检测」即可：", size=13.5, color=TEXT),
-                ft.Text(code, size=17.5, weight=ft.FontWeight.BOLD, color=ACCENT_2, selectable=True),
-                ft.Text(str(message or "")[:120], size=12.5, color=WARN_C),
+                ft.Text(body, size=13.5, color=TEXT),
+                muted(self._platform_price_hint(), 12),
+                muted("购买后回到软件点「刷新授权」即可自动开通本机。", 12),
             ], spacing=8, width=460),
             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
-                     ft.TextButton("复制机器码", on_click=lambda e: self._copy_machine(code)),
-                     ft.ElevatedButton("重新检测", bgcolor=ACCENT, color=ON_ACCENT,
+                     ft.ElevatedButton("去开通 / 购买套餐", icon=ft.Icons.OPEN_IN_NEW,
+                                       bgcolor=ACCENT, color=ON_ACCENT,
                                        on_click=lambda e: (self._close_dlg(dlg),
-                                                           threading.Thread(target=self._check_license,
-                                                                            daemon=True).start()))])
+                                                           self._buy_platform(
+                                                               getattr(pf, "id", "") or "")))])
         self._show_dlg(dlg)
 
     def _request_stop(self, e=None):
@@ -4234,10 +4458,11 @@ class App:
     def _p_store_alibaba(self):
         """Use the same compact connection panel for browser login or a pasted Cookie."""
         ck_ok, ck_text = self._cookie_status_text()
+        from ..integrations.cookie_parse import cookie_header as _cookie_header
         cookie = ft.TextField(
             label="Alibaba 专用 Cookie（可选）", width=450, dense=True,
             password=True, can_reveal_password=True,
-            value=str(getattr(self.cfg, "alibaba_cookies", "") or ""),
+            value=_cookie_header(getattr(self.cfg, "alibaba_cookies", "")),
             hint_text="留空沿用店小秘登录", bgcolor=CARD_2, border_color=BORDER, color=TEXT)
         self.cookie_status = ft.Text("", size=12.5, color=MUTED, selectable=True)
         self.store_status = ft.Text("", size=12.5, color=MUTED, selectable=True)
@@ -4254,12 +4479,18 @@ class App:
 
         def save_cookie(e=None):
             raw = str(cookie.value or "").strip()
-            if raw == self.cfg.alibaba_cookies:
+            _header = _cookie_header(raw)
+            if _header and _header == str(getattr(self.cfg, "alibaba_cookies", "") or ""):
                 return
-            self.cfg.set("alibaba_cookies", raw)
-            save_config(self.cfg)
+            parsed = self._set_platform_cookie("alibaba", raw)
+            if not parsed and raw:
+                self.store_status.value = "Cookie 格式未识别：请填 dxm_i=...; dxm_t=... 这样的整行"
+                self.store_status.color = WARN_C
+                self._safe_update()
+                return
             show_cookie_source()
-            self.store_status.value = "Cookie 已更新，请检测连接。"
+            self.store_status.value = ("Cookie 已清除，将沿用店小秘登录。" if not raw
+                                       else "Cookie 已更新，请检测连接。")
             self.store_status.color = MUTED
             self._safe_update()
 
@@ -4892,37 +5123,200 @@ class App:
         self._show_dlg(dlg)
 
     def _platform_cookie_key(self) -> str:
-        return {"alibaba": "alibaba_cookies", "aliexpress": "aliexpress_cookies",
-                "amazon": "amazon_cookies", "tiktok": "tiktok_cookies",
-                "shopee": "shopee_cookies"}.get(getattr(self.active_platform, "id", ""),
-                                                "manual_cookies")
+        """当前平台专属 Cookie 键（映射见 core.platform_config.COOKIE_KEYS）。"""
+        try:
+            from ..core.platform_config import cookie_key
+            return cookie_key(getattr(self.active_platform, "id", ""))
+        except Exception:
+            return {"alibaba": "alibaba_cookies", "aliexpress": "aliexpress_cookies",
+                    "amazon": "amazon_cookies", "tiktok": "tiktok_cookies",
+                    "shopee": "shopee_cookies"}.get(getattr(self.active_platform, "id", ""),
+                                                    "manual_cookies")
+
+    def _migrate_legacy_cookie_if_needed(self) -> str:
+        """把旧版 Cookie 存储统一成「当前平台专属键 + 字符串」。
+
+        兼容两种历史格式：
+        - 共享 ``manual_cookies`` dict：只迁移到当前平台，然后清空共享键；
+        - 平台键里存了 dict（上一版迁移代码写入的类型错误）：就地序列化成字符串。
+        返回当前平台可用的 Cookie 字符串（没有则空串）。
+        """
+        from ..integrations.cookie_parse import cookie_header
+        _key = self._platform_cookie_key()
+        value = getattr(self.cfg, _key, None)
+        if value and not isinstance(value, str):
+            text = cookie_header(value)
+            if text:
+                self.cfg.set(_key, text)
+                value = text
+                try:
+                    from ..core.platform_config import save as _save_platform
+                    _save_platform(self.cfg, str(getattr(self.active_platform, "id", "") or ""))
+                except Exception:
+                    pass
+                try:
+                    save_config(self.cfg)
+                except Exception:
+                    pass
+        if value:
+            return value if isinstance(value, str) else ""
+        _legacy = getattr(self.cfg, "manual_cookies", None)
+        if not _legacy:
+            return ""
+        text = cookie_header(_legacy)
+        self.cfg.set("manual_cookies", {})
+        if text:
+            self.cfg.set(_key, text)
+        try:
+            from ..core.platform_config import save as _save_platform
+            _save_platform(self.cfg, str(getattr(self.active_platform, "id", "") or ""))
+        except Exception:
+            pass
+        try:
+            save_config(self.cfg)
+        except Exception:
+            pass
+        return text
+
+    def _platform_cookie_value(self):
+        """当前平台配置里的 Cookie 原始值（用于状态展示，**不改写配置**）。
+
+        旧格式（平台键里的 dict、共享 manual_cookies）只做规范化展示；
+        真正的迁移放在真正取 Cookie 的 :meth:`_cookies` 里，避免页面构建/状态刷新
+        就悄悄改配置（构建页面时迁移会破坏「粘贴只写当前平台键」的约定）。
+        """
+        from ..integrations.cookie_parse import cookie_header
+        try:
+            value = getattr(self.cfg, self._platform_cookie_key(), None)
+            if value:
+                if isinstance(value, str):
+                    return value
+                return cookie_header(value) or None
+            legacy = getattr(self.cfg, "manual_cookies", None)
+            if isinstance(legacy, str):
+                return legacy.strip() or None
+            if legacy:
+                return cookie_header(legacy) or None
+            return None
+        except Exception:
+            return None
+
+    def _set_platform_cookie(self, pid: str, raw) -> dict:
+        """保存某平台 Cookie（字符串/dict/带 Cookie: 前缀都能识别）。
+
+        Cookie 按平台分键保存，写主配置的同时同步平台镜像文件；解析不出内容且
+        不是显式清空时不动旧值（避免用户正在输入时把已有 Cookie 清掉）。
+        返回解析出的 dict，空 dict 表示没识别到有效 Cookie。
+        """
+        from ..integrations.cookie_parse import parse_cookie_text
+        parsed = parse_cookie_text(raw)
+        if not parsed:
+            blank = (raw is None) or (isinstance(raw, str) and not raw.strip()) or (
+                isinstance(raw, (dict, list, tuple)) and not raw)
+            if not blank:
+                return {}
+        try:
+            from ..core.platform_config import set_cookie as _set_cookie
+            _set_cookie(self.cfg, str(pid or ""), raw)
+        except Exception:
+            try:
+                from ..integrations.cookie_parse import cookie_header
+                self.cfg.set(self._platform_cookie_key(), cookie_header(parsed))
+                save_config(self.cfg)
+            except Exception:
+                pass
+        self._cookie_cache = None      # 刚粘贴的 Cookie 立刻生效
+        self.cookie_src = None
+        self._cookie_ts = 0.0
+        return parsed
+
+    def _refresh_cookie_status_ui(self) -> None:
+        """粘贴/清空 Cookie 后刷新当前页的 Cookie 状态文案（不重建整页）。"""
+        try:
+            ok, text = self._cookie_status_text(refresh=False)
+        except Exception:
+            return
+        ctrl = getattr(self, "cookie_status", None)
+        if ctrl is None:
+            return
+        try:
+            if str(getattr(getattr(self, "active_platform", None), "id", "")) == "alibaba":
+                has_field = bool(str(getattr(self.cfg, "alibaba_cookies", "") or "").strip())
+                ctrl.value = "使用本页填写的 Cookie" if has_field else f"店小秘登录：{text}"
+                ctrl.color = MUTED if has_field or ok else WARN_C
+            else:
+                ctrl.value = f"Cookie：{text}"
+                ctrl.color = ACCENT_2 if ok else WARN_C
+            self._safe_update()
+        except Exception:
+            pass
 
     def _paste_cookie(self):
-        _key = self._platform_cookie_key()
-        field = ft.TextField(label=f"{self.active_platform.name} Cookie", multiline=True, min_lines=4,
+        pid = str(getattr(self.active_platform, "id", "") or "")
+        _pname = str(getattr(self.active_platform, "name", "") or pid)
+        field = ft.TextField(label=f"{_pname} Cookie", multiline=True, min_lines=4,
                              bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                             hint_text="从 Chrome 开发者工具 Network → 任意请求 → Request Headers → Cookie 复制整行")
+                             autofocus=True,
+                             hint_text="从 Chrome 开发者工具 Network → 任意请求 → Request Headers → "
+                                       "Cookie 复制整行（形如 dxm_i=...; dxm_t=...）")
+
+        def _clipboard_text() -> str:
+            import os as _os
+            import subprocess as _sp
+            try:
+                if _os.name == "nt":
+                    return _sp.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+                                   capture_output=True, text=True, timeout=5).stdout or ""
+                if _os.uname().sysname == "Darwin":
+                    return _sp.run(["pbpaste"], capture_output=True, text=True, timeout=5).stdout or ""
+                for cmd in (["xclip", "-selection", "clipboard", "-o"],
+                            ["xsel", "--clipboard", "--output"]):
+                    try:
+                        return _sp.run(cmd, capture_output=True, text=True, timeout=5).stdout or ""
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            return ""
+
+        def paste_clipboard(e=None):
+            text = _clipboard_text().strip()
+            if not text:
+                self.toast("系统剪贴板为空，或无法读取剪贴板", False)
+                return
+            field.value = text
+            self._safe_update()
+            self.toast("已从系统剪贴板粘贴 Cookie")
 
         def save(e):
+            from ..integrations.cookie_parse import missing_login_keys, parse_cookie_text
             raw = (field.value or "").strip()
-            ck = {}
-            for part in raw.split(";"):
-                if "=" in part:
-                    k, v = part.split("=", 1)
-                    ck[k.strip()] = v.strip()
+            if not raw:
+                self.toast("请先粘贴 Cookie（形如 dxm_i=...; dxm_t=...）", False); return
+            ck = parse_cookie_text(raw)
             if not ck:
-                self.toast("Cookie 解析为空", False); return
+                self.toast("没识别出 Cookie：请复制 `dxm_i=...; dxm_t=...` 整行", False); return
             # 每个平台写入自己的键；绝不再覆盖共享 manual_cookies，避免平台互相串 Cookie。
-            self.cfg.set(_key, str(raw))
-            save_config(self.cfg)
-            self._cookie_cache = None      # 刚粘贴的 Cookie 立刻生效
-            self._cookie_ts = 0.0
-            self.toast(f"已保存 {len(ck)} 个 Cookie 到 {self.active_platform.name}")
+            self._set_platform_cookie(pid, raw)
+            missing = missing_login_keys(ck)
+            if missing:
+                self.toast(f"已保存 {len(ck)} 个 Cookie 到 {_pname}，"
+                           f"但缺少 {'/'.join(missing)}，可能无法登录店小秘", False)
+            else:
+                self.toast(f"已保存并识别 {len(ck)} 个 Cookie（{_pname}）")
+            self._log(f"已更新 {_pname} 专属 Cookie（{len(ck)} 项，不影响其他平台）", "INFO")
             self._close_dlg(dlg)
-            threading.Thread(target=self._sync_shops, daemon=True).start()
+            self._refresh_cookie_status_ui()
+            # 店铺页才需要顺手同步店铺；其他页面（工作台等）没有 shop_dd。
+            if pid != "alibaba" and getattr(self, "shop_dd", None) is not None:
+                threading.Thread(target=self._sync_shops, daemon=True).start()
 
         dlg = ft.AlertDialog(title=ft.Text("手动粘贴 Cookie"),
-                             content=ft.Column([field], width=560, height=200),
+                             content=ft.Column([field,
+                                 ft.Row([ft.OutlinedButton("从系统剪贴板粘贴", icon=ft.Icons.CONTENT_PASTE,
+                                                           on_click=paste_clipboard),
+                                         muted("也可以直接按 ⌘V / Ctrl+V")], spacing=8, wrap=True)],
+                                                width=600, height=210),
                              actions=[ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
                                       ft.ElevatedButton("保存并同步", bgcolor=ACCENT, color=ON_ACCENT, on_click=save)])
         self._show_dlg(dlg)
@@ -5099,25 +5493,19 @@ class App:
 
 
     def _cookies(self, refresh: bool = False):
-        """取 Cookie：手动配置 → 已开浏览器（CDP）→ 本机浏览器库（ISSUES #1）。"""
+        """取 Cookie：当前平台专属 Cookie → 已开浏览器（CDP）→ 本机浏览器库。
+
+        ``cfg.<platform>_cookies`` 存的是粘贴的 Cookie 字符串，旧 ``manual_cookies``
+        是 dict；两者都经 ``browser_cookies.resolve`` 统一解析（以前只认 dict，
+        所以粘贴的字符串被丢掉，界面一直报「未读取到 Cookie」）。
+        """
         from ..integrations.browser_cookies import resolve
         cache = getattr(self, "_cookie_cache", None)
         if (not refresh and cache and cache[0] == self.ws_endpoint
                 and (time.time() - cache[1]) < 20):
             return dict(cache[2])
-        _key = self._platform_cookie_key()
-        _manual = getattr(self.cfg, _key, None)
-        if not _manual:
-            # 旧版本 manual_cookies 只迁移到当前平台，不再让所有平台共享同一份 Cookie。
-            _legacy = getattr(self.cfg, "manual_cookies", None)
-            if _legacy:
-                self.cfg.set(_key, _legacy)
-                self.cfg.set("manual_cookies", {})
-                try:
-                    save_config(self.cfg)
-                except Exception:
-                    pass
-                _manual = _legacy
+        # 旧版共享 manual_cookies / dict 型平台键 → 当前平台字符串（只迁移一次）。
+        _manual = self._migrate_legacy_cookie_if_needed() or None
         src = resolve("dianxiaomi.com", manual=_manual,
                       ws_endpoint=self.ws_endpoint)
         self.cookie_src = src
@@ -5125,7 +5513,9 @@ class App:
         if src.ok and src.cookies:
             self._cookie_cache = (self.ws_endpoint, time.time(), dict(src.cookies))
             return dict(src.cookies)
-        raise RuntimeError("未读取到店小秘 Cookie：请点「粘贴 Cookie」，或点「启动浏览器（兜底）」登录一次")
+        _plat = str(getattr(getattr(self, "active_platform", None), "name", "") or "")
+        raise RuntimeError(f"未读取到店小秘 Cookie（{_plat}）：请点「粘贴 Cookie」粘贴当前平台 Cookie，"
+                           f"或在浏览器登录 dianxiaomi.com 后点「重新检测 Cookie」")
 
     def _cookie_status_text(self, refresh: bool = False, allow_cdp: bool = False) -> tuple[bool, str]:
         """给界面显示的 Cookie 状态。
@@ -5138,17 +5528,16 @@ class App:
         if not refresh:
             if cached is not None and (time.time() - getattr(self, "_cookie_ts", 0)) < 60:
                 return bool(cached.ok and cached.cookies), describe(cached)
-            manual = getattr(self.cfg, self._platform_cookie_key(), None) or getattr(
-                self.cfg, "manual_cookies", None)
-            if isinstance(manual, (dict, str)) and manual:
+            manual = self._platform_cookie_value()
+            if manual:
                 src = resolve("dianxiaomi.com", manual=manual, ws_endpoint="", use_local=False)
                 self.cookie_src = src
                 self._cookie_ts = time.time()
-                return True, describe(src)
+                # 只要解析出 Cookie 就算「已识别」；是否过期由店小秘接口判断。
+                return bool(src.ok and src.cookies), describe(src)
             return False, "未检测（点「重新检测 Cookie」）"
         try:
-            src = resolve("dianxiaomi.com", manual=(getattr(self.cfg, self._platform_cookie_key(), None)
-                                                       or getattr(self.cfg, "manual_cookies", None)),
+            src = resolve("dianxiaomi.com", manual=self._platform_cookie_value(),
                           ws_endpoint=self.ws_endpoint if allow_cdp else "")
         except Exception as ex:  # noqa: BLE001
             return False, f"读取异常：{str(ex)[:60]}"
@@ -8343,8 +8732,7 @@ class App:
             h1i(ft.Icons.QUEUE, "配置任务队列"),
             muted("先把关键词、模板商品、数量、平台、AI/图片/价格/发布方式全部配置好，"
                   "填写名称后点「加入队列」。可以继续改配置再加第二条；每条都是独立快照。", 11),
-            muted("执行单条或执行全部；执行时按任务名写入实时日志。队列只在当前实例顺序执行，"
-                  "要并行请用设置里的「新实例运行」。", 11),
+            muted("执行单条或执行全部；执行时按任务名写入实时日志。队列按顺序执行。", 11),
             ft.Row([self.cq_name,
                     ft.ElevatedButton("加入队列", icon=ft.Icons.ADD_TASK,
                                       bgcolor=ACCENT, color=ON_ACCENT,
@@ -8548,7 +8936,7 @@ class App:
 
         self.wb_conn = ft.Text(("Cookie：" + ck_text), size=13.5,
                                color=ACCENT_2 if ok else DANGER_C)
-        self.wb_conn_hint = muted("加载不了产品时先看这里：没有 Cookie 就点「粘贴 Cookie」或「启动浏览器」")
+        self.wb_conn_hint = muted("加载不了产品时先看这里：没有 Cookie 就点「粘贴 Cookie」，或先在浏览器登录店小秘")
         self.wb_status = ft.Text("未加载产品", color=MUTED, size=13.5)
         self.wb_results = ft.Column(spacing=4)
         self.wb_wall = ft.Row(spacing=8, wrap=True)
@@ -10279,22 +10667,24 @@ class App:
     def _p_settings(self):
         self._current = 11
 
-        # ---------------- 授权 ----------------
-        from ..license import machine_code as _mcode
-        code = _mcode()
-        self.machine_text = ft.Text(code, size=19, weight=ft.FontWeight.BOLD, color=TEXT, selectable=True)
-        self.lic_status = ft.Text("检测中…", size=13.5, color=MUTED)
+        # ---------------- 账号与授权（账号制：登录邮箱 + 平台到期 + 设备管理） ----------------
+        code = self.machine_code()
+        self.machine_text = ft.Text(code, size=17.5, weight=ft.FontWeight.BOLD,
+                                    color=TEXT, selectable=True)
+        self.lic_email_text = ft.Text("", size=13, color=TEXT, selectable=True)
+        self.lic_platforms_text = ft.Text("", size=12.5, color=TEXT, selectable=True)
+        self.lic_status = ft.Text("", size=13.5, color=MUTED)
         self.lic_detail = ft.Text("", size=12.5, color=MUTED)
 
         def copy_code(e):
             try:
                 self.page.set_clipboard(code)
-                self.toast("机器码已复制，发给管理员即可登记授权")
+                self.toast("机器码已复制")
             except Exception:
                 self.toast(f"请手动复制：{code}", False)
 
-        def recheck_lic(e):
-            self.lic_status.value = "检测中…"
+        def refresh_lic(e):
+            self.lic_status.value = "刷新中…"
             self.lic_status.color = MUTED
             try:
                 self._safe_update()
@@ -10302,38 +10692,37 @@ class App:
                 pass
             threading.Thread(target=self._check_license, daemon=True).start()
 
-        self.legacy_id_field = ft.TextField(
-            label="旧版授权 ID（可选）", value=str(getattr(self.cfg, "license_identity", "") or ""),
-            width=360, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            hint_text="已有设备授权 ID，填写后可重新检测原授权")
+        def manage_devices(e):
+            self._open_device_manager()
 
-        def save_legacy(e=None):
-            self.cfg.set("license_identity", str(self.legacy_id_field.value or "").strip())
-            save_config(self.cfg)
+        def buy_plan(e):
+            self._buy_platform(self.active_platform.id)
 
-        self.legacy_id_field.on_change = save_legacy
+        def logout_account(e):
+            self._account_logout(show_login=True)
 
         lic_card = card(ft.Column([
             h1("授权", 15),
-            muted("换电脑、重装系统或授权过期时，把机器码发给管理员登记", 11),
-            muted("每台电脑的机器码都不同。把机器码发给管理员登记后，点「重新检测」即可使用"),
-            ft.Row([ft.Text("机器码：", size=13.5, color=MUTED), self.machine_text], spacing=8, wrap=True),
-            ft.Row([ft.ElevatedButton("复制机器码", icon=ft.Icons.COPY, bgcolor=ACCENT, color=ON_ACCENT,
-                                      on_click=copy_code),
-                    ft.OutlinedButton("重新检测", icon=ft.Icons.REFRESH, on_click=recheck_lic)],
+            muted("登录授权账号后自动绑定本机，按套餐开通平台；未开通的平台会显示为锁定。", 11),
+            ft.Row([ft.Text("登录账号：", size=13, color=MUTED), self.lic_email_text],
                    spacing=8, wrap=True),
-            self.legacy_id_field,
+            self.lic_platforms_text,
+            ft.Row([ft.Text("机器码：", size=13, color=MUTED), self.machine_text],
+                   spacing=8, wrap=True),
+            ft.Row([ft.ElevatedButton("刷新授权", icon=ft.Icons.REFRESH, bgcolor=ACCENT,
+                                      color=ON_ACCENT, on_click=refresh_lic),
+                    ft.OutlinedButton("设备管理", icon=ft.Icons.COMPUTER_OUTLINED,
+                                      on_click=manage_devices),
+                    ft.OutlinedButton("去购买套餐", icon=ft.Icons.OPEN_IN_NEW,
+                                      on_click=buy_plan),
+                    ft.TextButton("退出登录", icon=ft.Icons.LOGOUT,
+                                  on_click=logout_account),
+                    ft.TextButton("复制机器码", icon=ft.Icons.COPY, on_click=copy_code)],
+                   spacing=8, wrap=True),
             self.lic_status, self.lic_detail,
             muted("日志上报在「任务与日志」页操作；授权成功时、每轮任务结束后也会自动回传日志。"),
         ], spacing=8))
-        self.lic_status.value = (self.license_state or {}).get("message") or "未检测"
-        if (self.license_state or {}).get("ok"):
-            self.lic_status.color = ACCENT_2
-            exp = (self.license_state or {}).get("expiry") or ""
-            self.lic_detail.value = f"到期：{exp}" if exp else "授权有效（长期）"
-        else:
-            self.lic_status.color = DANGER_C
-            self.lic_detail.value = "如果刚登记过，点「重新检测」；换电脑/重装系统后机器码会变，需要重新登记"
+        self._refresh_license_card_controls()
 
         # ---------------- API ----------------
         self.api_key_field = ft.TextField(label="API Key", value=str(self.cfg.api_key or ""),
@@ -10568,69 +10957,6 @@ class App:
             self.model_status,
         ], spacing=8))
 
-        # ---------------- 多开 ----------------
-        self.inst_name = ft.TextField(label="新实例名称（如 店铺2）", width=240,
-                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.inst_list = ft.Column(spacing=4)
-        self._refresh_instances()
-
-        def create(e):
-            name = (self.inst_name.value or "").strip()
-            if not name:
-                self.toast("请输入实例名称", False); return
-            try:
-                info = create_instance(name)
-                self._log(f"实例已创建：{name}（端口 {info.get('cdp_port')}）")
-                self._refresh_instances()
-                self.toast(f"实例已创建：{name}（端口 {info.get('cdp_port')}）")
-            except Exception as ex:
-                self.toast(str(ex), False)
-
-        def launch(e):
-            name = (self.inst_name.value or "").strip()
-            if not name:
-                self.toast("请输入实例名称", False); return
-            try:
-                launch_instance(name)
-                self._log(f"实例已启动：{name}")
-                self.toast("新实例已启动（独立配置与调试端口）")
-            except Exception as ex:
-                self.toast(str(ex), False)
-
-        def create_and_launch(e):
-            create(e)
-            launch(e)
-
-        # 任务配置：把关键词、模板、平台和当前全部非敏感配置保存成任务，可重复运行。
-        self.task_name = ft.TextField(label="任务名称（如 钻机-德国站）", width=250,
-                                      bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
-        self.task_release = ft.Dropdown(
-            label="运行结束后", width=180, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            value="keep", options=[ft.dropdown.Option("keep", "保留任务配置"),
-                                   ft.dropdown.Option("delete", "自动删除任务")])
-        self.task_list = ft.Column(spacing=4)
-        self._refresh_task_profiles()
-        inst_card = card(ft.Column([
-            h1("多开 / 多任务", 15),
-            muted("一个任务 = 当前平台 + 关键词 + 模板商品 + 其他全部配置的快照；"
-                  "保存后可再次改配置保存成另一个任务。", 11),
-            muted("同一实例内顺序运行；点「新实例运行」会使用独立配置目录、独立调试端口和独立日志，"
-                  "多个任务可同时跑，互不影响。", 11),
-            ft.Row([self.inst_name,
-                    ft.ElevatedButton("创建实例", icon=ft.Icons.ADD, on_click=create),
-                    ft.ElevatedButton("创建并启动", icon=ft.Icons.ROCKET_LAUNCH, bgcolor=ACCENT, color=ON_ACCENT,
-                                      on_click=create_and_launch)], spacing=8, wrap=True),
-            self.inst_list,
-            ft.Divider(color=BORDER, height=12),
-            h1("任务配置", 14),
-            ft.Row([self.task_name, self.task_release,
-                    ft.ElevatedButton("保存当前配置为任务", icon=ft.Icons.SAVE,
-                                      bgcolor=ACCENT_2, color=ON_ACCENT,
-                                      on_click=lambda e: self._save_task_profile())],
-                   spacing=8, wrap=True),
-            self.task_list,
-        ], spacing=8))
-
         # ---------------- 更新 / 诊断 / 价格 ----------------
         try:
             from ..core.updater import CURRENT as _cur_ver
@@ -10745,50 +11071,15 @@ class App:
             muted("快捷键：⌘R 启动/停止 · ⌘L 打开日志 · ⌘F 搜索商品", 11),
         ], spacing=8))
 
-        _tok = ft.TextField(
-            label="平台授权 Token（授权网站复制）", width=720, multiline=True, min_lines=3,
-            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            value=str(getattr(self.cfg, "license_token", "") or ""),
-            hint_text='形如 {"payload":{...},"sig":"..."}；保存后立即生效')
-        _plat_status = ft.Text("", size=12, color=MUTED)
-        def _tok_save(e=None):
-            try:
-                from ..licensing import apply_license_token
-                apply_license_token(self.cfg, str(_tok.value or "").strip(), save_config)
-                self.entitlements = load_entitlements(self.cfg)
-                self._rebuild_nav()
-                try:
-                    self.platform_rail.content = self._build_platform_rail().content
-                except Exception:
-                    pass
-                plats = self.entitlements.platforms_list()
-                _plat_status.value = ("已更新：平台 " + ", ".join(plats)) if plats else "token 已保存，但未解析出平台"
-                _plat_status.color = SUCCESS_C if plats else DANGER_C
-                self._safe_update()
-            except Exception as ex:  # noqa: BLE001
-                _plat_status.value = f"保存失败：{ex}"
-                _plat_status.color = DANGER_C
-                self._safe_update()
-        platform_card = card(ft.Column([
-            h1("平台与功能包授权", 15),
-            muted("授权网站按平台+功能包下发 token；未授权的平台会显示为锁定，功能入口灰显"),
-            ft.Row([ft.Text(f"当前平台：{self.active_platform.name}", size=12.5, color=TEXT),
-                    ft.Text("已开通：" + (", ".join(self.entitlements.platforms_list()) or "无"),
-                            size=12.5, color=MUTED)], spacing=16),
-            _tok, ft.Row([ft.ElevatedButton("保存并刷新授权", icon=ft.Icons.VERIFIED,
-                                            bgcolor=ACCENT, color=ON_ACCENT, on_click=_tok_save),
-                          _plat_status], spacing=12, wrap=True),
-        ], spacing=8))
-
         # 图片与模型 tab（图床/图片编辑/模型价格）对 Amazon v1（不处理图片上传）不匹配。
-        _set_tabs = [("账号与连接", [api_card, lic_card, platform_card])]
+        _set_tabs = [("账号与连接", [api_card, lic_card])]
         if self._cap("image_settings"):
             _set_tabs.append(("图片与模型", [host_card, model_card, price_card]))
-        _set_tabs += [("界面与实例", [ui_card, inst_card]),
-                      ("维护与诊断", [upd, diag_card, rec_card])]
+        _set_tabs += [("界面", [ui_card]),
+                      ("维护与诊断", [upd, diag_card])]
         # Amazon v1 不处理图片上传：「图片与模型」tab 隐藏，副标题也去掉「图片服务」。
         _set_subtitle = (destination(11).description if self._cap("image_settings")
-                         else "管理 API、授权、界面与多开实例")
+                         else "管理 API、授权、界面与维护")
         return [page_header("设置", _set_subtitle),
                 workspace_tabs(_set_tabs)]
 
@@ -10800,12 +11091,13 @@ class App:
 
         def cookie_source():
             """Cookie 优先级：本页专用 Cookie → 店铺与登录里的店小秘 Cookie → 本机 Chrome。"""
-            raw = str(getattr(self.cfg, "alibaba_cookies", "") or "").strip()
+            from ..integrations.cookie_parse import normalize_cookie
+            raw = normalize_cookie(getattr(self.cfg, "alibaba_cookies", ""))
             if raw:
                 return raw, "Alibaba 刊登 Cookie"
-            manual = getattr(self.cfg, "manual_cookies", None)
+            manual = normalize_cookie(getattr(self.cfg, "manual_cookies", None))
             if manual:
-                return dict(manual), "店铺与登录 · 手动 Cookie"
+                return manual, "店铺与登录 · 手动 Cookie"
             try:
                 # chrome_cookies 里没有 read_chrome_cookies（旧代码笔误导致
                 # Chrome 已登录也报没有 Cookie）；统一走 browser_cookies.resolve。
@@ -13524,7 +13816,8 @@ class App:
             return "".join("<p>" + p.replace("\n", "<br>") + "</p>" for p in parts)
 
         # ---------- ① 连接与店铺 ----------
-        _cookie0 = str(_cget("amazon_cookies", "") or "")
+        from ..integrations.cookie_parse import cookie_header as _cookie_header
+        _cookie0 = _cookie_header(_cget("amazon_cookies", ""))
         _src0 = ("本页填写" if _cookie0 else
                  ("店铺与登录 · 手动 Cookie" if getattr(self.cfg, "manual_cookies", None)
                   else "未检测（点「读取本机 Cookie」或粘贴）"))
@@ -13824,7 +14117,7 @@ class App:
         # ---------- 控件回调 ----------
         def _on_cookie(e=None):
             try:
-                _cset("amazon_cookies", str(e.control.value or "").strip())
+                self._set_platform_cookie("amazon", str(e.control.value or ""))
             except Exception:
                 pass
         cookie_tf.on_change = _on_cookie
@@ -14090,7 +14383,7 @@ class App:
                 try:
                     from ..integrations.browser_cookies import describe, resolve
                     src = resolve("dianxiaomi.com",
-                                  manual=getattr(self.cfg, "manual_cookies", None))
+                                  manual=self._platform_cookie_value())
                     if not (getattr(src, "ok", False) and getattr(src, "cookies", None)):
                         _status(conn_status,
                                 "未读到店小秘 Cookie：请先在浏览器登录 dianxiaomi.com，"
@@ -14103,7 +14396,7 @@ class App:
                     except Exception:
                         desc = "本机浏览器登录态"
                     cookie_tf.value = raw
-                    _cset("amazon_cookies", raw)
+                    self._set_platform_cookie("amazon", raw)
                     cookie_src_text.value = "Cookie 来源：" + str(desc)
                     _status(conn_status,
                             f"已读取 Cookie（{len(src.cookies)} 项），可以点「检测连接」",
@@ -16860,7 +17153,8 @@ class App:
             return str(_cget("tiktok_site", "") or "").strip().upper() == "US"
 
         # ---------- ① 连接与店铺 / 站点 ----------
-        _cookie0 = str(_cget("tiktok_cookies", "") or "")
+        from ..integrations.cookie_parse import cookie_header as _cookie_header
+        _cookie0 = _cookie_header(_cget("tiktok_cookies", ""))
         _src0 = ("本页填写" if _cookie0 else
                  ("店铺与登录 · 手动 Cookie" if getattr(self.cfg, "manual_cookies", None)
                   else "未检测（点「读取本机 Cookie」或粘贴）"))
@@ -17044,7 +17338,7 @@ class App:
         # ---------- 通用回调 ----------
         def _on_cookie(e=None):
             try:
-                _cset("tiktok_cookies", str(e.control.value or "").strip())
+                self._set_platform_cookie("tiktok", str(e.control.value or ""))
             except Exception:
                 pass
 
@@ -17294,7 +17588,7 @@ class App:
                 try:
                     from ..integrations.browser_cookies import describe, resolve
                     src = resolve("dianxiaomi.com",
-                                  manual=getattr(self.cfg, "manual_cookies", None))
+                                  manual=self._platform_cookie_value())
                     if not (getattr(src, "ok", False) and getattr(src, "cookies", None)):
                         _status(conn_status,
                                 "未读到店小秘 Cookie：请先在浏览器登录 dianxiaomi.com，"
@@ -17307,7 +17601,7 @@ class App:
                     except Exception:
                         desc = "本机浏览器登录态"
                     cookie_tf.value = raw
-                    _cset("tiktok_cookies", raw)
+                    self._set_platform_cookie("tiktok", raw)
                     cookie_src_text.value = "Cookie 来源：" + str(desc)
                     _status(conn_status,
                             f"已读取 Cookie（{len(src.cookies)} 项），可以点「检测连接」",
@@ -19328,189 +19622,6 @@ class App:
             self._safe_update()
         except Exception:
             pass
-    def _refresh_task_profiles(self) -> None:
-        """刷新设置里的任务配置列表。"""
-        try:
-            from ..services import task_profiles as _tp
-            items = _tp.list_tasks()
-        except Exception:
-            items = []
-        if not hasattr(self, "task_list") or self.task_list is None:
-            return
-        rows = []
-        for t in items:
-            tid = str(t.get("id") or "")
-            status = str(t.get("status") or "idle")
-            status_label = {"idle": "未运行", "running": "运行中", "done": "已完成",
-                            "failed": "失败"}.get(status, status)
-            rows.append(ft.Row([
-                ft.Column([
-                    ft.Text(str(t.get("name") or "-"), size=13, color=TEXT,
-                            weight=ft.FontWeight.BOLD),
-                    ft.Text(f"{t.get('platform') or '-'} · 关键词 {t.get('keyword') or '全部'} · "
-                            f"{status_label} · 完成后{'自动删除' if t.get('auto_release')=='delete' else '保留'}",
-                            size=11.5, color=MUTED),
-                ], spacing=1, expand=True),
-                ft.TextButton("当前窗口运行", icon=ft.Icons.PLAY_ARROW,
-                              on_click=lambda e, _t=t: self._run_task_profile(_t)),
-                ft.TextButton("新实例运行", icon=ft.Icons.OPEN_IN_NEW,
-                              on_click=lambda e, _t=t: self._launch_task_profile(_t)),
-                ft.TextButton("删除", icon=ft.Icons.DELETE_OUTLINE,
-                              on_click=lambda e, _t=t: self._delete_task_profile(_t)),
-            ], spacing=4, wrap=True))
-        self.task_list.controls = rows or [muted("暂无保存的任务配置", 12)]
-        try:
-            self._safe_update()
-        except Exception:
-            pass
-
-    def _save_task_profile(self) -> None:
-        """把当前关键词、模板、平台和全部非敏感配置保存为任务。"""
-        try:
-            self._save_api_fields()
-        except Exception:
-            pass
-        name = str(getattr(self, "task_name", None).value
-                   if getattr(self, "task_name", None) is not None else "").strip()
-        if not name:
-            self.toast("请填写任务名称", False)
-            return
-        try:
-            from ..services import task_profiles as _tp
-            rel = (getattr(self, "task_release", None).value
-                   if getattr(self, "task_release", None) is not None else "keep")
-            plat = str(getattr(self.active_platform, "id", "") or self.cfg.active_platform or "")
-            kw = str(getattr(self, "run_keyword", "") or "").strip()
-            try:
-                self.cfg.set(plat + "_collect_keyword", kw)
-            except Exception:
-                pass
-            t = _tp.create(name, self.cfg, plat, keyword=kw, auto_release=rel)
-            self._log(f"任务配置已保存：{name}（{plat}）")
-            self.toast(f"任务已保存：{name}")
-            self._refresh_task_profiles()
-            return t
-        except Exception as ex:
-            self.toast(f"保存任务失败：{str(ex)[:80]}", False)
-            return None
-
-    def _delete_task_profile(self, task: dict) -> None:
-        try:
-            from ..services import task_profiles as _tp
-            if _tp.delete(str(task.get("id") or "")):
-                self._refresh_task_profiles()
-                self.toast("任务已删除")
-        except Exception as ex:
-            self.toast(str(ex), False)
-
-    def _run_task_profile(self, task: dict) -> None:
-        """当前窗口应用任务配置并启动；运行完按设置保留或删除任务。"""
-        try:
-            if getattr(self, "_running", False) or getattr(self, "_alibaba_batch_running", False):
-                self.toast("已有任务在运行；请用「新实例运行」并行，或等当前任务结束", False)
-                return
-            from ..services import task_profiles as _tp
-            _tp.apply_to_config(task, self.cfg)
-            plat = str(task.get("platform") or self.cfg.active_platform or "")
-            if plat:
-                self.cfg.set("active_platform", plat)
-                self.cfg.set(plat + "_collect_keyword", str(task.get("keyword") or ""))
-            save_config(self.cfg)
-            self.run_keyword = str(task.get("keyword") or "")
-            if plat:
-                self._switch_platform(plat)
-            _tp.mark(str(task.get("id") or ""), "running")
-            self._refresh_task_profiles()
-            self._open_log_on_task()
-            self._start(ignore_conflicts=True)
-            tid = str(task.get("id") or "")
-
-            def watch():
-                # 等任务线程真正置为运行中，避免刚启动时 _running 还是 False 就误判完成。
-                deadline = time.time() + 30
-                started = False
-                while time.time() < deadline and not getattr(self, "_running", False):
-                    time.sleep(0.2)
-                started = bool(getattr(self, "_running", False))
-                while getattr(self, "_running", False):
-                    time.sleep(2)
-                try:
-                    _tp.mark(tid, "done" if started else "failed",
-                             "" if started else "任务未进入运行状态（可能校验未通过）")
-                    if str(task.get("auto_release")) == "delete":
-                        _tp.delete(tid)
-                    self._refresh_task_profiles()
-                except Exception:
-                    pass
-            threading.Thread(target=watch, daemon=True).start()
-        except Exception as ex:
-            self.toast(f"运行任务失败：{str(ex)[:100]}", False)
-
-    def _launch_task_profile(self, task: dict) -> None:
-        """在独立实例中运行任务，多任务之间配置/端口/日志互不影响。"""
-        try:
-            from ..core.instances import launch_task_instance
-            from ..services import task_profiles as _tp
-            info = launch_task_instance(task)
-            _tp.mark(str(task.get("id") or ""), "running")
-            self._refresh_task_profiles()
-            self.toast(f"已在独立实例启动：{info.get('name')}")
-            tid = str(task.get("id") or "")
-            proc = info.get("process")
-
-            def watch():
-                try:
-                    rc = proc.wait()
-                except Exception:
-                    rc = -1
-                try:
-                    _tp.mark(tid, "done" if rc == 0 else "failed")
-                    if str(task.get("auto_release")) == "delete":
-                        _tp.delete(tid)
-                    self._refresh_task_profiles()
-                except Exception:
-                    pass
-            threading.Thread(target=watch, daemon=True).start()
-        except Exception as ex:
-            self.toast(f"启动独立任务失败：{str(ex)[:100]}", False)
-
-    def _auto_start_task(self) -> None:
-        """独立实例启动后自动执行自己的任务（由 AURORA_AUTOSTART 触发）。"""
-        import os as _os
-        if str(_os.environ.get("AURORA_AUTOSTART", "") or "") != "1":
-            return
-        try:
-            from ..services import task_profiles as _tp
-            tid = str(_os.environ.get("AURORA_TASK_ID", "") or "")
-            task = _tp.get(tid)
-            if not task:
-                return
-            self.run_keyword = str(task.get("keyword") or "")
-            _tp.mark(tid, "running")
-            self._refresh_task_profiles()
-            self._open_log_on_task()
-            self._start(ignore_conflicts=True)
-        except Exception as ex:
-            try:
-                self._log(f"任务配置自动启动失败：{ex}", "ERROR")
-            except Exception:
-                pass
-
-    def _refresh_instances(self):
-        try:
-            items = list_instances()
-        except Exception:
-            items = []
-        rows = []
-        for i in items:
-            port = i.get("cdp_port") or "-"
-            rows.append(ft.Row([
-                ft.Text(f"{i['name']}", size=13.5, color=TEXT, width=110),
-                ft.Text(f"调试端口 {port}", size=12.5, color=MUTED, width=110),
-                ft.Text(str(i.get("path") or "")[:60], size=12, color=MUTED, expand=True),
-            ], spacing=8))
-        self.inst_list.controls = rows or [ft.Text("暂无实例", size=12.5, color=MUTED)]
-
     def _toggle_theme(self):
         """白天/夜间切换：换色后重建界面（不重启进程）。"""
         cur = str(getattr(self.cfg, "ui_theme", "dark") or "dark")
@@ -19681,14 +19792,10 @@ class App:
             if not info.get("ok"):
                 self._log(f"版本检查失败（不阻断启动）：{info.get('error')}", "WARN")
                 import os as _ao
-                if str(_ao.environ.get("AURORA_AUTOSTART", "") or "") == "1":
-                    self._auto_start_task()
                 return
             if not info.get("has_update"):
                 self._log(f"版本检查：已是最新 v{_up.CURRENT}", "INFO")
                 import os as _ao
-                if str(_ao.environ.get("AURORA_AUTOSTART", "") or "") == "1":
-                    self._auto_start_task()
                 return
             self._log(f"发现新版本 v{info.get('latest')}（当前 v{_up.CURRENT}），需更新后使用", "WARN")
             self._show_update_gate(info)
@@ -19844,8 +19951,9 @@ class App:
                     self.toast(f"更新失败：{str(ex)[:80]}", False)
             threading.Thread(target=go, daemon=True).start()
 
-    # ---------- 行为 ----------
+    # ---------- 授权（账号制 token，契约 §10） ----------
     def _check_license(self):
+        """刷新授权：重新读取本地 token；已登录时后台联网刷新 token。"""
         if getattr(self, "_license_checking", False):
             return
         self._license_checking = True
@@ -19856,97 +19964,95 @@ class App:
 
     def _saved_account_password(self) -> str:
         try:
-            if not bool(getattr(self.cfg, "license_account_save_password", False)):
-                return ""
             from ..account_store import load_password
             return load_password(self.cfg)
         except Exception:
             return ""
 
-    def _migration_identities(self) -> list[str]:
-        try:
-            from ..license import identity_candidates, legacy_machine_code
-            items = [str(getattr(self.cfg, "license_identity", "") or ""), legacy_machine_code()]
-            items += list(identity_candidates())
-        except Exception:
-            items = [str(getattr(self.cfg, "license_identity", "") or "")]
-        out, seen = [], set()
-        for item in items:
-            item = str(item or "").strip()
-            if item and item.lower() not in seen:
-                seen.add(item.lower()); out.append(item)
-        return out
-
-    def _apply_account_token(self, tok: str, email: str, save_password: bool) -> None:
+    def _apply_account_token(self, tok: str, email: str, save_password: bool,
+                             auto_login: bool = True,
+                             password: str = "") -> None:
+        """登录成功：保存 token/邮箱/（可选加密密码），刷新授权并解锁平台。"""
         from ..licensing import apply_license_token
-        from ..account_store import save_password as _save_pw, clear_password
-        apply_license_token(self.cfg, tok, save_config)
-        self.cfg.set("license_account_email", email)
-        self.cfg.set("license_account_bound", True)
-        self.cfg.set("license_legacy_all", True)   # 迁移期：全部平台可用
+        from ..account_store import remember_password, clear_password
+        apply_license_token(self.cfg, tok, save_config, machine=self.machine_code())
+        self.cfg.set("license_account_email", str(email or "").strip().lower())
+        self.cfg.set("license_auto_login", bool(auto_login))
         if save_password:
-            _save_pw(self.cfg, self._account_password_for_save)
+            remember_password(self.cfg, password or self._account_password_for_save, True)
         else:
             clear_password(self.cfg)
         save_config(self.cfg)
-        self.entitlements = load_entitlements(self.cfg)
-        self._rebuild_nav()
+        self.entitlements = load_entitlements(self.cfg, machine=self.machine_code())
         try:
-            self.platform_rail.content = self._build_platform_rail().content
+            self._rebuild_nav()
+            if getattr(self, "platform_rail", None) is not None:
+                self.platform_rail.content = self._build_platform_rail().content
         except Exception:
             pass
+        self._sync_license_state()
         try:
-            self.license_text.value = "平台：" + ", ".join(self.entitlements.platforms_list())
-        except Exception:
-            pass
-        try:
-            self._refresh_account_ui()
-        except Exception:
-            pass
-
-    def _schedule_migration_prompt(self) -> None:
-        """旧授权客户先用全部平台，运行一段时间后再提醒绑定账号。"""
-        try:
-            if bool(getattr(self.cfg, "license_account_bound", False)):
-                return
-            if not (str(getattr(self.cfg, "license_identity", "") or "").strip()
-                    or bool(getattr(self.cfg, "license_cache_legacy", False))):
-                return
-            now = int(time.time())
-            last = int(float(getattr(self.cfg, "license_migration_prompted_at", 0) or 0))
-            if last and now - last < 86400:
-                return
-            delay = float(os.environ.get("AURORA_MIGRATION_DELAY", "600"))
-            if delay < 0:
-                return
-            timer = threading.Timer(delay, self._show_migration_prompt)
-            timer.daemon = True
-            timer.start()
-            self._migration_prompt_timer = timer
+            self._safe_update()
         except Exception:
             pass
 
-    def _show_migration_prompt(self) -> None:
+    def _refresh_license_card_controls(self) -> None:
+        """设置页授权卡：登录邮箱 / 各平台到期日 / 状态。"""
+        ent = getattr(self, "entitlements", None)
+        email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
+        plats = list(getattr(ent, "platforms_list", lambda: [])() or []) if ent else []
         try:
-            if bool(getattr(self.cfg, "license_account_bound", False)):
-                return
-            if not self.entitlements.platforms_list():
-                return
-            self.cfg.set("license_migration_prompted_at", int(time.time()))
-            save_config(self.cfg)
-            self._account_login_dialog(required=False, migration=True)
-        except Exception as ex:
-            try:
-                self._log(f"迁移绑定窗口异常：{ex}", "WARN")
-            except Exception:
-                pass
+            if getattr(self, "lic_email_text", None) is not None:
+                self.lic_email_text.value = email or "未登录（点击左侧账号入口登录）"
+                self.lic_email_text.color = TEXT if email else MUTED
+            if getattr(self, "lic_platforms_text", None) is not None:
+                if plats:
+                    lines = []
+                    for pid in plats:
+                        exp = ""
+                        try:
+                            exp = ent.platform_expiry(pid)
+                        except Exception:
+                            exp = ""
+                        lines.append(f"{self._platform_display_name(pid)}：到期 "
+                                     + (exp or "长期有效"))
+                    self.lic_platforms_text.value = "已开通平台：\n" + "\n".join(lines)
+                    self.lic_platforms_text.color = TEXT
+                else:
+                    self.lic_platforms_text.value = "已开通平台：无（未开通的平台在左侧显示锁定）"
+                    self.lic_platforms_text.color = WARN_C
+            expires = str(getattr(ent, "expires_at", "") or "") if ent else ""
+            if getattr(self, "lic_status", None) is not None:
+                if plats:
+                    self.lic_status.value = f"已登录 · 已开通 {len(plats)} 个平台"
+                    self.lic_status.color = ACCENT_2
+                elif self._license_test_bypass() or self._license_override_active():
+                    self.lic_status.value = "测试模式（未连真实授权）"
+                    self.lic_status.color = MUTED
+                elif email:
+                    self.lic_status.value = "已登录 · 尚未开通平台"
+                    self.lic_status.color = WARN_C
+                else:
+                    self.lic_status.value = "未登录账号"
+                    self.lic_status.color = MUTED
+            if getattr(self, "lic_detail", None) is not None:
+                if plats and expires:
+                    self.lic_detail.value = f"授权到期：{expires}"
+                elif plats:
+                    self.lic_detail.value = "授权有效"
+                else:
+                    self.lic_detail.value = ("未开通平台可在授权中心购买套餐；"
+                                             "购买后点「刷新授权」即可开通本机。")
+            if getattr(self, "machine_text", None) is not None:
+                self.machine_text.value = self.machine_code()
+        except Exception:
+            pass
 
     def _refresh_account_ui(self) -> None:
-        """刷新左下角账号入口（登录邮箱 / 套餐 / 未登录）。"""
+        """刷新左下角账号入口（登录邮箱 / 已开通平台数）。"""
         if not getattr(self, "account_name", None) or not getattr(self, "account_sub", None):
             return
         email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
-        bound = bool(getattr(self.cfg, "license_account_bound", False))
         ent = getattr(self, "entitlements", None)
         plats = list(getattr(ent, "platforms_list", lambda: [])() or []) if ent else []
         try:
@@ -19955,43 +20061,43 @@ class App:
                 if plats:
                     self.account_sub.value = f"已登录 · {len(plats)} 个平台 · 点击管理"
                 else:
-                    self.account_sub.value = "已登录 · 点击刷新授权 / 退出"
-            elif bound:
-                self.account_name.value = "已绑定授权账号"
-                self.account_sub.value = "点击登录 / 管理账号"
+                    self.account_sub.value = "已登录 · 未开通平台，点击购买"
             else:
                 self.account_name.value = "未登录账号"
                 self.account_sub.value = "点击登录 / 注册账号"
-            self.account_btn.tooltip = "账号登录 / 退出 / 刷新授权"
+            self.account_btn.tooltip = "账号中心 / 设备管理 / 退出登录"
+        except Exception:
+            pass
+        try:
+            self._refresh_license_card_controls()
+        except Exception:
+            pass
+        try:
             self._safe_update()
         except Exception:
             pass
 
     def _refresh_account_license(self, dialog_status=None) -> None:
-        """联网刷新账号授权，不退出登录。"""
+        """联网刷新账号授权，不退出登录（刷新 token，保留本地缓存）。"""
         try:
             from ..license_server import refresh_entitlements
             if dialog_status is not None:
                 dialog_status.value = "正在刷新授权…"
                 dialog_status.color = MUTED
                 self._safe_update()
-            ent = refresh_entitlements(self.cfg, version=VERSION, save=save_config)
+            ent = refresh_entitlements(self.cfg, version=VERSION, save=save_config,
+                                       machine=self.machine_code())
             self.entitlements = ent
             plats = ent.platforms_list()
-            try:
-                self.license_text.value = "平台：" + (", ".join(plats) or "无可用套餐")
-                self.license_text.color = SUCCESS_C if plats else WARN_C
-            except Exception:
-                pass
             try:
                 self._rebuild_nav()
                 self.platform_rail.content = self._build_platform_rail().content
             except Exception:
                 pass
-            self._refresh_account_ui()
-            self._log("账号授权已刷新：" + (", ".join(plats) or "无可用平台"), "INFO")
+            self._sync_license_state()
+            self._log("账号授权已刷新：" + ("、".join(plats) or "无可用平台"), "INFO")
             if dialog_status is not None:
-                dialog_status.value = ("授权已刷新 · " + (", ".join(plats) or "无可用套餐"))
+                dialog_status.value = ("授权已刷新 · " + ("、".join(plats) or "暂无套餐"))
                 dialog_status.color = SUCCESS_C if plats else WARN_C
                 self._safe_update()
             self.toast("授权已刷新", bool(plats))
@@ -20002,44 +20108,29 @@ class App:
                 self._safe_update()
             self._log(f"账号授权刷新失败：{ex}", "WARN")
 
-    def _account_logout(self, show_login: bool = False) -> None:
-        """退出账号：清除本地 token/账号缓存，并通知后台记录退出。"""
-        from ..account_store import clear_password
+    def _account_logout(self, show_login: bool = True) -> None:
+        """退出登录：清 token/邮箱/密码，回到强制登录页（契约 §10.6）。"""
+        from ..account_store import clear_credentials
         email = str(getattr(self.cfg, "license_account_email", "") or "")
+        mcode = self.machine_code()
         try:
-            from ..license import machine_code as _mc
-            mcode = _mc()
-        except Exception:
-            mcode = ""
-        for key, value in (
-            ("license_token", ""), ("license_token_ts", 0),
-            ("license_account_email", ""), ("license_account_bound", False),
-            ("license_account_save_password", False),
-            ("license_account_password", ""), ("license_legacy_all", False),
-            ("license_cache_ok", False), ("license_cache_legacy", False),
-            ("license_migration_prompted_at", 0),
-        ):
-            self.cfg.set(key, value)
-        try:
-            clear_password(self.cfg)
+            clear_credentials(self.cfg)
             save_config(self.cfg)
         except Exception:
             pass
         try:
-            from ..licensing import load_entitlements
-            self.entitlements = load_entitlements(self.cfg)
+            self.entitlements = load_entitlements(self.cfg, machine=mcode)
         except Exception:
             pass
         try:
-            self.license_text.value = "账号已退出"
-            self.license_text.color = MUTED
             self._rebuild_nav()
-            self.platform_rail.content = self._build_platform_rail().content
+            if getattr(self, "platform_rail", None) is not None:
+                self.platform_rail.content = self._build_platform_rail().content
         except Exception:
             pass
-        self._refresh_account_ui()
+        self._sync_license_state()
         self._log("账号已退出：" + (email or "当前账号"), "INFO")
-        self.toast("已退出账号", True)
+        self.toast("已退出登录", True)
 
         def notify():
             try:
@@ -20049,239 +20140,539 @@ class App:
             except Exception:
                 pass
         threading.Thread(target=notify, daemon=True).start()
-        if show_login:
+        if (show_login and not self._license_test_bypass()
+                and not self._license_override_active()):
             try:
-                self._account_login_dialog(required=False, migration=False)
+                self._show_login_gate(email="")
             except Exception:
                 pass
 
     def _open_account_dialog(self) -> None:
-        """左下角账号弹窗：未登录=登录表单；已登录=账号管理。"""
+        """左下角账号入口：已登录=账号中心；未登录=强制登录页。"""
         try:
             email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
-            bound = bool(getattr(self.cfg, "license_account_bound", False))
-            server = str(getattr(self.cfg, "license_server", "") or "").strip()
-            if not server:
-                self.toast("未配置授权服务器，无法登录账号", False)
+            if not email and not self._license_override_active() \
+                    and not self._license_test_bypass():
+                self._show_login_gate()
                 return
-            if not (email or bound):
-                self._account_login_dialog(required=False, migration=False)
-                return
-            from ..license import machine_code as _mc
-            mcode = _mc()
+            mcode = self.machine_code()
             ent = getattr(self, "entitlements", None)
             plats = list(getattr(ent, "platforms_list", lambda: [])() or []) if ent else []
-            expiry = str(getattr(ent, "expires_at", "") or getattr(self.cfg, "license_cache_expiry", "") or "")
-            names = {"alibaba": "阿里国际站", "aliexpress": "速卖通", "amazon": "Amazon",
-                     "tiktok": "TikTok", "shopee": "Shopee"}
-            plats_txt = "、".join(names.get(p, p) for p in plats) or "暂无可用平台"
-            status = ft.Text(f"套餐平台：{plats_txt}" + (f" · 到期：{expiry}" if expiry else ""),
-                             size=12.5, color=TEXT if plats else WARN_C)
+            rows = []
+            for pid in plats:
+                exp = ""
+                try:
+                    exp = ent.platform_expiry(pid)
+                except Exception:
+                    exp = ""
+                rows.append(ft.Row([
+                    ft.Icon(ft.Icons.VERIFIED, size=16, color=SUCCESS_C),
+                    ft.Text(self._platform_display_name(pid), size=13, color=TEXT, width=180),
+                    muted(f"到期：{exp}" if exp else "长期有效", 11),
+                ], spacing=8))
+            if not rows:
+                rows = [muted("还没有开通任何平台，点「购买套餐」即可开通。", 12.5)]
+            status = ft.Text("", size=12.5, color=MUTED)
             dlg = ft.AlertDialog(modal=True, title=ft.Text("账号中心"),
                                  content=ft.Column([
                                      ft.Row([ft.Icon(ft.Icons.ACCOUNT_CIRCLE, size=38, color=ACCENT_2),
-                                             ft.Column([ft.Text(email or "已绑定账号", size=15,
+                                             ft.Column([ft.Text(email or "测试模式", size=15,
                                                                weight=ft.FontWeight.BOLD, color=TEXT),
                                                         muted("已登录 AuroraList", 11)], spacing=2)],
                                             spacing=10),
                                      ft.Divider(height=1, color=BORDER),
-                                     status,
+                                     muted("已开通平台与到期日：", 12),
+                                     *rows,
                                      muted(f"机器码：{mcode}", 11),
-                                     muted("退出账号会清除本机登录状态；商品数据不会被删除。", 11),
-                                 ], spacing=9, width=440),
+                                     status,
+                                     muted("退出登录会清除本机 token/邮箱/密码；商品数据不会被删除。", 11),
+                                 ], spacing=9, width=460),
                                  actions=[])
-            self._dlg = dlg
+            self._show_dlg(dlg)
 
             def close():
                 self._close_dlg(dlg)
-                self._dlg = None
-
-            def logout(e):
-                close()
-                self._account_logout(show_login=False)
 
             def refresh(e):
                 threading.Thread(target=self._refresh_account_license,
                                  args=(status,), daemon=True).start()
 
-            def switch(e):
+            def devices(e):
+                self._open_device_manager()
+
+            def buy(e):
+                self._buy_platform(self.active_platform.id)
+
+            def logout(e):
                 close()
                 self._account_logout(show_login=True)
 
             dlg.actions = [ft.ElevatedButton("刷新授权", icon=ft.Icons.SYNC,
                                              bgcolor=ACCENT_2, color=ON_ACCENT,
                                              on_click=refresh),
-                           ft.OutlinedButton("切换账号", icon=ft.Icons.SWITCH_ACCOUNT,
-                                             on_click=switch),
+                           ft.OutlinedButton("设备管理", icon=ft.Icons.COMPUTER_OUTLINED,
+                                             on_click=devices),
+                           ft.OutlinedButton("购买套餐", icon=ft.Icons.OPEN_IN_NEW,
+                                             on_click=buy),
                            ft.TextButton("退出登录", icon=ft.Icons.LOGOUT,
                                          on_click=logout),
                            ft.TextButton("关闭", on_click=lambda e: close())]
-            self._show_dlg(dlg)
         except Exception as ex:
             self._log(f"打开账号中心失败：{ex}", "WARN")
             self.toast("打开账号中心失败", False)
 
-    def _account_login_dialog(self, *, required: bool, migration: bool,
-                              auto_password: str = "") -> None:
-        """登录/迁移绑定窗口。
+    # ---------- 应用内设备管理（software_devices / software_unbind） ----------
+    @staticmethod
+    def _same_machine(a, b) -> bool:
+        """比较机器码（忽略大小写与横线，服务端可能返回不同格式）。"""
+        def _norm(v):
+            return str(v or "").strip().upper().replace("-", "")
+        return bool(_norm(a)) and _norm(a) == _norm(b)
 
-        migration=True: 旧授权客户输入邮箱+密码即建号/绑定本机，开通全部平台；
-        required=True: 已绑定账号的客户下次启动必须登录，保存密码时自动登录。
-        """
+    @staticmethod
+    def _fmt_device_ts(ts) -> str:
+        """绑定时间/最近活跃时间：unix 秒 → 本地时间；0/异常显示 —。"""
         try:
-            if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
-                return
-            server = str(getattr(self.cfg, "license_server", "") or "")
-            if not server:
-                return
-            from ..license import machine_code as _mc
-            mcode = _mc()
-            email = ft.TextField(label="邮箱", width=340, bgcolor=CARD_2,
-                                 border_color=CARD_2, color=TEXT,
-                                 value=str(getattr(self.cfg, "license_account_email", "") or ""))
-            password = ft.TextField(label="密码", password=True, can_reveal_password=True,
-                                    width=340, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                    value=(auto_password or ""))
-            save_cb = ft.Checkbox(label="保存密码（下次打开自动登录）",
-                                  value=bool(auto_password or getattr(self.cfg, "license_account_save_password", False)),
-                                  active_color=ACCENT)
-            status = ft.Text("", size=12.5, color=MUTED)
-            title = "绑定授权账号" if migration else "登录 AuroraList"
-            hint = ("你的旧授权码仍有效。绑定邮箱后，本机自动迁移并开通全部平台；"
-                    "以后用这个邮箱登录即可。" if migration else
-                    "请输入授权账号邮箱和密码。保存密码后，下次启动会直接进入软件。")
-            dlg = ft.AlertDialog(modal=True, title=ft.Text(title),
-                                 content=ft.Column([
-                                     muted(hint, 12.5),
-                                     muted(f"机器码：{mcode}", 11),
-                                     email, password, save_cb, status], spacing=10, width=380),
-                                 actions=[])
-            self._dlg = dlg
-            self._license_login_dialog = dlg
-            self._account_password_for_save = ""
+            value = int(float(ts or 0))
+        except Exception:
+            value = 0
+        if value <= 0:
+            return "—"
+        try:
+            return time.strftime("%Y-%m-%d %H:%M", time.localtime(value))
+        except Exception:
+            return "—"
 
-            def close():
+    def _open_device_manager(self):
+        """应用内设备管理：列出账号设备 + 解绑非本机设备（本机禁止解绑）。
+
+        接口：``software_devices`` / ``software_unbind``（无会话，凭邮箱+密码+机器码）。
+        密码优先用「记住密码」保存的加密密码；否则在对话框内输入（不明文落盘）。
+        后端未部署新接口时提示到网页端管理，并保留浏览器入口。
+        """
+        email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
+        if (not email and not self._license_override_active()
+                and not self._license_test_bypass()):
+            self._show_login_gate()
+            return None
+        machine = self.machine_code()
+        saved_pw = self._saved_account_password()
+        status = ft.Text("", size=12.5, color=MUTED, selectable=True)
+        list_box = ft.Column(spacing=6)
+        password = ft.TextField(
+            label="账号密码", password=True, can_reveal_password=True, width=380,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT, visible=not saved_pw,
+            hint_text="未保存密码，请在这里输入（不会保存明文）")
+        browser_btn = ft.TextButton("在浏览器中管理", icon=ft.Icons.OPEN_IN_NEW)
+
+        def open_browser(e=None):
+            from ..license import devices_url
+            url = devices_url(self._external_url())
+            if not self._open_url(url):
+                self.toast(f"无法打开浏览器，请手动访问：{url}", False)
+
+        browser_btn.on_click = open_browser
+
+        dlg = ft.AlertDialog(
+            modal=True, title=ft.Text("设备管理"),
+            content=ft.Column([
+                muted("账号：" + (email or "未登录"), 12),
+                muted(f"本机机器码：{machine}", 11),
+                muted("本机禁止在软件内解绑（避免把自己锁掉）；其他设备可解绑，"
+                      "解绑后该电脑下次登录需重新绑定。", 11),
+                password,
+                status,
+                ft.Container(content=list_box, padding=ft.padding.only(top=4)),
+            ], spacing=8, width=580, height=430, scroll=ft.ScrollMode.AUTO),
+            actions=[])
+        self._device_dlg = dlg
+        self._show_dlg(dlg)
+
+        def current_password() -> str:
+            return saved_pw or str(password.value or "")
+
+        def render_rows(devices) -> None:
+            rows = []
+            for dev in devices:
+                is_current = bool(dev.get("is_current")) or self._same_machine(
+                    dev.get("machine_code"), machine)
+                active = bool(dev.get("active", True))
+                badges = []
+                if is_current:
+                    badges.append(ft.Container(
+                        content=ft.Text("本机", size=10, color=ON_ACCENT),
+                        bgcolor=ACCENT, border_radius=6,
+                        padding=ft.padding.symmetric(horizontal=6, vertical=1)))
+                badges.append(ft.Container(
+                    content=ft.Text(str(dev.get("status") or ("已绑定" if active else "已解绑")),
+                                    size=10, color=TEXT if active else MUTED),
+                    bgcolor=CARD_2, border_radius=6,
+                    padding=ft.padding.symmetric(horizontal=6, vertical=1)))
+                code = str(dev.get("machine_code") or "—")
+                details = ("绑定：" + self._fmt_device_ts(dev.get("created_at"))
+                           + " · 最近活跃：" + self._fmt_device_ts(dev.get("last_seen")))
+                extra = " · ".join(str(x) for x in (
+                    dev.get("last_ip") or "", dev.get("app_version") or "",
+                    dev.get("machine_name") or "") if x)
+                if extra:
+                    details += " · " + extra
+                if is_current:
+                    right = ft.TextButton(
+                        "本机禁止解绑", icon=ft.Icons.LOCK_OUTLINE, disabled=True,
+                        tooltip="为防止把自己锁掉，本机请到网页端解绑")
+                elif active:
+                    right = ft.OutlinedButton(
+                        "解绑", icon=ft.Icons.LINK_OFF,
+                        style=ft.ButtonStyle(color=DANGER_C),
+                        on_click=lambda e, d=dev: confirm_unbind(d))
+                else:
+                    right = muted("已解绑", 11)
+                rows.append(ft.Container(
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.COMPUTER, size=18, color=ACCENT_2),
+                        ft.Column([
+                            ft.Row([ft.Text(code, size=12.5, color=TEXT,
+                                            weight=ft.FontWeight.BOLD,
+                                            selectable=True), *badges], spacing=6),
+                            muted(details, 11),
+                        ], spacing=2, expand=True),
+                        right,
+                    ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    padding=8, bgcolor=CARD_2, border_radius=8))
+            list_box.controls = rows or [muted("该账号还没有绑定任何设备。", 12)]
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+        def set_status(msg: str, color=MUTED) -> None:
+            try:
+                status.value = str(msg or "")
+                status.color = color
+                self._safe_update()
+            except Exception:
+                pass
+
+        def load_devices(e=None):
+            pw = current_password()
+            if not pw:
+                set_status("请先输入账号密码，再点「刷新」", WARN_C)
+                return
+            set_status("正在读取设备列表…")
+            target_browser = browser_btn
+
+            def work():
+                from ..license_server import software_devices
+                devices, err, meta = software_devices(
+                    self._external_url(), email, pw, machine)
+                if err:
+                    set_status(err, DANGER_C)
+                    if (meta or {}).get("unsupported"):
+                        set_status(err + "；可点「在浏览器中管理」。", WARN_C)
+                        try:
+                            target_browser.visible = True
+                        except Exception:
+                            pass
+                    return
+                render_rows(devices)
+                count = len(devices)
+                local_txt = "，含本机" if any(d.get("is_current") for d in devices) else ""
+                set_status(f"共 {count} 台设备{local_txt}", ACCENT_2)
+
+            threading.Thread(target=work, daemon=True).start()
+
+        def confirm_unbind(dev) -> None:
+            code = str(dev.get("machine_code") or "")
+            device_id = int(dev.get("id") or 0)
+            if bool(dev.get("is_current")) or self._same_machine(
+                    dev.get("machine_code"), machine):
+                self.toast("本机设备不能在这里解绑，请到网页端操作", False)
+                return
+            if device_id <= 0:
+                self.toast("设备信息不完整，请刷新后重试", False)
+                return
+            cd = ft.AlertDialog(
+                modal=True, title=ft.Text("确认解绑设备"),
+                content=ft.Column([
+                    ft.Text(f"设备：{code}", size=13, color=TEXT, selectable=True),
+                    muted("解绑后该电脑下次登录会重新绑定；若设备数已满需先在那边登录。",
+                          11),
+                ], spacing=8, width=440),
+                actions=[])
+
+            def cancel(ev=None):
+                self._close_dlg(cd)
+
+            def do_unbind(ev=None):
+                self._close_dlg(cd)
+                set_status("正在解绑…")
+
+                def work():
+                    from ..license_server import software_unbind_device
+                    ok, err, meta = software_unbind_device(
+                        self._external_url(), email, current_password(), machine,
+                        device_id)
+                    if not ok:
+                        set_status(err, DANGER_C)
+                        if (meta or {}).get("unsupported"):
+                            set_status(err + "；可点「在浏览器中管理」。", WARN_C)
+                        return
+                    self.toast("设备已解绑", True)
+                    set_status("已解绑：" + code, ACCENT_2)
+                    load_devices()
+
+                threading.Thread(target=work, daemon=True).start()
+
+            cd.actions = [ft.TextButton("取消", on_click=cancel),
+                          ft.ElevatedButton("确认解绑", icon=ft.Icons.LINK_OFF,
+                                            bgcolor=DANGER_BG, color="#FFFFFF",
+                                            on_click=do_unbind)]
+            self._show_dlg(cd)
+
+        dlg.actions = [ft.OutlinedButton("刷新", icon=ft.Icons.REFRESH,
+                                         on_click=load_devices),
+                       browser_btn,
+                       ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))]
+        if saved_pw:
+            set_status("已使用保存的密码读取设备…")
+            timer = threading.Timer(0.05, lambda: load_devices())
+            timer.daemon = True
+            timer.start()
+        else:
+            set_status("请输入账号密码后点「刷新」读取设备列表")
+        return dlg
+
+    # ---------- 强制登录页（契约 §10.1 / §10.2） ----------
+    def _show_login_gate(self, email: str = "", password: str = "",
+                         message: str = "") -> None:
+        """全屏登录页：登录成功前不显示主界面（模态覆盖整个窗口）。
+
+        - 邮箱 / 密码 / 记住密码 / 自动登录；
+        - 注册、忘记密码、购买套餐链接（浏览器打开授权中心）；
+        - 登录失败按类型给出明确中文提示，可直接重试。
+        """
+        if self._license_test_bypass():
+            return
+        existing = getattr(self, "_login_gate_dlg", None)
+        if existing is not None and bool(getattr(existing, "open", False)):
+            return
+        from ..license import register_url, forgot_url, pricing_url
+        server = self._external_url()
+        mcode = self.machine_code()
+        email_v = email or str(getattr(self.cfg, "license_account_email", "") or "")
+        password_v = password or self._saved_account_password()
+        remember_value = bool(
+            getattr(self.cfg, "license_account_save_password", False) or password_v)
+        auto_value = bool(getattr(self.cfg, "license_auto_login", True))
+
+        email_field = ft.TextField(label="邮箱", value=email_v, width=380,
+                                   autofocus=not email_v, bgcolor=CARD_2,
+                                   border_color=CARD_2, color=TEXT,
+                                   hint_text="you@example.com")
+        pass_field = ft.TextField(label="密码", password=True, can_reveal_password=True,
+                                  value=password_v, width=380, bgcolor=CARD_2,
+                                  border_color=CARD_2, color=TEXT)
+        remember_cb = ft.Checkbox(label="记住密码", value=remember_value, active_color=ACCENT)
+        auto_cb = ft.Checkbox(label="自动登录（下次启动直接进入）", value=auto_value,
+                              active_color=ACCENT)
+        status = ft.Text(message, size=12.5, selectable=True,
+                         color=(WARN_C if message else MUTED))
+        login_btn = ft.ElevatedButton("登录", icon=ft.Icons.LOGIN, height=44, width=380,
+                                      bgcolor=ACCENT, color=ON_ACCENT)
+
+        def link_button(label, url):
+            def handler(e=None):
+                if not self._open_url(url):
+                    self.toast(f"无法打开浏览器，请手动访问：{url}", False)
+            return ft.TextButton(label, on_click=handler)
+
+        def quit_app(e=None):
+            try:
+                self.page.window.close()
+            except Exception:
                 try:
-                    self.page.close_dialog()
-                    self._safe_update()
-                except Exception:
-                    try:
-                        dlg.open = False
-                        self._safe_update()
-                    except Exception:
-                        pass
-                self._dlg = None
-                self._startup_login_open = False
-                try:
-                    self._finish_startup_login()
+                    self.page.window.destroy()
                 except Exception:
                     pass
 
-            def submit(e=None):
-                email_v = str(email.value or "").strip()
-                pass_v = str(password.value or "")
-                if not email_v or not pass_v:
-                    status.value = "请填写邮箱和密码"; status.color = DANGER_C
-                    self._safe_update(); return
-                if migration and "@" not in email_v:
-                    status.value = "邮箱格式不正确"; status.color = DANGER_C
-                    self._safe_update(); return
-                status.value = "正在绑定并开通全部平台…" if migration else "正在登录…"
-                status.color = MUTED
-                self._safe_update()
-                self._account_password_for_save = pass_v
-                def work():
-                    try:
-                        from ..core.updater import CURRENT as _ver
-                        if migration:
-                            from ..license_server import software_bind
-                            tok, err, data = software_bind(
-                                server, email_v, pass_v, mcode,
-                                legacy_identities=self._migration_identities(), version=_ver)
-                        else:
-                            from ..license_server import software_login
-                            tok, err, data = software_login(server, email_v, pass_v, mcode, version=_ver)
-                        if not tok:
-                            status.value = err or "登录失败"; status.color = DANGER_C
-                            self._safe_update(); return
-                        self._apply_account_token(tok, email_v, bool(save_cb.value))
-                        self._log(("账号迁移绑定成功：" if migration else "账号登录成功：")
-                                  + email_v + " · 全部平台", "INFO")
-                        close()
-                        self._switch(self.active_platform.pages[0].index)
-                        self.toast("绑定成功，已开通全部平台" if migration else "登录成功", True)
-                        self._safe_update()
-                    except Exception as ex:  # noqa: BLE001
-                        status.value = f"失败：{str(ex)[:120]}"; status.color = DANGER_C
-                        try: self._safe_update()
-                        except Exception: pass
-                threading.Thread(target=work, daemon=True).start()
+        content = ft.Column([
+            ft.Row([ft.Container(width=44, height=44, border_radius=12,
+                                 alignment=ft.alignment.center, bgcolor=ACCENT,
+                                 content=ft.Text("A", size=24, weight=ft.FontWeight.BOLD,
+                                                 color=ON_ACCENT)),
+                    ft.Column([ft.Text("AuroraList", size=25, color=TEXT,
+                                       weight=ft.FontWeight.BOLD),
+                               muted("极光上架 · 账号登录", 11)], spacing=2)], spacing=12),
+            muted("登录后自动绑定本机；未开通的平台会显示锁定并可一键购买。", 12),
+            ft.Container(height=4),
+            email_field, pass_field,
+            ft.Row([remember_cb, auto_cb], spacing=14),
+            login_btn, status,
+            ft.Divider(color=BORDER, height=10),
+            ft.Row([link_button("注册账号", register_url(server)),
+                    link_button("忘记密码", forgot_url(server)),
+                    link_button("购买套餐", pricing_url(server, machine=mcode))],
+                   spacing=4, wrap=True, alignment=ft.MainAxisAlignment.CENTER),
+            muted(f"机器码：{mcode}", 11),
+            ft.TextButton("退出软件", on_click=quit_app),
+        ], spacing=9, width=460, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
-            def quit_app(e=None):
-                try:
-                    self.page.window.close()
-                except Exception:
-                    try: self.page.window.destroy()
-                    except Exception: pass
-
-            if migration:
-                dlg.actions = [ft.ElevatedButton("绑定并继续", bgcolor=ACCENT, color=ON_ACCENT, on_click=submit),
-                               ft.TextButton("稍后", on_click=lambda e: close())]
-            elif required:
-                dlg.actions = [ft.ElevatedButton("登录并继续", bgcolor=ACCENT, color=ON_ACCENT, on_click=submit),
-                               ft.TextButton("退出软件", on_click=quit_app)]
-            else:
-                def go_buy(e=None):
-                    try: self.page.launch_url(server.rstrip("/") + "/")
-                    except Exception: pass
-                dlg.actions = [ft.ElevatedButton("登录并激活", bgcolor=ACCENT, color=ON_ACCENT, on_click=submit),
-                               ft.TextButton("去购买 / 续费", on_click=go_buy),
-                               ft.TextButton("稍后", on_click=lambda e: close())]
-            self._startup_login_open = True
-            try:
-                self.page.show_dialog(dlg)
-            except Exception:
-                self.page.overlay.append(dlg)
-                dlg.open = True
-            self._safe_update()
-            if auto_password:
-                # 已保存密码：打开窗口后自动提交，失败时用户可直接改密码重试。
-                threading.Timer(0.2, lambda: submit(None)).start()
-        except Exception as ex:
-            try:
-                self._log(f"账号登录窗口异常：{ex}", "WARN")
-            except Exception:
-                pass
-
-    def _maybe_license_login(self):
-        """启动授权/迁移入口：旧客户先全平台使用；绑定后下次必须登录。"""
+        page_w = int(getattr(self.page, "width", 0) or 0) or 1120
+        page_h = int(getattr(self.page, "height", 0) or 0) or 760
+        dlg = ft.AlertDialog(
+            modal=True,
+            content=ft.Container(content=content, alignment=ft.alignment.center,
+                                 width=max(520, page_w - 140),
+                                 height=max(560, page_h - 120)),
+            actions=[], actions_alignment=ft.MainAxisAlignment.CENTER)
+        self._login_gate_dlg = dlg
+        self._account_password_for_save = password_v
+        self._startup_login_open = True
         try:
-            if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
-                return False
-            if bool(getattr(self.cfg, "license_account_bound", False)):
-                self._account_login_dialog(required=True, migration=False,
-                                           auto_password=self._saved_account_password())
-                return True
-            if self.entitlements.platforms_list():
-                self._schedule_migration_prompt()
-                return False
-            # 没有平台授权也不是旧授权：保留原来的可选登录窗口。
-            self._account_login_dialog(required=False, migration=False)
-            return True
-        except Exception as ex:
+            if getattr(self, "_shell_root", None) is not None:
+                self._shell_root.visible = False
+        except Exception:
+            pass
+
+        def show_shell():
             try:
-                self._log(f"授权登录入口异常：{ex}", "WARN")
+                if getattr(self, "_shell_root", None) is not None:
+                    self._shell_root.visible = True
             except Exception:
                 pass
+
+        def close_gate():
+            try:
+                self._close_dlg(dlg)
+            except Exception:
+                pass
+            self._login_gate_dlg = None
+            self._startup_login_open = False
+            show_shell()
+            try:
+                self._finish_startup_login()
+            except Exception:
+                pass
+
+        def finish_login(tok: str, email_done: str) -> None:
+            self._apply_account_token(tok, email_done, bool(remember_cb.value),
+                                      bool(auto_cb.value), str(pass_field.value or ""))
+            self._log("账号登录成功：" + email_done, "INFO")
+            close_gate()
+            try:
+                pages = self.active_platform.pages
+                self._switch(pages[0].index if pages else 0)
+            except Exception:
+                pass
+            plats = self.entitlements.platforms_list()
+            self.toast("登录成功" + (f"，已开通 {len(plats)} 个平台" if plats
+                                    else "，暂无套餐"), True)
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+            # 登录后后台再按机器码刷新一次 token（购买后无需重登即可生效）
+            try:
+                threading.Thread(target=self._refresh_platform_license,
+                                 daemon=True).start()
+            except Exception:
+                pass
+
+        def submit(e=None):
+            email_in = str(email_field.value or "").strip()
+            pass_in = str(pass_field.value or "")
+            if not email_in or not pass_in:
+                status.value = "请填写邮箱和密码"
+                status.color = DANGER_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
+                return
+            login_btn.disabled = True
+            status.value = "正在登录…"
+            status.color = MUTED
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def work():
+                from ..core.updater import CURRENT as _ver
+                from ..license_server import software_login
+                try:
+                    env = self._device_env()
+                    tok, err, data = software_login(
+                        server, email_in, pass_in, mcode, version=_ver, timeout=12,
+                        os_version=env["os_version"],
+                        machine_name=env["machine_name"],
+                        store_name=env["store_name"])
+                except Exception as ex:  # noqa: BLE001
+                    tok, err, data = "", f"登录异常：{str(ex)[:80]}", {}
+                if not tok:
+                    kind = str((data or {}).get("error_kind") or "")
+                    status.value = err or "登录失败，请重试"
+                    status.color = DANGER_C
+                    if kind == "network":
+                        status.value = ((err or "网络不可达")
+                                        + "\n请检查网络后点「登录」重试。")
+                    login_btn.disabled = False
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+                    return
+                try:
+                    finish_login(tok, email_in)
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"登录失败：{str(ex)[:120]}"
+                    status.color = DANGER_C
+                    login_btn.disabled = False
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+
+            threading.Thread(target=work, daemon=True).start()
+
+        login_btn.on_click = submit
+        pass_field.on_submit = submit
+        email_field.on_submit = lambda e: pass_field.focus()
+        self._show_dlg(dlg)
+        try:
+            self._safe_update()
+        except Exception:
+            pass
+        if password_v and auto_value:
+            # 记住密码 + 自动登录：预填后自动联网登录，失败可直接重试。
+            timer = threading.Timer(0.2, lambda: submit(None))
+            timer.daemon = True
+            timer.start()
+
+    def _maybe_license_login(self) -> bool:
+        """启动门禁（契约 §10.1）：返回 True = 登录页已打开、主界面暂不可用。
+
+        已保存自动登录且本地 token 验签通过、机器码匹配、未过期 → 静默直登。
+        """
+        if self._license_test_bypass() or self._license_override_active():
             return False
+        try:
+            if silent_login_allowed(self.cfg, machine=self.machine_code()):
+                self._log("本地授权 token 有效，自动登录")
+                self.entitlements = load_entitlements(self.cfg,
+                                                      machine=self.machine_code())
+                return False
+        except Exception as ex:
+            self._log(f"本地授权校验失败，需要登录：{ex}", "WARN")
+        self._show_login_gate()
+        return True
 
     def _heartbeat_payload(self):
         """(server, machine, payload)：平台状态 + 最近刊登产品。"""
         try:
-            from ..license import machine_code as _mc
-            machine = _mc()
+            machine = self.machine_code()
         except Exception:
-            machine = str(getattr(self.cfg, "license_identity", "") or "")
+            machine = ""
         server = str(getattr(self.cfg, "license_server", "") or "")
         running = bool(getattr(self, "_running", False))
         plats = {}
@@ -20302,23 +20693,26 @@ class App:
         return server, machine, {"platforms": plats, "products": products}
 
     def _refresh_platform_license(self):
-        """向授权网站拉取平台+功能包 token；失败保留缓存，不阻塞界面。"""
+        """登录后联网刷新 token；失败保留本地缓存，不阻塞界面。"""
+        if not self._logged_in():
+            self._sync_license_state()
+            return
         try:
             from ..license_server import refresh_entitlements
-            from ..core.updater import CURRENT as _ver
         except Exception:
             return
         try:
-            ent = refresh_entitlements(self.cfg, version=_ver, save=save_config)
+            ent = refresh_entitlements(self.cfg, version=VERSION, save=save_config,
+                                       machine=self.machine_code())
             self.entitlements = ent
             self._rebuild_nav()
             try:
                 self.platform_rail.content = self._build_platform_rail().content
             except Exception:
                 pass
+            self._sync_license_state()
             plats = ent.platforms_list()
-            self.license_text.value = ("平台：" + ", ".join(plats)) if plats else "平台未开通"
-            self._log("平台授权刷新：" + (", ".join(plats) if plats else "未开通（保留本地缓存）"),
+            self._log("平台授权刷新：" + ("、".join(plats) if plats else "无（保留本地缓存）"),
                       "INFO" if plats else "WARN")
             self._safe_update()
         except Exception as ex:
@@ -20328,90 +20722,21 @@ class App:
                 pass
 
     def _check_license_inner(self):
+        """刷新授权：本地重新解析 token；已登录时再联网刷新一次 token。"""
         try:
-            from ..core.updater import CURRENT as _ver
-        except Exception:
-            _ver = ""
-        try:
-            from ..license import machine_code as _dbg_mc
-            self._log(f"授权检测：机器码 {_dbg_mc()} / 旧ID {getattr(self.cfg, 'license_identity', '') or '-'}")
+            self.entitlements = load_entitlements(self.cfg, machine=self.machine_code())
         except Exception:
             pass
-        res = verify_license(self.cfg.license_server, version=_ver,
-                             identity_override=str(getattr(self.cfg, "license_identity", "") or ""),
-                             public_key_pem=str(getattr(self.cfg, "license_public_key", "") or ""),
-                             store_name=str(getattr(self.cfg, "store_name", "") or ""))
-        try:
-            self._log(f"授权结果：{res.get('message')} / tried {res.get('tried')}")
-        except Exception:
-            pass
-        self.license_state = res
-        self._report_identity = str(res.get("identity") or "")
-        if res.get("ok"):
+        self._sync_license_state()
+        if self._logged_in():
+            self._refresh_platform_license()
+        else:
             try:
-                from ..core import guard as _guard
-                _guard.store(self.cfg, res)
-                # 旧设备授权：迁移期先开全部平台，运行一段时间后再引导绑定账号。
-                if str(res.get("plan") or "") != "account" or str(getattr(self.cfg, "license_identity", "") or ""):
-                    self.cfg.set("license_legacy_all", True)
-                save_config(self.cfg)
-            except Exception:
-                pass
-            # 启动即回传一次日志（后台线程，失败静默）
-            try:
-                from ..core import report as _rep
-                _rep.report_async(str(getattr(self.cfg, "license_server", "") or ""),
-                                  str(res.get("identity") or ""), version=_ver,
-                                  cookies=self._report_cookie_payload(),
-                                  platform=str(getattr(getattr(self, "active_platform", None), "id", "") or ""))
-            except Exception:
-                pass
-        try:
-            if res.get("ok"):
-                self.cfg.set("license_cache_ok", True)
-                self.cfg.set("license_cache_legacy", str(res.get("plan") or "") != "account")
-                self.cfg.set("license_cache_expiry", str(res.get("expiry") or ""))
-                self.cfg.set("license_cache_ts", int(time.time()))
-            elif "无法连接授权服务器" in str(res.get("message") or ""):
-                self._log("授权服务器暂不可达，保留上次授权缓存", "WARN")
-            else:
-                self.cfg.set("license_cache_ok", False)
-                self.cfg.set("license_cache_ts", 0)
-            # 平台/功能包授权刷新（token 由授权网站下发，旧客户走 legacy 兼容）
-            try:
-                threading.Thread(target=self._refresh_platform_license, daemon=True).start()
-            except Exception:
-                pass
-            try:
-                self.entitlements = load_entitlements(self.cfg)
-                self._schedule_migration_prompt()
                 self._rebuild_nav()
                 if getattr(self, "platform_rail", None) is not None:
                     self.platform_rail.content = self._build_platform_rail().content
-                plats = self.entitlements.platforms_list()
-                self.license_text.value = ("平台：" + ", ".join(plats)) if plats else "平台未开通"
-                self._safe_update()
             except Exception:
                 pass
-            save_config(self.cfg)
-        except Exception:
-            pass
-        msg = res.get("message") or ("授权有效" if res.get("ok") else "未授权")
-        self.license_text.value = "授权有效" if res.get("ok") else "未授权"
-        self.license_text.color = ACCENT_2 if res.get("ok") else DANGER_C
-        # 设置页的授权卡片同步刷新
-        for attr in ("lic_status", "lic_detail"):
-            if getattr(self, attr, None) is None:
-                continue
-        if getattr(self, "lic_status", None) is not None:
-            self.lic_status.value = msg
-            self.lic_status.color = ACCENT_2 if res.get("ok") else DANGER_C
-        if getattr(self, "lic_detail", None) is not None:
-            exp = res.get("expiry") or ""
-            self.lic_detail.value = (f"到期：{exp}" if exp else
-                                     ("授权有效（长期）" if res.get("ok")
-                                      else "把上面的机器码发给管理员登记；登记后点「重新检测」"))
-        self._apply_license_state()
         try:
             self._safe_update()
         except Exception:

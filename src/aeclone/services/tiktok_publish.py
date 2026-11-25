@@ -42,11 +42,10 @@ def _cfg_value(cfg, key: str, default=None):
     return getattr(cfg, key, default)
 
 
-def _normalize_cookies(raw) -> dict | str:
-    """Cookie 可能是「a=1; b=2」字符串，也可能是 dict。"""
-    if isinstance(raw, dict):
-        return {str(k): str(v) for k, v in raw.items()}
-    return str(raw or "").strip()
+def _normalize_cookies(raw) -> dict:
+    """Cookie 可能是「a=1; b=2」字符串、带 Cookie: 前缀的整行或 dict，统一成 dict。"""
+    from ..integrations.cookie_parse import normalize_cookie
+    return normalize_cookie(raw)
 
 
 def _browser_cookies() -> dict:

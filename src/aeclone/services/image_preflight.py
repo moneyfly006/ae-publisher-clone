@@ -21,6 +21,14 @@ def image_url_ok(url: str, timeout: float = 6.0) -> bool:
     url = str(url or "").strip()
     if not is_http(url):
         return False
+    # 店小秘相册地址对 Amazon/平台可见，但本机探测常被防盗链/Region 拒绝；
+    # 这类平台自有图床不能因本地探活失败而误删。
+    try:
+        _host = (urlparse(url).hostname or "").lower()
+        if _host.endswith("dianxiaomi.com") and "wxalbum" in url.lower():
+            return True
+    except Exception:
+        pass
     now = time.time()
     hit = _CACHE.get(url)
     if hit and now - hit[0] < _TTL:

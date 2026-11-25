@@ -10,7 +10,7 @@ MAX_SUBJECT = 128
 MAX_KEYWORDS = 5
 MIN_KEYWORDS = 3
 MAX_MAIN_IMAGES = 6
-MAX_DETAIL_IMAGES = 30
+MAX_DETAIL_IMAGES = 20
 
 STOPWORDS = {
     "the", "and", "for", "with", "from", "this", "that", "your", "our", "are",
@@ -285,38 +285,13 @@ def merge_attributes(product: dict, cfg=None, overrides: dict | None = None,
     return attrs
 
 
-def normalize_publishable_main_images(client, product: dict, save: dict) -> list[str]:
-    """发布前主图兜底：平台抓不到的图床图片移到后面，优先用可读的原图。
-
-    阿里/店小秘服务器读不到 image.moneyfly.club（本地能读不代表平台能读），
-    直接提交会报「第1张产品图片不符合要求，图片信息读取失败」。
-    保留所有非图床图片做首图；只有全部都是图床图时才保留原样。
-    """
-    raw = str(save.get("mainImage") or "").strip()
-    urls = [u.strip() for u in raw.split(",") if u.strip()]
-    if not urls:
-        return []
-    def _custom(u: str) -> bool:
-        return "moneyfly.club" in u.lower() or "132.226.1.44" in u
-    safe = [u for u in urls if not _custom(u)]
-    bad = [u for u in urls if _custom(u)]
-    if not bad or not safe:
-        return []
-    # 平台会逐张校验主图；图床图不是“换顺序”就能过，必须从提交主图中移除。
-    save["mainImage"] = ",".join(safe)
-    if save.get("draftImgUrl"):
-        save["draftImgUrl"] = "|".join(safe)
-    save.setdefault("_image_repair", []).append("检测到平台不可读图床：已从主图移除，保留可读原图")
-    return safe
-
 def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | None = None,
                            log=None) -> str:
-    """采集视频优先；没有时用主图生成轮播视频并写 videoUrl。返回使用的地址。"""
+    """采集视频优先；没有时用主图/详情图生成轮播视频并写 videoUrl。"""
     ov = overrides or {}
     source = str(_cfg_get(cfg, "alibaba_video_source", "auto") or "auto").lower()
     if source == "none":
         return ""
-    # 1) 商品自带视频（保存接口字段原样带过去）
     for key in ("mainVideoId", "detailVideoId", "videoUrl", "video"):
         v = ov.get(key) or product.get(key)
         if v not in (None, "", 0, "0", "None"):
@@ -324,15 +299,14 @@ def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | Non
             return str(v)
     if source == "collected":
         return ""
-    # 2) 主图轮播生成
     raw = (ov.get("main_images") or save.get("mainImage")
            or product.get("mainImage") or product.get("draftImgUrl") or "")
     urls = [x.strip() for x in str(raw).replace("|", ",").split(",") if x.strip()]
-    # 主图 CDN 429 时，用详情图补足视频素材（详情图通常仍可下载）。
     try:
         _detail = product.get("detailImage") or []
         if isinstance(_detail, str):
-            _detail = json.loads(_detail or "[]")
+            import json as _json
+            _detail = _json.loads(_detail or "[]")
         for _d in _detail if isinstance(_detail, list) else []:
             _u = str((_d or {}).get("url") or "").strip() if isinstance(_d, dict) else ""
             if _u and _u not in urls:
@@ -343,8 +317,10 @@ def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | Non
         return ""
     try:
         import tempfile
-        import requests
+        import time
         from pathlib import Path as _Path
+        import requests
+        from PIL import Image
         from .video import generate_carousel_video, find_ffmpeg
         from .hosting import upload_video_file
         if not find_ffmpeg():
@@ -357,17 +333,15 @@ def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | Non
             if len(imgs) >= 6:
                 break
             try:
-                import time as _time
                 r = None
-                for _attempt in range(3):
+                for attempt in range(3):
                     r = requests.get(u, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
                     if r.status_code != 429:
                         break
-                    _time.sleep(1.2 * (_attempt + 1))
+                    time.sleep(1.0 * (attempt + 1))
                 r.raise_for_status()
                 raw_path = tmp / f"src{i}.img"
                 raw_path.write_bytes(r.content)
-                from PIL import Image
                 pth = tmp / f"img{i}.jpg"
                 with Image.open(raw_path) as im:
                     im.convert("RGB").save(pth, "JPEG", quality=92)
@@ -397,6 +371,61 @@ def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | Non
         if log:
             log(f"轮播视频生成失败：{str(exc)[:120]}", "WARN")
     return ""
+
+
+def normalize_publishable_main_images(client, product: dict, save: dict) -> list[str]:
+    """发布前主图兜底：移除不可读/低尺寸图，并用详情图补足。"""
+    import requests
+    from io import BytesIO
+    from PIL import Image
+    raw = str(save.get("mainImage") or "").strip()
+    urls = [u.strip() for u in raw.split(",") if u.strip()]
+    if not urls:
+        return []
+    def _custom(u: str) -> bool:
+        return "moneyfly.club" in u.lower() or "132.226.1.44" in u
+    detail = []
+    try:
+        rows = product.get("detailImage") or []
+        if isinstance(rows, str):
+            import json as _json
+            rows = _json.loads(rows or "[]")
+        for row in rows if isinstance(rows, list) else []:
+            u = str((row or {}).get("url") or "").strip() if isinstance(row, dict) else ""
+            if u and u not in urls and u not in detail:
+                detail.append(u)
+    except Exception:
+        pass
+    candidates = [u for u in urls if not _custom(u)] + detail
+    kept, dropped, seen = [], [], set()
+    for u in candidates:
+        if u in seen:
+            continue
+        seen.add(u)
+        try:
+            r = requests.get(u, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+            r.raise_for_status()
+            with Image.open(BytesIO(r.content)) as im:
+                w, h = im.size
+            if w < 800 or h < 800 or (h and w / h < 0.75):
+                dropped.append(f"{w}x{h}(比例{w/h:.2f})")
+                continue
+            kept.append(u)
+            if len(kept) >= 6:
+                break
+        except Exception:
+            dropped.append("无法读取")
+            continue
+    out = kept or urls
+    if out != urls:
+        save["mainImage"] = ",".join(out)
+        if save.get("draftImgUrl"):
+            save["draftImgUrl"] = "|".join(out)
+        save.setdefault("_image_repair", []).append(
+            f"主图仅保留可验证尺寸的图片（{len(out)} 张）"
+            + (f"；剔除：{'、'.join(dropped[:5])}" if dropped else ""))
+    return out
+
 
 
 def resolve_category(product: dict, cfg=None, overrides: dict | None = None) -> tuple[str, str]:
@@ -644,6 +673,7 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         for row in originals:
             if isinstance(row, dict) and row.get("url"):
                 metadata.setdefault(str(row["url"]), []).append(row)
+        det = det[:MAX_DETAIL_IMAGES]
         rows = []
         for url in det:
             source = metadata.get(url, [])
@@ -752,12 +782,12 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
             fob = json.loads(original) if isinstance(original, str) else deepcopy(original)
         save["priceType"] = "fob_price"
         save["sourcingTrade"] = json.dumps(fob, ensure_ascii=False)
-        # 规则（docs/ALIBABA_RULES.md §4）：FOB 模式不写阶梯价、不写 tariffsHsCode。
-        save["bulkDiscountPrices"] = json.dumps([], ensure_ascii=False)
+        # FOB 模式不写阶梯价字段（写入 [] 仍会被平台当成“同时存在阶梯价”）。
+        save.pop("bulkDiscountPrices", None)
     elif ptype == "sku_price":
-        # 按规格定价：保留商品原 productSku，不写阶梯价。
+        # 按规格定价：保留商品原 productSku，不能同时出现阶梯价字段。
         save["priceType"] = "sku_price"
-        save["bulkDiscountPrices"] = json.dumps([], ensure_ascii=False)
+        save.pop("bulkDiscountPrices", None)
     elif tiers:
         save["priceType"] = "ladder_price"
         save["bulkDiscountPrices"] = json.dumps(tiers, ensure_ascii=False)
@@ -796,6 +826,13 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
             _hs = str(_cfg_get(cfg, "alibaba_hs_code", "") or "").strip()
             if _hs:
                 trade["tariffsHsCode"] = [{"toCountry": "US", "hsCode": _hs}]
+        _inv = trade.get("inventory") or []
+        if not any(str((r or {}).get("value") or "0").strip() not in ("", "0") for r in _inv if isinstance(r, dict)):
+            try:
+                _stock = int(float(_cfg_get(cfg, "alibaba_stock", 10) or 10))
+            except Exception:
+                _stock = 10
+            trade["inventory"] = [{"warehouseCode": "CN_LOCAL_01", "value": max(_stock, 1)}]
         save["wholesaleTrade"] = json.dumps(trade, ensure_ascii=False)
     if cfg is not None and not _cfg_get(cfg, "alibaba_preserve_trade", False):
         def num(key, default=None):
@@ -1479,6 +1516,43 @@ def autofill_required_attributes(product: dict, attr_defs: list | None, cfg=None
                 _set_attr(_m, d, res["value_name"], res["value_id"])
         filled.append(f"{name}={res['value_name']}(覆盖)" if existed
                       else f"{name}={res['value_name']}")
+
+    # B2. 占位值（Other）→ 从商品原文/属性提取真实值并按平台候选值匹配。
+    # 例：原文 "220V/380V" 要能匹配候选值 "220 V"/"380 V"，而不是只比空格。
+    _PLACEHOLDER = {"other", "others", "n/a", "na", "none", "unknown"}
+    _src_raw = " ".join([str(product.get(k) or "") for k in
+                         ("subject", "keywords", "textDesc", "description")])
+    _src_raw += " " + " ".join(str(a.get("value_name") or a.get("value") or "")
+                               for a in attrs if isinstance(a, dict))
+    _src_norm = _norm(_src_raw)
+    for d in defs:
+        name = _def_label(d)
+        if not name or int(d.get("required") or 0) != 1:
+            continue
+        rows = [a for a in attrs if _match_def_for_attr(a, by_name, by_id) is d]
+        if not rows:
+            continue
+        if not any(str(a.get("value_name") or "").strip().casefold() in _PLACEHOLDER for a in rows):
+            continue
+        entries = _value_entries(d)
+        hits = []
+        for e in entries:
+            ev = str(e.get("name") or "").strip()
+            if not ev or ev.casefold() in _PLACEHOLDER:
+                continue
+            if _norm(ev) and _norm(ev) in _src_norm:
+                # 按候选值在原文中的位置排序，220V/380V 优先取 220V。
+                pos = _src_norm.find(_norm(ev))
+                hits.append((pos, e))
+        if not hits:
+            continue
+        hits.sort(key=lambda x: x[0])
+        # 同一位置长度不同的候选，取最靠前/最具体的那个。
+        _, best = hits[0]
+        for row in rows:
+            if str(row.get("value_name") or "").strip().casefold() in _PLACEHOLDER:
+                _set_attr(row, d, str(best.get("name") or ""), str(best.get("id") or "-1"))
+                filled.append(f"{name}={best.get('name')}(按原文补全)")
 
     # C. 仍缺失的必填项：通用值 → unresolved（给可读原因，绝不取候选第一项）
     for d in defs:

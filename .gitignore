@@ -11,3 +11,8 @@ output/playwright/
 # 本地逆向抓包临时目录（含 Cookie，禁止提交）
 .tmp-probe/
 .tmp-tiktok/
+
+# 本地部署资料（含生产服务器/数据库/账号线索，公开仓库禁止提交）
+deploy/license-v3/
+docs/LICENSING_V3_DEPLOY_REPORT.md
+docs/screenshots/v3/

@@ -1,7 +1,15 @@
-"""直接读取本机浏览器 Cookie（复用已登录状态，无需 CDP）。"""
+"""直接读取本机浏览器 Cookie（复用已登录状态，无需 CDP）。
+
+同时负责「手动/配置里的 Cookie」的统一解析入口：配置里的 Cookie 可能是
+``"dxm_i=...; dxm_t=..."`` 字符串（粘贴对话框写入的就是这种），也可能是
+旧版本的 dict——这里统一用 :mod:`.cookie_parse` 归一化，避免出现「粘贴了但
+识别不到」的假失败。
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from .cookie_parse import normalize_cookie
 
 
 @dataclass
@@ -59,8 +67,10 @@ def read_best(domain: str = "dianxiaomi.com") -> CookieSource:
     return CookieSource("auto", False, {}, " | ".join(errors)[:300])
 
 
-def is_logged_in(cookies: dict) -> bool:
-    return any(k in cookies for k in ("dxm_i", "dxm_t", "JSESSIONID"))
+def is_logged_in(cookies) -> bool:
+    """是否包含店小秘登录标识（兼容 dict / 字符串）。"""
+    ck = normalize_cookie(cookies)
+    return any(k in ck for k in ("dxm_i", "dxm_t", "JSESSIONID"))
 
 
 # ---------------- 统一取 Cookie 入口 ----------------
@@ -72,14 +82,24 @@ SOURCE_CDP = "已开浏览器"
 SOURCE_LOCAL = "本机 Cookie 库"
 
 
-def resolve(domain: str = "dianxiaomi.com", manual: dict | None = None,
+def resolve(domain: str = "dianxiaomi.com", manual=None,
             ws_endpoint: str = "", use_local: bool = True) -> CookieSource:
-    """按「手动 → CDP → 本机库」顺序解析可用 Cookie。"""
+    """按「手动 → 本机库」顺序解析可用 Cookie。
+
+    ``manual`` 可以是粘贴的 Cookie 字符串（``a=1; b=2``、带 ``Cookie:`` 前缀、
+    换行分隔、JSON 导出等）或旧版本的 dict。以前这里只认 dict，导致粘贴对话框
+    写入的字符串被直接丢弃 → 界面一直提示「未读取到 Cookie」。
+
+    ``ws_endpoint`` 预留给后续「已开浏览器（CDP）」注入，当前实现不读它。
+    """
     errors: list[str] = []
 
     # 1) 配置里的手动 Cookie（注入过就一直可用，不依赖浏览器）
-    if isinstance(manual, dict) and manual:
-        return CookieSource(SOURCE_MANUAL, True, {str(k): str(v) for k, v in manual.items()})
+    manual_ck = normalize_cookie(manual)
+    if manual_ck:
+        return CookieSource(SOURCE_MANUAL, True, manual_ck)
+    if manual not in (None, "", {}, []):
+        errors.append("手动 Cookie 无法解析（应形如 dxm_i=...; dxm_t=...）")
 
     # 2) 本机浏览器 Cookie 库（可能因加密/权限读不到）
     if use_local:
@@ -97,8 +117,10 @@ def describe(src: CookieSource) -> str:
         extra = ""
         try:
             if not is_logged_in(src.cookies):
-                extra = "（缺少登录标识，可能已过期）"
+                extra = "（缺少 dxm_i/dxm_t 登录标识，可能已过期）"
         except Exception:
             pass
-        return f"{src.name} · {len(src.cookies)} 个{extra}"
+        return f"{src.name} · {len(src.cookies or {})} 个{extra}"
+    if src.error:
+        return f"未识别（{str(src.error)[:90]}）"
     return f"{src.name} · 0 个（读取失败，可粘贴）"

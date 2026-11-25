@@ -187,7 +187,7 @@ class RedesignTests(unittest.TestCase):
             44: ["AI 文案", "AI 图片", "类目与属性", "价格与贸易", "公司资料"],
             9: ["商品与取图", "图片处理与输出"],
             10: ["运行日志"],
-            11: ["账号与连接", "图片与模型", "界面与实例", "维护与诊断"],
+            11: ["账号与连接", "图片与模型", "界面", "维护与诊断"],
         }
         for index, titles in alibaba_expected.items():
             self.app._switch(index)
@@ -198,7 +198,9 @@ class RedesignTests(unittest.TestCase):
         # 设置页关键卡仍在
         self.app._switch(11)
         all_text = {c.value for c in walk(self.app.content.controls) if isinstance(c, ft.Text)}
-        self.assertTrue({"授权", "图床", "AI 模型", "模型价格", "版本更新", "推荐配置", "多开 / 多任务"} <= all_text)
+        self.assertTrue({"授权", "图床", "AI 模型", "模型价格", "版本更新"} <= all_text)
+        self.assertFalse(any("推荐配置" in t for t in all_text))
+        self.assertFalse(any("平台与功能包授权" in t or "多开 / 多任务" in t for t in all_text))
 
         # 速卖通平台：原有页面/卡片必须全部保留（多平台融合，不能误删）
         self.app._switch_platform("aliexpress")
@@ -211,7 +213,7 @@ class RedesignTests(unittest.TestCase):
             8: ["运行与发布设置", "发布概览（数量与批量操作）"],
             9: ["商品与取图", "图片处理与输出"],
             10: ["运行日志"],
-            11: ["账号与连接", "图片与模型", "界面与实例", "维护与诊断"],
+            11: ["账号与连接", "图片与模型", "界面", "维护与诊断"],
         }
         for index, titles in expected.items():
             self.app._switch(index)

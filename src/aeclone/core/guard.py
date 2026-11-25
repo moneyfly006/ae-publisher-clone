@@ -1,29 +1,26 @@
 """核心层授权守卫：不依赖 UI，防止「改一个配置就绕过」。
 
-思路
-----
-服务端在授权成功时签发一个 ECDSA P-256 凭证（voucher + signature），
-里面带 identity / 到期日 / client_type，并用服务端私钥签名。
+思路（契约 §10.3）
+------------------
+授权中心登录成功后下发 HMAC 签名 token，里面带 machine_code / platforms /
+expires_at。真正干活的入口（Publisher.run 等）在本地验签并检查：
 
-- 客户端把凭证存进配置；
-- 真正干活的入口（Publisher.run）本地验签；
-- 改 license_enforce / license_state.ok 都没用——必须伪造 ECDSA 签名，
-  而私钥只在服务器上。
+1. token HMAC 验签通过（密钥只在服务端与客户端内置，改配置伪造不了）；
+2. `payload.machine_code` 与本机机器码一致（拷贝到别的电脑无效）；
+3. 未过期（`expires_at` 日期当天仍有效）；
+4. 至少 1 个平台权限（没买套餐可登录但一切写操作被拦）。
 
-离线宽限
---------
-凭证本身有到期日；网络不通时仍可用到到期日为止，
-但连续 N 天没联网复核会降级（由 verify 的频率控制，这里不额外加锁）。
+旧版 ECDSA voucher / 设备授权码逻辑已按契约 §10 删除。
+测试/CI 可用 `AURORA_SKIP_LICENSE=1` 显式放行。
 """
 from __future__ import annotations
 
-import base64
-import datetime
 import hashlib
 import os
+import time
 
-# 与 license.py 保持一致的内置公钥（服务端可覆盖）
-from ..license import PUBLIC_KEY_PEM, identity_candidates, machine_id, verify_voucher
+from ..license import machine_code as _local_machine_code
+from ..licensing import parse_expiry, verify_token
 
 # 测试/CI 用：跳过核心层校验（只允许显式设置）
 _ENV_SKIP = "AURORA_SKIP_LICENSE"
@@ -33,72 +30,43 @@ class LicenseError(RuntimeError):
     """核心逻辑检测到未授权。"""
 
 
-def _b64(s: str) -> str:
-    return base64.b64encode(str(s).encode("utf-8")).decode("ascii")
-
-
-def _unb64(s: str) -> str:
-    try:
-        return base64.b64decode(str(s).encode("ascii")).decode("utf-8")
-    except Exception:
-        return ""
-
-
-def store(cfg, res: dict) -> None:
-    """把服务端凭证存进配置（简单编码，避免明文一眼可见）。"""
-    try:
-        if not res or not res.get("voucher"):
-            return
-        cfg.set("license_voucher", _b64(res.get("voucher") or ""))
-        cfg.set("license_signature", _b64(res.get("signature") or ""))
-        cfg.set("license_identity", str(res.get("identity") or ""))
-        cfg.set("license_expiry", str(res.get("expiry") or ""))
-        cfg.set("license_voucher_ts", int(__import__("time").time()))
-    except Exception:
-        pass
-
-
-def load(cfg) -> dict:
-    try:
-        return {
-            "voucher": _unb64(getattr(cfg, "license_voucher", "") or ""),
-            "signature": _unb64(getattr(cfg, "license_signature", "") or ""),
-            "identity": str(getattr(cfg, "license_identity", "") or ""),
-            "expiry": str(getattr(cfg, "license_expiry", "") or ""),
-        }
-    except Exception:
-        return {}
+def _norm_machine(value: str) -> str:
+    return str(value or "").strip().upper().replace("-", "")
 
 
 def check(cfg) -> tuple[bool, str]:
-    """本地验签：返回 (是否有效, 原因)。"""
+    """本地校验登录 token：返回 (是否有效, 原因)。"""
     if os.environ.get(_ENV_SKIP) == "1":
         return True, "skip"
 
-    v = load(cfg)
-    if not v or not v.get("voucher") or not v.get("signature"):
-        return False, "未找到授权凭证，请先点「重新检测」完成授权"
+    token = str(getattr(cfg, "license_token", "") or "").strip()
+    if not token:
+        return False, "未登录授权账号：请登录并购买套餐后再开始"
 
-    expiry = v.get("expiry") or ""
-    if expiry and expiry < datetime.date.today().isoformat():
-        return False, f"授权已过期（{expiry}），请联系管理员续期"
+    payload = verify_token(token)
+    if not payload:
+        return False, "授权 token 无效（验签失败），请重新登录"
 
-    ident = v.get("identity") or ""
-    # 凭证必须绑定本机（兼容旧格式：16 位短码 / 完整哈希）
-    allowed = set(identity_candidates())
-    if ident and ident not in allowed:
-        return False, "授权凭证与本机不匹配（可能被拷贝到其他电脑）"
-    short = machine_id()[:16].upper()
-
+    payload_machine = str(payload.get("machine_code") or "")
     try:
-        pem = str(getattr(cfg, "license_public_key", "") or "") or PUBLIC_KEY_PEM
-        ok = verify_voucher(v["voucher"], v["signature"], ident or short,
-                            str(getattr(cfg, "license_client_type", "local") or "local"), pem)
-    except Exception as e:  # noqa: BLE001
-        return False, f"授权凭证验签失败：{str(e)[:60]}"
+        local_machine = _local_machine_code()
+    except Exception:
+        return False, "无法读取本机机器码，请重启软件后重试"
+    if _norm_machine(payload_machine) != _norm_machine(local_machine):
+        return False, "授权与本机不匹配（可能被拷贝到其他电脑），请在本机重新登录"
 
-    if not ok:
-        return False, "授权凭证无效（签名不匹配）"
+    expires_at = str(payload.get("expires_at") or "")
+    if expires_at and time.time() > parse_expiry(expires_at):
+        return False, f"授权已过期（{expires_at}），请续费后重新登录"
+
+    # 契约 §10.3：离线宽限 7 天，超过后要求重新联网登录（token 会被刷新）
+    token_ts = float(getattr(cfg, "license_token_ts", 0) or 0)
+    if token_ts and (time.time() - token_ts) / 86400 > 7:
+        return False, "授权超过 7 天未联网校验，请重新登录后继续"
+
+    platforms = payload.get("platforms") or {}
+    if not isinstance(platforms, dict) or not any(bool(v) for v in platforms.values()):
+        return False, "账号未开通任何平台，请先购买套餐"
     return True, "ok"
 
 

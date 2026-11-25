@@ -1,14 +1,17 @@
-"""平台 + 功能包授权（entitlement）解析与校验。
+"""平台 + 功能包授权（entitlement）解析与校验 —— 账号制 v3。
 
-授权网站下发的 token 形如：
+授权中心登录成功后下发 token（契约 §6，格式与已装 v1.0.10 客户端一致）：
 
-    {"payload": {"machine_code": "...", "expires_at": "2027-11-17",
-                 "platforms": {"alibaba": ["listing", "ai_text"], "aliexpress": ["listing"]},
-                 "issued_at": 1795270000},
+    {"payload": {"machine_code": "...",
+                 "platforms": {"alibaba": ["listing", "ai_text"], "amazon": ["listing"]},
+                 "expires_at": "2027-11-17",
+                 "feature_expiries": {"alibaba": {"listing": "2027-11-17"}},
+                 "issued_at": 1790000000},
      "sig": "hex(HMAC_SHA256(canonical_json(payload), KEY))"}
 
-客户端内置公钥不可用（仅标准库），这里用 HMAC + 内置密钥做防篡改，
-服务端可随时轮换 KEY。离线时使用缓存 token，超过 grace_days 才失效。
+客户端只用内置 HMAC KEY 本地验签（服务端可随时轮换 KEY），不走网络；
+离线宽限 7 天（超过后视作需要重新登录/联网）。旧版设备授权码 / ECDSA voucher /
+`license_identity` / legacy 全平台兼容已按契约 §10 删除。
 """
 from __future__ import annotations
 
@@ -18,10 +21,10 @@ import json
 import time
 from dataclasses import dataclass, field
 
-# 服务端与客户端共享的签名密钥（发布时通过 config.license_public_key 覆盖亦可）
+# 服务端与客户端共享的签名密钥（与服务端 issue_entitlement_token 一致，不可随意改）
 SIGN_KEY = b"aurora-list-platform-license-v1"
 
-# 平台与功能包定义
+# 平台与功能包定义（契约 §1）
 PLATFORM_FEATURES = {
     "alibaba": ["listing", "category", "trade", "ai_text", "ai_image", "audit"],
     "aliexpress": ["listing", "category", "pricing", "variants", "ai_text", "ai_image", "audit"],
@@ -30,6 +33,9 @@ PLATFORM_FEATURES = {
     "shopee": ["listing", "ai_text", "ai_image"],
 }
 ALL_FEATURES = sorted({f for v in PLATFORM_FEATURES.values() for f in v})
+
+# 离线宽限：token 超过这么多天没刷新就要求重新登录（契约 §10.3）
+OFFLINE_GRACE_DAYS = 7
 
 
 def _canonical(payload: dict) -> bytes:
@@ -45,6 +51,8 @@ def verify_token(token: str | dict, key: bytes = SIGN_KEY) -> dict | None:
     """验签成功返回 payload，否则 None。"""
     try:
         obj = json.loads(token) if isinstance(token, str) else token
+        if not isinstance(obj, dict):
+            return None
         payload = obj.get("payload") or {}
         sig = str(obj.get("sig") or "")
         if not payload or not sig:
@@ -58,22 +66,38 @@ def verify_token(token: str | dict, key: bytes = SIGN_KEY) -> dict | None:
 
 def issue_token(machine_code: str, platforms: dict[str, list[str]],
                 expires_at: str, issued_at: int | None = None,
-                key: bytes = SIGN_KEY) -> str:
-    """签发 token（授权网站/测试用）。"""
+                key: bytes = SIGN_KEY,
+                feature_expiries: dict | None = None) -> str:
+    """签发 token（授权服务端/测试用）。"""
     payload = {"machine_code": str(machine_code),
                "platforms": {k: sorted(set(v)) for k, v in platforms.items()},
                "expires_at": str(expires_at),
                "issued_at": int(issued_at or time.time())}
+    if feature_expiries:
+        payload["feature_expiries"] = feature_expiries
     return json.dumps({"payload": payload, "sig": sign_payload(payload, key)},
                       ensure_ascii=False)
 
 
-def _parse_date(s: str) -> float:
+def parse_expiry(s: str) -> float:
+    """把 YYYY-MM-DD（或带时间）解析成时间戳；日期型权限当天有效到 23:59:59。"""
+    raw = str(s or "").strip()
+    if not raw:
+        return 0.0
     try:
-        # A date-only entitlement remains valid through that local calendar day.
-        return time.mktime(time.strptime(str(s).strip()[:10] + " 23:59:59", "%Y-%m-%d %H:%M:%S"))
+        text = raw[:10] + " 23:59:59"
+        return time.mktime(time.strptime(text, "%Y-%m-%d %H:%M:%S"))
     except Exception:
         return 0.0
+
+
+def _normalize_machine(value: str) -> str:
+    return str(value or "").strip().upper().replace("-", "")
+
+
+def _machine_code() -> str:
+    from .license import machine_code
+    return machine_code()
 
 
 @dataclass
@@ -81,8 +105,11 @@ class Entitlements:
     platforms: dict[str, set[str]] = field(default_factory=dict)
     expires_at: str = ""
     machine_code: str = ""
-    source: str = "none"          # token / legacy / override / none
+    # override / token / token-offline-expired / machine-mismatch / invalid / none
+    source: str = "none"
     expired: bool = False
+    platform_expiries: dict[str, str] = field(default_factory=dict)
+    issued_at: int = 0
 
     def has_platform(self, platform_id: str) -> bool:
         return platform_id in self.platforms and not self.expired
@@ -93,96 +120,120 @@ class Entitlements:
     def platforms_list(self) -> list[str]:
         return [] if self.expired else list(self.platforms)
 
+    def platform_expiry(self, platform_id: str) -> str:
+        """该平台（最早到期的功能）到期日；用于账号中心展示。"""
+        if platform_id in self.platform_expiries:
+            return str(self.platform_expiries.get(platform_id) or "")
+        return str(self.expires_at or "")
 
-def _legacy_migration_allowed(cfg) -> bool:
-    """旧设备授权客户在迁移期临时开通全部平台。
-
-    账号绑定后仍保留该标记，保证迁移客户不被账号套餐立刻降权；
-    管理员可通过清空 license_legacy_all / 重新下发 token 回收。
-    """
-    try:
-        if bool(getattr(cfg, "license_legacy_all", False)):
-            return True
-        if bool(getattr(cfg, "license_account_bound", False)):
-            return True
-        if str(getattr(cfg, "license_identity", "") or "").strip():
-            return True
-        return (bool(getattr(cfg, "license_cache_ok", False))
-                and getattr(cfg, "license_cache_legacy", True) is not False)
-    except Exception:
-        return False
+    def is_empty(self) -> bool:
+        return not self.platforms_list()
 
 
-def _legacy_all_platforms(cfg) -> dict[str, list[str]]:
-    """迁移期：旧授权客户临时开通全部平台全部功能。"""
-    return {pid: list(feats) for pid, feats in PLATFORM_FEATURES.items()}
+def _override_entitlements(cfg) -> Entitlements | None:
+    """测试/调试用平台覆盖（`license_platforms`，隐藏能力，正常登录不使用）。"""
+    override = str(getattr(cfg, "license_platforms", "") or "").strip()
+    if not override:
+        return None
+    plats: dict[str, list[str]] = {}
+    for part in override.split(","):
+        pid, _, feats = part.strip().partition(":")
+        if not pid:
+            continue
+        if feats:
+            plats[pid] = [f.strip() for f in feats.split("+") if f.strip()]
+        else:
+            plats[pid] = list(PLATFORM_FEATURES.get(pid, []))
+    return Entitlements(platforms={k: set(v) for k, v in plats.items()},
+                        source="override")
+
+
+def token_payload(cfg) -> dict | None:
+    """读取配置里的 token 并验签；失败返回 None。"""
+    token = str(getattr(cfg, "license_token", "") or "").strip()
+    if not token:
+        return None
+    return verify_token(token)
+
+
+def _feature_expiries(payload: dict) -> dict[str, dict[str, str]]:
+    raw = payload.get("feature_expiries") or {}
+    return raw if isinstance(raw, dict) else {}
 
 
 def load_entitlements(cfg, now: float | None = None,
-                      grace_days: int = 7) -> Entitlements:
-    """按优先级解析：手动覆盖 > 签名 token > 旧授权兼容。"""
+                      grace_days: int = OFFLINE_GRACE_DAYS,
+                      machine: str | None = None) -> Entitlements:
+    """只认登录 token（+ 隐藏的测试 override），解析平台/功能包权限。
+
+    `machine` 传本机机器码；不传则现算（UI 会缓存后传入，避免重复读硬件）。
+    机器码不匹配 / 验签失败 / 离线超过宽限 / 到期 → 返回锁定状态（无平台权限）。
+    """
     now = now or time.time()
-    override = str(getattr(cfg, "license_platforms", "") or "").strip()
-    if override:
-        plats = {}
-        for part in override.split(","):
-            pid, _, feats = part.strip().partition(":")
-            if not pid:
-                continue
-            if feats:
-                plats[pid] = [f.strip() for f in feats.split("+") if f.strip()]
-            else:
-                plats[pid] = list(PLATFORM_FEATURES.get(pid, []))
-        return Entitlements(platforms={k: set(v) for k, v in plats.items()},
-                            source="override")
+    override = _override_entitlements(cfg)
+    if override is not None:
+        return override
 
     token = str(getattr(cfg, "license_token", "") or "").strip()
+    if not token:
+        return Entitlements(source="none", expired=True)
+    payload = verify_token(token)
+    if not payload:
+        return Entitlements(source="invalid", expired=True)
+
+    payload_machine = str(payload.get("machine_code") or "")
+    expires_at = str(payload.get("expires_at") or "")
+    base = Entitlements(expires_at=expires_at, machine_code=payload_machine,
+                        issued_at=int(payload.get("issued_at") or 0))
+
+    if machine is None:
+        machine = _machine_code()
+    if _normalize_machine(payload_machine) != _normalize_machine(machine):
+        base.source = "machine-mismatch"
+        base.expired = True
+        return base
+
     cached_ts = float(getattr(cfg, "license_token_ts", 0) or 0)
-    payload = verify_token(token) if token else None
-    if payload:
-        # 离线宽限：token 上次校验时间过久则要求重新联网校验
-        offline_days = (now - cached_ts) / 86400 if cached_ts else 0
-        expired = bool(payload.get("expires_at") and
-                       now > _parse_date(payload["expires_at"]))
-        legacy_expiry = str(getattr(cfg, "license_cache_expiry", "") or "")
-        legacy_valid = ((bool(getattr(cfg, "license_cache_ok", False))
-                         and getattr(cfg, "license_cache_legacy", True) is not False
-                         and (not legacy_expiry or now <= _parse_date(legacy_expiry)))
-                        or _legacy_migration_allowed(cfg))
-        if cached_ts and offline_days > grace_days:
-            if legacy_valid:
-                return Entitlements(platforms={pid: set(fs) for pid, fs in _legacy_all_platforms(cfg).items()},
-                                    expires_at=legacy_expiry, source="legacy")
-            return Entitlements(expires_at=str(payload.get("expires_at") or ""),
-                                machine_code=str(payload.get("machine_code") or ""),
-                                source="token-offline-expired", expired=True)
-        feature_dates = payload.get("feature_expiries") or {}
-        if feature_dates:
-            platforms = {
-                pid: {f for f in features if now <= _parse_date(feature_dates.get(pid, {}).get(f, ""))}
-                for pid, features in (payload.get("platforms") or {}).items()
-            }
-            platforms = {pid: features for pid, features in platforms.items() if features}
-            expired = not bool(platforms)
-        else:
-            platforms = {pid: set(v) for pid, v in (payload.get("platforms") or {}).items()}
-        # A purchased account package must not remove an existing device license.
-        if legacy_valid:
-            for pid, features in _legacy_all_platforms(cfg).items():
-                platforms.setdefault(pid, set()).update(features)
-            expired = False
-        return Entitlements(platforms=platforms,
-                            expires_at=str(payload.get("expires_at") or ""),
-                            machine_code=str(payload.get("machine_code") or ""),
-                            source="token", expired=expired)
+    if grace_days is not None and cached_ts:
+        offline_days = (now - cached_ts) / 86400
+        if offline_days > grace_days:
+            base.source = "token-offline-expired"
+            base.expired = True
+            return base
 
-    if _legacy_migration_allowed(cfg):
-        return Entitlements(platforms={k: set(v) for k, v in _legacy_all_platforms(cfg).items()},
-                            source="legacy-migration")
-    return Entitlements(source="none")
+    raw_platforms = payload.get("platforms") or {}
+    if not isinstance(raw_platforms, dict):
+        raw_platforms = {}
+    feature_dates = _feature_expiries(payload)
+    platforms: dict[str, set[str]] = {}
+    platform_expiries: dict[str, str] = {}
+    if feature_dates:
+        for pid, features in raw_platforms.items():
+            kept, dates = set(), []
+            for feature in (features or []):
+                day = str((feature_dates.get(pid) or {}).get(feature) or "")
+                if day and now <= parse_expiry(day):
+                    kept.add(feature)
+                    dates.append(day)
+                elif not day and now <= parse_expiry(expires_at):
+                    kept.add(feature)
+            if kept:
+                platforms[str(pid)] = kept
+                platform_expiries[str(pid)] = min(dates) if dates else expires_at
+        expired = bool(raw_platforms) and not platforms
+    else:
+        platforms = {str(pid): set(v or []) for pid, v in raw_platforms.items() if v}
+        platform_expiries = {pid: expires_at for pid in platforms}
+        expired = bool(expires_at) and now > parse_expiry(expires_at)
+
+    return Entitlements(platforms=platforms, expires_at=expires_at,
+                        machine_code=payload_machine, source="token",
+                        expired=expired, platform_expiries=platform_expiries,
+                        issued_at=int(payload.get("issued_at") or 0))
 
 
-def apply_license_token(cfg, token: str, save=None) -> Entitlements:
+def apply_license_token(cfg, token: str, save=None,
+                        machine: str | None = None) -> Entitlements:
     """保存 token 并刷新时间戳；验签失败不写入。"""
     payload = verify_token(token)
     if not payload:
@@ -191,4 +242,22 @@ def apply_license_token(cfg, token: str, save=None) -> Entitlements:
     cfg.set("license_token_ts", int(time.time()))
     if save:
         save(cfg)
-    return load_entitlements(cfg)
+    return load_entitlements(cfg, machine=machine)
+
+
+def silent_login_allowed(cfg, machine: str | None = None,
+                         now: float | None = None,
+                         grace_days: int = OFFLINE_GRACE_DAYS) -> bool:
+    """启动时是否可静默直登：开启自动登录 + 本地 token 验签通过 + 机器码匹配 + 未过期。
+
+    只读本地 token，不联网（契约 §10.1）。
+    """
+    try:
+        if not bool(getattr(cfg, "license_auto_login", True)):
+            return False
+        if not str(getattr(cfg, "license_account_email", "") or "").strip():
+            return False
+        ent = load_entitlements(cfg, now=now, grace_days=grace_days, machine=machine)
+        return ent.source == "token" and not ent.expired
+    except Exception:
+        return False

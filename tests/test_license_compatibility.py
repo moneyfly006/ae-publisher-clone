@@ -1,55 +1,98 @@
-"""Existing device customers keep their rights when adding an account package."""
-from datetime import datetime
-from pathlib import Path
+"""Token 契约兼容性（v1.0.10 后端 ↔ v1.1.0 客户端）。
+
+契约 §6：token 格式/签名密钥不变（老服务端签的 token 新客户端仍能验签）；
+客户端只认 token，不再把旧设备授权（voucher / license_identity / 缓存）叠加进来。
+"""
+import datetime
+import hashlib
+import hmac
+import json
 import sys
+import time
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from aeclone.config import AppConfig
-from aeclone.licensing import PLATFORM_FEATURES, issue_token, load_entitlements, sign_payload
-import json
+from aeclone.config import AppConfig  # noqa: E402
+from aeclone.licensing import (PLATFORM_FEATURES, issue_token, load_entitlements,  # noqa: E402
+                               sign_payload, verify_token)
+
+MACHINE = "ABCD1234-EF567890"
+KEY = b"aurora-list-platform-license-v1"
 
 
-class LicenseCompatibilityTests(unittest.TestCase):
-    def cfg(self, **kwargs):
-        return AppConfig(dict(license_platforms="", license_cache_ok=False, **kwargs))
+def cfg(**kwargs):
+    data = dict(license_platforms="", license_token="", license_token_ts=0,
+                license_account_email="user@example.com")
+    data.update(kwargs)
+    return AppConfig(data)
 
-    def test_existing_device_and_new_amazon_package_are_combined(self):
-        cfg = self.cfg(license_token=issue_token("fixture", {"amazon": ["listing"]}, "2099-01-01"))
-        cfg.set("license_cache_ok", True)
-        cfg.set("license_cache_expiry", "2099-01-01")
-        ent = load_entitlements(cfg)
-        self.assertEqual(set(ent.platforms_list()), set(PLATFORM_FEATURES))
 
-    def test_account_compatibility_voucher_does_not_unlock_legacy_platforms(self):
-        cfg = self.cfg(license_token=issue_token("fixture", {"amazon": ["listing"]}, "2099-01-01"),
-                       license_cache_legacy=False)
-        cfg.set("license_cache_ok", True)
-        self.assertEqual(load_entitlements(cfg).platforms_list(), ["amazon"])
+class TokenCompatibilityTests(unittest.TestCase):
+    def test_server_signed_token_verifies(self):
+        """按服务端 lc_sign_token 的 canonical 规则手写 token，客户端必须验签通过。"""
+        payload = {"machine_code": MACHINE, "expires_at": "2099-01-01",
+                   "platforms": {"alibaba": ["listing", "ai_text"]},
+                   "issued_at": 1790000000}
+        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True,
+                               separators=(",", ":")).encode("utf-8")
+        sig = hmac.new(KEY, canonical, hashlib.sha256).hexdigest()
+        token = json.dumps({"payload": payload, "sig": sig}, ensure_ascii=False)
+        self.assertIsNotNone(verify_token(token))
+        ent = load_entitlements(cfg(license_token=token), machine=MACHINE)
+        self.assertTrue(ent.has_feature("alibaba", "ai_text"))
 
-    def test_independent_expiry_filters_each_feature(self):
-        payload = dict(machine_code="fixture", platforms={"alibaba": ["listing", "ai_text"], "amazon": ["listing"]},
+    def test_feature_expiries_filter_independently(self):
+        payload = dict(machine_code=MACHINE,
+                       platforms={"alibaba": ["listing", "ai_text"],
+                                  "amazon": ["listing"]},
                        expires_at="2030-01-01", issued_at=1,
-                       feature_expiries={"alibaba": {"listing": "2030-12-31", "ai_text": "2030-01-01"},
+                       feature_expiries={"alibaba": {"listing": "2030-12-31",
+                                                     "ai_text": "2030-01-01"},
                                          "amazon": {"listing": "2030-12-31"}})
         token = json.dumps(dict(payload=payload, sig=sign_payload(payload)))
-        now = datetime(2030, 2, 1, 12).timestamp()
-        cfg = self.cfg(license_token=token, license_token_ts=now)
-        ent = load_entitlements(cfg, now=now)
+        now = datetime.datetime(2030, 2, 1, 12).timestamp()
+        ent = load_entitlements(cfg(license_token=token, license_token_ts=now),
+                                now=now, machine=MACHINE)
         self.assertTrue(ent.has_feature("alibaba", "listing"))
         self.assertFalse(ent.has_feature("alibaba", "ai_text"))
         self.assertTrue(ent.has_platform("amazon"))
 
     def test_expiry_day_is_inclusive(self):
-        cfg = self.cfg(license_token=issue_token("fixture", {"amazon": ["listing"]}, "2030-01-01"))
-        self.assertTrue(load_entitlements(cfg, now=datetime(2030, 1, 1, 12).timestamp()).has_platform("amazon"))
-        self.assertFalse(load_entitlements(cfg, now=datetime(2030, 1, 2, 0).timestamp()).has_platform("amazon"))
+        token = issue_token(MACHINE, {"amazon": ["listing"]}, "2030-01-01")
+        day = datetime.datetime(2030, 1, 1, 12).timestamp()
+        ent = load_entitlements(cfg(license_token=token, license_token_ts=day),
+                               now=day, machine=MACHINE)
+        self.assertTrue(ent.has_platform("amazon"))
+        after = datetime.datetime(2030, 1, 2, 0).timestamp()
+        ent2 = load_entitlements(cfg(license_token=token, license_token_ts=day),
+                                 now=after, machine=MACHINE)
+        self.assertFalse(ent2.has_platform("amazon"))
 
-    def test_old_token_offline_expiry_does_not_remove_current_device_license(self):
-        cfg = self.cfg(license_token=issue_token("fixture", {"amazon": ["listing"]}, "2099-01-01"), license_token_ts=1)
-        cfg.set("license_cache_ok", True)
-        cfg.set("license_cache_expiry", "2099-01-01")
-        self.assertEqual(set(load_entitlements(cfg).platforms_list()), set(PLATFORM_FEATURES))
+    def test_old_device_license_does_not_unlock_platforms(self):
+        """旧客户 localStorage 里残留的授权键不得再开全部平台（契约 §10.7）。"""
+        token = issue_token(MACHINE, {"amazon": ["listing"]}, "2099-01-01")
+        c = cfg(license_token=token, license_token_ts=time.time())
+        # 老配置里可能存在、但新版本已删除的键
+        c.set("license_cache_ok", True)
+        c.set("license_cache_expiry", "2099-01-01")
+        c.set("license_identity", "OLD-LEGACY-ID")
+        ent = load_entitlements(c, machine=MACHINE)
+        self.assertEqual(ent.platforms_list(), ["amazon"])
+
+    def test_no_token_means_no_platforms(self):
+        c = cfg()
+        c.set("license_cache_ok", True)
+        c.set("license_identity", "OLD-LEGACY-ID")
+        ent = load_entitlements(c, machine=MACHINE)
+        self.assertEqual(ent.platforms_list(), [])
+        self.assertFalse(ent.has_platform("amazon"))
+
+    def test_all_platforms_transfer_when_token_has_them(self):
+        token = issue_token(MACHINE, {p: list(f) for p, f in PLATFORM_FEATURES.items()},
+                            "2099-01-01")
+        ent = load_entitlements(cfg(license_token=token), machine=MACHINE)
+        self.assertEqual(set(ent.platforms_list()), set(PLATFORM_FEATURES))
 
 
 if __name__ == "__main__":

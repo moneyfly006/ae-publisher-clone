@@ -186,7 +186,7 @@ def isolated_config(cfg, platform):
         keep += ("min_order_quantity", "unit_type", "weight", "package_size",
                  "package_length", "package_width", "package_height", "freight_template_id",
                  "logistics_property", "default_sample_service", "default_deliver_periods",
-                 "hs_code", "company_desc", "company_faq", "company_name", "video_source",
+                 "hs_code", "stock", "company_desc", "company_faq", "company_name", "video_source",
                  "video_size", "video_slot_seconds", "video_transition_seconds")
     for key in list(data):
         if key.startswith(platform + "_"):

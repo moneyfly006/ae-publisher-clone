@@ -210,7 +210,7 @@ def panel(app, area, *, show_context=True):
             for group, urls in changes.items():
                 write_group("alibaba", product, overrides, group, urls)
 
-        controls += [ui.muted("主图最多 6 张，详情图最多 30 张。处理结果保存在当前商品编辑区。"),
+        controls += [ui.muted("主图最多 6 张，详情图最多 20 张。处理结果保存在当前商品编辑区。"),
                      image_actions(app, None, None, platform="alibaba", groups=GROUPS["alibaba"],
                                    get_groups=lambda: read_groups("alibaba", product, overrides),
                                    apply_groups=apply_images)]

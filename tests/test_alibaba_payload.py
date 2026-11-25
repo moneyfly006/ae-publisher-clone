@@ -185,7 +185,7 @@ class AlibabaFobCleanupTests(unittest.TestCase):
                    alibaba_hs_code="8413709990")
         save = build_alibaba_save(product, cfg)
         self.assertEqual(save["priceType"], "fob_price")
-        self.assertEqual(json.loads(save["bulkDiscountPrices"]), [])
+        self.assertNotIn("bulkDiscountPrices", save)
         trade = json.loads(save["wholesaleTrade"])
         self.assertNotIn("tariffsHsCode", trade)
         self.assertIn("min_order_quantity", trade)
@@ -391,7 +391,7 @@ class AlibabaPriceTypePreserveTests(unittest.TestCase):
         from aeclone.services.alibaba_payload import build_alibaba_save, validate_alibaba_save
         save = build_alibaba_save(self._sku_product(), _cfg())
         self.assertEqual(save["priceType"], "sku_price")
-        self.assertEqual(json.loads(save["bulkDiscountPrices"]), [])
+        self.assertNotIn("bulkDiscountPrices", save)
         self.assertTrue(save["productSku"])
         issues = validate_alibaba_save(self._sku_product(), save, _cfg())
         self.assertEqual(issues, [])

@@ -38,10 +38,12 @@ def main(argv=None) -> int:
     ap.add_argument("--shop-id", default="9408005", help="Amazon 店铺 ID")
     args = ap.parse_args(argv)
 
+    import time
+
     from aeclone.config import get_config, save_config
-    from aeclone.licensing import load_entitlements
-    from aeclone.license import canonical_server, verify as verify_license
     from aeclone.core.guard import check as guard_check
+    from aeclone.license import canonical_server, machine_code
+    from aeclone.licensing import PLATFORM_FEATURES, issue_token, load_entitlements
 
     cfg = get_config()
     override = all_platforms_override()
@@ -57,6 +59,16 @@ def main(argv=None) -> int:
     setv("license_server", canonical_server(str(getattr(cfg, "license_server", "") or "")
                                             or CANONICAL_SERVER))
     setv("license_platforms", override)
+    # 本机开发用签名 token（账号制 v3 后核心层 guard 只认 token）：
+    # 全平台 + 一年有效期，仅用于本机调试，正式使用请登录授权账号。
+    local_token = issue_token(
+        machine_code(),
+        {pid: list(feats) for pid, feats in PLATFORM_FEATURES.items()},
+        time.strftime("%Y-%m-%d", time.localtime(time.time() + 365 * 86400)))
+    setv("license_token", local_token)
+    setv("license_token_ts", int(time.time()))
+    if not str(getattr(cfg, "license_account_email", "") or "").strip():
+        setv("license_account_email", "dev@local")
     if args.cookie_file and Path(args.cookie_file).exists():
         cookie = Path(args.cookie_file).read_text(encoding="utf-8").strip()
         if cookie:
@@ -87,11 +99,8 @@ def main(argv=None) -> int:
     print("\n== 核心层凭证（真实保存/发布用）==")
     print("  guard:", "OK" if ok else "FAIL", "|", why)
 
-    print("\n== 授权服务器连通 ==")
-    res = verify_license(canonical_server(str(getattr(cfg, 'license_server', '') or '')),
-                         timeout=8)
-    print("  canonical verify:", "OK" if res.get("ok") else "FAIL",
-          "|", str(res.get("message"))[:80], "| 到期", res.get("expiry") or "-")
+    print("\n== 说明 ==")
+    print("  license_platforms 只是本机调试覆盖；真实保存/发布由 core.guard 用 token 校验。")
     print("\n" + ("DRY-RUN：未写入配置" if args.dry_run else "已写入本机配置"))
     return 0 if all(ent.has_platform(p) for p in
                     ("alibaba", "aliexpress", "amazon", "tiktok", "shopee")) else 1

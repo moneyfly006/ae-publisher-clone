@@ -48,9 +48,10 @@ JSON_STRING_KEYS = ("attributes", "detailImage", "bulkDiscountPrices",
                     "wholesaleTrade", "productSku")
 
 
-def parse_cookie(text: str) -> dict:
-    return {k.strip(): v.strip() for k, v in
-            (p.split("=", 1) for p in text.split(";") if "=" in p)}
+def parse_cookie(text) -> dict:
+    """``a=1; b=2`` → dict；兼容 ``Cookie:`` 前缀/换行/JSON（见 cookie_parse）。"""
+    from .cookie_parse import parse_cookie_text
+    return parse_cookie_text(text)
 
 
 class AlibabaError(RuntimeError):

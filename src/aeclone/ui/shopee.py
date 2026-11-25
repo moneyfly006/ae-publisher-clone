@@ -60,6 +60,14 @@ def build(app, section):
         app.cfg.set(key, value)
         save_config(app.cfg)
 
+    def set_cookie(value):
+        """Shopee 专属 Cookie：交给 App 统一解析/保存（同时同步平台镜像文件）。"""
+        helper = getattr(app, "_set_platform_cookie", None)
+        if callable(helper):
+            helper("shopee", value)
+        else:
+            set_config("shopee_cookies", str(value or "").strip())
+
     def refresh():
         if app.active_platform.id == "shopee" and app._page_idx == index:
             app._switch(index)
@@ -123,10 +131,11 @@ def build(app, section):
         run("读取商品详情", action, rebuild=True)
 
     if section == 0:
+        from ..integrations.cookie_parse import cookie_header
         cookie = ft.TextField(label="Shopee 店小秘 Cookie", password=True, can_reveal_password=True,
-            value=str(getattr(app.cfg, "shopee_cookies", "") or ""), multiline=True,
+            value=cookie_header(getattr(app.cfg, "shopee_cookies", "")), multiline=True,
             min_lines=2, max_lines=4, color=ui.TEXT, bgcolor=ui.CARD_2, border_color=ui.BORDER)
-        cookie.on_change = lambda e: set_config("shopee_cookies", str(e.control.value or "").strip())
+        cookie.on_change = lambda e: set_cookie(e.control.value)
         mode_select = ft.Dropdown(label="商品类型", width=240, color=ui.TEXT, bgcolor=ui.CARD_2,
             value=mode, options=[ft.dropdown.Option("global", "Shopee 全球商品"),
                                ft.dropdown.Option("site", "Shopee 站点商品")])
@@ -183,7 +192,7 @@ def build(app, section):
             if not source.ok:
                 raise ValueError("未读取到登录态，请先登录店小秘或粘贴 Cookie")
             value = "; ".join(f"{k}={v}" for k, v in source.cookies.items())
-            set_config("shopee_cookies", value)
+            set_cookie(value)
             cookie.value = value
             return "本机 Cookie 已读取，请检测连接"
         content += [ui.card(ft.Column([
