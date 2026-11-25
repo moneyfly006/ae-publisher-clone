@@ -126,7 +126,8 @@ class NavigationOperations(unittest.TestCase):
                 self.assertTrue(any("读取商品失败" in text for text in texts))
 
     def test_corrupt_batch_settings_render_repair_form(self):
-        for platform, page in (("amazon", 18), ("tiktok", 25), ("alibaba", 32), ("shopee", 39)):
+        # Alibaba 六步：价格/规则合并后，可修复预设的功能页是 30「类目与属性」。
+        for platform, page in (("amazon", 18), ("tiktok", 25), ("alibaba", 30), ("shopee", 39)):
             self.app._switch_platform(platform)
             self.cfg.set(platform + "_collect_overrides", "{bad json")
             self.app._switch(page)

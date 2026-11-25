@@ -327,23 +327,28 @@ class OptimizationTests(unittest.TestCase):
         self.assertTrue(any(getattr(c, "text", "") == "AI 生成五点" for c in walk(app.content.controls)))
 
     def test_visual_tiers_and_trade_save_native_fields_without_losing_old_values(self):
-        old_trade = {"custom": {"enabled": True, "codes": ["a", 3]}}
-        self.cfg.set("alibaba_collect_overrides", json.dumps(dict(wholesale_trade=old_trade,
-                     price_tiers=[dict(qty=2, price=14, market="EU")])))
+        # 六步重构：旧 32 价格页重定向到 31；阶梯价改为
+        # cfg.alibaba_price_tiers 的表格编辑（添加档位即时保存，旧档位不丢）。
+        self.cfg.set("alibaba_price_tiers", json.dumps([dict(start_quantity=2, price=14)]))
         self.app._switch(32)
+        self.assertEqual(self.app._current, 31)
         controls = lambda: list(walk(self.app.content.controls))
-        next(c for c in controls() if getattr(c, "text", "") == "添加报价档位").on_click(None)
-        for label, value in (("起订数量", "5"), ("单价", "12.5")):
-            fields = [c for c in controls() if getattr(c, "label", "") == label]
-            fields[-1].value = value
-        save_tiers = next(c for c in controls() if getattr(c, "text", "") == "保存阶梯报价")
-        save_tiers.on_click(None)
-        ov = settings(self.cfg, "alibaba")
-        self.assertEqual(ov["price_tiers"], [dict(qty=2, price=14, market="EU"), dict(start_quantity="5", price="12.5")])
-        fields[-1].value = "-5"
-        save_tiers.on_click(None)
-        self.assertEqual(settings(self.cfg, "alibaba")["price_tiers"], ov["price_tiers"])
-        weight = next(c for c in controls() if getattr(c, "label", "") == "产品重量 KG")
+        next(c for c in controls() if getattr(c, "text", "") == "＋ 添加档位").on_click(None)
+        quantities = [c for c in controls() if getattr(c, "label", "") == "起订量"]
+        prices = [c for c in controls() if getattr(c, "label", "") == "单价"]
+        self.assertGreaterEqual(len(quantities), 2)
+        quantities[-1].value = "5"
+        prices[-1].value = "12.5"
+        for field in (quantities[-1], prices[-1]):
+            field.on_change(SimpleNamespace(control=field))
+        saved = json.loads(self.cfg.alibaba_price_tiers)
+        self.assertEqual(saved[0], dict(start_quantity=2, price=14.0))
+        self.assertEqual(saved[-1], dict(start_quantity=5, price=12.5))
+        # 服务层仍拒绝负数起订量（UI 表格不做静默纠正）。
+        with self.assertRaises(ValueError):
+            validate_overrides(dict(price_tiers=[dict(start_quantity=-5, price=1)]))
+        # 批量重量/库存字段仍写回 Alibaba 配置。
+        weight = next(c for c in controls() if getattr(c, "label", "") == "重量 kg")
         weight.value = "4.5"
         weight.on_change(SimpleNamespace(control=weight))
         stock = next(c for c in controls() if getattr(c, "label", "") == "库存")

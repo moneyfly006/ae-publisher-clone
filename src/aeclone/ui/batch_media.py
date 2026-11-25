@@ -14,13 +14,19 @@ def controls(app, platform):
     from ..services.collect_store import scope
 
     groups = GROUPS[platform]
-    # Alibaba 主图/详情图直接复用速卖通的完整图片提示词预设库。
+    # 所有平台的主图/详情图/附图都复用速卖通的完整图片提示词预设库。
     _rich = {}
-    if platform == "alibaba":
+    _rich_map = {
+        "alibaba": ("main", "detail"),
+        "amazon": ("main", "extra"),
+        "tiktok": ("main", "detail"),
+        "shopee": ("main", "detail", "cover"),
+    }
+    if platform in _rich_map:
         presets = getattr(ui, "IMAGE_PROMPT_PRESETS", {}) or {}
-        for _g in ("main", "detail"):
+        for _g in _rich_map[platform]:
             _rich[_g] = [("preset:" + name, name, text)
-                         for name, text in (presets.get(_g) or {}).items()]
+                         for name, text in (presets.get("main") or {}).items()]
     prefix = platform + "_collect_"
     source_scope = scope(app.cfg, platform)
     box = ft.Column(spacing=8)

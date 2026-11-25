@@ -6,7 +6,8 @@ import json
 import math
 
 from ..config import AppConfig
-from .collect_runtime import ReadClient, RunPolicy, RunStopped, product_scope_issue, transient_error
+from .collect_runtime import (ReadClient, RunPolicy, RunStopped, begin_run, end_run,
+                              product_scope_issue, stop_requested, transient_error)
 from .progress import emit
 from .platform_presets import ALIBABA_PROMPTS, resolve_config_prompts
 from .collect_store import exclusive
@@ -113,6 +114,13 @@ def settings(cfg, platform):
         if "standard_price" in data and str(data["standard_price"]) != str(data["price"]):
             raise ValueError("旧版与当前的统一售价设置冲突")
         data["standard_price"] = data.pop("price")
+    if platform == "amazon":
+        _cid = str(getattr(cfg, "amazon_category_id", "") or "").strip()
+        _cpath = str(getattr(cfg, "amazon_category_path", "") or "").strip()
+        if _cid:
+            data.setdefault("category_id", _cid)
+        if _cpath:
+            data.setdefault("category_path", _cpath)
     validate_overrides(data)
     attribute_key = "product_attributes" if platform == "tiktok" else "attributes"
     if attribute_key in data:
@@ -181,13 +189,29 @@ def isolated_config(cfg, platform):
     # One budget reservation must map to at most one paid image request.
     # Existing manual/AliExpress image retry preferences remain unchanged.
     data["image_retry_times"] = 0
-    keep = ("cookies", "shop_id", "shop_name", "site", "site_code", "site_name", "mode")
+    keep = ("cookies", "shop_id", "shop_name", "site", "site_code", "site_name", "mode",
+            # 所有平台批量都必须沿用已选类目/路径/模板，否则读错 schema 必填项。
+            "category_id", "category_path", "full_cid", "category_name",
+            "template_product_id", "template_id")
     if platform == "alibaba":
+        # 用户已选类目/模板/属性预设必须带进批量，否则运行时按商品旧类目读取必填项。
+        keep += ("category_id", "full_cid", "category_name", "category_source",
+                 "template_product_id", "attr_presets", "ensure_min_images")
         keep += ("min_order_quantity", "unit_type", "weight", "package_size",
                  "package_length", "package_width", "package_height", "freight_template_id",
                  "logistics_property", "default_sample_service", "default_deliver_periods",
                  "hs_code", "stock", "company_desc", "company_faq", "company_name", "video_source",
                  "video_size", "video_slot_seconds", "video_transition_seconds")
+    if platform == "amazon":
+        # 发布策略/识别码/模板/默认属性必须带进批量；之前被隔离逻辑清空，
+        # 导致脚本测试成功、软件批量运行仍按旧逻辑缺属性。
+        keep += ("gtin_exemption", "smart_attributes", "manufacturer_contact",
+                 "standard_product_type", "standard_product_id",
+                 "merchant_suggested_asin", "upc_prefix", "gs1_prefix",
+                 "template_product_id", "default_country_of_origin",
+                 "default_included_components", "default_unit_count",
+                 "default_power_source_type", "default_voltage",
+                 "default_dg_regulation", "default_dimensions")
     for key in list(data):
         if key.startswith(platform + "_"):
             suffix = key[len(platform) + 1:]
@@ -216,6 +240,8 @@ def isolated_config(cfg, platform):
 
 
 def process_one(platform, pid, cfg, client, overrides, *, dry_run, op, use_ai, before_submit=None):
+    if stop_requested():
+        raise RunStopped("用户已请求停止，当前商品未提交")
     if platform == "alibaba":
         from .alibaba_pipeline import run_alibaba_product
         if overrides.get("price") or overrides.get("price_tiers"):
@@ -323,6 +349,8 @@ def process_images(platform, pid, cfg, client, overrides):
     output = {group: list(urls) for group, urls in groups.items()}
     changed = set()
     for (group, pos), prompt in plan.items():
+        if stop_requested():
+            raise RunStopped("用户已请求停止，图片处理不再继续")
         label = f"{GROUPS[platform][group].label} · 第 {pos} 张"
         source = groups[group][pos - 1]
         emit(platform + " · 自动图片", "开始", label, product=pid)

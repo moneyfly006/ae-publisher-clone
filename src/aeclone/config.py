@@ -391,6 +391,9 @@ DEFAULTS: dict = {
     "alibaba_group_id": "",
     "alibaba_group_name": "",
     "alibaba_category_id": "127726092",
+    "alibaba_brand": "Generic",
+    "alibaba_ensure_min_images": True,
+    "alibaba_force_ladder_price": False,  # 批量发布强制单档阶梯价，避免与 SKU 价并存  # 发布前不足4张主图时用原图补足
     "alibaba_batch_category_id": "127726092",   # 批量处理目标类目（与单个商品选择分开）
     "alibaba_category_name": "其他混凝土机械 / Other Concrete Machinery",
     "alibaba_full_cid": "201943703,1326,100010658,127726092",
@@ -458,7 +461,7 @@ DEFAULTS: dict = {
     "amazon_brand": "",
     "amazon_manufacturer": "",
     "amazon_sku": "",
-    "amazon_sku_generate_mode": "local",
+    "amazon_standard_product_type": "",
     "amazon_sku_prefix": "",
     "amazon_sku_suffix": "",
     "amazon_bullet_count": 5,       # AI 生成条数（5）；加载已有商品最多 10 条，保存不得截断
@@ -482,6 +485,23 @@ DEFAULTS: dict = {
     "amazon_presets_version": "",
     "amazon_last_status": "",
     "amazon_manufacturer_contact": "",   # 发布必填；从商品或配置读取真实联系方式
+    "amazon_smart_attributes": False,    # 智能补全常见发布必填属性（不再依赖 schema 返回）
+    "amazon_gtin_exemption": False,       # 已获批 GTIN/UPC 豁免：不填 UPC，提交豁免声明
+    "amazon_auto_product_id": False,      # 有 UPC 前缀时自动生成 UPC
+    "amazon_auto_merchant_asin": True,    # 缺失 Merchant Suggested ASIN 时自动生成
+    "amazon_standard_product_type": "",   # UPC/EAN/GTIN
+    "amazon_standard_product_id": "",
+    "amazon_merchant_suggested_asin": "",
+    "amazon_upc_prefix": "",
+    "amazon_gs1_prefix": "",
+    "amazon_template_product_id": "",
+    "amazon_default_country_of_origin": "CN",
+    "amazon_default_included_components": "1",
+    "amazon_default_unit_count": "1",
+    "amazon_default_power_source_type": "diesel",
+    "amazon_default_voltage": "220",
+    "amazon_default_dg_regulation": "not_applicable",
+    "amazon_default_dimensions": "10x10x10",
     "amazon_publish_wait": 60,           # op=2 发布后轮询发布状态的最长秒数（0=只查一次）
     "amazon_autofill_attrs": True,       # 保存/发布前自动补齐缺失的必填属性（只补缺失，不覆盖已有）
     # ---- 真实发布自动修复闭环（services/amazon_auto.py） ----

@@ -203,6 +203,19 @@ def controls(app, get_urls, apply_urls, *, platform, language="英语", groups=N
             prompt = text_field("本任务提示词", task["prompt"], width=420)
             prompt.multiline = True
             prompt.min_lines, prompt.max_lines = 2, 5
+            prompt_preset = ft.Dropdown(label="提示词预设", width=220, bgcolor=ui.CARD_2,
+                border_color=ui.CARD_2, color=ui.TEXT, options=[])
+            try:
+                from .prompt_presets import attach_dropdown
+                from . import app as _ui
+                attach_dropdown(app, prompt_preset,
+                                key="image_task:" + platform,
+                                field=prompt,
+                                builtins=(getattr(_ui, "IMAGE_PROMPT_PRESETS", {}) or {}).get("main", {}),
+                                labels={k: k for k in (getattr(_ui, "IMAGE_PROMPT_PRESETS", {}) or {}).get("main", {})},
+                                apply_prompt=lambda text, row=task: row.update(prompt=text))
+            except Exception:
+                pass
             target = ft.Dropdown(label="指定商品图片", width=190, value=str(task["index"]),
                 options=[ft.dropdown.Option(str(i), f"第 {i + 1} 张") for i, _ in enumerate(known[key])],
                 color=ui.TEXT, bgcolor=ui.CARD_2)
@@ -250,7 +263,7 @@ def controls(app, get_urls, apply_urls, *, platform, language="英语", groups=N
                                                      on_change=reference))
             task_box.controls.append(ft.Container(padding=10, border_radius=8, bgcolor=ui.CARD_2,
                 content=ft.Column([
-                    ft.Row([ui.h1(groups[key].label, 13), target, preset, output,
+                    ft.Row([ui.h1(groups[key].label, 13), target, preset, prompt_preset, output,
                             ft.IconButton(ft.Icons.DELETE_OUTLINE, tooltip="删除图片任务", on_click=remove)], wrap=True),
                     prompt,
                     *([ft.ExpansionTile(title=ft.Text("选用同组图片作为参考"), controls=[

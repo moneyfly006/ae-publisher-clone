@@ -39,17 +39,17 @@ class PresetCatalogTests(unittest.TestCase):
         self.assertEqual(AP.PRESET_VERSION[:4], "2026")
         self.assertEqual(AP.list_kinds(), list(AP.PRESET_KINDS))
         self.assertEqual(AP.PRESET_KINDS,
-                         ("title", "bullets", "description", "search_terms",
-                          "sku", "image"))
-        expected = {"title": 10, "bullets": 7, "description": 7,
-                    "search_terms": 6, "sku": 6, "image": 14}
+                         ("title", "highlight", "bullets", "description",
+                          "search_terms", "sku", "image"))
+        expected = {"title": 10, "highlight": 5, "bullets": 7, "description": 7,
+                    "search_terms": 6, "sku": 6, "image": 15}
         for kind in AP.PRESET_KINDS:
             presets = AP.PRESETS[kind]
             self.assertEqual(len(presets), expected[kind], kind)
             self.assertGreaterEqual(len(presets), 5, kind)
             self.assertLessEqual(len(presets), 30, kind)
             self.assertEqual(len(set(presets)), len(presets), kind)
-        self.assertEqual(sum(expected.values()), 50)
+        self.assertEqual(sum(expected.values()), 56)
 
     def test_preset_fields(self):
         for kind in AP.PRESET_KINDS:

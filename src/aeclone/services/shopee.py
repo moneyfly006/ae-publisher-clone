@@ -227,6 +227,51 @@ class SaveResult:
     state: str = ""
 
 
+def autofill_required_attributes(product, payload, definitions, cfg=None):
+    """发布前按类目必填属性补空值：原商品值 → 候选枚举 → 基础文本。"""
+    current = json_value(payload.get("attributes"), [])
+    current = [dict(x) for x in current if isinstance(x, dict)]
+    present = {str(x.get("attribute_id") or x.get("attributeId")) for x in current}
+    filled = []
+    source_attrs = json_value((product or {}).get("attributes"), [])
+    source_map = {str(x.get("attribute_id") or x.get("attributeId")): x
+                  for x in source_attrs if isinstance(x, dict)}
+    title = str((product or {}).get("itemName") or (product or {}).get("name") or "")
+    for definition in definitions or []:
+        if not isinstance(definition, dict):
+            continue
+        required = definition.get("isMandatory") or definition.get("mandatory") or definition.get("required")
+        if required not in (True, 1, "1", "true"):
+            continue
+        key = str(definition.get("attributeId") or definition.get("attribute_id") or definition.get("id") or "")
+        if not key or key in present:
+            continue
+        source = source_map.get(key) or {}
+        values = source.get("attribute_value_list") or source.get("values") or []
+        entry = None
+        if values:
+            entry = {"attribute_id": key, "attribute_value_list": list(values)}
+        else:
+            choices = rows(definition.get("attributeValueList") or definition.get("valueList")
+                           or definition.get("values") or [])
+            if choices:
+                selected = choices[0]
+                entry = {"attribute_id": key, "attribute_value_list": [{
+                    "value_id": selected.get("valueId", selected.get("value_id", selected.get("id", 0))),
+                    "original_value_name": selected.get("originalValueName")
+                    or selected.get("valueName") or selected.get("name") or ""}]}
+            else:
+                label = str(definition.get("attributeName") or definition.get("name") or key)
+                entry = {"attribute_id": key, "attribute_value_list": [{
+                    "value_id": 0, "original_value_name": (title or label)[:120]}]}
+        if entry:
+            current.append(entry)
+            present.add(key)
+            filled.append(key)
+    payload["attributes"] = deepcopy(current)
+    return payload, filled
+
+
 def prepare(product_id, cfg, overrides=None, *, client=None):
     c = client or make_client(cfg)
     emit("Shopee · 读取商品", "开始", product=str(product_id))
@@ -238,6 +283,11 @@ def prepare(product_id, cfg, overrides=None, *, client=None):
     attrs = c.attributes(payload.get("categoryId"), payload.get("shopId")) if payload.get("categoryId") else []
     if isinstance(attrs, dict):
         attrs = attrs.get("attributeList") or attrs.get("attributes") or []
+    # 所有类目先读取必填属性并补全，再做发布前校验。
+    payload, _filled = autofill_required_attributes(detail.get("product") or {}, payload, attrs, cfg)
+    if _filled:
+        emit("Shopee · 属性补全", "完成", f"补齐 {len(_filled)} 项必填属性",
+             product=str(product_id))
     issues = validate(payload, mode=mode, limits=limits, required_attrs=attrs)
     emit("Shopee · 发布前检查", "完成", "；".join(issues) or "检查通过",
          level="WARN" if issues else "OK", product=str(product_id))

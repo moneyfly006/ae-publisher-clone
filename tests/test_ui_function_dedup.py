@@ -25,8 +25,13 @@ class FunctionDedupTests(unittest.TestCase):
     def test_rules_have_exactly_one_editor_and_one_functional_owner(self):
         for platform, pages in SECTIONS.items():
             self.app._switch_platform(platform)
+            # Alibaba 六步：旧 5/32 已重定向到 3/31，按有效页面去重后再统计，
+            # 否则同一物理页会被算两次、误报「重复编辑器」。
+            effective = dict(pages)
+            if platform == "alibaba":
+                effective = {30: "category", 31: "company", 3: "text"}
             locations = {}
-            for page, section in pages.items():
+            for page, section in effective.items():
                 self.app._switch(page)
                 for control in self.controls():
                     if isinstance(control, ft.TextField) and "提示词" in str(control.label):
@@ -40,10 +45,16 @@ class FunctionDedupTests(unittest.TestCase):
                 if section == "media":
                     buttons = [getattr(c, "text", "") for c in self.controls()]
                     self.assertEqual(buttons.count("打开图片工作台"), 1)
-            self.assertEqual(locations["自动SKU提示词"],
-                             [32 if platform == "alibaba" else {"amazon": 34, "tiktok": 35, "shopee": 40}[platform]])
-            self.assertEqual(locations["自动属性建议提示词"],
-                             [{"alibaba": 30, "amazon": 17, "tiktok": 24, "shopee": 38}[platform]])
+            if platform == "alibaba":
+                # 旧「处理规则/12 号单品工作台」删除后，Alibaba 六步不再暴露 SKU 提示词入口；
+                # 属性建议提示词只在 30 出现一次。
+                self.assertNotIn("自动SKU提示词", locations)
+                self.assertEqual(locations["自动属性建议提示词"], [30])
+            else:
+                self.assertEqual(locations["自动SKU提示词"],
+                                 [{"amazon": 34, "tiktok": 35, "shopee": 40}[platform]])
+                self.assertEqual(locations["自动属性建议提示词"],
+                                 [{"amazon": 17, "tiktok": 24, "shopee": 38}[platform]])
             self.assertTrue(all(len(pages) == 1 for pages in locations.values()), locations)
             self.assertNotIn("本次图片提示词", locations)
             self.assertNotIn("SKU 编码提示词", locations)
@@ -78,18 +89,22 @@ class FunctionDedupTests(unittest.TestCase):
         self.assertEqual(self.app._page_idx, 8)
 
     def test_alibaba_has_no_second_company_or_trade_defaults(self):
-        for page in (31, 32):
-            self.app._switch(page)
-            labels = [str(getattr(c, "label", "")) for c in self.controls()]
-            self.assertNotIn("公司介绍（英文，会提交 companyDesc）", labels)
-            self.assertNotIn("FOB 最低价", labels)
-            self.assertNotIn("默认关键词（Alibaba 必填 3 个，逗号分隔，最多 5 个）", labels)
-        self.assertNotIn("最低价", labels)
-        from aeclone.ui.alibaba_editor import remember_product
-        self.cfg.set("alibaba_test_product_id", "A")
-        remember_product(self.app, {"id": "A", "sourcingTrade": {"fob_min_price": 20}})
+        # 六步重构：31 号页是「商品资料 + 价格与贸易」的唯一编辑位置；
+        # 32 只做重定向，不能渲染出第二套公司/贸易默认值。
+        self.app._switch(31)
+        labels = [str(getattr(c, "label", "")) for c in self.controls()]
+        self.assertEqual(labels.count("公司介绍（英文，会提交 companyDesc）"), 1)
+        self.assertEqual(labels.count("默认关键词（Alibaba 必填 3 个，逗号分隔，最多 5 个）"), 1)
+        self.assertEqual(labels.count("FOB 最低价"), 1)
+        self.assertIn("最低价", labels, "当前商品面板仍应保留单品 FOB 区间字段")
+        self.app._switch(32)
+        self.assertEqual(self.app._current, 31)
+        labels32 = [str(getattr(c, "label", "")) for c in self.controls()]
+        self.assertEqual(labels32.count("公司介绍（英文，会提交 companyDesc）"), 1)
+        # 旧 12 号单品工作台已删除：12→29，不应再出现单品贸易编辑器。
         self.app._switch(12)
-        self.assertIn("最低价", [getattr(c, "label", "") for c in self.controls()])
+        self.assertEqual(self.app._current, 29)
+        self.assertNotIn("最低价", [str(getattr(c, "label", "")) for c in self.controls()])
 
     def test_amazon_manual_ai_runs_only_five_points_without_enabling_batch_ai(self):
         from test_amazon_ui_page import fake_backend, sync_threads, find_button, click

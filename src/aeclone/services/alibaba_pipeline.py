@@ -624,6 +624,11 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                 _step(res, "主图兼容处理", True, f"{len(_fixed)} 张已转 JPEG")
             elif save.get("_image_repair_errors"):
                 res.warnings.append("主图兼容处理未完成：" + "；".join(save["_image_repair_errors"][:2]))
+            from .alibaba_payload import ensure_save_platform_images
+            _img_notes = ensure_save_platform_images(save, product, cfg)
+            for _note in _img_notes:
+                res.warnings.append(_note)
+                _step(res, "图片可用性回退", True, _note)
         except Exception as e:  # noqa: BLE001
             res.warnings.append("主图兼容处理失败：" + str(e)[:120])
 
@@ -801,6 +806,12 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
 
         if before_submit is not None:
             before_submit()
+        # 最终提交前再兜底一次：后续步骤可能重新写回托管图片。
+        try:
+            from .alibaba_payload import ensure_save_platform_images
+            ensure_save_platform_images(save, product, cfg)
+        except Exception:
+            pass
         try:
             resp = c.save_product(product, save, op=op)
         except Exception as e:  # noqa: BLE001
@@ -870,8 +881,11 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                                              "productStatusType", "errMsg")):
                     break   # 离线桩/测试替身：没有真实状态字段，不做轮询
                 _err = _state["errMsg"]
-                if _err or _state["dxmOfflineState"] == "publishFail" or \
-                        _state["productStatusType"] in ("publishFail", "auditFail"):
+                _st_now = str(_state.get("dxmOfflineState") or _state.get("productStatusType") or "")
+                # publishing 阶段平台会保留上一次失败的 errMsg；不能当成本次失败。
+                if _st_now in ("publishFail", "auditFail"):
+                    break
+                if _err and _st_now not in ("publishing", "processing"):
                     break
                 if _state["dxmState"] in ("online", "offline") and not _err:
                     # 已进入在线/下架状态且无错误：视为平台已接受
@@ -901,6 +915,11 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                         save["bulkDiscountPrices"] = _json.dumps(
                             [{"start_quantity": 1, "price": _price}], ensure_ascii=False)
                         save["productSku"] = ""
+                        try:
+                            from .alibaba_payload import ensure_save_platform_images as _ensure_imgs
+                            _ensure_imgs(save, product, cfg)
+                        except Exception:
+                            pass
                         _r2 = c.save_product(product, save, op=op)
                         _d2 = (_r2 or {}).get("data") if isinstance(_r2, dict) else {}
                         _m2 = str((_d2 or {}).get("msg") or (_r2 or {}).get("msg") or "")
@@ -919,6 +938,13 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                             _err = str(_state.get("errMsg") or "")
                 except Exception as _ex:
                     res.warnings.append("价格模式自动修复失败：" + str(_ex)[:120])
+            _st_now = str(_state.get("dxmOfflineState") or _state.get("productStatusType") or "")
+            if _st_now in ("publishing", "processing"):
+                res.auditing = True
+                res.warnings.append("已提交，平台处理中（旧错误是上一次失败记录，稍后刷新状态）")
+                _step(res, "发布结果", True, "平台处理中，等待发布结果")
+                _step(res, "完成", True, "商品已提交平台处理")
+                return res
             if _err or _state.get("dxmOfflineState") == "publishFail":
                 _hint = ""
                 if "CAT_PUB_RESTRICT" in _err or "经营类目" in _err:

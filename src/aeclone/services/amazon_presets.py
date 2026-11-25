@@ -24,12 +24,13 @@ from __future__ import annotations
 PRESET_VERSION = "2026-11-22.1"
 
 PRESET_KINDS: tuple[str, ...] = (
-    "title", "bullets", "description", "search_terms", "sku", "image",
+    "title", "highlight", "bullets", "description", "search_terms", "sku", "image",
 )
 
 # kind → 写入 cfg 的 prompt 键
 PROMPT_CFG_KEYS: dict[str, str] = {
     "title": "amazon_title_prompt",
+    "highlight": "amazon_highlight_prompt",
     "bullets": "amazon_bullet_prompt",
     "description": "amazon_description_prompt",
     "search_terms": "amazon_search_terms_prompt",
@@ -40,6 +41,7 @@ PROMPT_CFG_KEYS: dict[str, str] = {
 # kind → 记录当前选择 key 的 cfg 键
 SELECTED_CFG_KEYS: dict[str, str] = {
     "title": "amazon_title_preset",
+    "highlight": "amazon_highlight_preset",
     "bullets": "amazon_bullet_preset",
     "description": "amazon_description_preset",
     "search_terms": "amazon_search_terms_preset",
@@ -49,11 +51,12 @@ SELECTED_CFG_KEYS: dict[str, str] = {
 
 PLACEHOLDERS: tuple[str, ...] = (
     "country", "code", "language", "lang", "title_limit", "bullet_limit",
-    "bullet_suggest", "count", "desc_bytes", "st_bytes", "title", "subject",
+    "bullet_suggest", "count", "desc_bytes", "st_bytes", "highlight_limit",
+    "title", "subject",
 )
 
 KIND_LABELS: dict[str, str] = {
-    "title": "标题", "bullets": "五点描述", "description": "产品描述",
+    "title": "标题", "highlight": "商品亮点", "bullets": "五点描述", "description": "产品描述",
     "search_terms": "Search Terms", "sku": "SKU", "image": "图片",
 }
 
@@ -138,6 +141,51 @@ def _title_prompt(intro: str, structure: str, points, example: str) -> str:
 # 预设内容（有序 dict）
 # ---------------------------------------------------------------------------
 PRESETS: dict[str, dict[str, dict]] = {
+    # ---------------- 商品亮点 ----------------
+    "highlight": {
+        "north_america_default": {
+            "name": "北美商品亮点默认",
+            "desc": "≤125 字符、单行、逗号短语，补充标题未覆盖的关键词。",
+            "tags": ["北美", "亮点", "Item Highlights"],
+            "prompt": (
+                "你是 Amazon 商品亮点（Item Highlights）文案专家。请为 {country} 站点"
+                "（Amazon {code}）商品写商品亮点。\n"
+                "硬性要求：\n"
+                "1) Item Highlights 不超过 {highlight_limit} 个字符（含空格），单行；首字母大写，所有介词小写；"
+                "该字段具备独立搜索索引权重，标题中无法容纳的关键词可在此补充承接；\n"
+                "2) 使用{language}（站点语言），非中文站点禁止中文；\n"
+                "3) 用英文逗号分隔的短语，例如 `Stainless Steel, Ages 2-4, Tool-Free Installation`；\n"
+                "4) 不要写成完整句子；不要重复标题已有的核心词；重点补充材质、适用型号、独特功能、使用场景；\n"
+                "5) 禁止主观评价（如销量第一、绝对化宣传）、促销语、特殊符号、emoji、HTML、"
+                "联系方式；不得编造原文没有的参数；\n"
+                "6) 只输出一行亮点本身，不要解释、不要引号、不要编号。"
+            ),
+        },
+        "industrial_default": {
+            "name": "工业机械亮点",
+            "desc": "工业设备亮点：材质、型号、工况和操作优势。",
+            "tags": ["工业", "亮点"],
+            "prompt": "你是 Amazon 商品亮点文案专家。为 {country} 站点（Amazon {code}）写工业设备亮点，使用{language}；≤ {highlight_limit} 字符、单行、英文逗号分隔；补充材质、适用型号、功能、工况；不重复标题；禁止主观评价、促销词、特殊符号、emoji、HTML、联系方式；保持商品形状与水印合规；只输出亮点。",
+        },
+        "home_default": {
+            "name": "家居亮点",
+            "desc": "家居商品亮点：材质、尺寸、安装和使用场景。",
+            "tags": ["家居", "亮点"],
+            "prompt": "你是 Amazon 商品亮点文案专家。为 {country} 站点（Amazon {code}）写家居商品亮点，使用{language}；≤ {highlight_limit} 字符、单行、英文逗号分隔；补充材质、适用尺寸、安装方式、使用场景；不重复标题；禁止主观评价、促销词、特殊符号、emoji、HTML、联系方式；保持商品形状与水印合规；只输出亮点。",
+        },
+        "outdoor_default": {
+            "name": "户外亮点",
+            "desc": "户外商品亮点：耐用材质、便携和适用环境。",
+            "tags": ["户外", "亮点"],
+            "prompt": "你是 Amazon 商品亮点文案专家。为 {country} 站点（Amazon {code}）写户外商品亮点，使用{language}；≤ {highlight_limit} 字符、单行、英文逗号分隔；补充材质、便携性、独特功能和适用环境；不重复标题；禁止主观评价、促销词、特殊符号、emoji、HTML、联系方式；保持商品形状与水印合规；只输出亮点。",
+        },
+        "compact_default": {
+            "name": "紧凑型亮点",
+            "desc": "紧凑型商品亮点：体积、安装、收纳和多场景。",
+            "tags": ["紧凑", "亮点"],
+            "prompt": "你是 Amazon 商品亮点文案专家。为 {country} 站点（Amazon {code}）写紧凑型商品亮点，使用{language}；≤ {highlight_limit} 字符、单行、英文逗号分隔；补充体积、安装、收纳、使用场景；不重复标题；禁止主观评价、促销词、特殊符号、emoji、HTML、联系方式；保持商品形状与水印合规；只输出亮点。",
+        },
+    },
     # ---------------- 标题（8） ----------------
     "title": {
         "industrial_b2b": {
@@ -528,6 +576,19 @@ PRESETS: dict[str, dict[str, dict]] = {
     },
     # ---------------- 图片（12） ----------------
     "image": {
+        "aliexpress_pro_hero": {
+            "name": "专业电商主图（速卖通同款）",
+            "desc": "速卖通同款主图提示词：白底/浅灰、自然光、去文字水印，欧洲面孔美女操作机器，两名工人辅助。",
+            "tags": ["主图", "速卖通", "人物", "作业场景"],
+            "prompt": """基于上传的图片融合生成专业电商主图。
+生成要求：
+1. 主体清晰突出，构图饱满平衡
+2. 纯白或浅灰背景，突出商品
+3. 柔和自然光，无突兀阴影
+4. 不添加任何文字，去除logo、水印
+5. 一个欧洲面孔的美女正在操作机器，旁边有两个工人辅助
+6. 保持商品形状、结构、颜色、材质和比例不变；不新增水印；商品：{title}（{subject}）；图片文字使用{language}""",
+        },
         "white_bg_main": {
             "name": "主图纯白底",
             "desc": "Amazon 主图标准：纯白背景、产品占主体、无文字水印。",

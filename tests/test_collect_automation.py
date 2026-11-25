@@ -177,12 +177,14 @@ class CollectionTests(unittest.TestCase):
                          "amazon_price": "10", "amazon_sku": "OLD", "alibaba_attr_presets": '{"Weight":"600"}'})
         original = deepcopy(cfg.as_dict())
         for platform, keys in (("tiktok", ("title", "stock", "weight")),
-                               ("amazon", ("price", "sku")), ("alibaba", ("category_id",))):
+                               ("amazon", ("price", "sku"))):
             isolated = service.isolated_config(cfg, platform)
             for key in keys:
                 self.assertEqual(getattr(isolated, platform + "_" + key), "")
-            if platform == "alibaba":
-                self.assertEqual(isolated.alibaba_attr_presets, cfg.alibaba_attr_presets)
+        # 批量必须沿用用户已选类目/模板/属性预设，否则不会按类目 schema 补必填项。
+        alibaba = service.isolated_config(cfg, "alibaba")
+        self.assertEqual(alibaba.alibaba_category_id, cfg.alibaba_category_id)
+        self.assertEqual(alibaba.alibaba_attr_presets, cfg.alibaba_attr_presets)
         self.assertEqual(cfg.as_dict(), original)
 
     def test_default_settings_are_non_destructive(self):
@@ -211,7 +213,7 @@ class CollectionTests(unittest.TestCase):
                    "wholesaleTrade": json.dumps({"unit_type": "Set", "sale_type": "batch", "batch_number": 4,
                        "inventory": [{"warehouseCode": "W", "value": 91}], "weight": "0.65", "package_size": "10X20X30",
                        "deliver_periods": [{"quantity": 2, "process_period": 7}]})}
-        cfg = service.isolated_config(AppConfig(), "alibaba")
+        cfg = service.isolated_config(AppConfig({"alibaba_category_id": ""}), "alibaba")
         saved = build_alibaba_save(product, cfg)
         trade = json.loads(saved["wholesaleTrade"])
         expected = json.loads(product["wholesaleTrade"])

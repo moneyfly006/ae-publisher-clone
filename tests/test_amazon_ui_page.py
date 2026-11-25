@@ -912,8 +912,8 @@ class AmazonPageTests(unittest.TestCase):
         editor = find_control(self.app, ft.TextField,
                               lambda c: c.label == "五点描述（每行一条）")
         values = editor.value.splitlines()
-        self.assertEqual(len(values), 10)
-        self.assertEqual(values[-1], "FEATURE ten")
+        self.assertEqual(len(values), 5)
+        self.assertEqual(values[-1], "FEATURE five")
         editor.value = "\n".join(["x" * 701, *values[1:]])
         change(editor)
         self.assertTrue(any(isinstance(c, ft.Text) and "701/700" in str(c.value)

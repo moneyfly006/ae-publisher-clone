@@ -222,8 +222,7 @@ IMAGE_PROMPT_PRESETS = {
 2. 纯白或浅灰背景，突出商品
 3. 柔和自然光，无突兀阴影
 4. 不添加任何文字，去除logo、水印
-5. 如出现人物：人物身高必须与设备真实比例一致（不得高于设备主体，操作姿势合理），严禁人比机器还高
-6. 一个欧洲面孔的美女正在操作机器，""",
+5. 一个欧洲面孔的美女正在操作机器，旁边有两个工人辅助""",
         "高端质感主图": """生成高端质感电商主图：
 1. 深色或渐变背景，突出金属/机械质感
 2. 侧逆光勾勒轮廓，保留产品细节
@@ -1563,7 +1562,11 @@ class App:
                 sync(self, platform)
             except (ValueError, TypeError) as exc:
                 collect_workflow.record_error(self, platform, "profiles", str(exc))
-        legacy = {"alibaba": (8, 29), "tiktok": (23,), "shopee": (37,)}
+        # 旧路由兼容：Alibaba 六步重构后，旧页面跳转到新步骤。
+        if platform == "alibaba":
+            _alias = {12: 29, 32: 31, 5: 3, 44: 33}
+            idx = _alias.get(int(idx), idx)
+        legacy = {"alibaba": (8,), "tiktok": (23,), "shopee": (37,)}
         if int(idx) in legacy.get(platform, ()):
             idx = RUN_PAGE[platform]
         pages = self.active_platform.pages
@@ -1650,8 +1653,24 @@ class App:
         self._page_idx = idx
         self._building_page = True
         try:
-            from .collect_workflow import RUN_PAGE, SECTIONS, run_page, wrap
-            if idx == RUN_PAGE.get(platform):
+            from .collect_workflow import (RUN_PAGE, SECTIONS, functional_settings,
+                                           run_page, wrap)
+            if platform == "alibaba" and idx in (29, 30, 31):
+                # 六步固定页：29 采集箱、30 类目属性、31 资料价格。
+                _sec = {29: 0, 30: 1, 31: 2}[idx]
+                controls = self._p_alibaba_section(_sec, self.active_platform.page(idx).label,
+                                                   "完成当前步骤后继续下一步。")
+            elif platform == "alibaba" and idx == 3:
+                # 页面3 = 文案 + 图片（旧5合并），处理规则收进各自批量覆盖。
+                self._current = 3
+                controls = [page_header("文案与图片", "先完成 AI 文案，再处理图片；两项都作用于本次批量。"),
+                            ft.Row([ft.ElevatedButton("去检查与发布", icon=ft.Icons.ARROW_FORWARD,
+                                                      on_click=lambda e: self._switch(33))], wrap=True),
+                            ft.Tabs(selected_index=0, height=1000, tabs=[
+                                ft.Tab(text="AI 文案", content=functional_settings(self, "alibaba", 3)),
+                                ft.Tab(text="AI 图片", content=functional_settings(self, "alibaba", 5)),
+                            ])]
+            elif idx == RUN_PAGE.get(platform):
                 controls = run_page(self, platform)
             elif platform == "amazon" and idx == 16:
                 controls = self._p_amazon_single()
@@ -1674,6 +1693,17 @@ class App:
         finally:
             self._building_page = False
         self._locked_item = None
+        # Alibaba 六步：所有主流程页统一显示步骤条（旧页号已在上方重定向）。
+        if platform == "alibaba" and idx in (1, 29, 30, 31, 3, 33) and isinstance(controls, list):
+            try:
+                from .alibaba_flow import alibaba_stepper, save_next_bar
+                controls.insert(1, alibaba_stepper(self, idx))
+                _seq = {1: (None, 29), 29: (1, 30), 30: (29, 31),
+                        31: (30, 3), 3: (31, 33), 33: (3, None)}
+                _prev, _next = _seq.get(idx, (None, None))
+                controls.append(save_next_bar(self, _prev, _next))
+            except Exception:
+                pass
         self.content.controls = controls
         try:
             self._collect_scope_ctx = getattr(self, "_collect_scope_ctx", {}) or {}
@@ -4277,7 +4307,12 @@ class App:
     def _request_stop(self, e=None):
         if getattr(self, "_collect_running", None):
             self._stop_requested = True
-            self._log("已请求停止：当前商品结束后停止，不再领取下一件商品", "WARN")
+            try:
+                from ..services.collect_runtime import request_stop as _req
+                _req()
+            except Exception:
+                pass
+            self._log("已请求停止：当前阶段结束立即中止，不再处理下一件商品", "WARN")
             self._sync_run_button()
             self._safe_update()
             return
@@ -4749,7 +4784,7 @@ class App:
                 card(ft.Column([
                     ft.Row([cookie, connect_button], spacing=10, wrap=True), self.cookie_status,
                     shop_sel, self.store_status,
-                    ft.Row([ft.OutlinedButton("设置处理规则", on_click=lambda e: self._switch(44)),
+                    ft.Row([ft.OutlinedButton("设置处理规则", on_click=lambda e: self._switch(30)),
                             ft.TextButton("去运行与结果", icon=ft.Icons.ARROW_FORWARD,
                                           on_click=lambda e: self._switch(33))], spacing=10, wrap=True),
                 ], spacing=12))]
@@ -10046,7 +10081,8 @@ class App:
                      ft.DataColumn(ft.Text("级别", size=12.5, color=MUTED)),
                      ft.DataColumn(ft.Text("内容", size=12.5, color=MUTED)),
                      ft.DataColumn(ft.Text("按产品筛选", size=12.5, color=MUTED))],
-            rows=[], column_spacing=18, heading_row_height=36, data_row_min_height=ROW_MIN_H,
+            rows=[], column_spacing=18, heading_row_height=36,
+            data_row_min_height=ROW_MIN_H, data_row_max_height=180,
             heading_text_style=ft.TextStyle(size=FS_SM, color=MUTED),
             data_text_style=ft.TextStyle(size=FS_BASE, color=TEXT),
         )
@@ -10782,7 +10818,8 @@ class App:
                 ft.DataCell(ft.Text(t, size=12, color=MUTED, width=62)),
                 ft.DataCell(ft.Text(x, size=12, width=48, weight=ft.FontWeight.BOLD,
                                     color=log_level_color(x))),
-                ft.DataCell(ft.Text(m, size=12.5, color=TEXT, width=600, selectable=True)),
+                ft.DataCell(ft.Text(m, size=12.5, color=TEXT, width=600, selectable=True,
+                                     max_lines=6, overflow=ft.TextOverflow.ELLIPSIS)),
                 ft.DataCell(self._filter_cell(m)),
             ]) for t, x, m in shown[-300:]
         ]
@@ -13089,7 +13126,21 @@ class App:
             ], spacing=4))
 
         if section is not None:
-            sections = ([prod_card], [cat_card, panel(self, "attributes")], [panel(self, "profile"), preset_card],
+            # 六步：页面31 = 商品资料 + 价格/贸易（原32合并）
+            from .collect_workflow import functional_settings as _fs
+            sections = ([prod_card],
+                        # 页面30：类目/属性 + 批量模板与属性覆盖（原处理规则类目Tab）
+                        [cat_card, panel(self, "attributes"),
+                         ft.ExpansionTile(title=ft.Text("批量覆盖 / 模板", color=TEXT),
+                             controls=[_fs(self, "alibaba", 30, run_link=False)],
+                             initially_expanded=False)],
+                        # 页面31 商品资料与价格：公司资料 + 价格/贸易（原32合并）
+                        [panel(self, "profile"), preset_card, panel(self, "trade"),
+                         ft.ExpansionTile(title=ft.Text("批量默认资料", color=TEXT),
+                             controls=[trade_card], initially_expanded=False),
+                         ft.ExpansionTile(title=ft.Text("批量覆盖（公司资料/关键词）", color=TEXT),
+                             controls=[_fs(self, "alibaba", 31, run_link=False)],
+                             initially_expanded=False)],
                         [panel(self, "trade"), ft.ExpansionTile(title=ft.Text("批量默认资料", color=TEXT),
                              controls=[trade_card], initially_expanded=False)],
                         [readiness_card(), rules_card, score_card, check_card, batch_card])
@@ -14340,6 +14391,7 @@ class App:
         # (kind, 显示名, 提示词 cfg 键, 预设标记 cfg 键)
         _PRESET_KINDS = (
             ("title", "标题", "amazon_title_prompt", "amazon_title_preset"),
+            ("highlight", "商品亮点", "amazon_highlight_prompt", "amazon_highlight_preset"),
             ("bullets", "五点描述", "amazon_bullet_prompt", "amazon_bullet_preset"),
             ("description", "产品描述", "amazon_description_prompt",
              "amazon_description_preset"),
@@ -14518,8 +14570,8 @@ class App:
                 highlight_count.color = DANGER_C if len(hl) > 125 else MUTED
                 values = _bullet_values()
                 longest = max((len(x) for x in values), default=0)
-                bullets_count.value = f"{len(values)} 条卖点 · 最长 {longest}/700 字符"
-                bullets_count.color = DANGER_C if longest > 700 or len(values) > 10 else MUTED
+                bullets_count.value = f"{len(values)} 条卖点 · 最长 {longest}/700 字符（最多 5 条）"
+                bullets_count.color = DANGER_C if longest > 700 or len(values) > 5 else MUTED
                 d = str(desc_tf.value or "")
                 desc_count.value = f"{len(d)}/2000"
                 desc_count.color = DANGER_C if len(d) > 2000 else MUTED
@@ -14546,7 +14598,8 @@ class App:
         bullets_tf.on_change = _on_bullet_edit
 
         def _render_bullet_rows(n=None):
-            # 旧详情可能超过五条，原样显示；切页和保存不会丢失第 6–10 条。
+            # Amazon 硬性规定：只显示/保存前 5 条。
+            form["bullets"] = list(form.get("bullets") or [])[:5]
             bullets_tf.value = "\n".join(str(x) for x in (form.get("bullets") or []))
             _sync_counts()
 
@@ -15115,8 +15168,8 @@ class App:
             bullets = _split_bullets(str(_pick(p, "bulletPoint", "bullet_point")))
             while len(bullets) < 5:
                 bullets.append("")
-            # 契约/schema：卖点最多 10 条；绝不截断成 5 条（真实写会丢掉 6~10 条）。
-            bullets = bullets[:10]
+            # Amazon 硬性规定：卖点最多 5 条，超出直接删除。
+            bullets = bullets[:5]
             form["bullets"] = bullets
             form["description"] = str(_pick(p, "description"))
             form["search_terms"] = str(_pick(p, "searchTerms", "search_terms"))
@@ -16929,7 +16982,7 @@ class App:
 
         text_card = card(ft.Column([
             h1i(ft.Icons.EDIT_NOTE, "⑤ 文案与 AI", FS_MD),
-            muted("标题 ≤75 字符；商品亮点 ≤125 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条"
+            muted("标题 ≤75 字符；商品亮点 ≤125 字符；五点卖点建议 ≤350 字符（上限 700）、最少 3 条"
                   "（建议 5 条，最多 10 条）；描述为 HTML；Search Terms ≤250 字节。"
                   "AI 结果全部可编辑。"),
             ft.Row([ft.Container(content=title_tf, expand=True),
@@ -16974,8 +17027,9 @@ class App:
             *[ft.ExpansionTile(title=ft.Text(label + "提示词", color=TEXT),
                  controls=[ft.Column(_preset_block(kind, label), spacing=8)],
                  initially_expanded=(kind == "bullets"), icon_color=ACCENT)
-              for kind, label in (("title", "标题"), ("bullets", "五点描述"),
-                  ("description", "产品描述"), ("search_terms", "关键词"), ("sku", "SKU"))],
+              for kind, label in (("title", "标题"), ("highlight", "商品亮点"),
+                  ("bullets", "五点描述"), ("description", "产品描述"),
+                  ("search_terms", "关键词"), ("sku", "SKU"))],
         ], spacing=10))
         if not editor_only:
             text_card = workspace_tabs([("商品文案", [text_card]), ("提示词预设", [text_presets])])
@@ -17083,7 +17137,7 @@ class App:
         if list_state.get("state"):
             _sync_state_buttons()
         # 预设库延迟加载（后端未就绪时下拉禁用，页面不崩）
-        for _kind in ("title", "bullets", "description", "search_terms", "sku", "image"):
+        for _kind in ("title", "highlight", "bullets", "description", "search_terms", "sku", "image"):
             try:
                 _load_presets(_kind)
                 _attach_preset_widget(_kind)

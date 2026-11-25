@@ -50,21 +50,30 @@ class RedesignTests(unittest.TestCase):
         self.assertIn(self.app.active_platform.pages[0].label, self.app.breadcrumb.value)
 
     def test_alibaba_hides_smt_only_pages_and_controls(self):
-        """Alibaba 平台移除速卖通专属页面，且共享页面里的 SMT 卡片不出现。"""
+        """Alibaba 六步：旧 12/32/5/44 从导航移除并按别名重定向；SMT 卡片不出现。"""
         self.app._switch_platform("alibaba")
         pf = self.app.active_platform
         indices = {p.index for p in pf.pages}
         self.assertNotIn(6, indices, "Alibaba 平台不应有 SMT 价格页")
         self.assertNotIn(7, indices, "Alibaba 平台不应有 SMT 变种/库存页")
-        self.assertNotIn(2, indices, "Alibaba 的类目信息已合并到刊登页，不应再有重复页")
-        self.assertIn(12, indices)
+        self.assertNotIn(2, indices, "Alibaba 的类目信息在 30，不应再有重复页")
+        self.assertNotIn(12, indices, "旧 12 号完整工作台已删除（12→29）")
+        self.assertNotIn(32, indices, "旧 32 价格页已合并进 31（32→31）")
+        self.assertNotIn(5, indices, "旧 5 AI 图片页合并进 3（5→3）")
+        self.assertNotIn(44, indices, "独立处理规则页已删除（44→33）")
+        for required in (1, 29, 30, 31, 3, 33):
+            self.assertIn(required, indices)
         nav_labels = [b.content.controls[1].value for _, b in self.app.nav_buttons]
         self.assertNotIn("价格 / 阶梯 / 批发", nav_labels)
         self.assertNotIn("SKU · 库存 · 套装", nav_labels)
-        # 图片页：营销图 Tab 移除；日志页：定时发布 Tab 移除
+        self.assertNotIn("Alibaba 刊登", nav_labels)
+        # 旧 5 号图片页重定向到 3：只剩「AI 文案 / AI 图片」两个 Tab
         self.app._switch(5)
+        self.assertEqual(self.app._current, 3)
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
+        self.assertEqual([t.text for t in tabs.tabs], ["AI 文案", "AI 图片"])
         self.assertNotIn("营销图", [t.text for t in tabs.tabs])
+        # 日志页：定时发布 Tab 在 Alibaba 平台移除
         self.app._switch(10)
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
         self.assertNotIn("定时发布", [t.text for t in tabs.tabs])
@@ -81,30 +90,36 @@ class RedesignTests(unittest.TestCase):
         self.assertIn("营销图", [t.text for t in tabs.tabs])
 
     def test_alibaba_home_offers_one_manual_workspace_outside_the_batch_steps(self):
+        # 六步入口在概览；「单品处理」现在落到 29 采集箱商品（旧 12 号已删除）。
         self.app._switch(0)
         visible = {index for index, _ in self.app.nav_buttons}
-        self.assertTrue({1, 44, 33}.issubset(visible))
-        self.assertTrue({12, 3, 5, 30, 31, 32}.isdisjoint(visible))
+        self.assertTrue({1, 29, 30, 31, 3, 33}.issubset(visible))
+        self.assertTrue({12, 5, 32, 44}.isdisjoint(visible))
         actions = {getattr(c, "text", ""): c for c in walk(self.app.content.controls)
                    if isinstance(c, (ft.OutlinedButton, ft.TextButton))}
         self.assertTrue({"去连接店铺", "设置处理规则", "去运行与结果", "单品处理"}.issubset(actions))
         actions["单品处理"].on_click(None)
-        self.assertEqual(self.app._page_idx, 12)
-        self.assertIn("单品处理", self.app.breadcrumb.value)
+        self.assertEqual(self.app._page_idx, 29)
+        self.assertIn("采集箱商品", self.app.breadcrumb.value)
         controls = list(walk(self.app.content.controls))
         self.assertIn("按商品 ID 打开（可空）", {getattr(c, "label", "") for c in controls})
         self.assertIn("按 ID 打开", {getattr(c, "text", "") for c in controls})
         self.assertNotIn("保存草稿", {getattr(c, "text", "") for c in controls})
 
     def test_navigation_search_alias_empty_state_and_enter(self):
+        # Alibaba 六步后不再有独立的「处理规则/水印」页；搜索按新标签/别名匹配。
         self.app._filter_navigation("水印")
         visible = {i for i, button in self.app.nav_buttons if button.visible}
-        self.assertEqual(visible, {44})
+        self.assertEqual(visible, set())
+        self.assertTrue(self.app.nav_empty.visible)
+        self.app._filter_navigation("采集箱")
+        visible = {i for i, button in self.app.nav_buttons if button.visible}
+        self.assertEqual(visible, {29})
         self.app._filter_navigation("no-such-destination")
         self.assertTrue(self.app.nav_empty.visible)
-        self.app.nav_search.value = "库存"
+        self.app.nav_search.value = "采集箱"
         self.app._open_navigation_match()
-        self.assertEqual(self.app._page_idx, 44)
+        self.assertEqual(self.app._page_idx, 29)
         self.assertEqual(self.app.nav_search.value, "")
         self.assertTrue(all(b.visible for _, b in self.app.nav_buttons))
         self.app._switch_platform("aliexpress")
@@ -177,14 +192,16 @@ class RedesignTests(unittest.TestCase):
         self.assertEqual(self.app.cfg.title_prompt, before)
 
     def test_feature_groups_keep_every_settings_card_and_variant_tool(self):
-        # Alibaba：只保留 Alibaba 能力；SMT 专属 Tab/卡片被裁剪
+        # Alibaba 六步：3 号合并文案+图片；旧 12/32/5/44 仅作为重定向保留。
         self.app._switch_platform("alibaba")
-        self.app._switch(12)
+        for redirect, expected in ((12, 29), (32, 31), (5, 3), (44, 33)):
+            self.app._switch(redirect)
+            self.assertEqual(self.app._page_idx, expected, f"{redirect} 应重定向到 {expected}")
+        self.app._switch(3)
         tabs = next(c for c in walk(self.app.content.controls) if isinstance(c, ft.Tabs))
-        self.assertEqual([t.text for t in tabs.tabs],
-                         ["选择商品", "文案", "图片", "类目与属性", "商品资料", "价格与贸易", "保存单品"])
+        self.assertEqual([t.text for t in tabs.tabs], ["AI 文案", "AI 图片"])
+        self.assertTrue(all(list(walk([tab.content])) for tab in tabs.tabs))
         alibaba_expected = {
-            44: ["AI 文案", "AI 图片", "类目与属性", "价格与贸易", "公司资料"],
             9: ["商品与取图", "图片处理与输出"],
             10: ["运行日志"],
             11: ["账号与连接", "图片与模型", "界面", "维护与诊断"],

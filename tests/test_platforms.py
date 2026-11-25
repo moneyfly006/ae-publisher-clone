@@ -13,11 +13,18 @@ class PlatformTests(unittest.TestCase):
                 self.assertIn(page.index, valid, f"{pid}:{page.index}")
 
     def test_alibaba_has_trade_and_no_aliexpress_pages(self):
+        # Alibaba 六步：价格与贸易并入 31「商品资料与价格」；旧 32 不再单独成页。
         labels = [p.label for p in ALIBABA.pages]
-        self.assertIn("价格与贸易", labels)
-        self.assertTrue(ALIBABA.page(32).matches("FOB"))
+        self.assertIn("商品资料与价格", labels)
+        self.assertTrue(ALIBABA.page(31).matches("贸易 价格"))
         self.assertIn("类目与属性", labels)
         self.assertNotIn("变种与库存", labels)
+        self.assertNotIn("价格与贸易", labels)
+        indices = {p.index for p in ALIBABA.pages}
+        self.assertTrue({1, 29, 30, 31, 3, 33}.issubset(indices),
+                        "六步流程页必须存在：1/29/30/31/3/33")
+        self.assertTrue({12, 32, 5, 44}.isdisjoint(indices),
+                        "旧路由页只做重定向，不应继续出现在导航定义中")
 
     def test_default_and_fallback(self):
         self.assertEqual(get_platform("").id, "alibaba")

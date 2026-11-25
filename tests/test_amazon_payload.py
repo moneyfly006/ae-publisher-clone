@@ -388,8 +388,9 @@ class ValidateTests(unittest.TestCase):
         self.assertEqual([i for i in issues if "中文" in i], [])
 
     def test_bullets_limits(self):
-        payload = make_payload(bulletPoint=join_bullets(
-            [f"bullet number {i}" for i in range(BULLET_MAX_ITEMS + 1)]))
+        payload = make_payload()
+        payload["bulletPoint"] = "±".join(
+            [f"bullet number {i}" for i in range(BULLET_MAX_ITEMS + 1)])
         issues = validate_amazon_payload(payload, site_meta=site_meta("A2EUQ1WTGCTBG2"))
         self.assertTrue(any("卖点数量超过" in i for i in issues))
 
@@ -503,7 +504,7 @@ class WarningsTests(unittest.TestCase):
         )
         warns = "\n".join(build_warnings(payload))
         self.assertIn("标题长度", warns)
-        self.assertIn("卖点 10 条", warns)
+        self.assertNotIn("卖点数量超过", warns)
         self.assertIn("Search Terms", warns)
         self.assertIn("产品描述", warns)
         self.assertIn("没有附加图", warns)

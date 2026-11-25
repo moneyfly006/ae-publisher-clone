@@ -25,15 +25,27 @@ class CollectUiTests(unittest.TestCase):
         return list(walk(self.app.content.controls))
 
     def test_no_independent_list_in_any_navigation(self):
+        # Alibaba 六步新增独立「采集箱商品」页（29）；其它平台仍不暴露独立列表页，
+        # 列表入口统一由「运行与结果」负责。
         for platform in RUN_PAGE:
             self.app._switch_platform(platform)
-            self.assertNotIn("采集箱商品", [p.label for p in self.app.active_platform.pages])
             self.assertEqual(self.app.btn_run_text.value, "自动处理采集箱")
             self.app._switch(0)
             self.assertNotIn("选择商品", [getattr(c, "text", "") for c in self.controls()])
+        self.app._switch_platform("alibaba")
+        self.assertIn("采集箱商品", [p.label for p in self.app.active_platform.pages])
+        for platform in ("amazon", "tiktok", "shopee"):
+            self.app._switch_platform(platform)
+            self.assertNotIn("采集箱商品", [p.label for p in self.app.active_platform.pages])
 
     def test_old_list_routes_go_to_run_page(self):
-        for platform, retired in (("alibaba", 29), ("tiktok", 23), ("shopee", 37)):
+        # 旧路由：Alibaba 8→33、12→29、32→31、5→3、44→33；
+        # TikTok/Shopee 的旧列表路由仍统一回运行页。
+        self.app._switch_platform("alibaba")
+        for retired, expected in ((8, 33), (12, 29), (32, 31), (5, 3), (44, 33)):
+            self.app._switch(retired)
+            self.assertEqual(self.app._page_idx, expected, f"Alibaba {retired}")
+        for platform, retired in (("tiktok", 23), ("shopee", 37)):
             self.app._switch_platform(platform)
             self.app._switch(retired)
             self.assertEqual(self.app._page_idx, RUN_PAGE[platform])

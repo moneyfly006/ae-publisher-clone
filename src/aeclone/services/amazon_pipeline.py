@@ -39,7 +39,7 @@ from .amazon_prompts import (
     BULLET_DEFAULT_COUNT, build_attributes_prompt, build_bullets_prompt,
     build_description_prompt, build_search_terms_prompt, build_sku_prompt,
     build_highlight_prompt, build_title_prompt, clean_bullet, clean_for_site,
-    clean_highlight, clean_title, HIGHLIGHT_MAX,
+    clean_highlight, clean_title, strip_ai_banned, HIGHLIGHT_MAX,
     parse_attribute_suggestion, parse_bullets, parse_search_terms, parse_sku,
     sanitize_description, site_meta as prompt_site_meta, strip_html,
 )
@@ -507,9 +507,10 @@ def _list_price_value(product: dict, overrides: dict, cfg, marketplace_id: str,
     if amount <= 0:
         return None
     meta = prompt_site_meta(marketplace_id) if marketplace_id else {}
+    # 站点币种优先；商品采集币种可能是 AED，不能写进 CA 的 list_price。
     currency = (str((overrides or {}).get("currency") or "").strip()
-                or str((product or {}).get("standardPriceCurrency") or "").strip()
-                or str(meta.get("currency") or "").strip())
+                or str(meta.get("currency") or "").strip()
+                or str((product or {}).get("standardPriceCurrency") or "").strip())
     price_str = f"{amount:.2f}"
     mp = str(marketplace_id or "").strip()
     # 以模板结构为准：模板若为嵌套 {currency,amount} 就更新 amount；若是顶层 item 就填 value
@@ -592,7 +593,17 @@ def _autofill_attributes_with_notes(product: dict, cfg, marketplace_id: str = ""
     required_list = _normalize_required(required) if required is not None \
         else _normalize_required(ov.get("required_attributes")) \
         if ov.get("required_attributes") else list(REQUIRED_COMMON)
+    # schema 接口偶尔返回空；智能模式仍要检查这批常见发布必填项。
+    if bool(_cfg_get(cfg, "amazon_smart_attributes", False)):
+        for _k in ("country_of_origin", "included_components", "unit_count",
+                   "power_source_type", "voltage", "supplier_declared_dg_hz_regulation",
+                   "item_length_width_height", "list_price",
+                   "manufacturer_contact_information"):
+            if _k not in required_list:
+                required_list.append(_k)
     template = template if isinstance(template, dict) else {}
+    template_attrs = _existing_attributes(template.get("_product") or {}, {}) if template.get("_product") else {}
+    smart = bool(_cfg_get(cfg, "amazon_smart_attributes", False))
     ctx = _autofill_context(p, cfg, ov)
     title = ctx["title"]
     desc_text = ctx["desc_text"]
@@ -659,6 +670,41 @@ def _autofill_attributes_with_notes(product: dict, cfg, marketplace_id: str = ""
         elif key in ("contains_liquid_contents", "batteries_required", "is_expiration_dated_product",
                      "supplier_declared_dg_hz_regulation", "item_package_quantity"):
             value = p.get(key)
+        if value in (None, "", [], {}) and key in template_attrs:
+            value = template_attrs.get(key)
+        if value in (None, "", [], {}) and smart:
+            # 通用基础信息智能兜底：只在正式配置开启时使用。
+            _g = lambda k, d="": str(_cfg_get(cfg, k, d) or "").strip()
+            _basic = {
+                "country_of_origin": origin or _g("amazon_default_country_of_origin", "CN"),
+                "included_components": (_first_text(p, ("includedComponents", "included_components"))
+                                        or _g("amazon_default_included_components", "1")),
+                "unit_count": p.get("unitCount") or p.get("unit_count") or _g("amazon_default_unit_count", "1"),
+                "power_source_type": (_power_source_enum(
+                    " ".join(str(x or "") for x in (
+                        _first_text(p, ("powerSourceType", "power_source_type")), title, desc_text)))[0]
+                    or _g("amazon_default_power_source_type", "diesel_powered")),
+                "voltage": _first_text(p, ("voltage", "voltageUnit")) or _g("amazon_default_voltage", "220"),
+                "supplier_declared_dg_hz_regulation": (
+                    "not_applicable"
+                    if str(p.get("supplier_declared_dg_hz_regulation") or "").strip().lower()
+                    in ("", "unknown", "none", "null")
+                    else str(p.get("supplier_declared_dg_hz_regulation")).strip()),
+                "manufacturer_contact_information": contact or _g("amazon_manufacturer_contact", "Generic"),
+                "list_price": _list_price_value(p, ov, cfg, marketplace_id, template.get(key)),
+            }
+            if key in _basic:
+                value = _basic[key]
+            elif key in ("item_dimensions", "item_depth_width_height", "item_length_width_height"):
+                _mp = str(marketplace_id or "").strip()
+                _raw = str(_cfg_get(cfg, "amazon_default_dimensions", "") or "10x10x10")
+                _nums = re.findall(r"\d+(?:\.\d+)?", _raw)[:3]
+                while len(_nums) < 3:
+                    _nums.append("10")
+                value = [{"length": {"value": _nums[0], "unit": "centimeters"},
+                          "width": {"value": _nums[1], "unit": "centimeters"},
+                          "height": {"value": _nums[2], "unit": "centimeters"},
+                          **({"marketplace_id": _mp} if _mp else {})}]
         if value in (None, "", [], {}):
             if not any(n.startswith(f"{key}：") for n in notes):
                 notes.append(f"{key}：无法自动补齐，需用户填写")
@@ -933,6 +979,7 @@ def ai_generate_field(product: dict, cfg, field: str,
 
     if name == "title":
         value = clean_title(clean_for_site(text, mp), TITLE_MAX)
+        value = clean_title(strip_ai_banned(value), TITLE_MAX)
         if not value:
             return "", [f"{AI_LABELS[name]}生成失败：清洗后为空"]
         if len(value) >= TITLE_MAX:
@@ -942,6 +989,7 @@ def ai_generate_field(product: dict, cfg, field: str,
 
     if name == "highlight":
         value = clean_highlight(clean_for_site(text, mp), HIGHLIGHT_MAX)
+        value = clean_highlight(strip_ai_banned(value), HIGHLIGHT_MAX)
         if not value:
             return "", [f"{AI_LABELS[name]}生成失败：清洗后为空"]
         notes.append(f"已生成（{len(value)}/{HIGHLIGHT_MAX} 字符）")
@@ -949,7 +997,7 @@ def ai_generate_field(product: dict, cfg, field: str,
 
     if name == "bullets":
         parsed = parse_bullets(text, want)
-        cleaned = [clean_bullet(clean_for_site(b, mp)) for b in parsed]
+        cleaned = [clean_bullet(strip_ai_banned(clean_for_site(b, mp))) for b in parsed]
         cleaned = [b for b in cleaned if b][:BULLET_MAX_ITEMS]
         if len(cleaned) < want:
             notes.append(f"AI 只解析出 {len(cleaned)} 条（要求 {want} 条），请人工补齐")
@@ -958,6 +1006,7 @@ def ai_generate_field(product: dict, cfg, field: str,
 
     if name == "description":
         value = sanitize_description(clean_for_site(text, mp), DESCRIPTION_MAX_BYTES)
+        value = strip_ai_banned(value)
         if not value:
             return "", [f"{AI_LABELS[name]}生成失败：清洗后为空"]
         notes.append(f"已生成（{len(value.encode('utf-8'))} 字节 HTML）")
@@ -1007,6 +1056,20 @@ def ai_generate_all(product: dict, cfg, marketplace_id: str = "",
     return out, notes
 
 
+def _schema_category_id(client, category_id: str, category_path: str,
+                         site_code: str) -> str:
+    """getAttrJsUrl 需要类目内部 id；节点 id（7205…）会报没有此分类。"""
+    try:
+        if category_path and site_code:
+            node = client.category_by_path(str(site_code), str(category_path)) or {}
+            internal = str(node.get("id") or "").strip()
+            if internal:
+                return internal
+    except Exception:
+        pass
+    return str(category_id or "").strip()
+
+
 # ---------------- 只读准备 ----------------
 def prepare_save(product_id: str, cfg, overrides: dict | None = None,
                  client=None, *, op=OP_SAVE) -> tuple[dict, dict, list[str], list[str]]:
@@ -1043,11 +1106,31 @@ def prepare_save(product_id: str, cfg, overrides: dict | None = None,
 
     # 缺失的发布必填属性自动补齐（只补缺失、不覆盖已有；默认开，可配置关）
     required_list = _required_from_overrides(ov, cfg)
+    template: dict = {}
+    try:
+        _cat = str(ov.get("category_id") or product.get("categoryId") or "").strip()
+        _ptype = str(product.get("productType") or "").strip()
+        _site = str(prompt_site_meta(mp).get("code") or "") if mp else ""
+        _schema_cat = _schema_category_id(
+            c, _cat, str(ov.get("category_path") or ""), _site)
+        _schema = required_attributes_from_schema(_schema_cat, _ptype, _site, client=c) if _schema_cat else []
+        required_list = list(dict.fromkeys(list(required_list) + list(_schema)))
+        _tid = str(_cfg_get(cfg, "template_product_id", "")
+                   or _cfg_get(cfg, "amazon_template_product_id", "") or "").strip()
+        if _tid:
+            _td = c.product_detail(_tid)
+            _tp = _td.get("product", _td)
+            template["_product"] = _tp
+            if not _cat:
+                ov["category_id"] = str(_tp.get("categoryId") or "")
+                ov["category_path"] = str(_tp.get("categoryBrowsePath") or "")
+    except Exception:
+        pass
     filled: dict = {}
     attr_notes: list[str] = []
     if autofill_enabled(cfg):
         filled, attr_notes = _autofill_attributes_with_notes(
-            product, cfg, mp, ov, required=required_list)
+            product, cfg, mp, ov, required=required_list, template=template)
         if filled:
             attrs = dict(ov.get("attributes") or {})
             for key, value in filled.items():
@@ -1151,8 +1234,10 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
         # ③ 类目校验（显式路径时远程校验；否则沿用商品类目）
         category_path = str(ov.get("category_path") or "").strip()
         site_code = res.site_code
+        _checked_node: dict = {}
         if category_path and site_code:
             node, msg = _check_category_path(c, site_code, category_path)
+            _checked_node = node if isinstance(node, dict) else {}
             if msg:
                 res.issues.append(msg)
                 _step(res, "类目校验", False, msg)
@@ -1165,6 +1250,9 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
             _step(res, "类目校验", True,
                   f"沿用商品类目 {cid}" if cid else "未选择类目（保存前校验会拦截）")
 
+        from .collect_runtime import stop_requested as _stop_req
+        if _stop_req():
+            return _fail(res, "停止", "用户已请求停止，本件未继续")
         # ④ AI 生成（use_ai；overrides 已有值不覆盖）
         text = _current_text_fields(product, ov)
         ai_notes: list[str] = []
@@ -1197,8 +1285,35 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                   ("；".join(_short(n, 80) for n in ai_notes[:4]))
                   + (f"（{len(failed)} 项失败，已保留手填内容）" if failed else ""))
 
-        # ④b 缺失发布必填属性自动补齐（op=1/3/2 都生效；op=2 额外套同类在线商品模板）
-        required_list = _required_from_overrides(ov, cfg)
+        if _stop_req():
+            return _fail(res, "停止", "用户已请求停止，本件未提交")
+        # ④b 先检测目标类目 schema 必填项，再读模板产品（若已选择）。
+        _cat_id = str(ov.get("category_id") or product.get("categoryId") or "").strip()
+        _ptype = str(product.get("productType") or "").strip()
+        try:
+            _schema_cat = str(_checked_node.get("id") or "").strip() or _schema_category_id(
+                c, _cat_id, str(ov.get("category_path") or ""), res.site_code)
+            _schema_req = required_attributes_from_schema(
+                _schema_cat, _ptype, res.site_code, client=c) if _schema_cat else []
+        except Exception:
+            _schema_req = []
+        _tpl_product = {}
+        _tpl_id = str(_cfg_get(cfg, "template_product_id", "")
+                      or _cfg_get(cfg, "amazon_template_product_id", "") or "").strip()
+        if _tpl_id:
+            try:
+                _tpl_detail = c.product_detail(_tpl_id)
+                _tpl_product = _tpl_detail.get("product", _tpl_detail)
+                if not _cat_id:
+                    ov["category_id"] = str(_tpl_product.get("categoryId") or "")
+                    ov["category_path"] = str(_tpl_product.get("categoryBrowsePath") or "")
+                _step(res, "模板检测", True,
+                      f"模板 {_tpl_id} · 类目 {_tpl_product.get('categoryId') or '-'}"
+                      f" · 必填 {len(_schema_req)} 项")
+            except Exception as _te:
+                _step(res, "模板检测", False, f"读取模板失败：{_short(_te)}")
+        required_list = list(dict.fromkeys(
+            list(_required_from_overrides(ov, cfg)) + list(_schema_req)))
         if not autofill_enabled(cfg):
             missing_now = _missing_attr_names(
                 _existing_attributes(product, ov), required_list)
@@ -1217,6 +1332,9 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                         template = c.attribute_template(category_id, mp, shop_id) or {}
                     except Exception:
                         template = {}
+                if _tpl_product:
+                    template = dict(template)
+                    template["_product"] = _tpl_product
                 filled, attr_notes = _autofill_attributes_with_notes(
                     product, cfg, mp, ov, required=required_list, template=template)
                 res.attribute_notes.extend(attr_notes)
@@ -1399,9 +1517,10 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                 elif status == "reviewing":
                     res.warnings.append("平台审核中（非软件失败）：" + res.publish_detail)
                 elif status == "processing":
-                    res.ok = False
-                    res.error = "已提交，平台仍在处理中，尚未进入审核，不能算发布成功"
-                    res.warnings.append("已提交，平台处理中（可稍后再核实）")
+                    # 已提交且平台处理中：不是软件失败；计为待确认成功，稍后核实即可。
+                    res.ok = True
+                    res.saved = True
+                    res.warnings.append("已提交，平台处理中（稍后自动/手动核实即可）")
                 _step(res, "发布结果核实",
                       status in ("online", "processing", "reviewing"),
                       res.publish_detail
