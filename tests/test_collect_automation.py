@@ -177,10 +177,12 @@ class CollectionTests(unittest.TestCase):
                          "amazon_price": "10", "amazon_sku": "OLD", "alibaba_attr_presets": '{"Weight":"600"}'})
         original = deepcopy(cfg.as_dict())
         for platform, keys in (("tiktok", ("title", "stock", "weight")),
-                               ("amazon", ("price", "sku")), ("alibaba", ("attr_presets", "weight", "category_id"))):
+                               ("amazon", ("price", "sku")), ("alibaba", ("category_id",))):
             isolated = service.isolated_config(cfg, platform)
             for key in keys:
                 self.assertEqual(getattr(isolated, platform + "_" + key), "")
+            if platform == "alibaba":
+                self.assertEqual(isolated.alibaba_attr_presets, cfg.alibaba_attr_presets)
         self.assertEqual(cfg.as_dict(), original)
 
     def test_default_settings_are_non_destructive(self):
@@ -212,7 +214,10 @@ class CollectionTests(unittest.TestCase):
         cfg = service.isolated_config(AppConfig(), "alibaba")
         saved = build_alibaba_save(product, cfg)
         trade = json.loads(saved["wholesaleTrade"])
-        self.assertEqual(trade, json.loads(product["wholesaleTrade"]))
+        expected = json.loads(product["wholesaleTrade"])
+        expected.setdefault("min_order_quantity", 1)
+        expected.setdefault("tariffsHsCode", [{"toCountry": "US", "hsCode": "84791000"}])
+        self.assertEqual(trade, expected)
         self.assertEqual(saved["categoryId"], "123")
         self.assertNotIn("professional machinery", saved.get("companyDesc", ""))
 

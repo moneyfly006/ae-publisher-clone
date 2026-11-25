@@ -91,19 +91,25 @@ class SaveResult:
 
 
 # 模板商品 edit.json 的进程内缓存：批量跑时同一模板只取一次（省一次 API 往返）
+# 注意：用锁防止并发批量时多线程同时获取同一模板，避免重复 API 请求。
+import threading as _threading
 _TPL_EDIT_CACHE: dict[str, tuple[float, dict]] = {}
+_TPL_EDIT_LOCK = _threading.Lock()
 _TPL_EDIT_TTL = 600.0
 
 
 def _cached_template_edit(dxm, tpl_pid: str) -> dict:
     import time as _t
     key = str(tpl_pid)
-    hit = _TPL_EDIT_CACHE.get(key)
-    if hit and (_t.time() - hit[0]) < _TPL_EDIT_TTL:
-        return dict(hit[1])
+    with _TPL_EDIT_LOCK:
+        hit = _TPL_EDIT_CACHE.get(key)
+        if hit and (_t.time() - hit[0]) < _TPL_EDIT_TTL:
+            return dict(hit[1])
+    # 锁外发请求，避免持锁期间阻塞其他线程
     tpl = dxm._get("product_detail", {"id": key}).get("data", {}).get("product", {}) or {}
     if tpl:
-        _TPL_EDIT_CACHE[key] = (_t.time(), dict(tpl))
+        with _TPL_EDIT_LOCK:
+            _TPL_EDIT_CACHE[key] = (_t.time(), dict(tpl))
     return dict(tpl)
 
 
@@ -3179,15 +3185,19 @@ class Publisher:
                         if isinstance(sku, dict):
                             sku["freightTemplateId"] = safe
                     retry["aeopAeProductSKUs"] = _j.dumps(skus, ensure_ascii=False)
-            except Exception:
-                pass
+            except Exception as _sku_ex:
+                # SKU 运费更新失败：只记日志，仍用主字段修复后继续重试
+                from .progress import emit as _emit
+                _emit("运费模板修复", "", f"SKU运费更新失败（继续尝试）：{str(_sku_ex)[:80]}", "WARN")
             resp = self.dxm.save_product_via_api(retry)
             if isinstance(resp, dict) and resp.get("code") == 0:
                 add_step(res, "运费模板自动修复", True,
                          f"发布失败：已自动切换运费模板 {safe} 并重试成功")
                 return resp
-        except Exception:
-            pass
+        except Exception as _retry_ex:
+            # 重试保存失败：记录日志，调用方会继续尝试其他修复路径
+            from .progress import emit as _emit
+            _emit("运费模板修复", "", f"重试保存失败：{str(_retry_ex)[:100]}", "WARN")
         return None
 
     def _save_via_api(self, p: dict, res, action: str, ship, images: list[str] | None):
@@ -4085,8 +4095,10 @@ class Publisher:
                             _orig_detail = str(_od.get("detail") or "")
                         if _orig_detail:
                             p["detail"] = _orig_detail
-                    except Exception:
-                        pass
+                    except Exception as _det_ex:
+                        # 读取详情回填失败：记录但不阻断，详情组装继续用现有数据
+                        from .progress import emit as _emit
+                        _emit("详情回填", "", f"回读原始详情失败（已跳过）：{str(_det_ex)[:80]}", "WARN")
                 from .detail_content import compose_detail
                 _detail = compose_detail(p, self.cfg)
                 if _detail:

@@ -89,6 +89,15 @@ def main() -> int:
             continue
         if k not in DEFAULTS:
             continue
+        # 绝不能让本机账号/店铺/模板/类目/商品数据进入随包默认值。
+        if (k.startswith(("alibaba_template", "alibaba_shop", "alibaba_category",
+                          "amazon_shop", "tiktok_shop", "shopee_shop"))
+                or k in ("manual_cookies", "alibaba_cookies", "aliexpress_cookies",
+                         "amazon_cookies", "tiktok_cookies", "shopee_cookies",
+                         "alibaba_attr_presets", "alibaba_company_desc",
+                         "alibaba_company_faq", "alibaba_company_name")):
+            skipped.append(k)
+            continue
         out[k] = v
     dst = ROOT / "assets" / "preset_defaults.json"
     dst.parent.mkdir(parents=True, exist_ok=True)

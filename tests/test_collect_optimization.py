@@ -343,14 +343,14 @@ class OptimizationTests(unittest.TestCase):
         fields[-1].value = "-5"
         save_tiers.on_click(None)
         self.assertEqual(settings(self.cfg, "alibaba")["price_tiers"], ov["price_tiers"])
-        weight = next(c for c in controls() if getattr(c, "label", "") == "包装重量（kg）")
+        weight = next(c for c in controls() if getattr(c, "label", "") == "产品重量 KG")
         weight.value = "4.5"
-        next(c for c in controls() if getattr(c, "text", "") == "添加仓库库存").on_click(None)
-        next(c for c in controls() if getattr(c, "label", "") == "仓库编码").value = "W1"
-        next(c for c in controls() if getattr(c, "label", "") == "仓库库存").value = "0"
-        next(c for c in controls() if getattr(c, "text", "") == "保存包装、库存与交期").on_click(None)
-        self.assertEqual(settings(self.cfg, "alibaba")["wholesale_trade"],
-                         dict(**old_trade, weight="4.5", inventory=[dict(warehouseCode="W1", value="0")]))
+        weight.on_change(SimpleNamespace(control=weight))
+        stock = next(c for c in controls() if getattr(c, "label", "") == "库存")
+        stock.value = "0"
+        stock.on_change(SimpleNamespace(control=stock))
+        self.assertEqual(str(self.cfg.alibaba_weight), "4.5")
+        self.assertEqual(str(self.cfg.alibaba_stock), "0")
 
     def test_tiktok_visual_candidate_selection_uses_native_ids(self):
         self.app._switch_platform("tiktok")

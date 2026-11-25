@@ -175,6 +175,17 @@ def _save_attr_map(save: dict) -> dict[str, str]:
             name = str(a.get("attribute_name") or "").strip()
             if name:
                 out[name.lower()] = str(a.get("value_name") or "").strip()
+    # 常见平台同义名：Power ↔ Power (W)、Weight ↔ Weight (kg)、Color ↔ Colors
+    for alias, keys in (("power (w)", ("power",)), ("weight", ("weight (kg)",)),
+                        ("colors", ("color",))):
+        if alias not in out:
+            for key in keys:
+                if out.get(key):
+                    out[alias] = out[key]
+                    break
+        for key in keys:
+            if key not in out and out.get(alias):
+                out[key] = out[alias]
     return out
 
 

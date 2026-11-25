@@ -75,6 +75,8 @@ def apply_profile(cfg: Any, save=None) -> dict:
     values = {
         "alibaba_company_name": COMPANY_PROFILE["company_name"],
         "alibaba_company_website": COMPANY_PROFILE["website"],
+        "alibaba_company_address": COMPANY_PROFILE["location"],
+        "alibaba_company_license": COMPANY_PROFILE["business_license"],
         "alibaba_company_desc": company_desc(),
         "alibaba_company_faq": company_faq(),
     }

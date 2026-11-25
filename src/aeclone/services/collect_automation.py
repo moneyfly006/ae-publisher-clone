@@ -182,17 +182,26 @@ def isolated_config(cfg, platform):
     # Existing manual/AliExpress image retry preferences remain unchanged.
     data["image_retry_times"] = 0
     keep = ("cookies", "shop_id", "shop_name", "site", "site_code", "site_name", "mode")
+    if platform == "alibaba":
+        keep += ("min_order_quantity", "unit_type", "weight", "package_size",
+                 "package_length", "package_width", "package_height", "freight_template_id",
+                 "logistics_property", "default_sample_service", "default_deliver_periods",
+                 "hs_code", "company_desc", "company_faq", "company_name", "video_source",
+                 "video_size", "video_slot_seconds", "video_transition_seconds")
     for key in list(data):
         if key.startswith(platform + "_"):
             suffix = key[len(platform) + 1:]
             if suffix not in keep and not any(word in suffix for word in
                     ("prompt", "preset", "auto_", "collect_", "publish_wait")):
                 data[key] = ""
-    # Alibaba presets include invented machinery attributes/company claims.
+    # Alibaba 用户保存的必填属性/公司资料必须带进批量；只清掉单品的临时覆盖。
     if platform == "alibaba":
-        for key in ("attr_presets", "company_desc", "company_faq", "ai_preset"):
+        data["alibaba_attr_presets"] = getattr(cfg, "alibaba_attr_presets", "") or ""
+        for key in ("company_desc", "company_faq", "ai_preset"):
             data["alibaba_" + key] = ""
         data["price_fixed"] = ""
+        # 用户设置的 MOQ/重量/包装/运费/发货期必须生效；商品已有真实值仍由
+        # build_alibaba_save 内部按“只补缺失”处理。
         data["alibaba_preserve_trade"] = True
     if platform == "alibaba":
         for suffix in ("company_desc", "company_faq"):
@@ -213,13 +222,14 @@ def process_one(platform, pid, cfg, client, overrides, *, dry_run, op, use_ai, b
             overrides.setdefault("price_type", "ladder_price")
         if use_ai:
             product = client.product_detail(pid)
-            # Alibaba's AI pipeline can rewrite all fields. Preserve populated fields
-            # explicitly when this run only requests completion of missing copy.
-            for native, key in (("subject", "subject"), ("textDesc", "text_desc"), ("keywords", "keywords")):
-                if product.get(native):
-                    overrides.setdefault(key, product[native])
-            if all(product.get(k) for k in ("subject", "textDesc", "keywords")):
-                use_ai = False
+            # 补齐模式才把已有字段保留；重写模式必须交给 AI，不能因为字段已存在就关掉 AI。
+            _rewrite = str(getattr(cfg, "alibaba_collect_ai_mode", "missing") or "missing") == "rewrite"
+            if not _rewrite:
+                for native, key in (("subject", "subject"), ("textDesc", "text_desc"), ("keywords", "keywords")):
+                    if product.get(native):
+                        overrides.setdefault(key, product[native])
+                if all(product.get(k) for k in ("subject", "textDesc", "keywords")):
+                    use_ai = False
         return run_alibaba_product(pid, cfg, client=client, overrides=overrides,
                                   dry_run=dry_run, op=op, use_ai=use_ai, before_submit=before_submit,
                                   repair_score=bool(getattr(cfg, "alibaba_collect_auto_repair", True)))
@@ -258,6 +268,13 @@ def _transient_image_error(exc) -> bool:
                                        "timeout", "Timeout", "timed out",
                                        "Read timed out", "Connection reset",
                                        "Connection aborted"))
+
+
+def _image_source_unavailable(exc: Exception) -> bool:
+    """源图 403/404（CDN 防盗链/已删除）不能拖垮整件；保留原图继续。"""
+    text = str(exc)
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    return status in (403, 404) or "403" in text or "404" in text or "Forbidden" in text or "Not Found" in text
 
 
 def process_images(platform, pid, cfg, client, overrides):
@@ -315,10 +332,10 @@ def process_images(platform, pid, cfg, client, overrides):
         except BudgetExceeded:
             raise
         except Exception as exc:
-            # 图片网关 524/超时是外部瞬时故障；保留原图继续保存，不能因此整件失败。
-            if _transient_image_error(exc):
+            # 图片网关瞬时故障 / 源图 403 防盗链：保留原图继续保存，不能整件失败。
+            if _transient_image_error(exc) or _image_source_unavailable(exc):
                 emit(platform + " · 自动图片", "已跳过",
-                     f"{label} 图片接口临时失败，保留原图继续保存：{str(exc)[:120]}", "WARN")
+                     f"{label} 源图/图片接口不可用，保留原图继续保存：{str(exc)[:120]}", "WARN")
                 continue
             raise ValueError(f"{label}处理失败，原图保留，本件未提交：{exc}") from exc
         if not hosted:

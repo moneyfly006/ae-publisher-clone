@@ -113,6 +113,24 @@ def split_keywords(raw, limit: int = MAX_KEYWORDS) -> list[str]:
     return out
 
 
+def smart_keywords_from_title(title: str, limit: int = 3) -> list[str]:
+    """从标题提取 3 个高价值短语关键词（确定性规则，不调用 AI）。"""
+    text = re.sub(r"[^A-Za-z0-9\- ]+", " ", str(title or "")).strip()
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z0-9\-]{2,}", text)]
+    stop = STOPWORDS | {"machine", "machinery", "equipment", "product", "products"}
+    kept = [w for w in words if w.lower() not in stop]
+    out, seen = [], set()
+    for n in (3, 2, 1):
+        for i in range(max(0, len(kept) - n + 1)):
+            phrase = " ".join(kept[i:i + n]).strip().lower()
+            if not phrase or phrase in seen or len(phrase) < 4:
+                continue
+            seen.add(phrase); out.append(phrase)
+            if len(out) >= limit:
+                return out
+    return out
+
+
 def keywords_for(save: dict, cfg=None, override: list | str | None = None) -> list[str]:
     """关键词：override > 配置 alibaba_keywords > 从标题提取，至少 3 个。"""
     kws = []
@@ -145,6 +163,10 @@ def keywords_effective(save: dict, cfg=None, override: list | str | None = None)
     cfg_kws = split_keywords(_cfg_get(cfg, "alibaba_keywords", "") or "")
     if cfg_kws:
         return cfg_kws
+    if bool(_cfg_get(cfg, "alibaba_auto_keywords", True)):
+        smart = smart_keywords_from_title(save.get("subject") or "", min(3, MAX_KEYWORDS))
+        if smart:
+            return smart
     prod_kws = split_keywords(save.get("keywords") or "")
     if prod_kws:
         return prod_kws
@@ -189,10 +211,45 @@ def price_tiers(cfg=None, overrides: dict | None = None) -> list[dict]:
     return tiers
 
 
-def merge_attributes(product: dict, cfg=None, overrides: dict | None = None) -> list[dict]:
-    """保留原属性，按预设补齐缺失项（预设格式：{名称: 值}，值可为字符串）。"""
+def merge_attributes(product: dict, cfg=None, overrides: dict | None = None,
+                     attr_defs: list | None = None) -> list[dict]:
+    """保留原属性，按预设/模板补齐缺失项（模板值必须能匹配目标类目候选值）。"""
     attrs = _as_list(product.get("attributes"))
     attrs = [deepcopy(a) for a in attrs if isinstance(a, dict)]
+    template_attrs = _as_list((overrides or {}).get("template_attributes"))
+    if template_attrs:
+        have_names = {str(a.get("attribute_name") or a.get("name") or "").strip().lower()
+                      for a in attrs}
+        defs = [d for d in (attr_defs or []) if isinstance(d, dict)]
+        by_name, by_id = _build_def_index(defs) if defs else ({}, {})
+        for a in template_attrs:
+            if not isinstance(a, dict):
+                continue
+            name = str(a.get("attribute_name") or a.get("name") or "").strip()
+            if not name or name.lower() in have_names:
+                continue
+            tpl_val = str(a.get("value_name") or a.get("value") or "").strip()
+            if not tpl_val:
+                continue
+            if defs:
+                # 目标类目有定义时：模板值必须命中目标类目候选，不能直接搬 value_id。
+                d = by_name.get(_norm(name))
+                if d is None:
+                    for target in ATTRIBUTE_ALIASES.get(_norm(name), ()):
+                        if target in by_name:
+                            d = by_name[target]; break
+                if d is None:
+                    continue
+                res = resolve_attr_value(d, tpl_val)
+                if not res.get("matched") or res.get("value_id") in (None, ""):
+                    continue
+                attrs.append({"attribute_id": _def_attr_name_id(d) or "-1",
+                              "attribute_name": _def_label(d),
+                              "value_id": str(res.get("value_id")),
+                              "value_name": str(res.get("value_name") or tpl_val)})
+                have_names.add(_def_label(d).lower())
+            else:
+                attrs.append(deepcopy(a)); have_names.add(name.lower())
     presets = {}
     raw = (overrides or {}).get("attributes") or _cfg_get(cfg, "alibaba_attr_presets", "") or ""
     if isinstance(raw, str) and raw.strip().startswith("{"):
@@ -202,14 +259,144 @@ def merge_attributes(product: dict, cfg=None, overrides: dict | None = None) -> 
             presets = {}
     elif isinstance(raw, dict):
         presets = raw
-    have = {str(a.get("attribute_name") or "").strip().lower() for a in attrs}
+    # 空值属性不算「已有」：采集商品常带 attribute_name 但 value 为空，
+    # 必须让预设值填进去，否则保存前校验仍报必填缺失。
+    by_name = {}
+    for a in attrs:
+        nm = str(a.get("attribute_name") or a.get("name") or "").strip().lower()
+        if nm:
+            by_name.setdefault(nm, a)
+    have = {nm for nm, a in by_name.items()
+            if str(a.get("value_name") or a.get("value") or "").strip()}
     for name, val in presets.items():
         key = str(name).strip().lower()
-        if not key or key in have:
+        if not key:
+            continue
+        v = str(val if val is not None else "").strip()
+        if key in by_name:
+            if not str(by_name[key].get("value_name") or by_name[key].get("value") or "").strip():
+                by_name[key]["value_id"] = "-1"
+                by_name[key]["value_name"] = v
+            continue
+        if key in have:
             continue
         attrs.append({"attribute_id": "-1", "attribute_name": str(name),
-                      "value_id": "-1", "value_name": str(val)})
+                      "value_id": "-1", "value_name": v})
     return attrs
+
+
+def normalize_publishable_main_images(client, product: dict, save: dict) -> list[str]:
+    """发布前主图兜底：平台抓不到的图床图片移到后面，优先用可读的原图。
+
+    阿里/店小秘服务器读不到 image.moneyfly.club（本地能读不代表平台能读），
+    直接提交会报「第1张产品图片不符合要求，图片信息读取失败」。
+    保留所有非图床图片做首图；只有全部都是图床图时才保留原样。
+    """
+    raw = str(save.get("mainImage") or "").strip()
+    urls = [u.strip() for u in raw.split(",") if u.strip()]
+    if not urls:
+        return []
+    def _custom(u: str) -> bool:
+        return "moneyfly.club" in u.lower() or "132.226.1.44" in u
+    safe = [u for u in urls if not _custom(u)]
+    bad = [u for u in urls if _custom(u)]
+    if not bad or not safe:
+        return []
+    # 平台会逐张校验主图；图床图不是“换顺序”就能过，必须从提交主图中移除。
+    save["mainImage"] = ",".join(safe)
+    if save.get("draftImgUrl"):
+        save["draftImgUrl"] = "|".join(safe)
+    save.setdefault("_image_repair", []).append("检测到平台不可读图床：已从主图移除，保留可读原图")
+    return safe
+
+def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | None = None,
+                           log=None) -> str:
+    """采集视频优先；没有时用主图生成轮播视频并写 videoUrl。返回使用的地址。"""
+    ov = overrides or {}
+    source = str(_cfg_get(cfg, "alibaba_video_source", "auto") or "auto").lower()
+    if source == "none":
+        return ""
+    # 1) 商品自带视频（保存接口字段原样带过去）
+    for key in ("mainVideoId", "detailVideoId", "videoUrl", "video"):
+        v = ov.get(key) or product.get(key)
+        if v not in (None, "", 0, "0", "None"):
+            save[key] = v
+            return str(v)
+    if source == "collected":
+        return ""
+    # 2) 主图轮播生成
+    raw = (ov.get("main_images") or save.get("mainImage")
+           or product.get("mainImage") or product.get("draftImgUrl") or "")
+    urls = [x.strip() for x in str(raw).replace("|", ",").split(",") if x.strip()]
+    # 主图 CDN 429 时，用详情图补足视频素材（详情图通常仍可下载）。
+    try:
+        _detail = product.get("detailImage") or []
+        if isinstance(_detail, str):
+            _detail = json.loads(_detail or "[]")
+        for _d in _detail if isinstance(_detail, list) else []:
+            _u = str((_d or {}).get("url") or "").strip() if isinstance(_d, dict) else ""
+            if _u and _u not in urls:
+                urls.append(_u)
+    except Exception:
+        pass
+    if not urls:
+        return ""
+    try:
+        import tempfile
+        import requests
+        from pathlib import Path as _Path
+        from .video import generate_carousel_video, find_ffmpeg
+        from .hosting import upload_video_file
+        if not find_ffmpeg():
+            if log:
+                log("没有找到 ffmpeg，无法生成轮播视频", "WARN")
+            return ""
+        tmp = _Path(tempfile.mkdtemp())
+        imgs = []
+        for i, u in enumerate(urls):
+            if len(imgs) >= 6:
+                break
+            try:
+                import time as _time
+                r = None
+                for _attempt in range(3):
+                    r = requests.get(u, timeout=30, headers={"User-Agent": "Mozilla/5.0"})
+                    if r.status_code != 429:
+                        break
+                    _time.sleep(1.2 * (_attempt + 1))
+                r.raise_for_status()
+                raw_path = tmp / f"src{i}.img"
+                raw_path.write_bytes(r.content)
+                from PIL import Image
+                pth = tmp / f"img{i}.jpg"
+                with Image.open(raw_path) as im:
+                    im.convert("RGB").save(pth, "JPEG", quality=92)
+                imgs.append(pth)
+            except Exception as exc:
+                if log:
+                    log(f"视频素材第 {i+1} 张下载/解码失败：{str(exc)[:80]}", "WARN")
+                continue
+        if len(imgs) < 2:
+            if log:
+                log(f"视频素材不足（成功 {len(imgs)} 张），跳过轮播视频", "WARN")
+            return ""
+        out = tmp / "alibaba-carousel.mp4"
+        generate_carousel_video(
+            imgs, out,
+            slot_seconds=float(_cfg_get(cfg, "alibaba_video_slot_seconds", 2.5) or 2.5),
+            transition_seconds=float(_cfg_get(cfg, "alibaba_video_transition_seconds", 0.5) or 0.5),
+            size=str(_cfg_get(cfg, "alibaba_video_size", "1080x1080") or "1080x1080"),
+            cover=True, fade_edges=True)
+        url = upload_video_file(out)
+        if url:
+            save["videoUrl"] = url
+            if log:
+                log(f"轮播视频已生成并托管：{url[-40:]}", "INFO")
+            return url
+    except Exception as exc:
+        if log:
+            log(f"轮播视频生成失败：{str(exc)[:120]}", "WARN")
+    return ""
 
 
 def resolve_category(product: dict, cfg=None, overrides: dict | None = None) -> tuple[str, str]:
@@ -260,13 +447,159 @@ def resolve_category(product: dict, cfg=None, overrides: dict | None = None) -> 
     return cid, full
 
 
+def auto_alibaba_category(client, product: dict, cfg=None, allowed=None) -> tuple[str, str]:
+    """按商品标题/关键词调用 Alibaba 类目搜索，选择最匹配的叶子类目。
+
+    返回 (categoryId, fullCid)；找不到返回 ("", "")。fullCid 使用平台
+    nodePathId 的 "/" 路径转换成逗号分隔，保存时与 edit.json 的 fullCid 一致。
+    """
+    if client is None or not hasattr(client, "search_categories"):
+        return "", ""
+    title = str(product.get("subject") or product.get("title") or "").strip()
+    keywords = str(product.get("keywords") or "").strip()
+    raw = " ".join(x for x in (title, keywords) if x)
+    words = [w for w in re.findall(r"[A-Za-z][A-Za-z0-9\-]{2,}", raw)][:20]
+    # 标题/关键词中词频越高越能代表商品主类目；pools/pool、rigs/rig 归一。
+    def _stem(w: str) -> str:
+        w = w.lower()
+        return w[:-1] if len(w) > 4 and w.endswith("s") else w
+    token_freq = {}
+    for w in words:
+        st = _stem(w)
+        token_freq[st] = token_freq.get(st, 0) + 1
+    words = list(token_freq.keys())
+    phrases = []
+    if title:
+        phrases.append(title[:80])
+    if keywords:
+        for part in re.split(r"[,;，；]", keywords):
+            if part.strip():
+                phrases.append(part.strip())
+    # 原长标题在 searchCategory 常返回空；单关键词和双词更接近页面搜索行为。
+    # 按词频排序，先搜最能代表商品主类目的词（pool 优先于 design/window）。
+    for w in sorted(token_freq, key=lambda x: (-token_freq[x], x))[:10]:
+        phrases.append(w)
+    for i in range(min(6, max(0, len(words) - 1))):
+        phrases.append(" ".join(words[i:i + 3]))
+    for i in range(max(0, len(words) - 1)):
+        phrases.append(" ".join(words[i:i + 2]))
+    seen, candidates = set(), []
+    for phrase in phrases[:8]:
+        try:
+            rows = client.search_categories(phrase, max_nodes=60) or []
+        except Exception:
+            rows = []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            cid = str(r.get("categoryId") or "").strip()
+            if not cid or cid in seen:
+                continue
+            if not int(r.get("isleaf") or 0):
+                # 搜索通常返回叶子；保留非叶子做兜底但不优先。
+                pass
+            seen.add(cid)
+            name_en = str(r.get("nameEn") or "").lower()
+            name_zh = str(r.get("nameZh") or "").lower()
+            path = str(r.get("nodePath") or "").lower()
+            title_l = raw.lower()
+            title_words = {_stem(w) for w in words}
+            name_words = {_stem(w) for w in re.findall(r"[a-z][a-z0-9\-]{2,}", name_en)}
+            overlap = title_words & name_words
+            path_hits = {w for w in title_words if w in path}
+            score = 3.0 * sum(token_freq.get(w, 1) for w in overlap)
+            score += 1.2 * sum(token_freq.get(w, 1) for w in path_hits)
+            # 类目名本身就是标题里的词（如 Pool），优先于 Pool Lights 这类细分配件。
+            name_stem = _stem(name_en)
+            if name_stem and name_stem in title_words:
+                score += 5.0 * token_freq.get(name_stem, 1)
+            score -= max(0, len(name_words) - 2) * 0.8
+            if int(r.get("isleaf") or 0):
+                score += 1.5
+            if str(r.get("categoryId") or "") == str(product.get("categoryId") or ""):
+                score += 5.0
+            candidates.append((score, len(path), r))
+    # 店铺经营类目范围：平台只允许在线经营类目发品，不在范围必须先过滤。
+    _allowed = {str(x) for x in (allowed or []) if str(x)}
+    if _allowed:
+        filtered = [x for x in candidates if str(x[2].get("categoryId") or "") in _allowed]
+        if filtered:
+            candidates = filtered
+    if not candidates:
+        return "", ""
+    candidates.sort(key=lambda x: (x[0], -x[1]), reverse=True)
+    best = candidates[0][2]
+    cid = str(best.get("categoryId") or "").strip()
+    if _allowed and cid not in _allowed:
+        # 没有匹配到允许类目时，回退到「其他机械/工业设备」这类通用类目。
+        try:
+            for _cid in _allowed:
+                _d = client.category_detail(_cid, None) if hasattr(client, "category_detail") else {}
+                _nm = str((_d or {}).get("nameEn") or "")
+                if "other machinery" in _nm.lower() or "其他机械" in _nm:
+                    return str(_cid), str((_d or {}).get("fullCid") or _cid)
+        except Exception:
+            pass
+        return "", ""
+    path = str(best.get("nodePathId") or "").strip()
+    full = ",".join(x for x in path.split("/") if x) if path else ""
+    return cid, full
+
+
 def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
-                       client_cls=None, attr_defs: list | None = None) -> dict:
+                       client_cls=None, attr_defs: list | None = None,
+                       client=None) -> dict:
     """edit.json 商品 + AI 产物 → alibabaSave 字典。"""
     from ..integrations.alibaba import AlibabaClient as _AC
     cls = client_cls or _AC
     save = cls.build_save_dict(product)
     ov = dict(overrides or {})
+    _tpl_fields = ov.get("template_fields") if isinstance(ov.get("template_fields"), dict) else None
+    if _tpl_fields:
+        for _k in ("priceType", "bulkDiscountPrices", "wholesaleTrade", "salePkgDesc",
+                   "logisticsProperty", "shipmentPlace", "warehouseType",
+                   "marketSamplingQuantity", "marketSamplingPrice", "marketSample"):
+            if not str(save.get(_k) or "").strip() or str(save.get(_k) or "").strip() in ("[]", "{}"):
+                if str(_tpl_fields.get(_k) or "").strip():
+                    save[_k] = _tpl_fields[_k]
+    # 物流默认：只补缺失，不覆盖采集/模板已有真实值。
+    try:
+        _wt = save.get("wholesaleTrade")
+        _wt = json.loads(_wt) if isinstance(_wt, str) and _wt.strip().startswith("{") else (_wt if isinstance(_wt, dict) else {})
+        _wt = dict(_wt or {})
+        _changed = False
+        if not _wt.get("weight"):
+            _w = float(_cfg_get(cfg, "alibaba_default_weight", 100) or 100)
+            if _w > 0:
+                _wt["weight"] = _w; _changed = True
+        if not str(_wt.get("package_size") or "").strip():
+            _ps = str(_cfg_get(cfg, "alibaba_default_package_size", "10X10X10") or "")
+            if _ps:
+                _wt["package_size"] = _ps; _changed = True
+        if not str(_wt.get("shipping_line_template_id") or "").strip():
+            _fid = ""
+            _fname = str(_cfg_get(cfg, "alibaba_default_freight_name", "买卖双方协商物流") or "")
+            if client is not None and _fname:
+                try:
+                    for _r in client.freight_templates(str(_cfg_get(cfg, "alibaba_shop_id", "") or "")):
+                        if str(_r.get("templateName") or "").strip() == _fname:
+                            _fid = str(_r.get("templateId") or "")
+                            break
+                except Exception:
+                    _fid = ""
+            if not _fid:
+                _fid = str(_cfg_get(cfg, "alibaba_default_freight_id", "") or "")
+            if _fid:
+                _wt["shipping_line_template_id"] = _fid; _changed = True
+        if _changed:
+            save["wholesaleTrade"] = json.dumps(_wt, ensure_ascii=False)
+        if not str(save.get("logisticsProperty") or "").strip():
+            save["logisticsProperty"] = str(_cfg_get(cfg, "alibaba_default_logistics_property", "general_cargo_0") or "general_cargo_0")
+        if str(save.get("marketSample") or "") in ("", "None"):
+            save["marketSample"] = str(_cfg_get(cfg, "alibaba_default_sample_service", "0") or "0")
+    except Exception:
+        pass
+
     # 全局配置覆盖商品原有数据时留痕（包装/重量/HS/公司信息），供流水线提示复核。
     _overwrites: list[str] = []
 
@@ -282,6 +615,8 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         save["categoryId"] = cid
     if full_cid:
         save["fullCid"] = full_cid
+    # 模板属性由 merge_attributes 按目标类目候选逐项校验后补齐；
+    # 类目不同时不再整批丢弃，也不会直接搬模板 value_id。
 
     subject = str(ov.get("subject", save.get("subject")) or "").strip()
     save["subject"] = subject[:MAX_SUBJECT]
@@ -338,7 +673,7 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
             _contact_removed.extend(f"companyFaqDesc:{x}" for x in _f_removed)
     save["_contact_removed"] = _contact_removed
 
-    attrs = merge_attributes(product, cfg, ov)
+    attrs = merge_attributes(product, cfg, ov, attr_defs=attr_defs)
     if "native_attributes" in ov:
         if not isinstance(ov["native_attributes"], list):
             raise ValueError("当前商品属性必须是列表")
@@ -436,6 +771,32 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         trade = {}
     if not isinstance(trade, dict):
         trade = {}
+    # 保留商品原有贸易信息时，也要补平台必填的 MOQ（商品常缺省为 0）。
+    if cfg is not None and _cfg_get(cfg, "alibaba_preserve_trade", False):
+        try:
+            _moq = float(_cfg_get(cfg, "alibaba_min_order_quantity", 1) or 1)
+        except Exception:
+            _moq = 1
+        try:
+            _cur_moq = int(float(trade.get("min_order_quantity") or 0))
+        except Exception:
+            _cur_moq = 0
+        if _cur_moq <= 0:
+            trade["min_order_quantity"] = int(_moq) if _moq > 0 else 1
+            trade["unit_type"] = str(trade.get("unit_type") or _cfg_get(cfg, "alibaba_unit_type", "Piece") or "Piece")
+        # 保留商品原贸易信息时，缺失的 HS/发货期仍要补，否则评分和平台校验会扣分。
+        if not trade.get("deliver_periods"):
+            try:
+                _tiers = json.loads(str(_cfg_get(cfg, "alibaba_default_deliver_periods", "") or "[]"))
+            except Exception:
+                _tiers = []
+            if isinstance(_tiers, list) and _tiers:
+                trade["deliver_periods"] = _tiers
+        if not trade.get("tariffsHsCode"):
+            _hs = str(_cfg_get(cfg, "alibaba_hs_code", "") or "").strip()
+            if _hs:
+                trade["tariffsHsCode"] = [{"toCountry": "US", "hsCode": _hs}]
+        save["wholesaleTrade"] = json.dumps(trade, ensure_ascii=False)
     if cfg is not None and not _cfg_get(cfg, "alibaba_preserve_trade", False):
         def num(key, default=None):
             v = getattr(cfg, key, default)
@@ -452,7 +813,8 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         batch = str(getattr(cfg, "alibaba_batch_number", "") or "").strip()
         trade["batch_number"] = int(batch) if sale_type == "batch" and batch.isdigit() else None
         freight_id = str(getattr(cfg, "alibaba_freight_template_id", "") or "").strip()
-        if freight_id:
+        # 已由默认/模板补齐的协商运费模板优先；全局模板只在缺失时补。
+        if freight_id and not str(trade.get("shipping_line_template_id") or "").strip():
             trade["shipping_line_template_id"] = freight_id
         pkg = str(getattr(cfg, "alibaba_package_size", "") or "").strip()
         _old_pkg = str(trade.get("package_size") or "").strip()
@@ -515,8 +877,21 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         if _keep_existing:
             pass
         elif _qty > 0 and _days > 0:
-            trade["deliver_periods"] = [{"quantity": _qty,
-                                         "process_period": _days}]
+            # 显式配置了交期（process_period 或非默认 lead_time）就尊重配置；
+            # 否则使用三档默认发货期。
+            try:
+                _default_lead = int(float(getattr(cfg, "alibaba_lead_time", 30) or 30))
+            except Exception:
+                _default_lead = 30
+            try:
+                _tiers = json.loads(str(getattr(cfg, "alibaba_default_deliver_periods", "") or "[]"))
+            except Exception:
+                _tiers = []
+            if not _raw_days and _days == _default_lead and isinstance(_tiers, list) and _tiers:
+                trade["deliver_periods"] = _tiers
+            else:
+                trade["deliver_periods"] = [{"quantity": _qty,
+                                             "process_period": _days}]
     if ptype == "fob_price":
         # FOB 下不允许带 HS 关税行（前端逻辑：tariffsHsCodeConfig && !fob && !overseaSpot）
         trade.pop("tariffsHsCode", None)
@@ -642,7 +1017,12 @@ ATTRIBUTE_ALIASES = {
     "modelno": ("modelnumber",),
     "型号": ("modelnumber",),
     "power": ("powerw",),
+    "powerw": ("power",),
     "功率": ("powerw",),
+    "weight": ("weightkg",),
+    "weightkg": ("weight",),
+    "color": ("colors",),
+    "colors": ("color",),
 }
 
 
@@ -1468,11 +1848,22 @@ def validate_alibaba_save(product: dict, save: dict, cfg=None,
     save_attrs = [a for a in _as_list(save.get("attributes")) if isinstance(a, dict)]
     req_defs = [d for d in (required_attrs or []) if isinstance(d, dict)]
     req_by_name, req_by_id = _build_def_index(req_defs)
+    def _rows_for_def(d):
+        rows = [a for a in save_attrs if _match_def_for_attr(a, req_by_name, req_by_id) is d]
+        if rows:
+            return rows
+        want = _norm(_def_label(d))
+        aliases = set(ATTRIBUTE_ALIASES.get(want, ())) | {want}
+        for a in save_attrs:
+            nm = _norm((a or {}).get("attribute_name") or "")
+            if nm and (nm in aliases or any(x in aliases for x in ATTRIBUTE_ALIASES.get(nm, ()))):
+                rows.append(a)
+        return rows
     for d in req_defs:
         name = _def_label(d)
         if not name:
             continue
-        rows = [a for a in save_attrs if _match_def_for_attr(a, req_by_name, req_by_id) is d]
+        rows = _rows_for_def(d)
         if not rows:
             issues.append(f"必填属性缺失：{name}")
             continue

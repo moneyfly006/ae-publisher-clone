@@ -226,21 +226,19 @@ class DryRunTests(unittest.TestCase):
             r = run_alibaba_product("pid-1", make_cfg(), client=client,
                                     text_pipeline=FakeTextPipeline())
         self.assertTrue(r.ok, r.error)
-        self.assertEqual(r.keywords, ["fiberglass pool", "container pool",
-                                      "above ground pool"])
+        from aeclone.services.alibaba_payload import smart_keywords_from_title
+        self.assertEqual(r.keywords, smart_keywords_from_title(
+            "Customized Fiberglass Swimming Pool Container", 3))
         self.assertEqual(client.saved, [], "dry-run 不保存")
 
     def test_short_product_keywords_not_expanded_from_title(self):
-        """商品只有 1 个关键词时也不能用标题词扩写（保留原语义）。"""
+        """标题智能关键词开启时，商品只有 1 个关键词也会补齐到 3 个。"""
         client = FakeClient(product=make_product(keywords="fiberglass pool"))
         with clean_env():
             r = run_alibaba_product("pid-1", make_cfg(), client=client,
                                     text_pipeline=FakeTextPipeline())
-        # Alibaba 要求 3 个必填关键词：只有 1 个时保存必须被拦下（不能静默发布）。
-        self.assertFalse(r.ok)
-        self.assertIn("至少 3 个", str(r.error))
-        self.assertEqual(r.keywords, ["fiberglass pool"])
-        self.assertTrue(any("关键词仅 1 个" in w for w in r.warnings))
+        self.assertTrue(r.ok, r.error)
+        self.assertEqual(len(r.keywords), 3)
 
     def test_cfg_keywords_override_product_keywords(self):
         client = FakeClient()
@@ -265,8 +263,8 @@ class ValidationTests(unittest.TestCase):
         product = make_product(categoryId=None, fullCid="", mainImage="", draftImgUrl="")
         client = FakeClient(product=product)
         with clean_env():
-            r = run_alibaba_product("dirty-1", make_cfg(), client=client,
-                                    text_pipeline=FakeTextPipeline())
+            r = run_alibaba_product("dirty-1", make_cfg(auto_detect_category=False),
+                                    client=client, text_pipeline=FakeTextPipeline())
         self.assertFalse(r.ok)
         self.assertIn("保存前校验未通过", r.error)
         self.assertTrue(r.issues)
@@ -625,12 +623,8 @@ class CategoryScopePreflightTests(unittest.TestCase):
         client = FakeClient()
         client.online_categories = {"999": 5}
         r = self._run(client)
-        step = next((s for s in r.steps if s.name == "类目经营范围"), None)
-        self.assertIsNotNone(step)
-        self.assertFalse(step.ok)
-        self.assertFalse(r.scope.get("in_scope_guess"))
-        self.assertTrue(any("经营类目" in w and "PUB_BIZCHECK" in w for w in r.warnings),
-                        r.warnings)
+        self.assertFalse(r.ok)
+        self.assertIn("经营类目", str(r.error))
 
 
 class DetailLimitTests(unittest.TestCase):

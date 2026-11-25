@@ -65,10 +65,74 @@ def prepare_save(product_id: str, cfg, overrides: dict | None = None,
     product = c.product_detail(str(product_id))
     if not product:
         raise RuntimeError(f"读不到商品 {product_id}")
-    cid, _full_cid = resolve_category(product, cfg, overrides)
+    ov = dict(overrides or {})
+    from .alibaba_template import load_snapshot, build_snapshot, snapshot_attrs_for_payload
+    _snap = load_snapshot(cfg)
+    _tpl_id = str(getattr(cfg, "alibaba_template_product_id", "") or "").strip()
+    if _tpl_id and str(_snap.get("product_id") or "") != _tpl_id:
+        try:
+            _snap = build_snapshot(c, _tpl_id)
+        except Exception:
+            _snap = {}
+    if _snap:
+        ov["template_attributes"] = snapshot_attrs_for_payload(_snap)
+        _f = _snap.get("fields") or {}
+        ov["template_fields"] = _f if isinstance(_f, dict) else {}
+    _cat_src = str(getattr(cfg, "alibaba_category_source", "auto") or "auto")
+    _explicit = str(ov.get("category_id") or ov.get("categoryId") or "").strip()
+    if not _explicit:
+        if _cat_src == "auto":
+            # 自动类目模式：忽略旧 alibaba_category_id，按商品/搜索/模板重新确定。
+            _desired = (str(product.get("categoryId") or "").strip(),
+                        str(product.get("fullCid") or ""))
+            _allowed = None
+            try:
+                _allowed = set(str(x) for x in
+                               (c.online_category_scope(max_pages=3).get("categories") or {}))
+            except Exception:
+                _allowed = None
+            if _desired[0] and _allowed and _desired[0] not in _allowed:
+                _desired = ("", "")   # 商品旧类目不在经营范围内，必须重新自动选
+            if not _desired[0]:
+                try:
+                    from .alibaba_payload import auto_alibaba_category
+                    _desired = auto_alibaba_category(c, product, cfg, allowed=_allowed) or _desired
+                except Exception:
+                    pass
+            if not _desired[0] and _snap:
+                _desired = (str(_snap.get("category_id") or ""), str(_snap.get("full_cid") or ""))
+            ov["category_id"] = _desired[0] or "-"
+            ov["full_cid"] = _desired[1] or ""
+        elif _cat_src == "template" and str(_snap.get("category_id") or "").strip():
+            ov["category_id"] = str(_snap.get("category_id"))
+            ov["full_cid"] = str(_snap.get("full_cid") or "")
+    else:
+        ov.setdefault("category_id", _explicit)
+    cid, _full_cid = resolve_category(product, cfg, ov)
+    if not cid and bool(getattr(cfg, "auto_detect_category", True)):
+        try:
+            from .alibaba_payload import auto_alibaba_category
+            _allowed = None
+            try:
+                _allowed = set(str(x) for x in (c.online_category_scope(max_pages=3).get("categories") or {}))
+            except Exception:
+                _allowed = None
+            _cid, _full = auto_alibaba_category(c, product, cfg, allowed=_allowed)
+            if _cid:
+                ov["category_id"] = _cid
+                if _full:
+                    ov["full_cid"] = _full
+                cid, _full_cid = _cid, _full
+        except Exception:
+            pass
+    if not cid and _snap:
+        if str(_snap.get("category_id") or "").strip():
+            ov["category_id"] = str(_snap.get("category_id"))
+            ov["full_cid"] = str(_snap.get("full_cid") or "")
+            cid, _full_cid = ov["category_id"], ov["full_cid"]
     req = c.required_attributes(cid) if cid else []
     schema = c.category_schema(cid)["fields"] if cid else []
-    save = build_alibaba_save(product, cfg, overrides, attr_defs=req)
+    save = build_alibaba_save(product, cfg, ov, attr_defs=req, client=c)
     issues = validate_alibaba_save(product, save, cfg, req, schema)
     return product, save, req, issues
 

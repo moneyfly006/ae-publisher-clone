@@ -39,7 +39,7 @@ MODULES = (
     "test_image_ops_watermark",
     "test_alibaba_attributes", "test_smt_attributes", "test_tiktok_attributes",
     "test_platform_workflows", "test_alibaba_editor", "test_shopee_workflow",
-    "test_alibaba_payload", "test_alibaba_pipeline", "test_alibaba_batch",
+    "test_alibaba_payload", "test_alibaba_pipeline", "test_alibaba_auto_category", "test_alibaba_batch",
     "test_media_actions",
     "test_collect_automation", "test_collect_ui", "test_listing_recovery", "test_conflict_effectiveness", "test_collect_ai", "test_navigation_operations",
     "test_ui_redesign", "test_ui_function_dedup", "test_collect_runtime", "test_collect_optimization",

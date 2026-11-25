@@ -279,6 +279,12 @@ def install_update(path: Path, app_dir: str | None = None) -> bool:
     """
     path = Path(path)
     app_dir = str(app_dir or _current_app_dir())
+    # 更新前备份用户配置（API Key、登录/授权、Cookie），迁移失败也能手动找回。
+    try:
+        from ..config import backup_config
+        backup_config("pre-update")
+    except Exception:
+        pass
     if os.name == "nt":
         try:
             target, args = windows_install_plan(path)

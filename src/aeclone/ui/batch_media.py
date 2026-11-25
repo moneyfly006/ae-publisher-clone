@@ -14,6 +14,13 @@ def controls(app, platform):
     from ..services.collect_store import scope
 
     groups = GROUPS[platform]
+    # Alibaba 主图/详情图直接复用速卖通的完整图片提示词预设库。
+    _rich = {}
+    if platform == "alibaba":
+        presets = getattr(ui, "IMAGE_PROMPT_PRESETS", {}) or {}
+        for _g in ("main", "detail"):
+            _rich[_g] = [("preset:" + name, name, text)
+                         for name, text in (presets.get(_g) or {}).items()]
     prefix = platform + "_collect_"
     source_scope = scope(app.cfg, platform)
     box = ft.Column(spacing=8)
@@ -30,8 +37,15 @@ def controls(app, platform):
             group = ft.Dropdown(label="图片分组", value=rule["group"], width=230,
                 options=[ft.dropdown.Option(k, v.label) for k, v in groups.items()])
             position = ft.Dropdown(label="处理位置", width=170, value=str(rule["position"]))
-            operation = ft.Dropdown(label="图片处理预设", width=195, value=rule["operation"],
-                options=[ft.dropdown.Option(k, label) for k, label in OPERATIONS.items()])
+            _rich_opts = _rich.get(rule["group"], [])
+            _opts = [(k, label) for k, label in OPERATIONS.items()] + [(k, label) for k, label, _t in _rich_opts]
+            _cur = rule["operation"]
+            for _k, _label, _text in _rich_opts:
+                if str(rule.get("prompt") or "").strip() == _text.strip():
+                    _cur = _k
+                    break
+            operation = ft.Dropdown(label="图片处理预设", width=230, value=_cur,
+                options=[ft.dropdown.Option(k, label) for k, label in _opts])
             prompt = text_field("自动图片处理提示词", rule["prompt"], width=520)
             prompt.multiline = True
             prompt.min_lines, prompt.max_lines = 2, 6
@@ -51,8 +65,15 @@ def controls(app, platform):
                 save(e)
 
             def change_operation(e, row=rule, field=prompt):
-                row["operation"] = e.control.value
-                row["prompt"] = field.value = PROMPTS[e.control.value]
+                val = str(e.control.value or "")
+                if val.startswith("preset:"):
+                    name = val.split(":", 1)[1]
+                    text = next((t for _k, n, t in _rich.get(row["group"], []) if n == name), "")
+                    row["operation"] = "custom"
+                    row["prompt"] = field.value = text
+                else:
+                    row["operation"] = val
+                    row["prompt"] = field.value = PROMPTS.get(val, "")
                 save(e)
 
             def remove(e, row=rule):
@@ -73,7 +94,8 @@ def controls(app, platform):
                 # 同一个下拉框：内置图片提示词 + 我的预设 + 添加自定义；选择后立即写回规则。
                 attach_dropdown(app, prompt_preset, key="image_rule:" + platform,
                                 field=prompt,
-                                builtins={label: PROMPTS.get(op, "") for op, label in OPERATIONS.items()},
+                                builtins={**{label: PROMPTS.get(op, "") for op, label in OPERATIONS.items()},
+                                          **{name: text for _k, name, text in _rich.get(rule["group"], [])}},
                                 labels={label: label for label in OPERATIONS.values()},
                                 apply_prompt=lambda text, row=rule: (row.__setitem__("prompt", text), save(None)))
             except Exception:
@@ -85,7 +107,11 @@ def controls(app, platform):
         app._safe_update()
 
     def add(e):
-        rules.append(dict(group="main", position="1", operation="white", prompt=PROMPTS["white"]))
+        group = "main"
+        op, prompt = "white", PROMPTS["white"]
+        if platform == "alibaba" and _rich.get(group):
+            op, prompt = "custom", _rich[group][0][2]
+        rules.append(dict(group=group, position="1", operation=op, prompt=prompt))
         render()
         save(None)   # 新增规则也立即落盘，下次打开不丢
 

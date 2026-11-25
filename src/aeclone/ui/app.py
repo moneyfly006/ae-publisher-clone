@@ -217,15 +217,6 @@ IMAGE_PROMPT_PRESETS = {
 4. 1:1 构图""",
         "户外实拍": """生成户外实拍风格营销图：\n1. 商品置于开阔户外环境（山地/工地/道路）\n2. 天空、地面层次自然，有空间感\n3. 商品结构比例不变，仅换环境\n4. 不要人物正脸，不要文字水印\n5. 1:1 构图""",
     },
-    "detail": {
-        "详情图拼接（参数表）": "把这张详情图整理成专业参数说明图：保留原始参数文字，排版为标题+表格+产品小图；白底，字号清晰，英文；不要添加原文没有的数据。",
-        "详情图场景化": "把这张详情图改成场景化说明图：产品置于真实使用场景，保留原有文字信息，构图整洁，英文标注，不留联系方式。",
-        "详情图卖点拆解": "把这张详情图改成卖点拆解图：3~5 个图标+短句（英文），围绕用途/材质/尺寸/服务；不要编造参数。",
-    },
-    "sku": {
-        "SKU 白底图": "把这张 SKU 图处理成纯白背景：产品居中、比例 70%，去除杂物与水印，保留颜色细节，1:1。",
-        "SKU 场景小图": "把 SKU 图处理成简洁场景小图：浅色背景+产品主体，保留颜色与结构，不加文字，1:1。",
-    },
     "main": {
         "专业电商主图": """基于上传的图片融合生成专业电商主图。
 生成要求：
@@ -270,6 +261,9 @@ IMAGE_PROMPT_PRESETS = {
 5. 专业拍摄质感""",
     },
     "detail": {
+        "详情图拼接（参数表）": "把这张详情图整理成专业参数说明图：保留原始参数文字，排版为标题+表格+产品小图；白底，字号清晰，英文；不要添加原文没有的数据。",
+        "详情图场景化": "把这张详情图改成场景化说明图：产品置于真实使用场景，保留原有文字信息，构图整洁，英文标注，不留联系方式。",
+        "详情图卖点拆解": "把这张详情图改成卖点拆解图：3~5 个图标+短句（英文），围绕用途/材质/尺寸/服务；不要编造参数。",
         "细节特写": """生成产品细节特写图：
 1. 聚焦产品关键部位（接口、按钮、材质、工艺等）
 2. 清晰展示细节特征
@@ -296,19 +290,15 @@ IMAGE_PROMPT_PRESETS = {
 5. 可添加清单文字""",
     },
     "sku": {
-        "SKU白底图": """生成SKU规格白底图：
-1. 纯白背景（#FFFFFF）
-2. 产品居中，占比适中
-3. 清晰展示该SKU的特征（颜色/尺寸/款式）
-4. 无水印、无logo、无文字
-5. 保持系列一致性""",
-        "颜色对比": """生成不同颜色SKU的对比图：
+        "SKU 白底图": "把这张 SKU 图处理成纯白背景：产品居中、比例 70%，去除杂物与水印，保留颜色细节，1:1。",
+        "SKU 场景小图": "把 SKU 图处理成简洁场景小图：浅色背景+产品主体，保留颜色与结构，不加文字，1:1。",
+        "SKU 颜色对比": """生成不同颜色SKU的对比图：
 1. 多个颜色并排展示
 2. 统一角度和光照
 3. 准确还原颜色差异
 4. 白底或浅灰底
 5. 便于买家选择""",
-        "规格差异": """生成不同规格SKU的对比图：
+        "SKU 规格差异": """生成不同规格SKU的对比图：
 1. 展示尺寸、容量、型号等差异
 2. 添加清晰的规格标注
 3. 并排或层叠对比
@@ -370,14 +360,6 @@ def h1(t, s=FS_XL):
 
 def muted(t, s=FS_SM):
     return ft.Text(t, size=s, color=MUTED)
-
-
-def page_header(title: str, subtitle: str = "") -> ft.Column:
-    """所有页面统一页头：主标题 + 一行说明，间距一致。"""
-    row = [h1(title)]
-    if subtitle:
-        row.append(muted(subtitle, FS_BASE))
-    return ft.Column(row, spacing=6)
 
 
 def page_header(title: str, subtitle: str = "", actions=None):
@@ -674,6 +656,14 @@ class App:
         try:
             from ..services.task_profiles import recover_interrupted
             recover_interrupted()
+        except Exception:
+            pass
+        try:
+            from ..core.platform_config import load as _load_platform, migrate_legacy_cookie as _mig
+            _mig(self.cfg)
+            _load_platform(self.cfg, str(getattr(self.cfg, "active_platform", "") or "aliexpress"))
+            from ..config import ensure_alibaba_defaults
+            ensure_alibaba_defaults(self.cfg)
         except Exception:
             pass
         try:
@@ -1116,6 +1106,15 @@ class App:
                               horizontal_alignment=ft.CrossAxisAlignment.CENTER))
 
     def _switch_platform(self, pid: str):
+        try:
+            from ..core.platform_config import save as _save_platform, load as _load_platform
+            _old = str(getattr(getattr(self, "active_platform", None), "id", "") or "")
+            if _old and _old != str(pid):
+                _save_platform(self.cfg, _old)
+            _load_platform(self.cfg, str(pid))
+        except Exception:
+            pass
+        self._cookie_cache = None
         pf = get_platform(pid)
         self.active_platform = pf
         try:
@@ -1646,6 +1645,7 @@ class App:
         is_alibaba = str(getattr(self.active_platform, "id", "")) == "alibaba"
         is_amazon = str(getattr(self.active_platform, "id", "")) == "amazon"
         is_tiktok = str(getattr(self.active_platform, "id", "")) == "tiktok"
+        is_shopee = str(getattr(self.active_platform, "id", "")) == "shopee"
         self.stat_api = ft.Text("检测中…", color=MUTED, size=13.5)
         self.stat_auth = ft.Text("检测中…", color=MUTED, size=13.5)
         self.stat_auth_detail = muted("", 10)
@@ -1970,9 +1970,10 @@ class App:
             else:
                 self._scope_dialog()
 
-        # Alibaba / Amazon / TikTok 平台：批量启动/关键词搜索/选择商品都属于 SMT 管线，
-        # 隐藏；只保留「去刊登 / 刷新数量」两个入口。
-        _smt_only = bool(is_alibaba or is_amazon or is_tiktok)
+        # Alibaba / Amazon / TikTok / Shopee 平台：批量启动/关键词搜索/选择商品均走
+        # collect_workflow 管线，隐藏 SMT 专用控件；只保留「去刊登 / 刷新数量」入口。
+        # 速卖通（AliExpress）仍走 SMT 管线，保留这些控件。
+        _smt_only = bool(is_alibaba or is_amazon or is_tiktok or is_shopee)
         _jump_page = 29 if is_alibaba else (23 if is_tiktok else 16)
         _jump_label = ("去 Alibaba 刊登" if is_alibaba else
                        ("去 TikTok 刊登" if is_tiktok else "去 Amazon 刊登"))
@@ -3939,10 +3940,14 @@ class App:
         if self._is_amazon():
             self._log("Amazon 平台禁止调用速卖通批量管线，已拦截", "ERROR")
             return
-        if getattr(self, "_running", False):
-            self._log("已有任务在运行，忽略本次启动", "WARN")
-            return
-        self._running = True
+        # 加锁：_running 检查和设置必须原子化，防止用户快速双击触发并发管线
+        if not hasattr(self, "_media_jobs_lock"):
+            self._media_jobs_lock = threading.Lock()
+        with self._media_jobs_lock:
+            if getattr(self, "_running", False):
+                self._log("已有任务在运行，忽略本次启动", "WARN")
+                return
+            self._running = True
         (getattr(self, '_sync_run_button', None) or (lambda: None))()
         self._stop_requested = False
         # 余额不足：跑之前先提示一次（不阻断，免费步骤照常）
@@ -5100,8 +5105,19 @@ class App:
         if (not refresh and cache and cache[0] == self.ws_endpoint
                 and (time.time() - cache[1]) < 20):
             return dict(cache[2])
-        _manual = getattr(self.cfg, self._platform_cookie_key(), None) or getattr(
-            self.cfg, "manual_cookies", None)
+        _key = self._platform_cookie_key()
+        _manual = getattr(self.cfg, _key, None)
+        if not _manual:
+            # 旧版本 manual_cookies 只迁移到当前平台，不再让所有平台共享同一份 Cookie。
+            _legacy = getattr(self.cfg, "manual_cookies", None)
+            if _legacy:
+                self.cfg.set(_key, _legacy)
+                self.cfg.set("manual_cookies", {})
+                try:
+                    save_config(self.cfg)
+                except Exception:
+                    pass
+                _manual = _legacy
         src = resolve("dianxiaomi.com", manual=_manual,
                       ws_endpoint=self.ws_endpoint)
         self.cookie_src = src
@@ -8257,9 +8273,14 @@ class App:
         jobs = [j for j in jobs if str(j.get("status") or "") == "pending"]
         if not jobs:
             self.toast("没有等待执行的队列任务", False); return
-        if getattr(self, "_config_queue_running", False) or getattr(self, "_running", False):
-            self.toast("已有任务在运行；队列会等当前任务结束后再执行", False); return
-        self._config_queue_running = True
+        # 加锁：检查与设置必须原子化，防止用户连续点击启动多条并行队列
+        if not hasattr(self, "_media_jobs_lock"):
+            self._media_jobs_lock = threading.Lock()
+        with self._media_jobs_lock:
+            if getattr(self, "_config_queue_running", False) or getattr(self, "_running", False):
+                self.toast("已有任务在运行；队列会等当前任务结束后再执行", False)
+                return
+            self._config_queue_running = True
 
         def worker():
             from ..services import task_profiles as _tp
@@ -11939,6 +11960,82 @@ class App:
                     pass
             threading.Thread(target=work, daemon=True).start()
 
+        template_tf = tf("alibaba_template_product_id", "模板产品 ID（继承类目/属性/贸易）", 320)
+
+        def load_template_product(e=None):
+            tid = str(getattr(getattr(template_tf, "value", ""), "strip", lambda: "")() or "").strip()
+            if not tid:
+                self.toast("请填写模板产品 ID", False); return
+            status.value = "读取模板产品…"; status.color = MUTED
+            try: self._safe_update()
+            except Exception: pass
+
+            def work():
+                try:
+                    c = client()
+                    p = c.product_detail(tid) or {}
+                    if not p:
+                        raise RuntimeError("模板商品读取为空")
+                    cid = str(p.get("categoryId") or "")
+                    if cid:
+                        self.cfg.set("alibaba_category_id", cid)
+                        self.cfg.set("alibaba_full_cid", str(p.get("fullCid") or ""))
+                        self.cfg.set("alibaba_category_name",
+                                     str(p.get("categoryName") or p.get("nodePath") or cid))
+                    self.cfg.set("alibaba_template_product_name", str(p.get("subject") or ""))
+                    attrs = p.get("attributes") or []
+                    if isinstance(attrs, str):
+                        try: attrs = _json.loads(attrs)
+                        except Exception: attrs = []
+                    presets = {}
+                    try:
+                        presets = _json.loads(str(getattr(self.cfg, "alibaba_attr_presets", "") or "{}"))
+                        if not isinstance(presets, dict): presets = {}
+                    except Exception:
+                        presets = {}
+                    for a in attrs if isinstance(attrs, list) else []:
+                        if not isinstance(a, dict): continue
+                        name = str(a.get("attribute_name") or a.get("name") or "").strip()
+                        val = str(a.get("value_name") or a.get("value") or "").strip()
+                        if name and val and name not in presets:
+                            presets[name] = val
+                    if presets:
+                        self.cfg.set("alibaba_attr_presets", _json.dumps(presets, ensure_ascii=False))
+                    save_config(self.cfg)
+                    status.value = f"模板已读取：{p.get('subject','')[:40]} · 类目 {cid or '-'} · 属性 {len(presets)}"
+                    status.color = SUCCESS_C
+                    try:
+                        cat_now.value = f"当前类目：{getattr(self.cfg,'alibaba_category_name','') or '未选择'}（{getattr(self.cfg,'alibaba_category_id','') or '-'}）"
+                    except Exception: pass
+                except Exception as ex:
+                    status.value = f"读取模板失败：{str(ex)[:150]}"; status.color = DANGER_C
+                try: self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def auto_pick_category(e=None):
+            pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+            if not pid:
+                self.toast("先载入一个商品，再自动选类目", False); return
+            status.value = "正在按商品标题搜索类目…"; status.color = MUTED
+            def work():
+                try:
+                    from ..services.alibaba_payload import auto_alibaba_category
+                    c = client(); p = c.product_detail(pid) or {}
+                    cid, full = auto_alibaba_category(c, p, self.cfg)
+                    if not cid:
+                        raise RuntimeError("没有匹配到类目，请手动搜索")
+                    self.cfg.set("alibaba_category_id", cid)
+                    if full: self.cfg.set("alibaba_full_cid", full)
+                    self.cfg.set("alibaba_category_name", cid)
+                    save_config(self.cfg)
+                    status.value = f"自动类目：{cid} · 路径 {full or '-'}"; status.color = SUCCESS_C
+                except Exception as ex:
+                    status.value = f"自动选类目失败：{str(ex)[:150]}"; status.color = DANGER_C
+                try: self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
         cat_card = card(ft.Column([
             h1("类目选择（按关键词搜索）", FS_MD),
             muted("发布前建议先点「检查类目经营范围」：平台会校验类目是否在店铺经营大类里"
@@ -11955,6 +12052,14 @@ class App:
                     ft.OutlinedButton("检查类目经营范围", icon=ft.Icons.VERIFIED_OUTLINED,
                                       tooltip="扫描在线商品类目做近似预检；最终以卖家中心经营类目为准",
                                       on_click=check_scope)],
+                   spacing=10, wrap=True),
+            ft.Row([template_tf,
+                    ft.OutlinedButton("读取模板产品", icon=ft.Icons.COPY_ALL,
+                                      tooltip="继承模板商品的类目、属性和贸易默认值",
+                                      on_click=load_template_product),
+                    ft.OutlinedButton("自动选类目", icon=ft.Icons.AUTO_AWESOME,
+                                      tooltip="按当前商品标题/关键词搜索 Alibaba 类目",
+                                      on_click=auto_pick_category)],
                    spacing=10, wrap=True),
             cat_scope_text,
             cat_box,
@@ -12445,6 +12550,12 @@ class App:
             _, _state = state_for(self)
             _prod = _state.get("product") or {}
             _kw = [x.strip() for x in str(getattr(self.cfg, "alibaba_keywords", "") or "").split(",") if x.strip()]
+            if not _kw:
+                try:
+                    from ..services.alibaba_payload import smart_keywords_from_title
+                    _kw = smart_keywords_from_title(str(_prod.get("subject") or ""), 3)
+                except Exception:
+                    _kw = []
             _checks = [
                 ("店铺已连接", bool(str(getattr(self.cfg, "alibaba_shop_id", "") or "").strip()), 1,
                  "连接店铺"),
@@ -12571,6 +12682,174 @@ class App:
             ft.Row(actions, spacing=8, wrap=True),
         ], spacing=10), padding=16)
         return [page_header(title, subtitle), summary, *controls]
+
+    def _open_alibaba_required_attrs(self) -> None:
+        """可视化编辑当前类目的必填属性，保存到 alibaba_attr_presets。"""
+        cid = str(getattr(self.cfg, "alibaba_category_id", "") or "").strip()
+        if not cid:
+            self.toast("先选择 Alibaba 类目，再设置必填属性", False); return
+        try:
+            from ..services.alibaba_publish import make_client
+            c = make_client(self.cfg)
+            req = c.required_attributes(cid) or []
+        except Exception as ex:
+            self.toast(f"读取类目属性失败：{str(ex)[:80]}", False); return
+        try:
+            presets = __import__("json").loads(str(getattr(self.cfg, "alibaba_attr_presets", "") or "{}"))
+            if not isinstance(presets, dict):
+                presets = {}
+        except Exception:
+            presets = {}
+        rows = []
+        fields = []
+        for a in req:
+            name = str(a.get("nameEn") or a.get("nameZh") or "").strip()
+            if not name:
+                continue
+            vals = a.get("values") or []
+            if isinstance(vals, str):
+                try: vals = __import__("json").loads(vals)
+                except Exception: vals = []
+            cands = []
+            for v in vals if isinstance(vals, list) else []:
+                if isinstance(v, dict):
+                    n = str(v.get("name_en") or v.get("name") or v.get("nameZh") or "").strip()
+                    if n: cands.append(n)
+            cur = str(presets.get(name) or "")
+            if cands:
+                f = ft.Dropdown(label=name, width=430, color=TEXT, bgcolor=CARD_2,
+                                border_color=CARD_2, value=cur if cur in cands else "",
+                                options=[ft.dropdown.Option("", "（未设置）")] +
+                                        [ft.dropdown.Option(x, x) for x in cands])
+            else:
+                f = ft.TextField(label=name, width=430, color=TEXT, bgcolor=CARD_2,
+                                 border_color=CARD_2, value=cur, hint_text="按商品真实值填写")
+            fields.append((name, f)); rows.append(f)
+        dlg = ft.AlertDialog(modal=True, title=ft.Text(f"必填属性 · 类目 {cid}"),
+                             content=ft.Column([muted("只填真实规格；留空表示不预设。保存后批量处理优先使用采集数据，缺失才用这里的值。"),
+                                                *rows], spacing=8, width=500, height=480,
+                                               scroll=ft.ScrollMode.AUTO),
+                             actions=[])
+        def save(e=None):
+            out = {}
+            for name, f in fields:
+                val = str(getattr(f, "value", "") or "").strip()
+                if val:
+                    out[name] = val
+            self.cfg.set("alibaba_attr_presets", __import__("json").dumps(out, ensure_ascii=False))
+            save_config(self.cfg)
+            self._close_dlg(dlg)
+            self.toast(f"必填属性已保存：{len(out)} 项")
+            self._log(f"Alibaba 必填属性已保存：类目 {cid} · {len(out)} 项")
+        dlg.actions = [ft.TextButton("取消", on_click=lambda e: self._close_dlg(dlg)),
+                       ft.ElevatedButton("保存必填属性", bgcolor=ACCENT, color=ON_ACCENT, on_click=save)]
+        self._show_dlg(dlg)
+
+    def _open_alibaba_template_picker(self, state="all", on_pick=None) -> None:
+        """Alibaba 模板产品选择器：状态筛选 + 分页 + 商品列表。"""
+        status_labels = [("all", "全部"), ("draft", "草稿/采集箱"), ("offline", "待发布"),
+                         ("online", "在线"), ("waitPublish", "待发布"), ("auditing", "审核中"),
+                         ("publishFail", "发布失败")]
+        src = ft.Dropdown(label="状态", width=170, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                          value=state or "all",
+                          options=[ft.dropdown.Option(k, v) for k, v in status_labels])
+        info = ft.Text("读取中…", size=12.5, color=MUTED)
+        col = ft.Column(spacing=4, height=420, scroll=ft.ScrollMode.AUTO, width=720)
+        dlg = ft.AlertDialog(modal=True, title=ft.Text("选择 Alibaba 模板产品"),
+                             content=ft.Column([ft.Row([src], spacing=8), info, ft.Divider(color=CARD_2),
+                                                col], spacing=8, width=760),
+                             actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))])
+        page = {"no": 1, "pages": 1}
+        self._show_dlg(dlg)
+
+        def load():
+            info.value = "读取模板商品…"; info.color = MUTED
+            try: self._safe_update()
+            except Exception: pass
+            def work():
+                try:
+                    from ..services.alibaba_publish import make_client
+                    c = make_client(self.cfg)
+                    st = None if (src.value or "all") == "all" else str(src.value)
+                    d = c.list_products(page["no"], 20, st,
+                                        shop_id=str(getattr(self.cfg, "alibaba_shop_id", "") or "") or None)
+                    po = (d.get("data") or {}).get("page") or {}
+                    rows = po.get("list") or []
+                    page["pages"] = max(1, int(po.get("totalPage") or 1))
+                    page["no"] = max(1, min(int(po.get("pageNo") or page["no"]), page["pages"]))
+                    info.value = f"第 {page['no']}/{page['pages']} 页 · 共 {po.get('totalSize') or 0} 个"
+                    items = []
+                    for r in rows:
+                        pid = str(r.get("idStr") or r.get("id") or "")
+                        if not pid: continue
+                        title = str(r.get("subject") or "")
+                        def pick(e, _pid=pid, _title=title):
+                            self._close_dlg(dlg)
+                            if on_pick:
+                                on_pick(_pid, _title)
+                        items.append(ft.Row([
+                            ft.Column([ft.Text(title[:90] or pid, size=12, color=TEXT),
+                                       ft.Text(f"ID {pid} · 类目 {r.get('categoryId') or '-'}", size=11, color=MUTED)],
+                                      spacing=1, expand=True),
+                            ft.TextButton("选择", icon=ft.Icons.CHECK, on_click=pick)], spacing=6))
+                    col.controls = items or [muted("没有商品，换个状态/分类再试", 12)]
+                except Exception as ex:
+                    info.value = f"读取失败：{str(ex)[:150]}"; info.color = DANGER_C
+                try: self._safe_update()
+                except Exception: pass
+            threading.Thread(target=work, daemon=True).start()
+
+        def prev(e):
+            if page["no"] > 1:
+                page["no"] -= 1; load()
+        def nxt(e):
+            if page["no"] < page["pages"]:
+                page["no"] += 1; load()
+        def _src_changed(e=None):
+            page["no"] = 1
+            load()
+        src.on_change = _src_changed
+        # 追加翻页按钮到 actions
+        dlg.actions = [ft.TextButton("上一页", on_click=prev),
+                       ft.TextButton("下一页", on_click=nxt),
+                       ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg))]
+        load()
+
+    def _save_alibaba_template(self) -> None:
+        """读取当前模板商品并冻结类目/属性/贸易字段。"""
+        tid = str(getattr(self.cfg, "alibaba_template_product_id", "") or "").strip()
+        if not tid:
+            self.toast("先选择一个模板产品", False); return
+        try:
+            from ..services.alibaba_publish import make_client
+            from ..services.alibaba_template import build_snapshot, save_snapshot
+            snap = build_snapshot(make_client(self.cfg), tid)
+            save_snapshot(self.cfg, snap)
+            self._log(f"Alibaba 模板已保存：{tid} · 类目 {snap.get('category_id')} · 属性 {len(snap.get('attributes') or [])}")
+            self.toast(f"模板已保存：类目 {snap.get('category_id') or '-'} · 属性 {len(snap.get('attributes') or [])} 项")
+        except Exception as ex:
+            self.toast(f"保存模板失败：{str(ex)[:100]}", False)
+
+    def _alibaba_auto_category_now(self) -> None:
+        pid = str(getattr(self.cfg, "alibaba_test_product_id", "") or "").strip()
+        if not pid:
+            self.toast("先载入一个商品", False); return
+        try:
+            from ..services.alibaba_publish import make_client
+            from ..services.alibaba_payload import auto_alibaba_category
+            c = make_client(self.cfg)
+            p = c.product_detail(pid) or {}
+            cid, full = auto_alibaba_category(c, p, self.cfg)
+            if not cid:
+                raise RuntimeError("没有匹配到类目")
+            self.cfg.set("alibaba_category_id", cid)
+            self.cfg.set("alibaba_full_cid", full or "")
+            self.cfg.set("alibaba_category_name", cid)
+            save_config(self.cfg)
+            self.toast(f"自动类目：{cid}")
+            self._log(f"Alibaba 自动类目：{cid} · {full}")
+        except Exception as ex:
+            self.toast(f"自动选类目失败：{str(ex)[:100]}", False)
 
     def _p_alibaba_section(self, section, title, subtitle):
         index = 29 + int(section)

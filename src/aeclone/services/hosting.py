@@ -112,7 +112,7 @@ def _try_cf_imgbed(path: Path, base: str, key: str, folder: str, timeout: int) -
             data["path"] = folder.strip("/")
         with open(path, "rb") as f:
             r = requests.post(f"{base}/rest/upload", headers=headers,
-                              files={"files": (path.name, f, "image/png")},
+                              files={"files": (path.name, f, "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png")},
                               data=data, timeout=timeout)
         if r.status_code >= 400:
             return None
@@ -135,13 +135,31 @@ def _try_legacy(path: Path, base: str, timeout: int) -> str | None:
     try:
         with open(path, "rb") as f:
             r = requests.post(f"{base}/upload",
-                              files={"file": (path.name, f, "image/png")}, timeout=timeout)
+                              files={"file": (path.name, f, "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png")}, timeout=timeout)
         if r.status_code >= 400:
             return None
         url = str((r.json() or {}).get("url") or "")
         return url if url.startswith("http") else None
     except Exception:
         return None
+
+
+def _prepare_image(path: Path) -> tuple[Path, bool]:
+    """平台图片抓取对 RGBA/CMYK PNG 兼容差；统一转 RGB JPEG 再上传。"""
+    try:
+        from PIL import Image
+        im = Image.open(path)
+        if im.mode in ("RGBA", "LA", "P", "CMYK", "LAB"):
+            im = im.convert("RGB")
+        elif im.mode != "RGB":
+            im = im.convert("RGB")
+        else:
+            return path, False
+        tmp = path.with_suffix(".upload.jpg")
+        im.save(tmp, "JPEG", quality=92, optimize=True)
+        return tmp, True
+    except Exception:
+        return path, False
 
 
 def upload(path: Path, base: str | None = None, timeout: int = 90,
@@ -155,18 +173,24 @@ def upload(path: Path, base: str | None = None, timeout: int = 90,
         return _CACHE[h]
 
     b, k = _resolve(base, key)
-    url = _try_cf_imgbed(path, b, k, folder, timeout) or _try_legacy(path, b, timeout)
+    send_path, _converted = _prepare_image(path)
+    url = _try_cf_imgbed(send_path, b, k, folder, timeout) or _try_legacy(send_path, b, timeout)
     # 旧配置可能指向已超时的自建地址；失败后回退官方图床，避免整批营销图失败。
     if not url and b.rstrip("/") != DEFAULT_HOST.rstrip("/"):
         try:
-            url = (_try_cf_imgbed(path, DEFAULT_HOST, DEFAULT_KEY, folder, timeout)
-                   or _try_legacy(path, DEFAULT_HOST, timeout))
+            url = (_try_cf_imgbed(send_path, DEFAULT_HOST, DEFAULT_KEY, folder, timeout)
+                   or _try_legacy(send_path, DEFAULT_HOST, timeout))
         except Exception:
             url = None
     if not url:
         raise HostError(f"上传失败：{b}（两种协议都试过了，检查地址/密钥/网络）")
 
     _CACHE[h] = url
+    if _converted:
+        try:
+            send_path.unlink(missing_ok=True)
+        except Exception:
+            pass
     return url
 
 

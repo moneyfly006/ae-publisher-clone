@@ -288,10 +288,11 @@ class AlibabaValidateSkuTests(unittest.TestCase):
 
 class AlibabaKeywordsPreserveTests(unittest.TestCase):
     def test_product_keywords_kept_when_no_config(self):
-        from aeclone.services.alibaba_payload import build_alibaba_save
+        from aeclone.services.alibaba_payload import build_alibaba_save, smart_keywords_from_title
         save = build_alibaba_save(_pool_product(), _cfg())
-        self.assertEqual(save["keywords"],
-                         "fiberglass pool, container pool, above ground pool")
+        expected = ", ".join(smart_keywords_from_title(
+            "Customized Fiberglass Swimming Pool Container", 3))
+        self.assertEqual(save["keywords"], expected)
 
     def test_cfg_keywords_win_over_product(self):
         from aeclone.services.alibaba_payload import build_alibaba_save
@@ -325,7 +326,8 @@ class AlibabaDeliverPeriodTests(unittest.TestCase):
 
     def test_deliver_periods_defaults_to_lead_time(self):
         from aeclone.services.alibaba_payload import build_alibaba_save
-        cfg = _cfg(alibaba_lead_time=20, alibaba_process_period="")
+        cfg = _cfg(alibaba_lead_time=20, alibaba_process_period="",
+                   alibaba_default_deliver_periods="[]")
         save = build_alibaba_save(_pool_product(), cfg)
         trade = json.loads(save["wholesaleTrade"])
         self.assertEqual(trade["deliver_periods"][0]["process_period"], 20)

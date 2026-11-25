@@ -66,7 +66,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual([call.args[0] for call in client.product_detail.call_args_list], ["A", "B", "A"])
 
     def test_alibaba_pages_have_only_their_own_actions(self):
-        expected = {30: "保存批量属性", 32: "保存阶梯报价", 33: "开始自动处理"}
+        expected = {30: "保存模板到本地", 32: "保存阶梯报价", 33: "开始自动处理"}
         for theme in ("dark", "light"):
             ui.apply_theme(theme)
             for index, action in expected.items():
@@ -79,9 +79,9 @@ class WorkflowTests(unittest.TestCase):
                         if other_index != index:
                             self.assertNotIn(other_action, labels)
         self.app._switch(30)
-        self.assertIn("保存批量属性", [getattr(c, "text", "") for c in self.controls()])
+        self.assertIn("保存模板到本地", [getattr(c, "text", "") for c in self.controls()])
         self.app._switch(31)
-        self.assertNotIn("保存批量属性", [getattr(c, "text", "") for c in self.controls()])
+        self.assertNotIn("保存模板到本地", [getattr(c, "text", "") for c in self.controls()])
 
     def test_alibaba_price_survives_navigation_and_next_step_works(self):
         self.app._switch(44)

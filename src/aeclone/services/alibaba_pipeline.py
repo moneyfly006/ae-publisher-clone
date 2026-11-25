@@ -362,7 +362,77 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
         # b. 类目 required attrs + schema（与保存用同一类目上下文）
         emit("Alibaba · 读取类目规则", "开始", product=pid)
         ov = dict(overrides or {})
+        # 模板快照 + 自动类目：批量采集商品也必须走与单品保存相同的上下文。
+        try:
+            from .alibaba_template import load_snapshot, build_snapshot, snapshot_attrs_for_payload
+            _snap = load_snapshot(cfg)
+            _tpl_id = str(getattr(cfg, "alibaba_template_product_id", "") or "").strip()
+            if _tpl_id and str(_snap.get("product_id") or "") != _tpl_id:
+                try:
+                    _snap = build_snapshot(c, _tpl_id)
+                except Exception:
+                    _snap = {}
+            if _snap:
+                ov.setdefault("template_attributes", snapshot_attrs_for_payload(_snap))
+                ov.setdefault("template_fields", _snap.get("fields") or {})
+        except Exception:
+            _snap = {}
+        _cat_src = str(getattr(cfg, "alibaba_category_source", "auto") or "auto")
+        if not str(ov.get("category_id") or "").strip():
+            if _cat_src == "auto":
+                _desired = (str(product.get("categoryId") or "").strip(),
+                            str(product.get("fullCid") or ""))
+                _allowed = None
+                try:
+                    _allowed = set(str(x) for x in
+                                   (c.online_category_scope(max_pages=3).get("categories") or {}))
+                except Exception:
+                    _allowed = None
+                if _desired[0] and _allowed and _desired[0] not in _allowed:
+                    _desired = ("", "")   # 商品旧类目不在经营范围内，必须重新自动选
+                if not _desired[0]:
+                    try:
+                        from .alibaba_payload import auto_alibaba_category
+                        _desired = auto_alibaba_category(c, product, cfg,
+                                                         allowed=_allowed) or _desired
+                    except Exception:
+                        pass
+                if not _desired[0] and _snap:
+                    _desired = (str(_snap.get("category_id") or ""),
+                                str(_snap.get("full_cid") or ""))
+                ov["category_id"] = _desired[0] or "-"
+                ov["full_cid"] = _desired[1] or ""
+            elif _cat_src == "template" and _snap and str(_snap.get("category_id") or "").strip():
+                ov["category_id"] = str(_snap.get("category_id"))
+                ov["full_cid"] = str(_snap.get("full_cid") or "")
         cid, _full_cid = resolve_category(product, cfg, ov)
+        if not cid and bool(getattr(cfg, "auto_detect_category", True)):
+            try:
+                from .alibaba_payload import auto_alibaba_category
+                _allowed = None
+                try:
+                    _allowed = set(str(x) for x in
+                                   (c.online_category_scope(max_pages=3).get("categories") or {}))
+                except Exception:
+                    _allowed = None
+                _cid, _full = auto_alibaba_category(c, product, cfg, allowed=_allowed)
+                if _cid:
+                    ov["category_id"] = _cid
+                    if _full:
+                        ov["full_cid"] = _full
+                    cid, _full_cid = _cid, _full
+            except Exception:
+                pass
+        if not cid and _snap and str(_snap.get("category_id") or "").strip():
+            ov["category_id"] = str(_snap.get("category_id"))
+            ov["full_cid"] = str(_snap.get("full_cid") or "")
+            cid, _full_cid = ov["category_id"], ov["full_cid"]
+        if (_cat_src == "auto" and bool(getattr(cfg, "auto_detect_category", True))
+                and (not cid or str(cid) == "-") and locals().get("_allowed")):
+            return _fail(res, "类目经营范围",
+                         "商品原类目和自动匹配类目都不在店铺经营类目范围内，已阻止处理。"
+                         "请到 Alibaba 卖家中心 → 店铺管理 → 管理公司信息 → 经营类目，"
+                         "把商品类目加入经营范围，或手动选择允许的类目。")
         req: list = []
         schema: list = []
         if cid:
@@ -542,9 +612,33 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
             save_ov.setdefault("text_desc", text_desc)
             save_ov.setdefault("keywords", kws)
             save_ov["text_desc"] = text_desc_plain(save_ov.get("text_desc") or "")
-            save = build_alibaba_save(product, cfg, save_ov, attr_defs=req)
+            save = build_alibaba_save(product, cfg, save_ov, attr_defs=req, client=c)
         except Exception as e:  # noqa: BLE001
             return _fail(res, "构建保存载荷", f"build_alibaba_save 失败：{e}")
+        res.warnings.append("DEBUG mainImage=" + str(save.get("mainImage"))[:80] + " len=" + str(len(str(save.get("mainImage") or ""))))
+        try:
+            from .alibaba_payload import normalize_publishable_main_images
+            _fixed = normalize_publishable_main_images(c, product, save)
+            if _fixed:
+                res.warnings.append("主图兼容处理：已转为 JPEG 重新托管，避免平台抓图失败")
+                _step(res, "主图兼容处理", True, f"{len(_fixed)} 张已转 JPEG")
+            elif save.get("_image_repair_errors"):
+                res.warnings.append("主图兼容处理未完成：" + "；".join(save["_image_repair_errors"][:2]))
+        except Exception as e:  # noqa: BLE001
+            res.warnings.append("主图兼容处理失败：" + str(e)[:120])
+
+        try:
+            from .alibaba_payload import prepare_video_for_save
+            def _vlog(msg: str, lv: str = "INFO"):
+                if str(lv).upper() == "WARN":
+                    res.warnings.append(msg)
+                else:
+                    _step(res, "商品视频", True, msg)
+            _video = prepare_video_for_save(product, cfg, save, save_ov, log=_vlog)
+            if _video:
+                res.warnings.append("商品视频：已写入保存包")
+        except Exception as e:  # noqa: BLE001
+            res.warnings.append("商品视频处理失败：" + str(e)[:120])
 
         from .alibaba_score import PASS_SCORE, score_product
         from .alibaba_score_repair import repair, score_problems
@@ -645,6 +739,17 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                         "经营类目预检：该末级类目未出现在在线商品类目样本中，"
                         "发布可能被平台拒绝（PUB_BIZCHECK_CAT_PUB_RESTRICT）。"
                         + _scope.advice)
+                # 经营类目是平台硬门禁；在提交前拦截，别等平台异步返回 publishFail。
+                try:
+                    _cats = set(str(x) for x in
+                                (c.online_category_scope(max_pages=3).get("categories") or {}))
+                    if _cats and str(res.category_id or "") not in _cats:
+                        return _fail(res, "类目经营范围",
+                                     f"类目 {res.category_id} 不在店铺经营类目范围内，已阻止提交。"
+                                     "请到 Alibaba 卖家中心 → 店铺管理 → 管理公司信息 → 经营类目，"
+                                     "把该类目加入经营范围，或改用自动类目。")
+                except Exception:
+                    pass
             except Exception as e:  # noqa: BLE001
                 _step(res, "类目经营范围", True, f"预检跳过：{str(e)[:80]}")
 
@@ -731,6 +836,11 @@ def run_alibaba_product(product_id: str, cfg, *, dry_run: bool = True,
                 return _fail(res, "保存到 Alibaba",
                              f"发布被平台拒绝（经营类目）：类目 {_cid} 不在店铺经营类目范围内。"
                              + CUSTOMER_ADVICE)
+            if "CHK_COMP_DATA_ERROR" in msg or "数据填写不完整" in msg:
+                return _fail(res, "保存到 Alibaba",
+                             "发布被平台拒绝（CHK_COMP_DATA_ERROR）：公司资料/发布必填信息不完整。"
+                             "请到 Alibaba 卖家中心 → 店铺管理 → 公司信息，补全公司名称、地址、"
+                             "联系人、营业执照/经营类目等资料后重试；软件侧的商品类目/属性/物流已通过校验。")
             return _fail(res, "保存到 Alibaba",
                          f"保存失败（业务码 {inner_code}）：{msg[:200]}")
         # 店小秘可能出现 code=0 但 msg 是失败语义（「只有处在采集箱中的产品…」）

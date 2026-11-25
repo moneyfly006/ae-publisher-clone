@@ -376,6 +376,18 @@ DEFAULTS: dict = {
     "aliexpress_cookies": "",
     "alibaba_shop_id": "9466975",   # 预置：ICBU 店铺（可在「Alibaba 连接」页切换）
     "alibaba_shop_name": "zzyugong",
+    "alibaba_template_product_id": "",
+    "alibaba_template_product_name": "",
+    "alibaba_template_source": "all",
+    "alibaba_category_source": "auto",
+    "alibaba_template_snapshot": "{}",
+    "alibaba_auto_keywords": True,
+    "alibaba_default_weight": "100",
+    "alibaba_default_package_size": "10X10X10",
+    "alibaba_default_deliver_periods": '[{"quantity":1,"process_period":5},{"quantity":3,"process_period":8},{"quantity":10,"process_period":12}]',
+    "alibaba_default_freight_name": "买卖双方协商物流",
+    "alibaba_default_logistics_property": "general_cargo_0",
+    "alibaba_default_sample_service": "0",
     "alibaba_recommended_seeded": False,
     "alibaba_test_product_id": "",
     "alibaba_last_category_required": "",
@@ -393,8 +405,14 @@ DEFAULTS: dict = {
     "alibaba_company_desc": company_desc(),
     "alibaba_company_faq": company_faq(),
     "alibaba_company_website": COMPANY_PROFILE["website"],
+    "alibaba_company_address": COMPANY_PROFILE["location"],
+    "alibaba_company_license": COMPANY_PROFILE["business_license"],
     "alibaba_collect_company_desc": company_desc(),
     "alibaba_collect_company_faq": company_faq(),
+    "alibaba_video_source": "auto",   # auto=采集视频优先，缺失用主图轮播生成 | collected | generated | none
+    "alibaba_video_size": "1080x1080",
+    "alibaba_video_slot_seconds": "2.5",
+    "alibaba_video_transition_seconds": "0.5",
     "alibaba_min_order_quantity": 1,
     "alibaba_unit_type": "Piece",
     "alibaba_price_tiers": "",
@@ -410,8 +428,11 @@ DEFAULTS: dict = {
     "alibaba_freight_template_id": "2055583029",   # 运费模板 ID（发布时与重量/尺寸一起校验）
     "alibaba_logistics_property": "general_cargo_0",  # 物流属性；实测 online 商品用 general_cargo_0
     "alibaba_op": 1,
-    "alibaba_package_size": "300X200X200",
-    "alibaba_weight": "500",
+    "alibaba_package_size": "10X10X10",
+    "alibaba_package_length": "10",
+    "alibaba_package_width": "10",
+    "alibaba_package_height": "10",
+    "alibaba_weight": "100",
     "alibaba_hs_code": "84791000",
     "alibaba_stock": "5",
     "alibaba_payment_terms": "T/T",
@@ -420,7 +441,7 @@ DEFAULTS: dict = {
     "alibaba_lead_time": 30,          # 发货期天数（写入 deliver_periods.process_period）
     "alibaba_deliver_quantity": "1",  # 发货期起订量（deliver_periods.quantity）
     "alibaba_process_period": "15",
-    "alibaba_attr_presets": "{\"Core Components\":\"Motor\",\"Warranty\":\"1 Year\",\"Place of Origin\":\"China\",\"Model Number\":\"LS-600\",\"Weight (kg)\":\"600\",\"Unique Selling Point\":\"Fully hydraulic system\"}",
+    "alibaba_attr_presets": "{\"Core Components\":\"Motor\",\"Warranty\":\"1 Year\",\"Place of Origin\":\"China\",\"Condition\":\"New\",\"Model Number\":\"OEM\",\"Weight (kg)\":\"600\",\"Unique Selling Point\":\"Fully hydraulic system\"}",
     # ---------------- Amazon（亚马逊）刊登预设 ----------------
     "amazon_cookies": "",
     "amazon_shop_id": "",
@@ -660,8 +681,15 @@ class AppConfig:
     def load(cls) -> "AppConfig":
         p = cls.path()
         if not p.exists():
-            cls.loaded_from = "new"
-            return cls()
+            try:
+                if _restore_missing_config():
+                    cls.loaded_from = "migrated"
+                else:
+                    cls.loaded_from = "new"
+                    return cls()
+            except Exception:
+                cls.loaded_from = "new"
+                return cls()
         cfg = cls._load_file(p)
         # 升级/启动不得改写用户已保存的提示词。旧默认值迁移已移除，
         # 用户自定义提示词、Cookie、店铺和任务设置全部以 config.json 为准。
@@ -725,6 +753,123 @@ class AppConfig:
             pass
         _os.replace(tmp, p)
         object.__setattr__(self, "_last_saved_state", (str(p), data, p.stat().st_mtime_ns))
+
+
+def _legacy_config_candidates() -> list[Path]:
+    """旧版本/便携版/更新前备份的配置位置，用于升级后找回登录与 API。"""
+    out = []
+    try:
+        base = config_dir()
+        out += [base / "config.json", base / "config.pre-update.json"]
+        out += sorted(base.glob("config.pre-update-*.json"), reverse=True)
+        out += [base / "config.bak"]
+    except Exception:
+        pass
+    try:
+        import sys as _sys
+        exe = Path(_sys.executable).parent
+        out += [exe / "config.json", exe / "config" / "config.json",
+                exe.parent / "config.json", exe.parent / "config" / "config.json"]
+        out += sorted(exe.glob("config.backup-*.json"), reverse=True)
+        out += sorted(exe.glob("config.pre-update-*.json"), reverse=True)
+    except Exception:
+        pass
+    try:
+        import os as _os
+        appdata = Path(_os.environ.get("APPDATA", "") or "")
+        if appdata:
+            for name in ("AuroraList", "AePublisherClone", "ae-publisher-clone",
+                         "AuroraList-portable"):
+                out += [appdata / name / "config.json"]
+        home = Path.home()
+        for name in ("AuroraList", "AePublisherClone", "ae-publisher-clone"):
+            out += [home / name / "config.json", home / ".config" / name / "config.json"]
+    except Exception:
+        pass
+    seen, uniq = set(), []
+    for p in out:
+        try:
+            key = str(p.resolve())
+        except Exception:
+            key = str(p)
+        if key not in seen:
+            seen.add(key); uniq.append(p)
+    return uniq
+
+
+def backup_config(reason: str = "update") -> Path | None:
+    """备份当前配置；更新安装/重置前调用，避免 API Key 与登录丢失。"""
+    import shutil
+    import time as _time
+    try:
+        p = AppConfig.path()
+        if not p.exists():
+            return None
+        stamp = _time.strftime("%Y%m%d-%H%M%S")
+        dst = p.with_name(f"config.{reason}-{stamp}.json")
+        shutil.copy2(p, dst)
+        return dst
+    except Exception:
+        return None
+
+
+def _restore_missing_config() -> bool:
+    """当前 config.json 不存在时，从旧路径/更新备份迁移一份。"""
+    import shutil
+    p = AppConfig.path()
+    if p.exists():
+        return False
+    for cand in _legacy_config_candidates():
+        try:
+            if not cand.is_file() or cand.resolve() == p.resolve():
+                continue
+            data = json.loads(cand.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) or not data:
+                continue
+            p.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(cand, p)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def ensure_alibaba_defaults(cfg: "AppConfig") -> None:
+    """给 Alibaba 补安全默认值；只补空值，不覆盖用户已保存内容。"""
+    import json as _json
+    try:
+        raw = str(getattr(cfg, "alibaba_attr_presets", "") or "").strip()
+        try:
+            presets = _json.loads(raw) if raw else {}
+        except Exception:
+            presets = {}
+        if not isinstance(presets, dict):
+            presets = {}
+        for k, v in (("Place of Origin", "China"), ("Condition", "New"),
+                     ("Warranty", "1 Year"), ("Core Components", "Motor"),
+                     ("Model Number", "OEM")):
+            presets.setdefault(k, v)
+        cfg.set("alibaba_attr_presets", _json.dumps(presets, ensure_ascii=False))
+        try:
+            if int(float(getattr(cfg, "alibaba_min_order_quantity", 1) or 0)) <= 0:
+                cfg.set("alibaba_min_order_quantity", 1)
+        except Exception:
+            cfg.set("alibaba_min_order_quantity", 1)
+        if not str(getattr(cfg, "alibaba_weight", "") or "").strip():
+            cfg.set("alibaba_weight", "100")
+        if not str(getattr(cfg, "alibaba_package_size", "") or "").strip():
+            cfg.set("alibaba_package_size", "10X10X10")
+        if not str(getattr(cfg, "alibaba_hs_code", "") or "").strip():
+            cfg.set("alibaba_hs_code", "84791000")
+        from .alibaba_company import COMPANY_PROFILE
+        for key, val in (("alibaba_company_name", COMPANY_PROFILE["company_name"]),
+                         ("alibaba_company_website", COMPANY_PROFILE["website"]),
+                         ("alibaba_company_address", COMPANY_PROFILE["location"]),
+                         ("alibaba_company_license", COMPANY_PROFILE["business_license"])):
+            if not str(getattr(cfg, key, "") or "").strip():
+                cfg.set(key, val)
+    except Exception:
+        pass
 
 
 _lock = threading.Lock()

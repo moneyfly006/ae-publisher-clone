@@ -486,8 +486,14 @@ class TikTokPageTests(unittest.TestCase):
         self.app._switch(28)
         self.assertIn("开始自动处理", btns())
         self.assertIn("检查本次范围", btns())
-        # 拆分页不再使用 5 栏 Tabs（Tabs 只在 14 号隐藏完整工作台）
-        self.assertFalse(any(isinstance(c, ft.Tabs) for c in controls(self.app)))
+        # 28 号运行页有 2 个 Tab（立即处理 / 任务队列），但不是 14 号的 5 栏工作台
+        tabs_on_page = [c for c in controls(self.app) if isinstance(c, ft.Tabs)]
+        self.assertTrue(tabs_on_page, "运行页应有立即处理/任务队列 Tabs")
+        tab_titles = [t.text for tabs in tabs_on_page for t in (tabs.tabs or [])]
+        self.assertIn("立即处理", tab_titles)
+        self.assertIn("任务队列", tab_titles)
+        # 确保不是 14 号的完整 5 栏工作台（tab 数量应 ≤ 2）
+        self.assertLessEqual(max((len(tabs.tabs or []) for tabs in tabs_on_page), default=0), 2)
 
     # ---------- ① 无店铺指引 / 23 站点 ----------
     def test_no_shop_guidance_and_23_l7_sites(self):
