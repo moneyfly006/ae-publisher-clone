@@ -19,7 +19,7 @@ def generate_copy(platform, product, cfg, overrides):
         raise ValueError("文案处理字段无效，请重新选择")
     rewrite = getattr(cfg, prefix + "ai_mode", "missing") == "rewrite"
     fields = {"alibaba": {"title": ("subject", "subject"), "description": ("textDesc", "text_desc"), "keywords": ("keywords", "keywords")},
-              "amazon": {"title": ("title", "title"), "bullets": ("bulletPoint", "bullets"), "description": ("description", "description"), "search_terms": ("searchTerms", "search_terms")},
+              "amazon": {"title": ("title", "title"), "highlight": ("titleDifferentiation", "title_differentiation"), "bullets": ("bulletPoint", "bullets"), "description": ("description", "description"), "search_terms": ("searchTerms", "search_terms")},
               "tiktok": {"title": ("productName", "title"), "description": ("description", "description"), "key_features": ("keyProductFeatures", "key_features"), "search_terms": ("searchTerms", "search_terms")},
               "shopee": {"title": ("name" if getattr(cfg, "shopee_mode", "global") == "site" else "itemName", "name" if getattr(cfg, "shopee_mode", "global") == "site" else "itemName"), "description": ("description", "description")}}[platform]
     if platform == "tiktok":
@@ -125,11 +125,29 @@ def _format_sku(prefix, pid, index=None):
     return f"{prefix[:16]}-{product}-{index}" if index is not None else f"{prefix[:20]}-{product}"
 
 
+def _local_sku_base(product):
+    """非 AI 规则生成：从原 SKU/型号/标题提取稳定 ASCII 片段。"""
+    raw = str(product.get("sku") or product.get("sellerSku") or "").strip()
+    if not raw:
+        title = str(product.get("title") or product.get("subject") or "").strip()
+        tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9_-]{1,24}", title)
+        raw = "-".join(tokens[:3]) or "SKU"
+    code = re.sub(r"[^A-Za-z0-9_-]", "", raw)[:20].strip("-_")
+    return code or "SKU"
+
+
 def generate_sku_code(platform, product, cfg, *, index=None, prefix_only=False):
     """Use the same SKU naming rule for batch completion and selected item fields."""
     from ..api import ApiClient
     from . import model_of
     from .collect_budget import paid
+    # Amazon：默认规则生成（不调用 AI）；只有明确选择 ai 才走提示词。
+    if platform == "amazon" and str(getattr(cfg, "amazon_sku_generate_mode", "local") or "local") != "ai":
+        code = _local_sku_base(product)
+        pid = str(product.get("idStr") or product.get("id") or "")
+        if not pid:
+            raise ValueError("缺少有效商品 ID")
+        return code if prefix_only else _format_sku(code, pid, index)
     prompt = str(getattr(cfg, platform + "_collect_sku_prompt", "") or SKU_PROMPT)
     api = ApiClient(cfg.api_base, cfg.api_key, cfg.timeout)
     title = next((str(product[k]) for k in ("title", "subject", "productName", "itemName", "name") if product.get(k)), "")

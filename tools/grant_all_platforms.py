@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -39,6 +40,9 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     import time
+
+    # license_platforms 覆盖仅显式开发环境生效（task-25 审计修复）
+    os.environ.setdefault("AURORA_LICENSE_OVERRIDE", "1")
 
     from aeclone.config import get_config, save_config
     from aeclone.core.guard import check as guard_check

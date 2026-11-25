@@ -485,8 +485,20 @@ def build(app, section):
                 return
             snapshot = overrides()
             def action():
-                result = service.save(pid, app.cfg, snapshot, op=op)
+                try:
+                    result = service.save(pid, app.cfg, snapshot, op=op)
+                except Exception:
+                    # 真实提交抛错也算一次失败（用户取消不会走到这里）
+                    try:
+                        app._count_publish("shopee", False)
+                    except Exception:
+                        pass
+                    raise
                 state["issues"], state["result"] = result.issues, result.message
+                try:
+                    app._count_publish("shopee", bool(result.ok))
+                except Exception:
+                    pass
                 if not result.ok:
                     raise ValueError(result.message)
                 return result.message

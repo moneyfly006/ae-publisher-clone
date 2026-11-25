@@ -150,11 +150,31 @@ class EntitlementTests(unittest.TestCase):
         self.assertEqual(ent.platforms_list(), [])
 
     def test_override_for_dev_only(self):
-        ent = load_entitlements(cfg(license_platforms="alibaba:listing+ai_text"),
-                                machine=MACHINE)
-        self.assertEqual(ent.source, "override")
-        self.assertTrue(ent.has_feature("alibaba", "ai_text"))
-        self.assertFalse(ent.has_feature("aliexpress", "listing"))
+        import os
+        from unittest.mock import patch
+        from aeclone.licensing import override_enabled
+        # 生产环境（没有任何显式开关）→ 覆盖被忽略
+        with patch.dict(os.environ, {"AURORA_LICENSE_OVERRIDE": "",
+                                     "AURORA_TEST": "", "AURORA_NO_SAVE": ""}):
+            self.assertFalse(override_enabled())
+            ent = load_entitlements(cfg(license_platforms="alibaba:listing+ai_text"),
+                                    machine=MACHINE)
+            self.assertEqual(ent.platforms_list(), [])
+            self.assertNotEqual(ent.source, "override")
+        # 显式 AURORA_LICENSE_OVERRIDE=1（或 AURORA_TEST=1）→ 生效
+        with patch.dict(os.environ, {"AURORA_LICENSE_OVERRIDE": "1"}):
+            self.assertTrue(override_enabled())
+            ent = load_entitlements(cfg(license_platforms="alibaba:listing+ai_text"),
+                                    machine=MACHINE)
+            self.assertEqual(ent.source, "override")
+            self.assertTrue(ent.has_feature("alibaba", "ai_text"))
+            self.assertFalse(ent.has_feature("aliexpress", "listing"))
+        with patch.dict(os.environ, {"AURORA_LICENSE_OVERRIDE": "",
+                                     "AURORA_TEST": "1"}):
+            self.assertTrue(override_enabled())
+            ent2 = load_entitlements(cfg(license_platforms="amazon:listing"),
+                                     machine=MACHINE)
+            self.assertTrue(ent2.has_platform("amazon"))
 
     def test_legacy_platform_constant_unchanged(self):
         """服务端功能包定义不变（迁移与后台一致）。"""

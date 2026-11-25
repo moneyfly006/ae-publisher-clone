@@ -64,6 +64,7 @@
  "amazon_auto_fix_description": true,
  "amazon_auto_fix_title": true,
  "amazon_auto_max_rounds": 3,
+ "amazon_auto_op": "1",
  "amazon_auto_wait": 90,
  "amazon_autofill_attrs": true,
  "amazon_brand": "",

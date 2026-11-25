@@ -129,7 +129,7 @@ AMAZON = Platform(
         PageItem(9, "图片工作台", "工具与设置", "GRID_VIEW", "ai_image"),
         PageItem(11, "设置", "工具与设置", "SETTINGS_OUTLINED", "listing"),
         PageItem(16, "单品编辑", "__internal__", "EDIT_NOTE", "listing"),
-        PageItem(17, "类目与属性", "__internal__", "CATEGORY_OUTLINED", "listing"),
+        PageItem(17, "类目与属性", "__internal__", "CATEGORY_OUTLINED", "category"),
         PageItem(18, "价格与物流", "__internal__", "SELL_OUTLINED", "listing"),
         PageItem(34, "SKU 与库存", "__internal__", "ACCOUNT_TREE_OUTLINED", "listing"),
         PageItem(19, "AI 文案", "__internal__", "EDIT_NOTE", "ai_text"),

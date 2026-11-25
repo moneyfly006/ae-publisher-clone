@@ -265,15 +265,16 @@ class CollectionTests(unittest.TestCase):
             pipeline = MagicMock()
             pipeline.run.return_value = SimpleNamespace(ok=True, last_url=lambda: "https://temporary/new")
             detail = product if platform == "alibaba" else {"product": product}
-            cfg = AppConfig({platform + "_collect_image_indices": "2",
+            cfg = AppConfig({platform + "_collect_image_indices": "1" if platform == "amazon" else "2",
                              platform + "_collect_image_rules": ""})
             overrides = {}
             with patch("aeclone.services.image_pipeline.ImagePipeline", return_value=pipeline), \
                  patch("aeclone.services.hosting.upload", return_value="https://hosted/new") as upload:
                 service.process_images(platform, "1", cfg, SimpleNamespace(product_detail=lambda _: detail), overrides)
-                self.assertEqual(pipeline.run.call_args.args[0], "https://old/2")
+                self.assertEqual(pipeline.run.call_args.args[0],
+                                 "https://old/1" if platform == "amazon" else "https://old/2")
                 upload.assert_called_once()
-            expected = ({"main_image": "https://old/1", "extra_images": ["https://hosted/new"]}
+            expected = ({"main_image": "https://hosted/new", "extra_images": ["https://old/2"]}
                         if platform == "amazon" else
                         {"main_images" if platform == "alibaba" else "images": ["https://old/1", "https://hosted/new"]})
             self.assertEqual(overrides, expected)

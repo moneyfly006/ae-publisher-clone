@@ -987,7 +987,7 @@ class AmazonPageTests(unittest.TestCase):
                 dialog_text = " ".join(str(c.value) for c in walk([self.app.page.dialog.content])
                                        if isinstance(c, ft.Text))
                 self.assertIn(PRODUCT_ID, dialog_text)
-                self.assertIn("保存草稿", dialog_text)
+                self.assertIn("保存", dialog_text)
                 click(self.app.page.dialog.actions[1])
             self.assertTrue(env.calls["prepare"], "保存前未调用 prepare_save")
             self.assertTrue(env.calls["run"], "保存未调用 run_amazon_product")
@@ -1002,7 +1002,7 @@ class AmazonPageTests(unittest.TestCase):
                        "manufacturer", "sku", "standard_price", "sale_price", "quantity",
                        "category_id", "category_path", "marketplace_id", "currency",
                        "fulfillment", "handling_time", "shipping_template",
-                       "attributes"}
+                       "attributes", "native_fields"}
             self.assertTrue(set(overrides).issubset(allowed),
                             f"出现契约外 overrides 键：{set(overrides) - allowed}")
             # 后端已就绪时再对齐一次：UI 发的键必须被 amazon_payload 接受
@@ -1239,7 +1239,7 @@ class AmazonPageTests(unittest.TestCase):
         self.assertEqual(len(autoenv.calls["auto"]), 1)
         call = autoenv.calls["auto"][0]
         self.assertEqual(call["product_id"], PRODUCT_ID)
-        self.assertEqual(call["op"], "2")
+        self.assertEqual(call["op"], "1")
         self.assertEqual(call["max_rounds"], 3)
         # 等待秒数默认取 cfg.amazon_auto_wait / amazon_publish_wait / 90
         expected_wait = int(str(self.app.cfg.amazon_auto_wait

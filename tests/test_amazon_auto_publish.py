@@ -153,7 +153,7 @@ class SignatureTests(unittest.TestCase):
             "product_id", "cfg", "overrides", "op", "max_rounds", "wait_seconds",
             "auto_fix_attrs", "auto_fix_title", "auto_fix_description",
             "auto_ai_fix", "client"])
-        self.assertEqual(params["op"].default, "2")
+        self.assertEqual(params["op"].default, "1")
         self.assertEqual(params["max_rounds"].default, 3)
         self.assertEqual(params["wait_seconds"].default, 90)
         self.assertIs(params["auto_fix_attrs"].default, True)
@@ -192,7 +192,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
 
     def test_first_round_success(self):
         fake = FakeClient(publish_results=self._online())
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertTrue(res.ok, res)
         self.assertTrue(res.saved)
@@ -211,7 +211,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
             publish_results=self._online(),
             schema=["contains_liquid_contents", "power_source_type",
                     "supplier_declared_dg_hz_regulation"])
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertTrue(res.ok, res)
         self.assertEqual(len(fake.saved), 1)
@@ -225,7 +225,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
         product = make_product(
             title="Backhoe Loader Loader Loader Heavy Duty Construction Machine")
         fake = FakeClient(product=product, publish_results=self._online())
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertTrue(res.ok, res)
         self.assertEqual(len(fake.saved), 1)
@@ -238,7 +238,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
         err = "发布失败:code:90220,属性:contains_liquid_contents;"
         fake = FakeClient(product=make_product(contains_liquid_contents=False),
                           publish_results=[self._fail(err), self._online("B0B")])
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertTrue(res.ok, res)
         self.assertEqual(res.attempts, 2)
@@ -258,7 +258,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
             self._fail("标题重复:code:100470,重复词 [loader]"),
             self._online("B0T"),
         ])
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertTrue(res.ok, res)
         self.assertEqual(res.attempts, 2)
@@ -271,7 +271,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
             self._fail("描述内容违规：含促销与联系方式"),
             self._online("B0D"),
         ])
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertTrue(res.ok, res)
         self.assertEqual(res.attempts, 2)
@@ -280,7 +280,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
     def test_env_guard_rejects_real_write(self):
         os.environ["AURORA_TEST"] = "1"
         fake = FakeClient(publish_results=self._online())
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake)
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake)
         self.assertFalse(res.ok)
         self.assertFalse(res.saved)
         self.assertEqual(fake.saved, [])
@@ -289,14 +289,14 @@ class AutoPublishFlowTests(EnvIsolatedCase):
     def test_env_no_save_guard(self):
         os.environ["AURORA_NO_SAVE"] = "1"
         fake = FakeClient()
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake)
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake)
         self.assertFalse(res.ok)
         self.assertEqual(fake.saved, [])
 
     def test_max_rounds_stops(self):
         err = "发布失败:code:90220,属性:contains_liquid_contents;"
         fake = FakeClient(product=make_product(contains_liquid_contents=False), publish_results=self._fail(err))
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               max_rounds=2, wait_seconds=0)
         self.assertFalse(res.ok)
         self.assertEqual(len(res.rounds), 2)
@@ -306,7 +306,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
     def test_unfixable_attr_blocks_without_extra_write(self):
         err = "发布失败:code:90220,属性:some_unknown_attribute;"
         fake = FakeClient(publish_results=[self._fail(err), self._online()])
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertFalse(res.ok)
         self.assertEqual(len(fake.saved), 1)   # 第二轮预检阻断，不再写
@@ -314,7 +314,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
 
     def test_price_missing_blocks_before_write(self):
         fake = FakeClient(product=make_product(standardPrice=0.0))
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertFalse(res.ok)
         self.assertEqual(fake.saved, [])
@@ -322,7 +322,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
 
     def test_quantity_zero_blocks_before_write(self):
         fake = FakeClient(product=make_product(quantity=0))
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertFalse(res.ok)
         self.assertEqual(fake.saved, [])
@@ -333,7 +333,7 @@ class AutoPublishFlowTests(EnvIsolatedCase):
         product = make_product(productAttr="{}")
         fake = FakeClient(product=product, template={},
                           schema=["some_unknown_attribute"])
-        res = AA.auto_publish("220114595363182310", AppConfig(), client=fake,
+        res = AA.auto_publish("220114595363182310", AppConfig(), op="2", client=fake,
                               wait_seconds=0)
         self.assertFalse(res.ok)
         self.assertEqual(fake.saved, [])

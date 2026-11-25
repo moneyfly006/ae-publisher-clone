@@ -30,6 +30,57 @@ class PlatformTests(unittest.TestCase):
             for page in p.pages:
                 self.assertIn(page.feature, ALL_FEATURES)
 
+    def test_page_feature_invariants(self):
+        """不变量：每个 PageItem.feature 必须属于该平台的 PLATFORM_FEATURES。"""
+        from aeclone.licensing import PLATFORM_FEATURES
+        issues = []
+        for pid, p in PLATFORMS.items():
+            allowed = set(PLATFORM_FEATURES.get(pid, []))
+            for page in p.pages:
+                if page.feature not in allowed:
+                    issues.append(f"{pid}#{page.index} {page.label} feature={page.feature}")
+        self.assertEqual(issues, [], "页面 feature 不在平台功能包内：" + "; ".join(issues))
+
+    def test_key_page_feature_mapping(self):
+        """关键页面映射：类目→category / 价格→pricing / 变种、SKU→variants（有该功能时）。"""
+        from aeclone.licensing import PLATFORM_FEATURES
+        # 类目与属性 → category（仅限平台功能包里有 category 的平台）
+        for pid in ("alibaba", "aliexpress", "amazon"):
+            self.assertIn("category", PLATFORM_FEATURES[pid], pid)
+            if pid == "alibaba":
+                self.assertEqual(ALIBABA.page(30).feature, "category")
+            elif pid == "aliexpress":
+                self.assertEqual(ALIEXPRESS.page(2).feature, "category")
+            else:
+                self.assertEqual(PLATFORMS["amazon"].page(17).feature, "category",
+                                 "Amazon 类目与属性必须是 category（修复：原来错为 listing）")
+        # 价格页 → pricing（有 pricing 的平台）
+        self.assertIn("pricing", PLATFORM_FEATURES["aliexpress"])
+        self.assertEqual(ALIEXPRESS.page(6).feature, "pricing")
+        # 变种/SKU → variants（有 variants 的平台）
+        self.assertIn("variants", PLATFORM_FEATURES["aliexpress"])
+        self.assertEqual(ALIEXPRESS.page(7).feature, "variants")
+        # 没有对应功能包的平台保持 listing，避免出现永远无法解锁的页面
+        for pid, index in (("amazon", 18), ("tiktok", 24), ("tiktok", 25),
+                           ("tiktok", 35), ("shopee", 38), ("shopee", 39),
+                           ("shopee", 40)):
+            self.assertEqual(PLATFORMS[pid].page(index).feature, "listing",
+                             f"{pid}#{index} 无对应功能包应保持 listing")
+
+    def test_feature_audit_table(self):
+        """输出页面→功能包审计表（测试日志里可直接看）。"""
+        from aeclone.licensing import PLATFORM_FEATURES
+        rows = ["平台 | 页面 | feature | 平台功能包包含"]
+        for pid, p in PLATFORMS.items():
+            allowed = set(PLATFORM_FEATURES.get(pid, []))
+            for page in p.pages:
+                rows.append(f"{pid} | #{page.index} {page.label} | {page.feature} | "
+                            f"{'OK' if page.feature in allowed else 'MISSING'}")
+        table = "\n".join(rows)
+        print("\n===== 页面 feature 审计表 =====")
+        print(table)
+        self.assertNotIn("MISSING", table)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

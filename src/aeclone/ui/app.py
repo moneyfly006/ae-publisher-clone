@@ -703,6 +703,23 @@ class App:
         self._report_identity = ""
         self._login_gate_dlg = None
         self._device_dlg = None
+        # 每平台「今日刊登成功/失败」计数（心跳上报；跨天自动重置、重启归零）
+        self._publish_counts: dict[str, dict[str, int]] = {}
+        self._publish_total = {"success": 0, "fail": 0}
+        self._publish_day = time.strftime("%Y-%m-%d")
+        self._publish_lock = threading.Lock()
+        # 解绑/禁用后自动弹登录页：同一事件只提示一次（登录成功后清空）
+        self._relogin_prompted_for = ""
+        # 登录态周期授权刷新（后台解绑/禁用最迟约 5 分钟感知）
+        self._license_watch_stop = None
+        self._license_watch_thread = None
+        # 服务端授权版本号（license_rev）：变化→立即刷新授权；未知时 _known=False
+        self._license_rev = ""
+        self._license_rev_known = False
+        self._license_rev_inflight = None
+        self._license_rev_lock = threading.Lock()
+        # 当前页面 PageItem（用于本地到期重算/服务端撤销后立即锁当前页）
+        self._current_item = None
         self.cookie_src = None
         self._cookie_ts = 0.0
 
@@ -1226,6 +1243,7 @@ class App:
 
     def _render_locked(self, item):
         """未开通平台锁定页：平台名 + 未开通 + 价格提示 + 去开通。"""
+        self._locked_item = item
         pf = self.active_platform
         licensed = bool(self.entitlements.has_platform(pf.id))
         feats = sorted(self.entitlements.platforms.get(pf.id, set()))
@@ -1244,6 +1262,68 @@ class App:
                                     on_click=lambda e: self._buy_platform(pf.id))
         secondary = ft.OutlinedButton("查看已开通平台", icon=ft.Icons.VERIFIED,
                                       on_click=lambda e: self._show_licensed_platforms())
+        # 手动刷新授权：后台刚开通/刚购买时点这里，刷新后已开通则直接解锁
+        refresh_btn = ft.OutlinedButton("刷新授权（已开通/刚购买点这里）",
+                                        icon=ft.Icons.REFRESH)
+
+        def _refresh_locked(e=None):
+            if bool(getattr(refresh_btn, "disabled", False)):
+                return
+            refresh_btn.disabled = True
+            old_label = str(getattr(refresh_btn, "text", "") or "刷新授权")
+            try:
+                refresh_btn.text = "刷新中…"
+                self._safe_update()
+            except Exception:
+                pass
+
+            def work():
+                try:
+                    self._check_license_inner()   # 登录态会联网拉新 token
+                    ent = getattr(self, "entitlements", None)
+                    plat = str(getattr(getattr(self, "active_platform", None),
+                                       "id", "") or "")
+                    opened = bool(ent is not None and ent.has_platform(plat))
+                    if opened:
+                        self.toast("授权已刷新，平台已开通", True)
+                        try:
+                            idx = int(getattr(item, "index",
+                                              getattr(self, "_page_idx", 0)) or 0)
+                            self._switch(idx)
+                        except Exception:
+                            pass
+                    else:
+                        self.toast("授权已刷新，但该平台仍未开通；购买后请再点一次", False)
+                except Exception as ex:
+                    self.toast(f"刷新授权失败：{str(ex)[:80]}", False)
+                finally:
+                    refresh_btn.disabled = False
+                    try:
+                        refresh_btn.text = old_label
+                    except Exception:
+                        pass
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+
+            threading.Thread(target=work, daemon=True,
+                             name="aurora-locked-refresh").start()
+
+        refresh_btn.on_click = _refresh_locked
+        _email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
+        _token = str(getattr(self.cfg, "license_token", "") or "").strip()
+        needs_relogin = bool(_email and not _token
+                             and not self._license_test_bypass())
+        relogin = None
+        if needs_relogin:
+            relogin = ft.ElevatedButton(
+                "重新登录并绑定本机", icon=ft.Icons.LOGIN, bgcolor=ACCENT_2,
+                color=ON_ACCENT,
+                on_click=lambda e: self._show_login_gate(
+                    message=self._relogin_message("unbound"), auto_submit=True))
+            desc += (" 本机当前未绑定授权（可能已在后台解绑）：重新登录会自动"
+                     "重新绑定本机，无需重新购买。")
         self.content.controls = [card(ft.Column([
             ft.Row([ft.Icon(ft.Icons.LOCK_OUTLINE, size=26, color=WARN_C),
                     ft.Text(title, size=FS_LG, weight=ft.FontWeight.BOLD, color=TEXT)],
@@ -1254,7 +1334,8 @@ class App:
             muted("当前平台已授权功能：" + (", ".join(feats) or "无")),
             muted(f"入口：{item.group} / {item.label} · 功能包 {item.feature}"),
             ft.Container(height=6),
-            ft.Row([cta, secondary], spacing=10, wrap=True),
+            ft.Row([*([relogin] if relogin is not None else []),
+                    refresh_btn, cta, secondary], spacing=10, wrap=True),
         ], spacing=10))]
         self._safe_update()
 
@@ -1318,8 +1399,18 @@ class App:
             return False
 
     def _license_override_active(self) -> bool:
-        """测试/调试用的平台覆盖（隐藏能力）；正常账号登录不依赖它。"""
-        return bool(str(getattr(self.cfg, "license_platforms", "") or "").strip())
+        """隐藏平台覆盖是否生效：仅显式开发/测试环境 + 配置了 license_platforms。
+
+        生产环境（未设置 AURORA_LICENSE_OVERRIDE/AURORA_TEST/AURORA_NO_SAVE）即使
+        config.json 里被写入 license_platforms 也不会生效，避免绕过服务器授权。
+        """
+        if not bool(str(getattr(self.cfg, "license_platforms", "") or "").strip()):
+            return False
+        try:
+            from ..licensing import override_enabled
+            return bool(override_enabled())
+        except Exception:
+            return False
 
     def _license_test_bypass(self) -> bool:
         """测试/CI 开关：AURORA_TEST / AURORA_NO_SAVE / AURORA_SKIP_LICENSE。"""
@@ -1332,11 +1423,16 @@ class App:
                     and str(getattr(self.cfg, "license_token", "") or "").strip())
 
     def _license_active(self) -> bool:
-        """当前平台是否可用（测试开关 / 隐藏覆盖 / 真实 token 权限）。"""
+        """当前平台是否可执行刊登/发布（测试开关 / 隐藏覆盖 / 真实 token 权限）。
+
+        审计修复：原来只判断 has_platform（平台任意功能包即可跑任务），
+        现在必须包含 `listing`（刊登）功能包，避免「只有类目/图片权限却可运行」。
+        """
         try:
             if self._license_test_bypass() or self._license_override_active():
                 return True
-            return bool(self.entitlements.has_platform(self.active_platform.id))
+            pid = str(getattr(self.active_platform, "id", "") or "")
+            return bool(self.entitlements.has_feature(pid, "listing"))
         except Exception:
             return False
 
@@ -1473,18 +1569,7 @@ class App:
         if item is None:
             return
         idx = item.index
-        if idx == 46:
-            self._current = 46
-            self._page_idx = 46
-            self.breadcrumb.value = f"{self.active_platform.name} / 发布与运行 / 任务队列"
-            self.content.controls = [page_header("任务队列",
-                                                 "配置快照队列：保存多份配置，单独执行或全部执行。"),
-                                     self._config_queue_card()]
-            try:
-                self._safe_update()
-            except Exception:
-                pass
-            return
+        self._current_item = item
         for page_idx, b in self.nav_buttons:
             on = page_idx == idx
             b.style = self._nav_style(on)
@@ -1504,6 +1589,20 @@ class App:
         if not self._page_allowed(item):
             self._page_idx = idx
             self._render_locked(item)
+            return
+        # 任务队列页放在授权判断之后：无 listing 权限时同样显示锁定页（审计修复：
+        # 原来 46 号在权限检查前直接渲染，属「该锁却显示」）。
+        if idx == 46:
+            self._current = 46
+            self._page_idx = 46
+            self.breadcrumb.value = f"{self.active_platform.name} / 发布与运行 / 任务队列"
+            self.content.controls = [page_header("任务队列",
+                                                 "配置快照队列：保存多份配置，单独执行或全部执行。"),
+                                     self._config_queue_card()]
+            try:
+                self._safe_update()
+            except Exception:
+                pass
             return
         self.store_shortcut.text = self._store_shortcut_label()
         self.field_refs = []
@@ -1568,6 +1667,7 @@ class App:
 
         finally:
             self._building_page = False
+        self._locked_item = None
         self.content.controls = controls
         try:
             self._collect_scope_ctx = getattr(self, "_collect_scope_ctx", {}) or {}
@@ -3060,6 +3160,10 @@ class App:
                         pr.record(pid, _msg, r.get("title") or "")
                     except Exception:
                         pass
+            try:
+                self._add_publish(self.active_platform.id, ok, fail)
+            except Exception:
+                pass
             self._log(f"自动修复并发布完成：成功 {ok} / 失败 {fail} / 处理中待确认 {pending}（未调用 AI，未产生费用）", "INFO")
             try:
                 self.toast(f"自动修复发布：成功 {ok} / 失败 {fail} / 待确认 {pending}")
@@ -3709,9 +3813,17 @@ class App:
                 self._log(("✓ 发布成功：" if ok else "✗ 发布失败：") + f"{pid} {bad}"[:120],
                           "INFO" if ok else "WARN")
                 self.toast(("已提交发布：" if ok else f"发布失败：{bad[:60]}") + str(pid), ok)
+                try:
+                    self._count_publish(self.active_platform.id, ok)
+                except Exception:
+                    pass
             except Exception as ex:  # noqa: BLE001
                 self._log(f"✗ 发布失败：{pid} {str(ex)[:100]}", "ERROR")
                 self.toast(f"发布失败：{str(ex)[:60]}", False)
+                try:
+                    self._count_publish(self.active_platform.id, False)
+                except Exception:
+                    pass
             if on_done:
                 try:
                     on_done()
@@ -3923,6 +4035,10 @@ class App:
                     c = _DXC(self._cookies(), overrides=self.cfg.endpoint_overrides or {})
                     r = c.batch_publish(ids)
                     ok, bad = len(r.get("success") or []), len(r.get("failed") or [])
+                    try:
+                        self._add_publish(self.active_platform.id, ok, bad)
+                    except Exception:
+                        pass
                     self._log(f"批量发布（已选）：成功 {ok} / 失败 {bad}", "INFO" if not bad else "WARN")
                     self.toast(f"发布完成：成功 {ok} / 失败 {bad}", not bad)
                 except Exception as ex:  # noqa: BLE001
@@ -4013,6 +4129,10 @@ class App:
             self._log(label + f"：开始发布 {len(ids)} 个商品…", "INFO")
             r = dxm.batch_publish(ids)
             ok, bad = r.get("success") or [], r.get("failed") or []
+            try:
+                self._add_publish(self.active_platform.id, len(ok), len(bad))
+            except Exception:
+                pass
             self._log(label + f"：成功 {len(ok)} / 失败 {len(bad)}", "INFO" if not bad else "WARN")
             for b in bad[:5]:
                 self._log(f"  ✗ {b.get('id')} {str(b.get('msg'))[:80]}", "WARN")
@@ -4436,6 +4556,11 @@ class App:
             if warning_n:
                 _tail += f" / 已保存但部分步骤未完成 {warning_n}"
             _stop = "（已按请求停止）" if self._stop_requested else ""
+            if not getattr(self, "_preview_mode", False):
+                try:
+                    self._add_publish(self.active_platform.id, ok_n, fail_n)
+                except Exception:
+                    pass
             self._log(f"完成：成功 {ok_n} / 失败 {fail_n}{_tail}{_stop}", "INFO")
             try:
                 history.record("pipeline", ok_n, fail_n)
@@ -11786,6 +11911,11 @@ class App:
                                 from ..services.alibaba_pipeline import run_alibaba_product
                                 res = run_alibaba_product(pid, config, dry_run=False,
                                                           op=op, use_ai=use_ai, overrides=edit_overrides)
+                                try:
+                                    self._count_publish("alibaba",
+                                                        bool(getattr(res, "saved", False)))
+                                except Exception:
+                                    pass
                                 if res.saved:
                                     msg = str(((res.save_result or {}).get("data") or {}).get("msg")
                                               or res.save_result or "")
@@ -11822,6 +11952,10 @@ class App:
                                     self._log(f"Alibaba 保存失败：{pid} op={op} · "
                                               f"{(res.error or res.completion_label)[:80]}", "ERROR")
                             except Exception as ex:  # noqa: BLE001
+                                try:
+                                    self._count_publish("alibaba", False)
+                                except Exception:
+                                    pass
                                 status.value = f"保存失败：{str(ex)[:200]}"
                                 status.color = DANGER_C
                             try:self._safe_update()
@@ -12003,6 +12137,10 @@ class App:
                     ok_n = sum(1 for x in results if x.get("ok"))
                     skip_n = sum(1 for x in results if x.get("skipped"))
                     fail_n = len(results) - ok_n - skip_n
+                    try:
+                        self._add_publish("alibaba", ok_n, fail_n)
+                    except Exception:
+                        pass
                     batch_status.value = (f"批量完成：成功 {ok_n} / 跳过 {skip_n} / 失败 {fail_n}")
                     batch_status.color = (ACCENT_2 if fail_n == 0 else WARN_C)
                     try:
@@ -13192,6 +13330,99 @@ class App:
         make_client, _payload, _pipeline = self._amazon_backend()
         return make_client(self.cfg)
 
+    def _open_amazon_category_picker(self, keyword="", on_pick=None) -> None:
+        """Amazon 类目选择器：历史类目 + 可逐级展开的类目树。
+
+        店小秘没有独立的类目关键词搜索 API；这里用采集标题/历史类目做筛选，
+        再逐级点选类目，避免手填 categoryId/path。
+        """
+        try:
+            from ..integrations.amazon import is_leaf_category
+            c = self._amazon_client()
+            site = str(getattr(self.cfg, "amazon_site_code", "") or "")
+            shop = str(getattr(self.cfg, "amazon_shop_id", "") or "")
+            if not site:
+                self.toast("请先选择 Amazon 站点", False)
+                return
+            history = c.category_history(shop, site) or []
+            roots = c.category_roots(site) or []
+        except Exception as ex:
+            self.toast(f"读取 Amazon 类目失败：{str(ex)[:80]}", False)
+            return
+        search_tf = ft.TextField(label="按标题/类目名筛选", value=str(keyword or ""),
+                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                 hint_text="输入商品标题关键词，例如 excavator")
+        list_box = ft.Column(spacing=2, height=330, scroll=ft.ScrollMode.AUTO)
+        crumb = ft.Text("Amazon 类目", size=12, color=ACCENT_2, selectable=True)
+
+        def _pick(node):
+            cid = str(node.get("categoryId") or node.get("id") or "").strip()
+            path = str(node.get("categoryBrowsePath") or node.get("nodePath")
+                       or node.get("path") or "").strip()
+            name = str(node.get("categoryName") or node.get("name") or cid).strip()
+            if not cid:
+                return
+            if callable(on_pick):
+                on_pick(cid, path, name)
+            try:
+                self.page.close_dialog()
+            except Exception:
+                try:
+                    self._close_dialog()
+                except Exception:
+                    pass
+
+        def _row(node):
+            cid = str(node.get("categoryId") or node.get("id") or "").strip()
+            name = str(node.get("categoryName") or node.get("name") or cid).strip()
+            path = str(node.get("categoryBrowsePath") or node.get("nodePath") or "").strip()
+            is_leaf = bool(node.get("isLeaf") or node.get("leaf") or not path)
+            def click(e=None):
+                if is_leaf:
+                    _pick(node)
+                    return
+                try:
+                    children = c.category_children(site, cid) or []
+                except Exception as ex:
+                    self.toast(f"读取子类目失败：{str(ex)[:60]}", False)
+                    return
+                if not children:
+                    _pick(node)
+                    return
+                crumb.value = f"Amazon 类目 / {name}"
+                _render(children)
+                try: self._safe_update()
+                except Exception: pass
+            return ft.TextButton(f"{name}  {'›' if not is_leaf else '✓'}",
+                                 on_click=click)
+
+        def _render(nodes):
+            list_box.controls = [ft.Row([_row(n) for n in nodes], wrap=True, spacing=6)] if nodes else [muted("该层没有类目", 12)]
+
+        def _search(e=None):
+            q = str(search_tf.value or "").strip().lower()
+            rows = []
+            for h in history:
+                label = str(h.get("categoryName") or h.get("name") or "")
+                if not q or q in label.lower() or q in str(h.get("categoryId") or "").lower():
+                    rows.append(h)
+            if rows:
+                crumb.value = "历史类目" + (f" · 筛选：{q}" if q else "")
+                _render(rows)
+            else:
+                crumb.value = "Amazon 顶级类目" + (f" · 未匹配历史，继续逐级选择" if q else "")
+                _render([r for r in roots if not q or q in str(r.get("name") or r.get("categoryName") or "").lower()] or roots)
+            try: self._safe_update()
+            except Exception: pass
+
+        search_tf.on_change = _search
+        _search()
+        dlg = ft.AlertDialog(
+            modal=True, title=ft.Text("选择 Amazon 类目"),
+            content=ft.Column([search_tf, crumb, list_box], spacing=10, width=720),
+            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())])
+        self._show_dlg(dlg)
+
     @staticmethod
     def _recommended_alibaba_values() -> dict:
         import json as _j2
@@ -13470,7 +13701,7 @@ class App:
                         "waitPublish": "处理中", "publishing": "发布中",
                         "publishFail": "发布失败"}
         op_labels = {"1": "保存草稿", "3": "保存并移入待发布", "2": "保存并发布"}
-        field_labels = {"title": "标题", "bullets": "五点描述",
+        field_labels = {"title": "标题", "highlight": "商品亮点", "bullets": "五点描述",
                         "description": "产品描述", "search_terms": "Search Terms"}
 
         # ---------- 小工具 ----------
@@ -13875,6 +14106,13 @@ class App:
                                 max_lines=3, bgcolor=CARD_2, border_color=CARD_2,
                                 color=TEXT, value=str(form.get("title") or ""))
         title_count = ft.Text("", size=11.5, color=MUTED)
+        _hl0 = str((form.get("native_fields") or {}).get("titleDifferentiation")
+                   or product.get("titleDifferentiation") or "")
+        highlight_tf = ft.TextField(label="商品亮点（≤125 字符，英文逗号分隔短语）",
+                                    width=760, multiline=True, min_lines=1, max_lines=2,
+                                    bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+                                    value=_hl0)
+        highlight_count = ft.Text("", size=11.5, color=MUTED)
         _bl0 = form.get("bullets") if isinstance(form.get("bullets"), list) else []
         bullets_tf = ft.TextField(
             label="五点描述（每行一条）", multiline=True, min_lines=6, max_lines=12,
@@ -13933,6 +14171,12 @@ class App:
         sku_tf = ft.TextField(label="SKU", width=240, bgcolor=CARD_2,
                               border_color=CARD_2, color=TEXT,
                               value=str(_cget("amazon_sku", "") or ""))
+        sku_prefix_tf = ft.TextField(label="SKU 前缀", width=140, bgcolor=CARD_2,
+                                     border_color=CARD_2, color=TEXT,
+                                     value=str(_cget("amazon_sku_prefix", "") or ""))
+        sku_suffix_tf = ft.TextField(label="SKU 后缀", width=140, bgcolor=CARD_2,
+                                     border_color=CARD_2, color=TEXT,
+                                     value=str(_cget("amazon_sku_suffix", "") or ""))
         if single:
             for field, key in ((price_tf, "price"), (sale_tf, "sale_price"), (qty_tf, "quantity"),
                                (fulfil_dd, "fulfillment"), (handling_tf, "handling_time"),
@@ -14061,9 +14305,8 @@ class App:
         op_dd = ft.Dropdown(
             label="保存动作", width=300, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value=str(_cget("amazon_op", 1) or 1),
-            options=[ft.dropdown.Option("1", "保存草稿（op=1，留在采集箱）"),
-                     ft.dropdown.Option("3", "保存并移入待发布（op=3）"),
-                     ft.dropdown.Option("2", "保存并发布（op=2，提交平台）")])
+            options=[ft.dropdown.Option("1", "保存（留在采集箱，op=1）"),
+                     ft.dropdown.Option("2", "保存并发布（提交平台，op=2）")])
         save_status = ft.Text("尚未保存", size=12.5, color=MUTED, selectable=True)
         result_box = ft.Column(spacing=2)
         # 内部安全护栏：AURORA_TEST/AURORA_NO_SAVE 下禁止真实写；页面不显示相关字样。
@@ -14083,10 +14326,9 @@ class App:
             _auto_wait0 = "90"
         auto_op_dd = ft.Dropdown(
             label="自动发布动作", width=260, bgcolor=CARD_2, border_color=CARD_2,
-            color=TEXT, value=str(_cget("amazon_auto_op", 2) or 2),
-            options=[ft.dropdown.Option("2", "保存并发布（op=2）"),
-                     ft.dropdown.Option("3", "保存并移入待发布（op=3）"),
-                     ft.dropdown.Option("1", "保存草稿（op=1）")])
+            color=TEXT, value=str(_cget("amazon_auto_op", 1) or 1),
+            options=[ft.dropdown.Option("1", "保存（留在采集箱，op=1）"),
+                     ft.dropdown.Option("2", "保存并发布（提交平台，op=2）")])
         auto_rounds_dd = ft.Dropdown(
             label="最多自动修复轮数", width=180, bgcolor=CARD_2, border_color=CARD_2,
             color=TEXT, value=_auto_rounds0,
@@ -14135,6 +14377,8 @@ class App:
         _bind_cfg(brand_tf, "amazon_brand")
         _bind_cfg(maker_tf, "amazon_manufacturer")
         _bind_cfg(sku_tf, "amazon_sku")
+        _bind_cfg(sku_prefix_tf, "amazon_sku_prefix")
+        _bind_cfg(sku_suffix_tf, "amazon_sku_suffix")
         _bind_cfg(ship_dd, "amazon_shipping_template")
         _bind_cfg(fulfil_dd, "amazon_fulfillment")
         if single:
@@ -14196,8 +14440,11 @@ class App:
         def _sync_counts():
             try:
                 t = str(title_tf.value or "")
-                title_count.value = f"{len(t)}/200"
-                title_count.color = DANGER_C if len(t) > 200 else MUTED
+                title_count.value = f"{len(t)}/75"
+                title_count.color = DANGER_C if len(t) > 75 else MUTED
+                hl = str(highlight_tf.value or "")
+                highlight_count.value = f"{len(hl)}/125"
+                highlight_count.color = DANGER_C if len(hl) > 125 else MUTED
                 values = _bullet_values()
                 longest = max((len(x) for x in values), default=0)
                 bullets_count.value = f"{len(values)} 条卖点 · 最长 {longest}/700 字符"
@@ -14217,6 +14464,10 @@ class App:
             _sync_counts()
 
         title_tf.on_change = lambda e: _sync_form("title", str(e.control.value or ""))
+        def _on_highlight(e=None):
+            form.setdefault("native_fields", {})["titleDifferentiation"] = str(highlight_tf.value or "")
+            _sync_counts()
+        highlight_tf.on_change = _on_highlight
 
         def _on_bullet_edit(e=None):
             form["bullets"] = _bullet_values()
@@ -14788,6 +15039,8 @@ class App:
                 control.value = str(p.get(key) if p.get(key) is not None else "")
             _cset("amazon_test_product_id", pid)
             form["title"] = str(_pick(p, "title", "subject"))
+            form.setdefault("native_fields", {})["titleDifferentiation"] = str(
+                _pick(p, "titleDifferentiation") or "")
             bullets = _split_bullets(str(_pick(p, "bulletPoint", "bullet_point")))
             while len(bullets) < 5:
                 bullets.append("")
@@ -14875,6 +15128,8 @@ class App:
             # 表单控件回填（卖点按实际条数重建 5~10 行，不截断）
             try:
                 title_tf.value = form.get("title") or ""
+                highlight_tf.value = str((form.get("native_fields") or {}).get("titleDifferentiation")
+                                         or p.get("titleDifferentiation") or "")
                 _render_bullet_rows(len(form.get("bullets") or []))
                 main_image_tf.value = form.get("main_image") or ""
                 extra_images_tf.value = "\n".join(form.get("extra_images") or [])
@@ -15153,6 +15408,7 @@ class App:
             base = dict(product or {})
             base.update({
                 "title": str(title_tf.value or ""),
+                "titleDifferentiation": str(highlight_tf.value or ""),
                 "bulletPoint": "±".join(_bullet_values()),
                 "description": str(desc_tf.value or ""),
                 "searchTerms": str(st_tf.value or ""),
@@ -15168,7 +15424,10 @@ class App:
 
         def _apply_ai(field, value):
             if field == "title":
-                title_tf.value = str(value or "")[:200]
+                title_tf.value = str(value or "")[:75]
+            elif field == "highlight":
+                highlight_tf.value = str(value or "")[:125]
+                form.setdefault("native_fields", {})["titleDifferentiation"] = str(highlight_tf.value or "")
             elif field == "bullets":
                 vals = (value if isinstance(value, (list, tuple))
                         else _split_bullets(str(value or "")))
@@ -15897,6 +16156,18 @@ class App:
                     res = fn(pid, self.cfg, overrides=ov, dry_run=False,
                              use_ai=False, op="2", confirm_write=True)
                     _render_result(res, "重试发布结果")
+                    try:
+                        _amz_ok2 = bool(getattr(res, "saved", False))
+                        if _amz_ok2:
+                            _amz_st2 = str(getattr(res, "publish_state", "") or "")
+                            if _amz_st2:
+                                _amz_ok2 = bool(_publish_badge(
+                                    _amz_st2,
+                                    str(getattr(res, "publish_error", "") or ""),
+                                    str(getattr(res, "publish_detail", "") or ""))[3])
+                        self._count_publish("amazon", _amz_ok2)
+                    except Exception:
+                        pass
                     state = str(getattr(res, "publish_state", "") or "")
                     label, color, _icon, ok = _publish_badge(
                         state, str(getattr(res, "publish_error", "") or ""),
@@ -15915,6 +16186,10 @@ class App:
                         _status(save_status, f"重试发布未成功：{err[:140]}", DANGER_C)
                         _toast(f"重试发布未成功：{err[:70]}", False)
                 except Exception as ex:
+                    try:
+                        self._count_publish("amazon", False)
+                    except Exception:
+                        pass
                     _status(save_status, f"重试发布失败：{str(ex)[:180]}", DANGER_C)
                     _toast(f"重试发布失败：{str(ex)[:70]}", False)
                 finally:
@@ -15972,7 +16247,7 @@ class App:
 
         def _auto_options_snapshot():
             return {
-                "op": str(auto_op_dd.value or "2"),
+                "op": str(auto_op_dd.value or "1"),
                 "max_rounds": _as_int(auto_rounds_dd.value, 3),
                 "wait_seconds": _as_int(auto_wait_dd.value, 90),
                 "auto_fix_attrs": bool(auto_fix_attrs_sw.value),
@@ -16111,6 +16386,10 @@ class App:
                              auto_fix_description=snap["auto_fix_description"],
                              auto_ai_fix=snap["auto_ai_fix"])
                     d, ok = _render_auto_result(res)
+                    try:
+                        self._count_publish("amazon", bool(ok))
+                    except Exception:
+                        pass
                     label, color, _icon, _badge_ok = _publish_badge(
                         str(d.get("final_state") or d.get("publish_state") or ""),
                         str(d.get("publish_error") or d.get("error") or ""),
@@ -16127,6 +16406,10 @@ class App:
                     if ok:
                         _refresh_after_save()
                 except Exception as ex:
+                    try:
+                        self._count_publish("amazon", False)
+                    except Exception:
+                        pass
                     _status(auto_status, f"自动发布失败：{str(ex)[:160]}", DANGER_C)
                     _toast(f"自动发布失败：{str(ex)[:70]}", False)
                     try:
@@ -16207,6 +16490,18 @@ class App:
                     res = pipeline.run_amazon_product(
                         pid, snapshot_cfg, overrides=overrides, dry_run=False,
                         use_ai=False, op=op, confirm_write=True, client=client)
+                    try:
+                        _amz_ok = bool(getattr(res, "saved", False))
+                        if _amz_ok and str(op) == "2":
+                            _amz_st = str(getattr(res, "publish_state", "") or "")
+                            if _amz_st:
+                                _amz_ok = bool(_publish_badge(
+                                    _amz_st,
+                                    str(getattr(res, "publish_error", "") or ""),
+                                    str(getattr(res, "publish_detail", "") or ""))[3])
+                        self._count_publish("amazon", _amz_ok)
+                    except Exception:
+                        pass
                     if target != _edit_context():
                         _toast(f"商品 {pid} · {getattr(res, 'error', '') or ('已提交，请查询发布结果' if op == '2' else '已保存')}", bool(res.ok))
                         return
@@ -16243,6 +16538,10 @@ class App:
                         except Exception:
                             pass
                 except Exception as ex:
+                    try:
+                        self._count_publish("amazon", False)
+                    except Exception:
+                        pass
                     _status(save_status, f"保存失败：{str(ex)[:180]}", DANGER_C)
                     _toast(f"保存失败：{str(ex)[:70]}", False)
                     try:
@@ -16391,7 +16690,7 @@ class App:
         cat_card = card(ft.Column([
             h1i(ft.Icons.CATEGORY_OUTLINED, "③ 站点与类目", FS_MD),
             site_now,
-            muted("逐级下钻到末级类目才能保存；也可用「最近使用类目」或粘贴 nodePath 校验。"
+            muted("逐级下钻或「最近使用类目」选择末级类目；保存前会校验站点与类目。"
                   "切换站点后原类目会清空（除非商品原本就在该站点）。"),
             ft.Row([cat_root_dd,
                     ft.OutlinedButton("加载类目", icon=ft.Icons.REFRESH,
@@ -16399,12 +16698,13 @@ class App:
                     cat_hist_dd], spacing=10, wrap=True),
             cat_crumb,
             cat_child_box,
+            ft.Row([ft.OutlinedButton("AI/平台推荐产品类型", icon=ft.Icons.AUTO_AWESOME,
+                                      on_click=predict_type)], spacing=10, wrap=True),
+            # 兼容旧测试/高级用户：路径校验入口保留但不在界面展示，日常用类目选择器。
             ft.Row([cat_path_tf,
                     ft.ElevatedButton("校验路径", icon=ft.Icons.FACT_CHECK,
                                       bgcolor=ACCENT, color=ON_ACCENT,
-                                      on_click=validate_path),
-                    ft.OutlinedButton("AI/平台推荐产品类型", icon=ft.Icons.AUTO_AWESOME,
-                                      on_click=predict_type)], spacing=10, wrap=True),
+                                      on_click=validate_path)], visible=False),
             predict_text,
             cat_status,
             ft.Divider(color=BORDER, height=12),
@@ -16429,6 +16729,15 @@ class App:
             h1i(ft.Icons.ACCOUNT_TREE_OUTLINED, "SKU、库存与品牌", FS_MD),
             muted("SKU、可售库存、品牌与制造商集中维护；类目必填属性在「类目与属性」填写。"),
             ft.Row([sku_tf, qty_tf, brand_tf, maker_tf], spacing=10, wrap=True),
+            ft.Row([sku_prefix_tf, sku_suffix_tf,
+                    ft.ElevatedButton("生成 SKU 编码", icon=ft.Icons.TAG,
+                                      on_click=lambda e: (
+                                          setattr(sku_tf, "value",
+                                                  (str(sku_prefix_tf.value or "") +
+                                                   (str(sku_tf.value or "").strip() or "SKU") +
+                                                   str(sku_suffix_tf.value or ""))),
+                                          _sync_form("sku", str(sku_tf.value or "")),
+                                          _ui()))], spacing=10, wrap=True),
             ft.TextButton("AI 生成 SKU", icon=ft.Icons.AUTO_AWESOME, on_click=_ai_sku),
             sku_ai_status,
         ], spacing=10))
@@ -16477,15 +16786,73 @@ class App:
                     ft.Row([w["dd"], *btns], spacing=10, wrap=True),
                     w["name"], w["tf"]]
 
+        def _open_prompt_editor(e=None):
+            from ..services.amazon_prompts import DEFAULT_PROMPTS
+            specs = [
+                ("title", "标题提示词", "amazon_title_prompt"),
+                ("highlight", "商品亮点提示词", "amazon_highlight_prompt"),
+                ("bullets", "五点描述提示词", "amazon_bullet_prompt"),
+                ("description", "产品描述提示词", "amazon_description_prompt"),
+                ("search_terms", "Search Terms 提示词", "amazon_search_terms_prompt"),
+                ("image", "图片处理提示词（全部主图）", "amazon_collect_image_prompt"),
+            ]
+            editors = {}
+            rows = []
+            for kind, label, key in specs:
+                value = str(_cget(key, "") or "") or DEFAULT_PROMPTS.get(kind, "")
+                tf = ft.TextField(label=label, value=value, multiline=True,
+                                  min_lines=3, max_lines=7, width=700,
+                                  bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+                editors[key] = tf
+                rows.append(tf)
+            def _save(e=None):
+                for key, tf in editors.items():
+                    _cset_raw(key, str(tf.value or ""))
+                _img_prompt = str(editors.get("amazon_collect_image_prompt").value or "").strip()
+                if _img_prompt:
+                    import json as _json
+                    try:
+                        _rules = _json.loads(str(_cget("amazon_collect_image_rules", "") or "[]"))
+                    except Exception:
+                        _rules = []
+                    if isinstance(_rules, list) and _rules:
+                        # 保留用户在图片页选定的图片序号，只更新提示词。
+                        for _r in _rules:
+                            if isinstance(_r, dict):
+                                _r["prompt"] = _img_prompt
+                                _r["operation"] = "custom"
+                    else:
+                        # 默认只处理第 1 张；其余图片在图片页按需添加位置。
+                        _rules = [{"group": "main", "position": "1",
+                                   "operation": "custom", "prompt": _img_prompt}]
+                    _cset_raw("amazon_collect_image_rules",
+                              _json.dumps(_rules, ensure_ascii=False))
+                try:
+                    self.page.close_dialog()
+                except Exception:
+                    self._close_dialog()
+                _toast("AI 提示词已保存", True)
+            self._show_dlg(ft.AlertDialog(
+                modal=True, title=ft.Text("AI 提示词编辑"),
+                content=ft.Container(content=ft.Column(rows, spacing=10, scroll=ft.ScrollMode.AUTO),
+                                     width=760, height=560),
+                actions=[ft.TextButton("取消", on_click=lambda e: self._close_dialog()),
+                         ft.ElevatedButton("保存提示词", bgcolor=ACCENT, color=ON_ACCENT,
+                                           on_click=_save)]))
+
         text_card = card(ft.Column([
             h1i(ft.Icons.EDIT_NOTE, "⑤ 文案与 AI", FS_MD),
-            muted("标题 ≤200 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条"
+            muted("标题 ≤75 字符；商品亮点 ≤125 字符；五点卖点建议 ≤500 字符（上限 700）、最少 3 条"
                   "（建议 5 条，最多 10 条）；描述为 HTML；Search Terms ≤250 字节。"
                   "AI 结果全部可编辑。"),
             ft.Row([ft.Container(content=title_tf, expand=True),
                     ft.Column([ft.TextButton("AI 生成标题",
                                              on_click=_ai_one("title")),
                                title_count], spacing=0, width=110)], spacing=8),
+            ft.Row([ft.Container(content=highlight_tf, expand=True),
+                    ft.Column([ft.TextButton("AI 生成商品亮点",
+                                             on_click=_ai_one("highlight")),
+                               highlight_count], spacing=0, width=120)], spacing=8),
             ft.Row([ft.OutlinedButton("AI 生成五点", icon=ft.Icons.AUTO_AWESOME,
                                       tooltip="一个提示词、一次 AI 调用，生成完整五条卖点",
                                       on_click=_ai_one("bullets")),
@@ -16504,11 +16871,12 @@ class App:
             ft.Row([*([] if editor_only else [ai_switch]),
                     ft.ElevatedButton("AI 一键生成全部（付费）",
                                       icon=ft.Icons.AUTO_AWESOME, bgcolor=ACCENT,
-                                      color=ON_ACCENT, on_click=ai_all)],
+                                      color=ON_ACCENT, on_click=ai_all),
+                    ft.OutlinedButton("AI 提示词编辑", icon=ft.Icons.EDIT,
+                                      on_click=_open_prompt_editor)],
                    spacing=12, wrap=True),
             ai_status,
             ft.ExpansionTile(title=ft.Text("商品亮点与来源", color=TEXT), controls=[
-                native_field("titleDifferentiation", "商品亮点（标题较短时生效）", 600),
                 native_field("sourceUrl", "来源链接", 600),
             ], icon_color=ACCENT),
         ], spacing=10))
@@ -16527,18 +16895,29 @@ class App:
 
         from .media_actions import controls as media_actions
         from ..services.platform_media import GROUPS
+        def _sync_media_form():
+            form.update(main_image=str(main_image_tf.value or "").strip(),
+                        extra_images=[u.strip() for u in str(extra_images_tf.value or "").splitlines() if u.strip()],
+                        images_edited=True)
+            _render_images()
         def apply_media_urls(urls):
             main_image_tf.value = urls[0] if urls else ""
             extra_images_tf.value = "\n".join(urls[1:])
-            form.update(main_image=main_image_tf.value, extra_images=list(urls[1:]), images_edited=True)
-            _render_images()
+            _sync_media_form()
+        def apply_media_changes(changes):
+            if "main" in changes:
+                main_image_tf.value = (changes.get("main") or [""])[0] if changes.get("main") else ""
+            if "extra" in changes:
+                extra_images_tf.value = "\n".join(changes.get("extra") or [])
+            _sync_media_form()
         def media_urls():
             main = str(main_image_tf.value or "").strip()
             return ([main] if main else []) + [u.strip() for u in str(extra_images_tf.value or "").splitlines() if u.strip()]
 
         media_editor = media_actions(self, media_urls, apply_media_urls, platform="amazon",
-                         groups=GROUPS["amazon"], apply_groups=lambda changes: apply_media_urls(changes["main"]),
-                         get_groups=lambda: {"main": media_urls()},
+                         groups=GROUPS["amazon"], apply_groups=apply_media_changes,
+                         get_groups=lambda: {"main": [str(main_image_tf.value or "").strip()] if str(main_image_tf.value or "").strip() else [],
+                                             "extra": [u.strip() for u in str(extra_images_tf.value or "").splitlines() if u.strip()]},
                          language=lambda: str(_site_meta(str(_cget("amazon_site", ""))).get("language_name") or "英语"))
 
         # ⑥ 商品图片与逐图任务
@@ -18926,6 +19305,10 @@ class App:
                         use_ai=False, op=op, save_mode=save_mode,
                         confirm_write=True)
                     _render_result(res, "保存结果", preview=False)
+                    try:
+                        self._count_publish("tiktok", bool(getattr(res, "saved", False)))
+                    except Exception:
+                        pass
                     if bool(getattr(res, "saved", False)):
                         _status(save_status, f"保存成功（op={op} · {op_text}）", SUCCESS_C)
                         _toast(f"已保存到 TikTok（op={op}）", True)
@@ -18949,6 +19332,10 @@ class App:
                         except Exception:
                             pass
                 except Exception as ex:
+                    try:
+                        self._count_publish("tiktok", False)
+                    except Exception:
+                        pass
                     _status(save_status, f"保存失败：{str(ex)[:180]}", DANGER_C)
                     _toast(f"保存失败：{str(ex)[:70]}", False)
                     try:
@@ -19966,8 +20353,21 @@ class App:
 
     def _apply_account_token(self, tok: str, email: str, save_password: bool,
                              auto_login: bool = True,
-                             password: str = "") -> None:
-        """登录成功：保存 token/邮箱/（可选加密密码），刷新授权并解锁平台。"""
+                             password: str = "",
+                             login_data: dict | None = None) -> None:
+        """登录成功：保存 token/邮箱/（可选加密密码），刷新授权并解锁平台。
+
+        `login_data`（可选）：software_login 返回的 data；其中的 license_rev 作为
+        本地授权版本基线（后台开通后可经心跳 rev 变化立即刷新）。
+        """
+        prev_email = str(getattr(self.cfg, "license_account_email", "") or "").strip().lower()
+        new_email = str(email or "").strip().lower()
+        if prev_email and new_email and prev_email != new_email:
+            # 账号切换（A→B）：先清空 A 的 rev 基线，避免 B 被 A 的 rev 干扰
+            try:
+                self._reset_license_rev()
+            except Exception:
+                pass
         from ..licensing import apply_license_token
         from ..account_store import remember_password, clear_password
         apply_license_token(self.cfg, tok, save_config, machine=self.machine_code())
@@ -19980,6 +20380,10 @@ class App:
         save_config(self.cfg)
         self.entitlements = load_entitlements(self.cfg, machine=self.machine_code())
         try:
+            self._clear_relogin_prompt()
+        except Exception:
+            pass
+        try:
             self._rebuild_nav()
             if getattr(self, "platform_rail", None) is not None:
                 self.platform_rail.content = self._build_platform_rail().content
@@ -19987,9 +20391,22 @@ class App:
             pass
         self._sync_license_state()
         try:
+            if isinstance(login_data, dict) and "license_rev" in login_data:
+                self._set_license_rev(str(login_data.get("license_rev") or ""))
+        except Exception:
+            pass
+        try:
             self._safe_update()
         except Exception:
             pass
+        # 登录成功后立即拉一次授权（后台已开通/购买后无需等周期刷新）
+        if not self._license_test_bypass() and not self._license_override_active():
+            try:
+                threading.Thread(target=self._refresh_platform_license,
+                                 daemon=True,
+                                 name="aurora-license-login-refresh").start()
+            except Exception:
+                pass
 
     def _refresh_license_card_controls(self) -> None:
         """设置页授权卡：登录邮箱 / 各平台到期日 / 状态。"""
@@ -20080,8 +20497,10 @@ class App:
                 dialog_status.value = "正在刷新授权…"
                 dialog_status.color = MUTED
                 self._safe_update()
+            status: dict = {}
             ent = refresh_entitlements(self.cfg, version=VERSION, save=save_config,
-                                       machine=self.machine_code())
+                                       machine=self.machine_code(), status=status)
+            self._note_license_rev_from_status(status)
             self.entitlements = ent
             plats = ent.platforms_list()
             try:
@@ -20090,6 +20509,14 @@ class App:
             except Exception:
                 pass
             self._sync_license_state()
+            try:
+                self._apply_current_page_lock()
+            except Exception:
+                pass
+            try:
+                self._maybe_prompt_relogin(ent)
+            except Exception:
+                pass
             self._log("账号授权已刷新：" + ("、".join(plats) or "无可用平台"), "INFO")
             if dialog_status is not None:
                 dialog_status.value = ("授权已刷新 · " + ("、".join(plats) or "暂无套餐"))
@@ -20109,6 +20536,10 @@ class App:
         email = str(getattr(self.cfg, "license_account_email", "") or "")
         mcode = self.machine_code()
         self._stop_heartbeat()
+        try:
+            self._reset_license_rev()
+        except Exception:
+            pass
         try:
             clear_credentials(self.cfg)
             save_config(self.cfg)
@@ -20274,8 +20705,8 @@ class App:
             content=ft.Column([
                 muted("账号：" + (email or "未登录"), 12),
                 muted(f"本机机器码：{machine}", 11),
-                muted("本机禁止在软件内解绑（避免把自己锁掉）；其他设备可解绑，"
-                      "解绑后该电脑下次登录需重新绑定。", 11),
+                muted("解绑本机需在网页端操作（避免把自己锁掉）；其他设备解绑后，"
+                      "那台电脑需要重新登录以重新绑定本机。", 11),
                 password,
                 status,
                 ft.Container(content=list_box, padding=ft.padding.only(top=4)),
@@ -20440,7 +20871,7 @@ class App:
 
     # ---------- 强制登录页（契约 §10.1 / §10.2） ----------
     def _show_login_gate(self, email: str = "", password: str = "",
-                         message: str = "") -> None:
+                         message: str = "", auto_submit: bool = False) -> None:
         """全屏登录页：登录成功前不显示主界面（模态覆盖整个窗口）。
 
         - 邮箱 / 密码 / 记住密码 / 自动登录；
@@ -20550,9 +20981,10 @@ class App:
             except Exception:
                 pass
 
-        def finish_login(tok: str, email_done: str) -> None:
+        def finish_login(tok: str, email_done: str, login_data: dict | None = None) -> None:
             self._apply_account_token(tok, email_done, bool(remember_cb.value),
-                                      bool(auto_cb.value), str(pass_field.value or ""))
+                                      bool(auto_cb.value), str(pass_field.value or ""),
+                                      login_data=login_data)
             self._log("账号登录成功：" + email_done, "INFO")
             self._start_heartbeat()
             close_gate()
@@ -20568,12 +21000,7 @@ class App:
                 self._safe_update()
             except Exception:
                 pass
-            # 登录后后台再按机器码刷新一次 token（购买后无需重登即可生效）
-            try:
-                threading.Thread(target=self._refresh_platform_license,
-                                 daemon=True).start()
-            except Exception:
-                pass
+            # 登录后立即刷新已在 _apply_account_token 内完成（license_rev 基线也会更新）
 
         def submit(e=None):
             email_in = str(email_field.value or "").strip()
@@ -20620,7 +21047,7 @@ class App:
                         pass
                     return
                 try:
-                    finish_login(tok, email_in)
+                    finish_login(tok, email_in, data)
                 except Exception as ex:  # noqa: BLE001
                     status.value = f"登录失败：{str(ex)[:120]}"
                     status.color = DANGER_C
@@ -20640,8 +21067,9 @@ class App:
             self._safe_update()
         except Exception:
             pass
-        if password_v and auto_value:
-            # 记住密码 + 自动登录：预填后自动联网登录，失败可直接重试。
+        if password_v and (auto_value or auto_submit):
+            # 记住密码 / 自动登录 / 授权失效后重新登录：预填后自动提交一次，
+            # 失败仍停在登录页可手动重试（不会反复弹）。
             timer = threading.Timer(0.2, lambda: submit(None))
             timer.daemon = True
             timer.start()
@@ -20659,14 +21087,28 @@ class App:
                 self.entitlements = load_entitlements(self.cfg,
                                                       machine=self.machine_code())
                 self._start_heartbeat()
+                try:
+                    threading.Thread(target=self._refresh_platform_license,
+                                     daemon=True,
+                                     name="aurora-license-login-refresh").start()
+                except Exception:
+                    pass
                 return False
         except Exception as ex:
             self._log(f"本地授权校验失败，需要登录：{ex}", "WARN")
+        email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
+        token = str(getattr(self.cfg, "license_token", "") or "").strip()
+        if email and not token and not self._license_override_active():
+            # 上次登录后 token 被清（后台解绑/禁用）：明确提示重新登录会重新绑定本机
+            self._relogin_prompted_for = "license-invalid:unbound"
+            self._show_login_gate(message=self._relogin_message("unbound"),
+                                  auto_submit=True)
+            return True
         self._show_login_gate()
         return True
 
     def _start_heartbeat(self) -> None:
-        """登录成功后启动心跳；未登录/退出登录不启动（幂等）。"""
+        """登录成功后启动心跳 + 周期授权刷新；未登录/退出登录不启动（幂等）。"""
         try:
             if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
                 return
@@ -20676,13 +21118,19 @@ class App:
                 return
             self._heartbeat = HeartbeatLoop(
                 self._heartbeat_payload,
-                interval=int(getattr(self.cfg, "heartbeat_interval", 120) or 120))
+                interval=int(getattr(self.cfg, "heartbeat_interval", 120) or 120),
+                on_result=self._on_heartbeat_result)
             self._heartbeat.start()
         except Exception as ex:
             try:
                 self._log(f"心跳线程启动失败：{ex}", "WARN")
             except Exception:
                 pass
+        # 独立定时器：登录态每 10~15 分钟刷新一次授权（后台解绑/禁用及时感知）
+        try:
+            self._start_license_watch()
+        except Exception:
+            pass
 
     def _stop_heartbeat(self) -> None:
         """退出登录/会话失效时停止心跳，避免后台仍显示设备在线。"""
@@ -20693,9 +21141,88 @@ class App:
             except Exception:
                 pass
             self._heartbeat = None
+        try:
+            self._stop_license_watch()
+        except Exception:
+            pass
+
+    # ---------- 每平台今日刊登成功/失败计数（心跳上报） ----------
+    @staticmethod
+    def _publish_today() -> str:
+        return time.strftime("%Y-%m-%d")
+
+    def _ensure_publish_day(self) -> bool:
+        """跨天自动重置今日计数；返回是否发生重置。"""
+        today = self._publish_today()
+        if str(getattr(self, "_publish_day", "") or "") == today:
+            return False
+        self._publish_day = today
+        self._publish_counts = {}
+        return True
+
+    def _add_publish(self, pid: str, success: int = 0, fail: int = 0) -> None:
+        """累加指定平台今日的刊登成功/失败数（线程安全；取消/未选不要调用）。"""
+        try:
+            pid = str(pid or "").strip()
+            if not pid:
+                pid = str(getattr(getattr(self, "active_platform", None), "id", "") or "")
+            if not pid:
+                return
+            s = max(0, int(success or 0))
+            f = max(0, int(fail or 0))
+            if not s and not f:
+                return
+            try:
+                self._ensure_publish_day()
+            except Exception:
+                pass
+            lock = getattr(self, "_publish_lock", None)
+            if lock is None:
+                lock = threading.Lock()
+                self._publish_lock = lock
+            with lock:
+                counts = getattr(self, "_publish_counts", None)
+                if not isinstance(counts, dict):
+                    counts = {}
+                    self._publish_counts = counts
+                cur = counts.setdefault(pid, {"success": 0, "fail": 0})
+                cur["success"] = int(cur.get("success", 0) or 0) + s
+                cur["fail"] = int(cur.get("fail", 0) or 0) + f
+                total = getattr(self, "_publish_total", None)
+                if not isinstance(total, dict):
+                    total = {"success": 0, "fail": 0}
+                    self._publish_total = total
+                total["success"] = int(total.get("success", 0) or 0) + s
+                total["fail"] = int(total.get("fail", 0) or 0) + f
+        except Exception:
+            pass
+
+    def _count_publish(self, pid: str, ok: bool, n: int = 1) -> None:
+        """单条/单批结果计数：ok=True 记成功，否则失败（成功/失败都计入）。"""
+        self._add_publish(pid, success=n if ok else 0, fail=0 if ok else n)
+
+    def _publish_snapshot(self) -> dict:
+        """今日各平台计数快照：{pid: {"success": n, "fail": m}}（只含有数据的平台）。"""
+        try:
+            self._ensure_publish_day()
+        except Exception:
+            pass
+        out: dict[str, dict[str, int]] = {}
+        counts = getattr(self, "_publish_counts", None)
+        if not isinstance(counts, dict):
+            return out
+        for pid, cur in counts.items():
+            try:
+                ok_n = int(cur.get("success", 0) or 0)
+                fail_n = int(cur.get("fail", 0) or 0)
+            except Exception:
+                continue
+            if ok_n or fail_n:
+                out[str(pid)] = {"success": ok_n, "fail": fail_n}
+        return out
 
     def _heartbeat_payload(self):
-        """(server, machine, payload)：平台状态 + 最近刊登产品。"""
+        """(server, machine, payload)：平台状态 + 最近刊登产品 + 今日刊登计数。"""
         try:
             machine = self.machine_code()
         except Exception:
@@ -20717,20 +21244,318 @@ class App:
                              "title": title,
                              "status": str(p.get("status") or p.get("dxm_state") or "处理中"),
                              "updated": time.strftime("%Y-%m-%d %H:%M")})
-        return server, machine, {"platforms": plats, "products": products}
+        payload = {"platforms": plats, "products": products}
+        try:
+            payload["publish"] = self._publish_snapshot()
+            payload["publish_total"] = dict(getattr(self, "_publish_total", {}) or {})
+            payload["publish_day"] = str(getattr(self, "_publish_day", "") or "")
+        except Exception:
+            payload.setdefault("publish", {})
+        return server, machine, payload
 
-    def _refresh_platform_license(self):
-        """登录后联网刷新 token；失败保留本地缓存，不阻塞界面。"""
+    # ---------- 解绑/禁用后的重新登录引导（task-21） ----------
+    def _relogin_message(self, reason: str = "unbound") -> str:
+        """统一文案：本机解绑/账号禁用后请重新登录（登录会自动重新绑机）。"""
+        try:
+            from ..licensing import invalid_source_message
+            msg = invalid_source_message(reason)
+        except Exception:
+            msg = ""
+        return msg or "本设备授权已失效（可能已在后台解绑），请重新登录以重新绑定本机"
+
+    def _clear_relogin_prompt(self) -> None:
+        """登录成功后清除「已提示重新登录」标志（下次失效时还能再提示）。"""
+        self._relogin_prompted_for = ""
+
+    def _maybe_prompt_relogin(self, ent=None) -> bool:
+        """刷新后发现「设备已解绑/账号被禁用且本地 token 已清」→ 弹强制登录页。
+
+        条件：服务端明确失效（ent.source = device-unbound / account-disabled）
+              + 本地 token 已清 + 邮箱非空 + 非测试/覆盖环境。
+        同一事件（原因）只弹一次；登录成功后由 _apply_account_token 清标志。
+        返回是否弹了登录页。
+        """
+        try:
+            from ..licensing import entitlements_invalid_reason
+            reason = entitlements_invalid_reason(
+                ent if ent is not None else getattr(self, "entitlements", None))
+        except Exception:
+            reason = ""
+        if not reason:
+            return False
+        if self._license_test_bypass() or self._license_override_active():
+            return False
+        email = str(getattr(self.cfg, "license_account_email", "") or "").strip()
+        token = str(getattr(self.cfg, "license_token", "") or "").strip()
+        if token or not email:
+            return False
+        key = "license-invalid:" + str(reason)
+        if str(getattr(self, "_relogin_prompted_for", "") or "") == key:
+            return False
+        self._relogin_prompted_for = key
+        try:
+            self._stop_heartbeat()
+        except Exception:
+            pass
+        try:
+            self._log("检测到本机授权已失效（"
+                      + ("后台解绑" if reason == "unbound" else "账号禁用")
+                      + "），已弹出重新登录页，请重新登录以重新绑定本机", "WARN")
+        except Exception:
+            pass
+        try:
+            self._show_login_gate(message=self._relogin_message(reason),
+                                  auto_submit=True)
+        except Exception:
+            pass
+        return True
+
+    # ---------- 登录态周期授权刷新（后台解绑/禁用最迟约 10~15 分钟感知） ----------
+    def _license_refresh_interval(self) -> int:
+        """刷新间隔秒数：默认 5 分钟（clamp 120~1800；可 AURORA_LICENSE_REFRESH_INTERVAL 覆盖，测试用）。"""
+        raw = str(os.environ.get("AURORA_LICENSE_REFRESH_INTERVAL", "") or "").strip()
+        if raw:
+            try:
+                return max(1, int(raw))
+            except Exception:
+                return 720
+        try:
+            value = int(getattr(self.cfg, "license_refresh_interval", 300) or 300)
+        except Exception:
+            value = 300
+        return max(120, min(1800, value))
+
+    def _reload_entitlements_local(self) -> bool:
+        """用本地缓存 token 按当前时间重新解析权限（离线也能按到期日锁定）。
+
+        每次周期 tick 先做这一步：功能包/平台到期后最迟一个 tick（5 分钟）内
+        导航/平台栏/当前页都会变成锁定状态；返回 True 表示权限有变化。
+        """
+        try:
+            before = getattr(self, "entitlements", None)
+            before_plats = set(before.platforms_list()) if before is not None else set()
+            before_expired = bool(getattr(before, "expired", False))
+            ent = load_entitlements(self.cfg, machine=self.machine_code())
+            self.entitlements = ent
+            changed = (set(ent.platforms_list()) != before_plats
+                       or bool(getattr(ent, "expired", False)) != before_expired)
+            try:
+                self._rebuild_nav()
+                if getattr(self, "platform_rail", None) is not None:
+                    self.platform_rail.content = self._build_platform_rail().content
+            except Exception:
+                pass
+            self._sync_license_state()
+            self._apply_current_page_lock()
+            return changed
+        except Exception:
+            return False
+
+    def _apply_current_page_lock(self) -> None:
+        """权限重算/刷新后：当前页若已无权限 → 立即重绘为锁定页。
+
+        修复「该锁却显示」：服务端 rev 撤销 / 本地到期后，不重启也必须马上锁。
+        """
+        item = getattr(self, "_current_item", None)
+        if item is None:
+            return
+        if getattr(self, "_locked_item", None) is item:
+            return
+        try:
+            if self._page_allowed(item):
+                return
+            self._render_locked(item)
+        except Exception:
+            pass
+
+    def _license_watch_tick(self) -> bool:
+        """执行一次周期刷新；未登录返回 False（线程据此退出，测试可直接调用）。
+
+        先本地重算（离线也能按到期日锁定），再联网刷新 token（后台开通/撤销）。
+        """
+        self._reload_entitlements_local()
         if not self._logged_in():
+            return False
+        self._refresh_platform_license()
+        return True
+
+    def _start_license_watch(self) -> None:
+        """登录成功后启动周期授权刷新线程（幂等；退出登录/失效后停止）。"""
+        try:
+            if os.environ.get("AURORA_TEST") or os.environ.get("AURORA_NO_SAVE"):
+                return
+            thread = getattr(self, "_license_watch_thread", None)
+            if thread is not None and thread.is_alive():
+                return
+            stop = threading.Event()
+            self._license_watch_stop = stop
+            interval = self._license_refresh_interval()
+
+            def loop():
+                try:
+                    while not stop.wait(interval):
+                        if stop.is_set():
+                            break
+                        try:
+                            if not self._license_watch_tick():
+                                break
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+            thread = threading.Thread(target=loop, daemon=True,
+                                      name="aurora-license-watch")
+            self._license_watch_thread = thread
+            thread.start()
+        except Exception as ex:
+            try:
+                self._log(f"周期授权刷新启动失败：{ex}", "WARN")
+            except Exception:
+                pass
+
+    def _stop_license_watch(self) -> None:
+        """停止周期授权刷新（退出登录/关闭软件时）。"""
+        stop = getattr(self, "_license_watch_stop", None)
+        if stop is not None:
+            try:
+                stop.set()
+            except Exception:
+                pass
+        self._license_watch_stop = None
+        self._license_watch_thread = None
+
+    # ---------- 授权版本号（license_rev）：后台开通/变更后立即刷新 ----------
+    def _set_license_rev(self, rev, known: bool = True) -> None:
+        """记录本地 rev 基线（known=False 表示还不知道，等待登录/刷新/心跳给值）。"""
+        if not known:
+            return
+        self._license_rev = str(rev if rev is not None else "")
+        self._license_rev_known = True
+
+    def _reset_license_rev(self) -> None:
+        """切换账号/退出登录：清空上一个账号的 rev 基线，避免串号误刷新。"""
+        self._license_rev = ""
+        self._license_rev_known = False
+        self._license_rev_inflight = None
+
+    @staticmethod
+    def _license_rev_of(status) -> tuple[str, bool]:
+        if not isinstance(status, dict):
+            return "", False
+        return (str(status.get("license_rev") or ""),
+                bool(status.get("license_rev_present")))
+
+    def _note_license_rev_from_status(self, status) -> None:
+        """刷新拿到明确结果（ok/unbound/disabled）才更新基线；网络失败保留旧 rev 重试。"""
+        if not isinstance(status, dict):
+            return
+        result = str(status.get("result") or "")
+        if result not in ("ok", "unbound", "disabled", "no-entitlement"):
+            return
+        rev, present = self._license_rev_of(status)
+        if present:
+            self._set_license_rev(rev)
+        elif result in ("unbound", "disabled"):
+            # 明确失效但服务端没给 rev：先清基线，下次心跳/刷新再对齐
+            self._set_license_rev("")
+
+    def _on_heartbeat_result(self, result) -> None:
+        """心跳返回 license_rev：与本地不同 → 后台立即刷新授权（同一 rev 只触发一次）。"""
+        try:
+            if not isinstance(result, dict) or not result.get("ok"):
+                return
+            if not result.get("license_rev_present"):
+                return                      # 旧服务端无该字段：保持原有行为
+            rev = str(result.get("license_rev") or "")
+            if not getattr(self, "_license_rev_known", False):
+                # 首次拿到基线：rev 非空说明有权限但客户端还没基线（如刚重启）→
+                # 立即刷新一次并以其返回的 rev 作为基线；rev 为空=无权限，直接记基线。
+                if rev:
+                    self._maybe_refresh_on_license_rev(rev)
+                else:
+                    self._set_license_rev("")
+                return
+            if rev == str(getattr(self, "_license_rev", "") or ""):
+                return                      # 普通心跳 rev 不变：不重复刷新
+            self._maybe_refresh_on_license_rev(rev)
+        except Exception:
+            pass
+
+    def _maybe_refresh_on_license_rev(self, rev: str) -> bool:
+        """后台按 rev 变化刷新一次授权；失败保留旧基线，下次心跳重试。"""
+        rev = str(rev or "")
+        if getattr(self, "_license_rev_known", False) and \
+                rev == str(getattr(self, "_license_rev", "") or ""):
+            return False
+        lock = getattr(self, "_license_rev_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._license_rev_lock = lock
+        with lock:
+            if getattr(self, "_license_rev_inflight", None) is not None:
+                return False                # 已有一次刷新在跑，避免并发重复
+            self._license_rev_inflight = rev
+
+        def work():
+            status: dict = {}
+            try:
+                self._refresh_platform_license(status_out=status)
+            except Exception:
+                status.setdefault("result", "error")
+            result = str(status.get("result") or "")
+            if result in ("ok", "unbound", "disabled", "no-entitlement"):
+                rev2, present = self._license_rev_of(status)
+                self._set_license_rev(rev2 if present else rev)
+                try:
+                    self._log("授权版本变化，已刷新授权（license_rev="
+                              + (str(self._license_rev) or "空") + "）", "INFO")
+                except Exception:
+                    pass
+            else:
+                # 网络失败/服务端异常：保留旧 rev，下次心跳同样的 rev 会再触发
+                try:
+                    self._log("授权版本变化但刷新失败（保留旧版本号，稍后重试）", "WARN")
+                except Exception:
+                    pass
+            with lock:
+                if getattr(self, "_license_rev_inflight", None) == rev:
+                    self._license_rev_inflight = None
+
+        try:
+            threading.Thread(target=work, daemon=True,
+                             name="aurora-license-rev").start()
+        except Exception:
+            with lock:
+                self._license_rev_inflight = None
+            return False
+        return True
+
+    def _refresh_platform_license(self, status_out: dict | None = None):
+        """登录后联网刷新 token；失败保留本地缓存，不阻塞界面。
+
+        `status_out`（可选）：输出刷新结果（result/license_rev/...），供心跳 rev 逻辑判断
+        「是否拿到明确结果」——网络失败时保留旧 rev，下次心跳重试。
+        """
+        if not self._logged_in():
+            if status_out is not None:
+                status_out.update({"result": "not-logged-in", "license_rev": "",
+                                   "license_rev_present": False})
             self._sync_license_state()
             return
         try:
             from ..license_server import refresh_entitlements
         except Exception:
+            if status_out is not None:
+                status_out.setdefault("result", "error")
             return
         try:
+            status: dict = {}
             ent = refresh_entitlements(self.cfg, version=VERSION, save=save_config,
-                                       machine=self.machine_code())
+                                       machine=self.machine_code(), status=status)
+            if status_out is not None:
+                status_out.update(status)
+            self._note_license_rev_from_status(status)
             self.entitlements = ent
             self._rebuild_nav()
             try:
@@ -20738,6 +21563,14 @@ class App:
             except Exception:
                 pass
             self._sync_license_state()
+            try:
+                self._apply_current_page_lock()
+            except Exception:
+                pass
+            try:
+                self._maybe_prompt_relogin(ent)
+            except Exception:
+                pass
             plats = ent.platforms_list()
             self._log("平台授权刷新：" + ("、".join(plats) if plats else "无（保留本地缓存）"),
                       "INFO" if plats else "WARN")

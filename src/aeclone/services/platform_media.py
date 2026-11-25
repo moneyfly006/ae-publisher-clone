@@ -18,7 +18,8 @@ class ImageGroup:
 GROUPS = {
     "alibaba": {"main": ImageGroup("商品主图", 6), "detail": ImageGroup("详情图", 30),
                 "sku": ImageGroup("规格图", 100, False, True)},
-    "amazon": {"main": ImageGroup("主图与附图", 9)},
+    "amazon": {"main": ImageGroup("主图（可处理第1-9张）", 9),
+               "extra": ImageGroup("附图（可处理第1-8张）", 8)},
     "tiktok": {"main": ImageGroup("商品图片", 9), "detail": ImageGroup("产品描述中的图片", 30, False),
                "sku": ImageGroup("规格图", 100, False, True), "size": ImageGroup("尺码图", 1)},
     "shopee": {"main": ImageGroup("商品图片", 9), "detail": ImageGroup("新版描述中的图片", 12, False),
@@ -152,7 +153,10 @@ def read_groups(platform, product, overrides, mode="global"):
     if platform == "amazon":
         main, extra, _ = amazon_payload._images(product)
         main = overrides.get("main_image", main)
-        return {"main": ([main] if main else []) + list(overrides.get("extra_images", [u.strip() for u in extra.split(";") if u.strip()]))}
+        extras = overrides.get("extra_images",
+                               [u.strip() for u in extra.split(";") if u.strip()])
+        gallery = ([main] if main else []) + list(extras or [])
+        return {"main": gallery, "extra": list(extras or [])}
     if platform == "tiktok":
         size = overrides.get("size_chart", product.get("sizeChart"))
         main = tiktok_payload._images_of(product) or tiktok_payload.split_pipe(product.get("draftImgUrl") or product.get("imgUrl"))
@@ -175,9 +179,15 @@ def write_group(platform, product, overrides, group, urls, mode="global"):
         raise ValueError("Shopee 店铺使用普通描述，请在商品图片栏编辑图片")
     if group == "main":
         if platform == "amazon":
-            overrides.update(main_image=urls[0] if urls else "", extra_images=list(urls[1:]))
+            overrides["main_image"] = urls[0] if urls else ""
+            overrides["extra_images"] = list(urls[1:])
         else:
             overrides["main_images" if platform == "alibaba" else "images"] = list(urls)
+    elif group == "extra":
+        if platform == "amazon":
+            overrides["extra_images"] = list(urls)
+        else:
+            raise ValueError("当前平台不支持此图片分组")
     elif group == "detail":
         if platform == "alibaba":
             overrides["detail_images"] = list(urls)
