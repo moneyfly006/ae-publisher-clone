@@ -216,6 +216,7 @@ DEFAULTS: dict = {
     "video_cover": True,
     "video_fade_edges": True,
     "video_output_dir": "",
+    "video_upload_timeout": 180,   # 店小秘视频 PUT 超时秒数；网络慢可调大
     "eu_qualification": "否",
     # 选「是」时必填的欧盟责任人资料（店小秘选是后要求填写，否则保存被拦）
     "eu_responsible_name": "",

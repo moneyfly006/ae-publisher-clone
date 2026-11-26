@@ -2788,7 +2788,9 @@ class Publisher:
         # 视频只上传店小秘图片空间（COS → cosDxmCallBack），不经过任何自有 VPS。
         try:
             from ..integrations.cos_upload import upload_video
-            vid = upload_video(self.dxm, Path(src_video))
+            add_step(res, "视频上传", True, "开始上传店小秘，视频较大时需要等待…")
+            _timeout = int(getattr(self.cfg, "video_upload_timeout", 180) or 180)
+            vid = upload_video(self.dxm, Path(src_video), timeout=_timeout)
             if vid:
                 p["csp_video_id"] = vid
                 add_step(res, "视频上传", True, f"已上传店小秘，cspVideoId={vid[:24]}")

@@ -6737,6 +6737,7 @@ class App:
                 self._tf("video_transition_seconds", "转场秒数", width=140),
                 self._tf("video_size", "视频尺寸", width=180),
             ], spacing=12, wrap=True),
+            muted("视频尺寸和时长直接影响生成与上传速度：常用 720x720，1080x1080 更清晰但更慢。"),
             ft.Row([
                 self._sw("video_cover", "铺满裁剪（关闭则留白）"),
                 self._sw("video_fade_edges", "首尾淡入淡出"),

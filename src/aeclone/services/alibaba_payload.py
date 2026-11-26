@@ -451,7 +451,13 @@ def _upload_video_to_dianxiaomi(cfg, path, log=None) -> str:
                 log("视频上传：未找到店小秘登录 Cookie，未上传", "WARN")
             return ""
         client = DianxiaomiClient(cookies)
-        return upload_video(client, path)
+        try:
+            _timeout = int(getattr(cfg, "video_upload_timeout", 180) or 180)
+        except Exception:
+            _timeout = 180
+        if log:
+            log("开始上传视频到店小秘，视频较大时需要等待…", "INFO")
+        return upload_video(client, path, timeout=_timeout)
     except Exception as exc:  # noqa: BLE001
         if log:
             log(f"视频上传店小秘失败：{str(exc)[:140]}", "WARN")
