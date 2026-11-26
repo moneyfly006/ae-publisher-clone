@@ -36,6 +36,8 @@ def main():
     check("文本模型可覆盖", model_of(cfg, "text") == "qwen-turbo", model_of(cfg, "text"))
     cfg = AppConfig()
     cfg.set("ai_model_image_edit", "qwen-image-3.0")
+    cfg.set("ai_model_image_prompt", "")
+    cfg.set("ai_model_marketing", "")
     check("图片编辑选择生效", model_of(cfg, "image_edit") == "qwen-image-3.0")
     check("提示词改图跟随图片编辑", model_of(cfg, "image_prompt") == "qwen-image-3.0")
     check("营销图跟随图片编辑", model_of(cfg, "marketing") == "qwen-image-3.0")

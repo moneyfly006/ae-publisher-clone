@@ -11202,7 +11202,8 @@ class App:
         model_rows = []
         for kind in ("text", "vision", "image_edit", "image_prompt",
                      "image_gen", "marketing"):
-            _cur = str(getattr(self.cfg, AI_MODEL_KEYS[kind], "") or "").strip()
+            _cur = str(getattr(self.cfg, AI_MODEL_KEYS[kind], "") or "").strip() \
+                or FIXED_MODELS[kind]
             dd = ft.Dropdown(label="模型", width=420, color=TEXT, bgcolor=CARD_2,
                              border_color=CARD_2, value=_cur,
                              options=[ft.dropdown.Option("", f"默认（{model_of(self.cfg, kind)}）")])
@@ -11215,15 +11216,15 @@ class App:
 
         def _reset_models(e=None):
             for _k, _key in AI_MODEL_KEYS.items():
-                self.cfg.set(_key, "")
+                self.cfg.set(_key, FIXED_MODELS[_k])
             save_config(self.cfg)
             for _k, _dd in self.ai_model_dropdowns.items():
                 try:
-                    _dd.value = ""
+                    _dd.value = FIXED_MODELS[_k]
                 except Exception:
                     pass
             self._refresh_ai_model_dropdowns()
-            self.toast("AI 模型已恢复默认", True)
+            self.toast("AI 模型已恢复预设", True)
 
         model_card = card(ft.Column([
             h1("AI 模型", 15),
@@ -20181,7 +20182,8 @@ class App:
         rows = getattr(self, "ai_price_rows", None) or []
         for kind, dd in dropdowns.items():
             key = AI_MODEL_KEYS.get(kind)
-            cur = str(getattr(self.cfg, key, "") or "").strip() if key else ""
+            cur = (str(getattr(self.cfg, key, "") or "").strip() if key else "") \
+                or FIXED_MODELS.get(kind, "")
             opts = [ft.dropdown.Option("", f"默认（{model_of(self.cfg, kind)}）")]
             seen = {""}
             # 即使价格接口暂时失败，也至少保留已知默认模型可选。
