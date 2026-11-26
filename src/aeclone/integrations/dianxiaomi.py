@@ -854,8 +854,21 @@ class DianxiaomiClient:
         data = self._post("album_upload_url", payload)
         return data.get("data") or {}
 
-    def upload_sign(self, file_name: str, file_size: int) -> dict:
-        data = self._post("upload_sign", {"fileName": file_name, "fileSize": file_size})
+    def upload_sign(self, file_name: str, file_size: int, bucket: str = "",
+                    region: str = "", file_type: str = "") -> dict:
+        """申请 COS 上传签名。
+
+        店小秘前端 /api/cos/getSign.json 必传 bucket + region + fileName；
+        图片用 wxalbum/ap-shanghai，视频用 smtmedia/ap-guangzhou。
+        """
+        payload = {"fileName": file_name, "fileSize": file_size}
+        if bucket:
+            payload["bucket"] = bucket
+        if region:
+            payload["region"] = region
+        if file_type:
+            payload["fileType"] = str(file_type)
+        data = self._post("upload_sign", payload)
         return (data.get("data") or data) if isinstance(data, dict) else {}
 
     def upload_callback(self, file_id: str, file_name: str = "", file_size: int = 0,

@@ -2784,25 +2784,16 @@ class Publisher:
                 return
         if not src_video:
             return
-        # 上传：店小秘上传接口已确认经常返回“参数缺失”，优先用自有托管，
-        # 失败后仍保留旧接口兜底；网络抖动在 upload_video_file 内会重试。
+        # 视频只上传店小秘图片空间（COS → cosDxmCallBack），不经过任何自有 VPS。
         try:
-            from .hosting import upload_video_file
-            vurl = upload_video_file(Path(src_video))
-            p["video_url"] = vurl
-            add_step(res, "视频上传", True, f"已用自有地址写入 videoUrl：{vurl[-40:]}")
-            return
-        except Exception as own_ex:  # noqa: BLE001
-            try:
-                from ..integrations.cos_upload import upload_video
-                vid = upload_video(self.dxm, Path(src_video))
-                if vid:
-                    p["csp_video_id"] = vid
-                    add_step(res, "视频上传", True, f"cspVideoId={vid[:24]}")
-                    return
-            except Exception as ex:  # noqa: BLE001
-                add_step(res, "视频上传", False,
-                         f"自有托管失败：{str(own_ex)[:70]} / 店小秘兜底失败：{str(ex)[:70]}")
+            from ..integrations.cos_upload import upload_video
+            vid = upload_video(self.dxm, Path(src_video))
+            if vid:
+                p["csp_video_id"] = vid
+                add_step(res, "视频上传", True, f"已上传店小秘，cspVideoId={vid[:24]}")
+                return
+        except Exception as ex:  # noqa: BLE001
+            add_step(res, "视频上传", False, f"店小秘视频上传失败：{str(ex)[:160]}")
 
     def _category_sku_score(self, category_id: str, target: dict) -> int:
         """类目与现有 SKU 属性值的匹配分：越高越适合当前 SKU。"""

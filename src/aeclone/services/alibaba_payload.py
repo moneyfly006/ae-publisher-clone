@@ -428,6 +428,28 @@ def _template_video_value(cfg, ov: dict) -> str:
                 return str(value)
     return ""
 
+def _upload_video_to_dianxiaomi(cfg, path, log=None) -> str:
+    """把视频上传到店小秘图片空间；不经过任何自有 VPS。"""
+    try:
+        from ..integrations.browser_cookies import normalize_cookie
+        from ..integrations.dianxiaomi import DianxiaomiClient
+        from ..integrations.cos_upload import upload_video
+        raw = (getattr(cfg, "manual_cookies", None)
+               or getattr(cfg, "alibaba_cookies", "")
+               or getattr(cfg, "aliexpress_cookies", ""))
+        cookies = normalize_cookie(raw)
+        if not cookies:
+            if log:
+                log("视频上传：未找到店小秘登录 Cookie，未上传", "WARN")
+            return ""
+        client = DianxiaomiClient(cookies)
+        return upload_video(client, path)
+    except Exception as exc:  # noqa: BLE001
+        if log:
+            log(f"视频上传店小秘失败：{str(exc)[:140]}", "WARN")
+        return ""
+
+
 def _write_product_video(product: dict, save: dict, ov: dict) -> bool:
     """采集视频只从商品/显式 override 取，模板字段不混入。"""
     for key in ("mainVideoId", "detailVideoId", "videoUrl", "video"):
@@ -501,7 +523,6 @@ def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | Non
         import requests
         from PIL import Image
         from .video import generate_carousel_video, find_ffmpeg
-        from .hosting import upload_video_file
         if not find_ffmpeg():
             if log:
                 log("没有找到 ffmpeg，无法生成轮播视频", "WARN")
@@ -540,12 +561,17 @@ def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | Non
             transition_seconds=float(_cfg_get(cfg, "alibaba_video_transition_seconds", 0.5) or 0.5),
             size=str(_cfg_get(cfg, "alibaba_video_size", "1080x1080") or "1080x1080"),
             cover=True, fade_edges=True)
-        url = upload_video_file(out)
-        if url:
-            save["videoUrl"] = url
+        # 只上传店小秘图片空间，拿 cspVideoId 写回保存包；不再使用 VPS 视频托管。
+        vid = _upload_video_to_dianxiaomi(cfg, out, log=log)
+        if vid:
+            save["cspVideoId"] = vid
+            save["mainVideoId"] = vid
             if log:
-                log(f"轮播视频已生成并托管：{url[-40:]}", "INFO")
-            return url
+                log(f"轮播视频已上传店小秘：cspVideoId={vid[:24]}", "INFO")
+            return vid
+        if log:
+            log("轮播视频已生成，但上传店小秘失败；未写入视频", "WARN")
+        return ""
     except Exception as exc:
         if log:
             log(f"轮播视频生成失败：{str(exc)[:120]}", "WARN")

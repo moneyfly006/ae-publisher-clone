@@ -45,13 +45,18 @@ def upload_image(client, path: Path, full_cid: str = "", bucket: str = "wxalbum"
     size = len(data)
     name = path.name
 
-    sign_info = client.upload_sign(name, size)
+    sign_info = client.upload_sign(name, size, bucket=bucket,
+                                   region="ap-shanghai" if bucket == "wxalbum" else "ap-guangzhou")
     url = sign_info.get("url")
     file_id = sign_info.get("fileId") or sign_info.get("file_id") or ""
     if not url:
         raise UploadError(f"未获取到上传地址: {str(sign_info)[:200]}")
 
     headers = {"Content-Type": mimetypes.guess_type(name)[0] or "application/octet-stream"}
+    if sign_info.get("sign"):
+        headers["Authorization"] = str(sign_info["sign"])
+    if sign_info.get("securityToken"):
+        headers["x-cos-security-token"] = str(sign_info["securityToken"])
     for k, v in (sign_info.get("headers") or {}).items():
         headers[k] = v
     r = requests.put(url, data=data, headers=headers, timeout=timeout)
@@ -95,25 +100,28 @@ def upload_video(client, path: Path, timeout: int = 300) -> str:
     size = len(data)
     name = path.name
 
-    sign_info = client.upload_sign(name, size)
+    sign_info = client.upload_sign(name, size, bucket="smtmedia", region="ap-guangzhou")
     url = sign_info.get("url")
     file_id = sign_info.get("fileId") or sign_info.get("file_id") or ""
     if not url:
         raise UploadError(f"未获取到视频上传地址: {str(sign_info)[:200]}")
 
     headers = {"Content-Type": "video/mp4"}
+    if sign_info.get("sign"):
+        headers["Authorization"] = str(sign_info["sign"])
+    if sign_info.get("securityToken"):
+        headers["x-cos-security-token"] = str(sign_info["securityToken"])
     for k, v in (sign_info.get("headers") or {}).items():
         headers[k] = v
     r = requests.put(url, data=data, headers=headers, timeout=timeout)
     if r.status_code >= 400:
         raise UploadError(f"视频 COS 上传失败 HTTP {r.status_code}: {r.text[:200]}")
 
-    try:
-        resp = client.video_callback(file_id=file_id, file_name=name, file_size=size)
-        if isinstance(resp, dict):
-            d = resp.get("data") if isinstance(resp.get("data"), dict) else resp
-            vid = d.get("videoId") or d.get("fileId") or d.get("id") or file_id
-            return str(vid)
-        return str(file_id)
-    except Exception:
-        return str(file_id)
+    # 前端视频上传走 /api/cos/cosDxmCallBack.json，返回 videoId 后写 cspVideoId。
+    resp = client.upload_callback(file_id=file_id, file_name=name, file_size=size,
+                                  bucket="smtmedia")
+    d = resp.get("data") if isinstance(resp, dict) and isinstance(resp.get("data"), dict) else resp
+    vid = (d or {}).get("videoId") or (d or {}).get("cspVideoId") or (d or {}).get("video_id")
+    if not vid:
+        raise UploadError(f"视频登记失败，未返回 videoId：{str(resp)[:200]}")
+    return str(vid)
