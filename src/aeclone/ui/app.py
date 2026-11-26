@@ -6202,8 +6202,8 @@ class App:
             self.toast(f"保存失败：{ex}", False)
 
     def _close_dialog(self):
-        """关闭 self.dlg（兼容 overlay 与 show_dialog 两种打开方式）。"""
-        dlg = getattr(self, "dlg", None)
+        """关闭当前弹窗（兼容 self.dlg 与 _show_dlg 记录的 self._dlg）。"""
+        dlg = getattr(self, "_dlg", None) or getattr(self, "dlg", None)
         if dlg is None:
             return
         try:
@@ -13519,13 +13519,12 @@ class App:
             cid = str(node.get("categoryId") or node.get("id") or "").strip()
             name = str(node.get("categoryName") or node.get("name") or cid).strip()
             path = str(node.get("categoryBrowsePath") or node.get("nodePath") or "").strip()
-            is_leaf = bool(node.get("isLeaf") or node.get("leaf") or not path)
+            # /list.json 的 parentId 要内部 id；categoryId 是节点 id，混用会取不到子类目。
+            parent_id = node.get("id") or node.get("categoryId") or node.get("category_id") or cid
             def click(e=None):
-                if is_leaf:
-                    _pick(node)
-                    return
+                # 不再用“路径为空”推断叶子；始终请求一次子类目，有子类目就继续下钻。
                 try:
-                    children = c.category_children(site, cid) or []
+                    children = c.category_children(site, parent_id) or []
                 except Exception as ex:
                     self.toast(f"读取子类目失败：{str(ex)[:60]}", False)
                     return
@@ -13536,8 +13535,7 @@ class App:
                 _render(children)
                 try: self._safe_update()
                 except Exception: pass
-            return ft.TextButton(f"{name}  {'›' if not is_leaf else '✓'}",
-                                 on_click=click)
+            return ft.TextButton(f"{name}  ›", on_click=click)
 
         def _render(nodes):
             list_box.controls = [ft.Row([_row(n) for n in nodes], wrap=True, spacing=6)] if nodes else [muted("该层没有类目", 12)]
