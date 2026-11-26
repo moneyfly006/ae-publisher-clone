@@ -466,6 +466,12 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
             selected = selected[:_limit]
             emit(platform + " · 数量限制", "完成", f"按本次处理数量截取前 {_limit} 件")
 
+    # 并行子批次保留全局位置/总数，日志与进度不能显示每个子批次自己的 1/1。
+    for _pos, _row in enumerate(selected, 1):
+        if isinstance(_row, dict):
+            _row.setdefault("_collect_pos", _pos)
+            _row.setdefault("_collect_total", len(selected))
+
     # Amazon：前缀 + 9 位随机字母数字；必须在进入线程前生成，
     # 否则同一商品重试会换 SKU，且并行线程可能生成重复值。
     if platform == "amazon" and bool(getattr(config, "amazon_sku_random", True)):
@@ -565,7 +571,9 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
             BUS.done_stage()
             continue
         store.item_update(run_id, pid, "preparing")
-        emit(platform + " · 商品处理", "开始", f"{i}/{len(selected)}", product=pid)
+        _pos = int(row.get("_collect_pos") or i)
+        _total = int(row.get("_collect_total") or len(selected))
+        emit(platform + " · 商品处理", "开始", f"{_pos}/{_total}", product=pid)
         did_submit = False
 
         def before_submit():
@@ -640,7 +648,7 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
              rec["error"] or ("检查通过" if dry_run else "已保存"),
              product=pid, level="WARN" if rec["outcome"] == "stopped" else "OK" if rec["ok"] else "ERROR")
         if progress:
-            progress(i, len(selected), rec)
+            progress(_pos, _total, rec)
         if rec.get("halt_reason"):
             break
         if not policy.after(rec, client):
