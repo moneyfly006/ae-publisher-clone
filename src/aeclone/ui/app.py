@@ -20807,7 +20807,6 @@ class App:
                                      muted("退出登录会清除本机 token/邮箱/密码；商品数据不会被删除。", 11),
                                  ], spacing=9, width=460),
                                  actions=[])
-            self._show_dlg(dlg)
 
             def close():
                 self._close_dlg(dlg)
@@ -20835,7 +20834,12 @@ class App:
                                              on_click=buy),
                            ft.TextButton("退出登录", icon=ft.Icons.LOGOUT,
                                          on_click=logout),
+                           ft.TextButton("登录其他账号", icon=ft.Icons.SWITCH_ACCOUNT,
+                                         on_click=logout),
                            ft.TextButton("关闭", on_click=lambda e: close())]
+            # 必须先设置 actions 再 show；否则 Flet 首次渲染 actions=[]，
+            # 用户看到的就是“没有关闭/退出/登录按钮”的弹窗。
+            self._show_dlg(dlg)
         except Exception as ex:
             self._log(f"打开账号中心失败：{ex}", "WARN")
             self.toast("打开账号中心失败", False)

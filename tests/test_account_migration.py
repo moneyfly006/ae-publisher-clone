@@ -213,6 +213,10 @@ class AccountCenterTests(unittest.TestCase):
             app._open_device_manager = lambda: called.append(1)
             find_button([dlg], "设备管理").on_click(None)
             self.assertEqual(called, [1])
+            # 回归：actions 必须在首次 show 前设置，否则真实界面看不到按钮。
+            self.assertIsNotNone(find_button([dlg], "登录其他账号"))
+            self.assertIsNotNone(find_button([dlg], "关闭"))
+            find_button([dlg], "关闭").on_click(None)
 
     def test_settings_license_card_shows_platform_expiry(self):
         with sandbox() as cfg:
