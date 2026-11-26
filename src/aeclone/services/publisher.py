@@ -790,8 +790,9 @@ class Publisher:
                 # 四合一已在本地处理；普通任务按模型输入上限执行。
                 _use = list(files)[:3]
                 if len(files) > 3:
-                    add_step(res, f"精细任务{n}·素材", False,
-                             f"模型最多接受 3 张输入，已用前 3 张（原 {len(files)} 张）")
+                    # 这是模型的已知输入上限，不是失败；自动截取前 3 张继续出图。
+                    add_step(res, f"精细任务{n}·素材", True,
+                             f"模型最多接受 3 张输入，已自动使用前 3 张（原 {len(files)} 张）")
                 for _ in range(count):
                     try:
                         u = svc.edit_many(_use, prompt,
