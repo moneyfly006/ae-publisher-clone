@@ -439,6 +439,14 @@ def _upload_video_to_dianxiaomi(cfg, path, log=None) -> str:
                or getattr(cfg, "aliexpress_cookies", ""))
         cookies = normalize_cookie(raw)
         if not cookies:
+            # 批量场景可能只在浏览器里登录过店小秘，配置中没有显式 Cookie。
+            try:
+                from ..integrations.browser_cookies import resolve
+                src = resolve("dianxiaomi.com", manual=raw, use_local=True)
+                cookies = dict(src.cookies or {}) if getattr(src, "ok", False) else {}
+            except Exception:
+                cookies = {}
+        if not cookies:
             if log:
                 log("视频上传：未找到店小秘登录 Cookie，未上传", "WARN")
             return ""

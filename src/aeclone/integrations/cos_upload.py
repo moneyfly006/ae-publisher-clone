@@ -48,6 +48,8 @@ def upload_image(client, path: Path, full_cid: str = "", bucket: str = "wxalbum"
     sign_info = client.upload_sign(name, size, bucket=bucket,
                                    region="ap-shanghai" if bucket == "wxalbum" else "ap-guangzhou")
     url = sign_info.get("url")
+    if str(url or "").startswith("//"):
+        url = "https:" + str(url)
     file_id = sign_info.get("fileId") or sign_info.get("file_id") or ""
     if not url:
         raise UploadError(f"未获取到上传地址: {str(sign_info)[:200]}")
@@ -102,6 +104,8 @@ def upload_video(client, path: Path, timeout: int = 300) -> str:
 
     sign_info = client.upload_sign(name, size, bucket="smtmedia", region="ap-guangzhou")
     url = sign_info.get("url")
+    if str(url or "").startswith("//"):
+        url = "https:" + str(url)
     file_id = sign_info.get("fileId") or sign_info.get("file_id") or ""
     if not url:
         raise UploadError(f"未获取到视频上传地址: {str(sign_info)[:200]}")
