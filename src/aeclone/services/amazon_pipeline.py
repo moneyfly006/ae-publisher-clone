@@ -492,14 +492,34 @@ def _existing_attributes(product: dict, overrides: dict) -> dict:
     return data
 
 
+def _configured_dimensions(cfg, marketplace_id: str = ""):
+    """后台填写的默认尺寸（cm）转 Amazon item_dimensions 结构。"""
+    raw = str(_cfg_get(cfg, "amazon_default_dimensions", "") or "").strip()
+    nums = re.findall(r"\d+(?:\.\d+)?", raw)
+    if len(nums) < 3:
+        return None
+    # 10x10x10 是未填写的默认占位，不强行改商品原有尺寸/破坏 productAttr 原样回写。
+    if nums[:3] == ["10", "10", "10"]:
+        return None
+    item = {
+        "length": {"value": nums[0], "unit": "centimeters"},
+        "width": {"value": nums[1], "unit": "centimeters"},
+        "height": {"value": nums[2], "unit": "centimeters"},
+    }
+    mp = str(marketplace_id or "").strip()
+    if mp:
+        item["marketplace_id"] = mp
+    return [item]
+
+
 def _list_price_value(product: dict, overrides: dict, cfg, marketplace_id: str,
                       template_value=None):
     """list_price：以模板结构为准，amount=库存标准价，currency=站点币种。"""
     raw_price = (overrides or {}).get("standard_price")
-    if raw_price in (None, ""):
-        raw_price = (product or {}).get("standardPrice")
     if raw_price in (None, "") and _cfg_get(cfg, "amazon_price", ""):
         raw_price = _cfg_get(cfg, "amazon_price")
+    if raw_price in (None, ""):
+        raw_price = (product or {}).get("standardPrice")
     try:
         amount = float(str(raw_price).strip())
     except Exception:

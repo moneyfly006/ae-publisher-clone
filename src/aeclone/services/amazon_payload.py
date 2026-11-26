@@ -604,7 +604,8 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     old_mp = _text(p.get("marketPlaceId"))
     out["marketPlaceId"] = new_mp
     meta = prompt_site_meta(new_mp) if new_mp else {}
-    cur = (_text(currency) or _text(_override(ov, "currency"))
+    cur = (_text(_override(ov, "currency"))
+           or _text(currency)
            or _text(p.get("currency")) or _text(p.get("standardPriceCurrency")))
     if new_mp and new_mp != old_mp and not _text(_override(ov, "currency")):
         cur = _text(meta.get("currency")) or cur
@@ -650,19 +651,21 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     # 价格 / 库存
     # 价格：overrides > 商品原值 > cfg 兜底（cfg 只在商品没价时生效，避免静默改价）
     std_price = _override(ov, "standard_price", None)
+    if std_price is None and _has_cfg(cfg, "amazon_price"):
+        # 设置里填了价格就覆盖采集价；没填才回退商品采集价。
+        std_price = _cfg_value(cfg, "amazon_price")
     if std_price is None:
         std_price = p.get("standardPrice")
-    if _to_float(std_price) in (None, 0.0) and _has_cfg(cfg, "amazon_price"):
-        std_price = _cfg_value(cfg, "amazon_price")
     out["standardPrice"] = _price(std_price)
     sale_price = _override(ov, "sale_price", None)
+    if sale_price is None and _has_cfg(cfg, "amazon_sale_price"):
+        # 与标准价一致：设置里填了促销价优先，没填才用采集价。
+        sale_price = _cfg_value(cfg, "amazon_sale_price")
     if sale_price is None:
         sale_price = p.get("saleSalePrice")
     if "sale_price" in ov and _to_float(ov["sale_price"]) == 0:
         ov["sale_price"] = 0
         sale_price = 0
-    elif _to_float(sale_price) in (None, 0.0) and _has_cfg(cfg, "amazon_sale_price"):
-        sale_price = _cfg_value(cfg, "amazon_sale_price")
     # 促销价必须小于标准价；否则自动清空促销价，避免保存前校验失败。
     _std_f = _to_float(out.get("standardPrice"))
     _sale_f = _to_float(_price(sale_price))
@@ -742,7 +745,9 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     attr_notes: list[str] = []
     if _attr_json_ok(raw_attr):
         filled, attr_notes = _payload_autofill(p, cfg, ov, new_mp)
-    if has_attrs_ov or rewrite_mp or filled:
+    from .amazon_pipeline import _configured_dimensions
+    _cfg_dims = _configured_dimensions(cfg, new_mp or out.get("marketPlaceId") or "")
+    if has_attrs_ov or rewrite_mp or filled or _cfg_dims:
         if rewrite_mp:
             attr_data = _rewrite_marketplace(attr_data, rewrite_mp)
         if has_attrs_ov:
@@ -751,6 +756,9 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
         if filled:
             attr_data = merge_attributes(attr_data, filled, new_mp,
                                          language_tag_for(new_mp))
+        if _cfg_dims:
+            # 后台尺寸是显式设置：优先于采集详情，确保保存草稿也写入。
+            attr_data["item_dimensions"] = _cfg_dims
         _asin = str(_cfg_value(cfg, "amazon_merchant_suggested_asin", "") or "").strip()
         if not _asin and bool(_cfg_value(cfg, "amazon_auto_merchant_asin", True)):
             _asin = _auto_merchant_asin(out.get("id") or "", out.get("sku") or "")
@@ -790,7 +798,7 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
                     "value": _contact, "language_tag": "en_CA",
                     "marketplace_id": new_mp or out.get("marketPlaceId") or ""}]
         out["productAttr"] = json.dumps(attr_data, ensure_ascii=False)
-    elif has_attrs_ov or rewrite_mp or filled:
+    elif has_attrs_ov or rewrite_mp or filled or _cfg_dims:
         out["productAttr"] = json.dumps(attr_data, ensure_ascii=False)
     else:
         # 无需改写时保持原样回写（真实写 #1 的 productAttr 往返一致）

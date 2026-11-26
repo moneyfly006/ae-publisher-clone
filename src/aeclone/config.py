@@ -446,6 +446,7 @@ DEFAULTS: dict = {
     "amazon_site": "",              # marketPlaceId（如 A2EUQ1WTGCTBG2）
     "amazon_site_code": "",         # 站点代码（US/CA/MX/BR…）
     "amazon_site_name": "",
+    "amazon_currency": "",          # 可选：覆盖站点币种（如 CA 选 CAD）
     "amazon_test_product_id": "",
     "amazon_list_state": "draft",
     "amazon_category_id": "",

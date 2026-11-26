@@ -390,9 +390,30 @@ def functional_settings(app, platform, page, *, run_link=True):
         if platform == "amazon" and section == "category":
             _kw = ft.TextField(label="采集箱关键词筛选（标题/SKU/ID）", width=420,
                 color=ui.TEXT, bgcolor=ui.CARD_2,
-                value=str(getattr(app.cfg, "amazon_batch_keyword", "") or ""),
+                value=str(getattr(app.cfg, "amazon_collect_keyword", "")
+                          or getattr(app.cfg, "amazon_batch_keyword", "") or ""),
                 hint_text="运行自动处理时只处理包含该关键词的采集箱商品")
-            _kw.on_change = lambda e: write(app, "amazon_batch_keyword", str(e.control.value or ""))
+            _kw.on_change = lambda e: write(app, "amazon_collect_keyword", str(e.control.value or ""))
+            _currency = ft.Dropdown(label="币种（留空按站点）", width=190, color=ui.TEXT, bgcolor=ui.CARD_2,
+                value=str(getattr(app.cfg, "amazon_currency", "") or ""),
+                options=[ft.dropdown.Option("", "按站点自动"), ft.dropdown.Option("USD", "USD 美元"),
+                         ft.dropdown.Option("CAD", "CAD 加元"), ft.dropdown.Option("MXN", "MXN 墨西哥比索"),
+                         ft.dropdown.Option("BRL", "BRL 巴西雷亚尔"), ft.dropdown.Option("GBP", "GBP 英镑"),
+                         ft.dropdown.Option("EUR", "EUR 欧元"), ft.dropdown.Option("JPY", "JPY 日元"),
+                         ft.dropdown.Option("AUD", "AUD 澳元"), ft.dropdown.Option("AED", "AED 迪拉姆"),
+                         ft.dropdown.Option("SAR", "SAR 沙特里亚尔"), ft.dropdown.Option("INR", "INR 印度卢比"),
+                         ft.dropdown.Option("SGD", "SGD 新加坡元")])
+            _currency.on_change = lambda e: write(app, "amazon_currency", str(e.control.value or ""))
+            _workers = ft.TextField(label="并发处理数（1-8）", width=170, color=ui.TEXT,
+                bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "concurrency", 4) or 4))
+            def _save_workers(e=None):
+                try:
+                    n = max(1, min(8, int(float(_workers.value or 4))))
+                except (TypeError, ValueError):
+                    n = 4
+                _workers.value = str(n)
+                write(app, "concurrency", n)
+            _workers.on_change = _save_workers
             _cat_text = ft.Text("", size=12, color=ui.ACCENT_2, selectable=True)
             def _cat_label():
                 cid = str(getattr(app.cfg, "amazon_category_id", "") or "")
@@ -408,9 +429,9 @@ def functional_settings(app, platform, page, *, run_link=True):
                     app.cfg.set("amazon_category_name", name),
                     save_config(app.cfg), _cat_label()))
             _cat_label()
-            controls += [_kw, _cat_text,
+            controls += [ft.Row([_kw, _currency, _workers], wrap=True, spacing=10), _cat_text,
                          ft.Row([ft.ElevatedButton("搜索/选择类目", icon=ft.Icons.SEARCH, on_click=_pick_cat)], wrap=True),
-                         ui.muted("关键词只用于筛选采集箱商品；类目从右侧弹窗选择，选中后本次商品优先使用该类目。", 11)]
+                         ui.muted("关键词只用于筛选采集箱商品；币种留空按站点，加拿大站点可手动选 CAD；并发数同时处理多个产品。", 11)]
         if platform == "amazon" and section == "category":
             controls.append(_inline_picker(app, platform, "amazon_collect_"))
             _tpl_tf = ft.TextField(label="模板产品 ID（可选，先读模板必填项）", width=420,
@@ -847,6 +868,17 @@ def runtime_controls(app, platform, *, embedded=False):
             app._safe_update()
         field.on_change = change
         editors[suffix] = field
+    workers = ft.TextField(label="并发处理数（1-8）", width=180,
+        value=str(getattr(app.cfg, "concurrency", 4) or 4), color=ui.TEXT, bgcolor=ui.CARD_2)
+    def change_workers(e):
+        try:
+            n = max(1, min(8, int(float(workers.value or 4))))
+        except (TypeError, ValueError):
+            n = 4
+        workers.value = str(n)
+        write(app, "concurrency", n)
+        app._safe_update()
+    workers.on_change = change_workers
     actual_preset = next((key for key, (_, values) in PRESETS.items() if all(getattr(app.cfg, prefix + k, None) == v for k, v in values.items())), None)
     chooser = ft.Dropdown(label="运行参数预设", width=250, value=actual_preset, color=ui.TEXT, bgcolor=ui.CARD_2,
         options=[ft.dropdown.Option(key, value[0]) for key, value in PRESETS.items()])
@@ -881,8 +913,8 @@ def runtime_controls(app, platform, *, embedded=False):
             current,
             ft.Row([chooser, ft.OutlinedButton("应用运行预设", icon=ft.Icons.TUNE, on_click=apply)], wrap=True, spacing=12),
             preview,
-            ft.Row(list(editors.values()), wrap=True, spacing=12),
-            ui.muted("只调整当前平台的运行速度与保护阈值，保留商品设置和AI开关。网络异常不重发保存/发布；停止在当前商品结束或重试等待结束时生效。"),
+            ft.Row([*editors.values(), workers], wrap=True, spacing=12),
+            ui.muted("只调整当前平台的运行速度与保护阈值，保留商品设置和AI开关。并发数同时处理多个产品；网络异常不重发保存/发布。"),
         ], spacing=10)
     return ui.card(ft.Column([
         ui.h1("运行参数", ui.FS_MD),
@@ -890,8 +922,8 @@ def runtime_controls(app, platform, *, embedded=False):
         ft.Row([chooser, ft.OutlinedButton("应用运行预设", icon=ft.Icons.TUNE, on_click=apply)], wrap=True, spacing=12),
         preview,
         ft.ExpansionTile(title=ft.Text("调整运行参数", color=ui.TEXT), controls=[
-            ft.Row(list(editors.values()), wrap=True, spacing=12)]),
-        ui.muted("只调整当前平台的运行速度与保护阈值，保留商品设置和AI开关。网络异常不重发保存/发布；停止在当前商品结束或重试等待结束时生效。"),
+            ft.Row([*editors.values(), workers], wrap=True, spacing=12)]),
+        ui.muted("只调整当前平台的运行速度与保护阈值，保留商品设置和AI开关。并发数同时处理多个产品；网络异常不重发保存/发布。"),
     ], spacing=12))
 
 
@@ -1480,6 +1512,22 @@ def run_page(app, platform):
                             else "未选择商品：处理全部符合条件商品", size=12.5,
                             color=ui.ACCENT_2 if _sel_n else ui.MUTED)
 
+    def _refresh_selected(e=None):
+        try:
+            _picked = json.loads(str(getattr(app.cfg, prefix + "selected_ids", "") or "[]"))
+            _n = len(_picked) if isinstance(_picked, list) else 0
+        except (ValueError, TypeError):
+            _n = 0
+        selected_text.value = (f"已选商品：{_n} 个（未选择=全部符合条件商品）" if _n
+                               else "未选择商品：处理全部符合条件商品")
+        selected_text.color = ui.ACCENT_2 if _n else ui.MUTED
+        try: app._safe_update()
+        except Exception: pass
+
+    select_btn = ft.OutlinedButton(
+        "手动选择商品", icon=ft.Icons.CHECKLIST,
+        on_click=lambda e: product_picker(app, platform, on_done=_refresh_selected))
+
     def change_limit(e):
         try:
             value = int(e.control.value)
@@ -1554,7 +1602,7 @@ def run_page(app, platform):
     cost_card = _cost_estimate(app, platform, prefix)
     range_card = ui.card(ft.Column([ui.h1("处理范围与操作", ui.FS_MD), *shop_info,
         ft.Row([keyword, limit], wrap=True, spacing=12),
-        selected_text,
+        ft.Row([selected_text, select_btn], wrap=True, spacing=10),
         ui.muted("默认前 10 件、保存草稿、保留原商品资料。关键词匹配后再限制数量；每件失败原因写入日志。"),
         op, *([repair, ui.muted("低于 4.5 分时用商品已有资料补齐并重评。只有已启用的 AI 文案字段会追加调用。")]
               if alibaba else []), ft.Row([
