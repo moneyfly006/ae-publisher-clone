@@ -117,10 +117,14 @@ def settings(cfg, platform):
     if platform == "amazon":
         _cid = str(getattr(cfg, "amazon_category_id", "") or "").strip()
         _cpath = str(getattr(cfg, "amazon_category_path", "") or "").strip()
+        # 用户在「类目与属性」新选择的类目必须覆盖旧批量预设；
+        # setdefault 会让旧 category_id 永远胜出，导致实际编辑成旧类目。
         if _cid:
-            data.setdefault("category_id", _cid)
+            data["category_id"] = _cid
+            data.pop("categoryId", None)
         if _cpath:
-            data.setdefault("category_path", _cpath)
+            data["category_path"] = _cpath
+            data.pop("categoryBrowsePath", None)
         _currency = str(getattr(cfg, "amazon_currency", "") or "").strip().upper()
         if _currency:
             data.setdefault("currency", _currency)
@@ -219,7 +223,7 @@ def isolated_config(cfg, platform):
                  "default_power_source_type", "default_voltage",
                  "default_dg_regulation", "default_dimensions",
                  "default_length", "default_width", "default_height", "currency",
-                 "sku_prefix", "sku_suffix", "sku_sequence")
+                 "sku_prefix", "sku_suffix", "sku_sequence", "sku_random")
     for key in list(data):
         if key.startswith(platform + "_"):
             suffix = key[len(platform) + 1:]
@@ -461,13 +465,21 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
             selected = selected[:_limit]
             emit(platform + " · 数量限制", "完成", f"按本次处理数量截取前 {_limit} 件")
 
-    # Amazon：前缀 + 本次任务顺序号（1,2,3…），批量并行前统一分配。
-    if platform == "amazon" and bool(getattr(config, "amazon_sku_sequence", True)):
+    # Amazon：前缀 + 9 位随机字母数字；必须在进入线程前生成，
+    # 否则同一商品重试会换 SKU，且并行线程可能生成重复值。
+    if platform == "amazon" and bool(getattr(config, "amazon_sku_random", True)):
         _pfx = str(getattr(config, "amazon_sku_prefix", "") or "").strip()
         if _pfx:
-            for _seq, _row in enumerate(selected, 1):
-                if isinstance(_row, dict):
-                    _row["_sku_seq"] = _seq
+            from .amazon_payload import random_amazon_sku
+            _used: set[str] = set()
+            for _row in selected:
+                if not isinstance(_row, dict):
+                    continue
+                _sku = random_amazon_sku(_pfx, 9)
+                while _sku in _used:
+                    _sku = random_amazon_sku(_pfx, 9)
+                _used.add(_sku)
+                _row["_sku_generated"] = _sku
 
     # 多线程：按商品切成连续块并行执行。已注入 client（测试/调用方）时保持串行，
     # 避免共享 fake client；真实运行时每个线程创建独立客户端。
@@ -545,11 +557,8 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
 
         try:
             item_overrides = deepcopy(overrides)
-            if platform == "amazon" and row.get("_sku_seq"):
-                _pfx = str(getattr(config, "amazon_sku_prefix", "") or "").strip()
-                if _pfx:
-                    _sep = "" if _pfx.endswith(("-", "_")) else "-"
-                    item_overrides["sku"] = f"{_pfx}{_sep}{row.get('_sku_seq')}"
+            if platform == "amazon" and row.get("_sku_generated"):
+                item_overrides["sku"] = str(row.get("_sku_generated"))
             if not dry_run:
                 from .collect_ai import prepare
                 item_overrides = prepare(platform, pid, config, client, item_overrides)

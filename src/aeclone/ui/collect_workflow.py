@@ -326,14 +326,14 @@ def functional_settings(app, platform, page, *, run_link=True):
             _sfx = ft.TextField(label="SKU 后缀（可选）", width=220, color=ui.TEXT,
                 bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "amazon_sku_suffix", "") or ""),
                 hint_text="例如 -CA")
-            _seq_sw = ft.Switch(label="前缀后自动加顺序号（1、2、3…）", active_color=ui.ACCENT,
-                value=bool(getattr(app.cfg, "amazon_sku_sequence", True)))
+            _rand_sw = ft.Switch(label="前缀后自动加 9 位随机字母数字", active_color=ui.ACCENT,
+                value=bool(getattr(app.cfg, "amazon_sku_random", True)))
             _preview = ft.Text("", size=12, color=ui.ACCENT_2, selectable=True)
             def _refresh_sku_preview(e=None):
                 prefix = str(_pfx.value or "").strip()
-                if prefix and bool(_seq_sw.value):
+                if prefix and bool(_rand_sw.value):
                     sep = "" if prefix.endswith(("-", "_")) else "-"
-                    preview = f"{prefix}{sep}1、{prefix}{sep}2、{prefix}{sep}3 …"
+                    preview = f"{prefix}{sep}A1B2C3D4E"
                 else:
                     preview = str(prefix) + "SKU-001" + str(_sfx.value or "")
                 _preview.value = "编码示例：" + preview
@@ -342,7 +342,7 @@ def functional_settings(app, platform, page, *, run_link=True):
             def _save_skus(e=None):
                 app.cfg.set("amazon_sku_prefix", str(_pfx.value or ""))
                 app.cfg.set("amazon_sku_suffix", str(_sfx.value or ""))
-                app.cfg.set("amazon_sku_sequence", bool(_seq_sw.value))
+                app.cfg.set("amazon_sku_random", bool(_rand_sw.value))
                 try:
                     save_config(app.cfg)
                     from ..core.platform_config import save as _save_platform
@@ -352,12 +352,12 @@ def functional_settings(app, platform, page, *, run_link=True):
                 _refresh_sku_preview()
             _pfx.on_change = _save_skus
             _sfx.on_change = _save_skus
-            _seq_sw.on_change = _save_skus
+            _rand_sw.on_change = _save_skus
             _refresh_sku_preview()
             controls += [ft.Row([_pfx, _sfx], wrap=True),
-                         _seq_sw,
+                         _rand_sw,
                          _preview,
-                         ui.muted("填写即保存。开启顺序号后批量按前缀-1、前缀-2…统一编码；原始 SKU 不再拼接。", 11)]
+                         ui.muted("填写即保存。开启后批量按「前缀 + 9 位随机大写字母/数字」生成 SKU；原始 SKU 不再拼接。", 11)]
             _contact = ft.TextField(label="制造商联系信息", width=300, color=ui.TEXT, bgcolor=ui.CARD_2,
                 value=str(getattr(app.cfg, "amazon_manufacturer_contact", "Generic, CN") or ""),
                 hint_text="例如 Generic, CN")

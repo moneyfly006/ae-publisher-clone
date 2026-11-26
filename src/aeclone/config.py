@@ -465,7 +465,8 @@ DEFAULTS: dict = {
     "amazon_standard_product_type": "",
     "amazon_sku_prefix": "",
     "amazon_sku_suffix": "",
-    "amazon_sku_sequence": True,   # 前缀 + 顺序号 1,2,3…（批量）
+    "amazon_sku_sequence": False,  # 旧规则，保留兼容但不再使用
+    "amazon_sku_random": True,     # 前缀 + 9 位随机字母数字
     "amazon_bullet_count": 5,       # AI 生成条数（5）；加载已有商品最多 10 条，保存不得截断
     "amazon_op": 1,   # 默认保存到采集箱，不直接提交线上
     "amazon_auto_op": "1",  # 自动流程默认同样只保存，禁止默认发线上
