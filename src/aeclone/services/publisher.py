@@ -2704,7 +2704,7 @@ class Publisher:
         from pathlib import Path
         # 视频来源：兼容老开关（use_template_video / generate_main_video）
         _sv = str(getattr(self.cfg, "video_source", "") or "").strip().lower()
-        if _sv not in ("collected", "template", "generated", "none"):
+        if _sv not in ("collected", "auto", "template", "generated", "none"):
             if getattr(self.cfg, "use_template_video", False):
                 _sv = "template"
             elif getattr(self.cfg, "generate_main_video", False):
@@ -2717,7 +2717,7 @@ class Publisher:
             p["clear_video"] = True
             add_step(res, "视频", True, "已选择「不要视频」，将清空商品原有视频")
             return
-        if _sv == "collected":
+        if _sv in ("collected", "auto"):
             _vu = ""
             try:
                 _raw = (product or {}).get("raw") or {}
@@ -2727,9 +2727,11 @@ class Publisher:
             if _vu:
                 p["video_url"] = _vu
                 add_step(res, "视频", True, "使用采集到的产品视频（写回 videoUrl）")
-            else:
+                return
+            if _sv == "collected":
                 add_step(res, "视频", True, "使用采集到的产品视频（未检测到视频 URL）")
-            return
+                return
+            # auto：没有采集视频 → 继续走主图轮播生成
         src_video: str = ""
         raw = product.get("raw") or {}
         # ① 模板视频（需填路径）
@@ -2754,7 +2756,7 @@ class Publisher:
                 add_step(res, "视频", False, "模板视频：未填本地路径，模板商品也没有视频，已跳过")
                 return
         # ② 生成轮播视频（本地 ffmpeg 合成，不调 AI）
-        if not src_video and _sv == "generated" and p.get("images"):
+        if not src_video and _sv in ("generated", "auto") and p.get("images"):
             try:
                 import tempfile as _tf
                 from .video import generate_carousel_video

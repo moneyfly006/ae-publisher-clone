@@ -37,6 +37,23 @@ class VideoTests(unittest.TestCase):
                 self.assertEqual(product["csp_video_id"], "test-video")
                 upload.assert_called_once()
 
+    def test_auto_source_generates_when_collected_video_missing(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / "input.png"
+            Image.new("RGB", (320, 180), "red").save(source)
+            pub = Publisher.__new__(Publisher)
+            pub.cfg = AppConfig(dict(video_source="auto", video_output_dir=str(root)))
+            pub.dxm = object()
+            pub._fetch = lambda url, workdir: Path(url)
+            product = {"images": [str(source)]}
+            with patch("aeclone.services.video.generate_carousel_video") as generate, \
+                 patch("aeclone.integrations.cos_upload.upload_video", return_value="auto-video"):
+                result = PublishResult("qa", True)
+                pub._prepare_video(product, result, {"raw": {}}, False)
+            generate.assert_called_once()
+            self.assertEqual(product["csp_video_id"], "auto-video")
+
     @unittest.skipUnless(find_ffmpeg(), "FFmpeg unavailable")
     def test_actual_single_and_multi_image_videos_have_requested_size_and_duration(self):
         with tempfile.TemporaryDirectory() as folder:

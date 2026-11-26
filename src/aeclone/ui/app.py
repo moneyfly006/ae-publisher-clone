@@ -6718,6 +6718,7 @@ class App:
             label="视频来源", width=220, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value=str(getattr(self.cfg, "video_source", "collected") or "collected"),
             options=[ft.dropdown.Option("collected", "采集的产品视频（默认）"),
+                     ft.dropdown.Option("auto", "采集视频优先，缺失用主图生成"),
                      ft.dropdown.Option("template", "模板产品视频（自动取模板链接）"),
                      ft.dropdown.Option("generated", "用主图合成轮播视频"),
                      ft.dropdown.Option("none", "不要视频")])
