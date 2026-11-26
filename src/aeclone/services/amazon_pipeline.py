@@ -494,7 +494,16 @@ def _existing_attributes(product: dict, overrides: dict) -> dict:
 
 def _configured_dimensions(cfg, marketplace_id: str = ""):
     """后台填写的默认尺寸（cm）转 Amazon item_dimensions 结构。"""
-    raw = str(_cfg_get(cfg, "amazon_default_dimensions", "") or "").strip()
+    _l = str(_cfg_get(cfg, "amazon_default_length", "") or "").strip()
+    _w = str(_cfg_get(cfg, "amazon_default_width", "") or "").strip()
+    _h = str(_cfg_get(cfg, "amazon_default_height", "") or "").strip()
+    _combined = str(_cfg_get(cfg, "amazon_default_dimensions", "") or "").strip()
+    # 旧版本只有 30x20x10 单框；三个新键默认都是 10 时不能覆盖旧值。
+    _separate = (_l, _w, _h)
+    if any(_separate) and (_combined in ("", "10x10x10") or _separate != ("10", "10", "10")):
+        raw = f"{_l or '10'}x{_w or '10'}x{_h or '10'}"
+    else:
+        raw = _combined or "10x10x10"
     nums = re.findall(r"\d+(?:\.\d+)?", raw)
     if len(nums) < 3:
         return None

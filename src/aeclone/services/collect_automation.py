@@ -217,7 +217,8 @@ def isolated_config(cfg, platform):
                  "template_product_id", "default_country_of_origin",
                  "default_included_components", "default_unit_count",
                  "default_power_source_type", "default_voltage",
-                 "default_dg_regulation", "default_dimensions", "currency",
+                 "default_dg_regulation", "default_dimensions",
+                 "default_length", "default_width", "default_height", "currency",
                  "sku_prefix", "sku_suffix", "sku_sequence")
     for key in list(data):
         if key.startswith(platform + "_"):

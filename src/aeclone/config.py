@@ -504,6 +504,9 @@ DEFAULTS: dict = {
     "amazon_default_voltage": "220",
     "amazon_default_dg_regulation": "not_applicable",
     "amazon_default_dimensions": "10x10x10",
+    "amazon_default_length": "10",
+    "amazon_default_width": "10",
+    "amazon_default_height": "10",
     "amazon_publish_wait": 60,           # op=2 发布后轮询发布状态的最长秒数（0=只查一次）
     "amazon_autofill_attrs": True,       # 保存/发布前自动补齐缺失的必填属性（只补缺失，不覆盖已有）
     # ---- 真实发布自动修复闭环（services/amazon_auto.py） ----

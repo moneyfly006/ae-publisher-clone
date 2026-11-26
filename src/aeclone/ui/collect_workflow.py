@@ -402,14 +402,44 @@ def functional_settings(app, platform, page, *, run_link=True):
                 ("amazon_default_power_source_type","默认动力来源","diesel"),
                 ("amazon_default_voltage","默认电压","220"),
                 ("amazon_default_dg_regulation","默认危险品规管","not_applicable"),
-                ("amazon_default_dimensions","默认尺寸 cm（长x宽x高）","10x10x10"),
                 ("amazon_upc_prefix","UPC 前缀（自动生成 UPC，如 012345）",""),
             ):
                 _tf = ft.TextField(label=_label, width=220, color=ui.TEXT, bgcolor=ui.CARD_2,
                     value=str(getattr(app.cfg,_k,_hint) or _hint))
                 _defs[_k]=_tf
+            import re as _re
+            _old_dims = _re.findall(r"\d+(?:\.\d+)?", str(
+                getattr(app.cfg, "amazon_default_dimensions", "") or "10x10x10"))
+            _old_dims += ["10"] * (3 - len(_old_dims))
+            _dim_fields = {}
+            for _idx, (_key, _label) in enumerate((
+                    ("amazon_default_length", "长 cm"),
+                    ("amazon_default_width", "宽 cm"),
+                    ("amazon_default_height", "高 cm"))):
+                _combined = str(getattr(app.cfg, "amazon_default_dimensions", "") or "10x10x10")
+                _val = str(getattr(app.cfg, _key, "") or "10")
+                if _combined != "10x10x10":
+                    # 旧版单框自定义尺寸迁移到三个框。
+                    _val = _old_dims[_idx]
+                _dim_fields[_key] = ft.TextField(label=_label, width=130, color=ui.TEXT,
+                    bgcolor=ui.CARD_2, value=_val)
             def _save_defs(e=None):
                 for _k,_tf in _defs.items(): app.cfg.set(_k,str(_tf.value or "").strip())
+                _dims = []
+                for _key, _fallback in (("amazon_default_length", "10"),
+                                        ("amazon_default_width", "10"),
+                                        ("amazon_default_height", "10")):
+                    _raw = str(_dim_fields[_key].value or "").strip()
+                    try:
+                        _num = float(_raw)
+                        if _num <= 0:
+                            raise ValueError()
+                        _raw = str(int(_num)) if _num.is_integer() else str(_num)
+                    except (TypeError, ValueError):
+                        _raw = _fallback
+                    app.cfg.set(_key, _raw)
+                    _dims.append(_raw)
+                app.cfg.set("amazon_default_dimensions", "x".join(_dims))
                 if str(_defs.get("amazon_upc_prefix").value or "").strip():
                     app.cfg.set("amazon_auto_product_id", True)
                 try:
@@ -418,9 +448,11 @@ def functional_settings(app, platform, page, *, run_link=True):
                     _sp(app.cfg, "amazon")
                 except Exception: pass
             for _tf in _defs.values(): _tf.on_change=_save_defs
+            for _tf in _dim_fields.values(): _tf.on_change=_save_defs
             controls += [ui.h1("缺失必填项默认值", 13),
                          ft.Row(list(_defs.values()), wrap=True, spacing=8),
-                         ui.muted("填写即保存；开启智能属性后，发布前按类目 schema 使用。", 11)]
+                         ft.Row([ui.muted("默认尺寸（cm）："), *_dim_fields.values()], wrap=True, spacing=8),
+                         ui.muted("填写即保存；尺寸分成长/宽/高三个数字，避免 10x10x10 格式识别错误；开启智能属性后按类目 schema 使用。", 11)]
         if platform == "amazon" and section == "category":
             _kw = ft.TextField(label="采集箱关键词筛选（标题/SKU/ID）", width=420,
                 color=ui.TEXT, bgcolor=ui.CARD_2,
@@ -438,16 +470,6 @@ def functional_settings(app, platform, page, *, run_link=True):
                          ft.dropdown.Option("SAR", "SAR 沙特里亚尔"), ft.dropdown.Option("INR", "INR 印度卢比"),
                          ft.dropdown.Option("SGD", "SGD 新加坡元")])
             _currency.on_change = lambda e: write(app, "amazon_currency", str(e.control.value or ""))
-            _workers = ft.TextField(label="并发处理数（1-8）", width=170, color=ui.TEXT,
-                bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "concurrency", 4) or 4))
-            def _save_workers(e=None):
-                try:
-                    n = max(1, min(8, int(float(_workers.value or 4))))
-                except (TypeError, ValueError):
-                    n = 4
-                _workers.value = str(n)
-                write(app, "concurrency", n)
-            _workers.on_change = _save_workers
             _cat_text = ft.Text("", size=12, color=ui.ACCENT_2, selectable=True)
             def _cat_label():
                 cid = str(getattr(app.cfg, "amazon_category_id", "") or "")
@@ -463,7 +485,7 @@ def functional_settings(app, platform, page, *, run_link=True):
                     app.cfg.set("amazon_category_name", name),
                     save_config(app.cfg), _cat_label()))
             _cat_label()
-            controls += [ft.Row([_kw, _currency, _workers], wrap=True, spacing=10), _cat_text,
+            controls += [ft.Row([_kw, _currency], wrap=True, spacing=10), _cat_text,
                          ft.Row([ft.ElevatedButton("搜索/选择类目", icon=ft.Icons.SEARCH, on_click=_pick_cat)], wrap=True),
                          ui.muted("关键词只用于筛选采集箱商品；币种留空按站点，加拿大站点可手动选 CAD；并发数同时处理多个产品。", 11)]
         if platform == "amazon" and section == "category":
@@ -902,17 +924,6 @@ def runtime_controls(app, platform, *, embedded=False):
             app._safe_update()
         field.on_change = change
         editors[suffix] = field
-    workers = ft.TextField(label="并发处理数（1-8）", width=180,
-        value=str(getattr(app.cfg, "concurrency", 4) or 4), color=ui.TEXT, bgcolor=ui.CARD_2)
-    def change_workers(e):
-        try:
-            n = max(1, min(8, int(float(workers.value or 4))))
-        except (TypeError, ValueError):
-            n = 4
-        workers.value = str(n)
-        write(app, "concurrency", n)
-        app._safe_update()
-    workers.on_change = change_workers
     actual_preset = next((key for key, (_, values) in PRESETS.items() if all(getattr(app.cfg, prefix + k, None) == v for k, v in values.items())), None)
     chooser = ft.Dropdown(label="运行参数预设", width=250, value=actual_preset, color=ui.TEXT, bgcolor=ui.CARD_2,
         options=[ft.dropdown.Option(key, value[0]) for key, value in PRESETS.items()])
@@ -947,7 +958,7 @@ def runtime_controls(app, platform, *, embedded=False):
             current,
             ft.Row([chooser, ft.OutlinedButton("应用运行预设", icon=ft.Icons.TUNE, on_click=apply)], wrap=True, spacing=12),
             preview,
-            ft.Row([*editors.values(), workers], wrap=True, spacing=12),
+            ft.Row(list(editors.values()), wrap=True, spacing=12),
             ui.muted("只调整当前平台的运行速度与保护阈值，保留商品设置和AI开关。并发数同时处理多个产品；网络异常不重发保存/发布。"),
         ], spacing=10)
     return ui.card(ft.Column([
@@ -956,7 +967,7 @@ def runtime_controls(app, platform, *, embedded=False):
         ft.Row([chooser, ft.OutlinedButton("应用运行预设", icon=ft.Icons.TUNE, on_click=apply)], wrap=True, spacing=12),
         preview,
         ft.ExpansionTile(title=ft.Text("调整运行参数", color=ui.TEXT), controls=[
-            ft.Row([*editors.values(), workers], wrap=True, spacing=12)]),
+            ft.Row(list(editors.values()), wrap=True, spacing=12)]),
         ui.muted("只调整当前平台的运行速度与保护阈值，保留商品设置和AI开关。并发数同时处理多个产品；网络异常不重发保存/发布。"),
     ], spacing=12))
 
