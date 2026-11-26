@@ -662,6 +662,10 @@ class AmazonClient:
             try:
                 from ..services.publisher import is_failure_msg
                 if is_failure_msg(msg):
+                    if "产品不存在" in msg or "商品不存在" in msg:
+                        raise AmazonError(
+                            f"商品已不在采集箱（可能被删除、合并或移出当前店铺），"
+                            f"请重新加载商品后再试：{payload.get('id') or ''}；{msg[:200]}")
                     raise AmazonError(msg[:300])
             except AmazonError:
                 raise
