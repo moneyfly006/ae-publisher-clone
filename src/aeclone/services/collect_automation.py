@@ -209,9 +209,11 @@ def isolated_config(cfg, platform):
                  "template_product_id", "attr_presets", "ensure_min_images")
         keep += ("min_order_quantity", "unit_type", "weight", "package_size",
                  "package_length", "package_width", "package_height", "freight_template_id",
+                 "freight_template_override",
                  "logistics_property", "default_sample_service", "default_deliver_periods",
                  "hs_code", "stock", "company_desc", "company_faq", "company_name", "video_source",
-                 "video_size", "video_slot_seconds", "video_transition_seconds")
+                 "video_size", "video_slot_seconds", "video_transition_seconds",
+                 "template_video_path", "use_template_video", "template_snapshot")
     if platform == "amazon":
         # 发布策略/识别码/模板/默认属性必须带进批量；之前被隔离逻辑清空，
         # 导致脚本测试成功、软件批量运行仍按旧逻辑缺属性。

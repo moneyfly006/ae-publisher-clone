@@ -12829,7 +12829,9 @@ class App:
             threading.Thread(target=work, daemon=True).start()
 
         def _on_freight(e):
-            self.cfg.set("alibaba_freight_template_id", str(e.control.value or ""))
+            value = str(e.control.value or "").strip()
+            self.cfg.set("alibaba_freight_template_id", value)
+            self.cfg.set("alibaba_freight_template_override", bool(value))
             save_config(self.cfg)
         freight_dd.on_change = _on_freight
 

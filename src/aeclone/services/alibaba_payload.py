@@ -404,20 +404,95 @@ def merge_attributes(product: dict, cfg=None, overrides: dict | None = None,
     return attrs
 
 
+def _template_video_value(cfg, ov: dict) -> str:
+    """取模板视频：本地覆盖文件 > 模板快照/模板字段里的视频链接。"""
+    path = str(getattr(cfg, "template_video_path", "") or "").strip()
+    if path:
+        if path.startswith(("http://", "https://")):
+            return path
+        try:
+            from pathlib import Path as _P
+            from .hosting import upload_video_file
+            file = _P(path)
+            if file.exists():
+                key = str(file) + ":" + str(file.stat().st_mtime)
+                cached = _VIDEO_CACHE.get(key)
+                if cached:
+                    return cached
+                url = upload_video_file(file)
+                if url:
+                    _VIDEO_CACHE[key] = url
+                    return url
+        except Exception:
+            pass
+    groups = [ov or {}]
+    tpl_fields = (ov or {}).get("template_fields")
+    if isinstance(tpl_fields, dict):
+        groups.append(tpl_fields)
+    try:
+        snap = json.loads(str(getattr(cfg, "alibaba_template_snapshot", "") or "{}"))
+        if isinstance(snap, dict):
+            groups.append(snap)
+            if isinstance(snap.get("fields"), dict):
+                groups.append(snap["fields"])
+    except Exception:
+        pass
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        for key in ("mainVideoId", "detailVideoId", "videoUrl", "video",
+                    "template_video_url", "templateVideoUrl"):
+            value = group.get(key)
+            if value not in (None, "", 0, "0", "None", "[]", "{}"):
+                return str(value)
+    return ""
+
+
+_VIDEO_CACHE: dict[str, str] = {}
+
+
+def _write_product_video(product: dict, save: dict, ov: dict) -> bool:
+    """采集视频只从商品/显式 override 取，模板字段不混入。"""
+    for key in ("mainVideoId", "detailVideoId", "videoUrl", "video"):
+        value = ov.get(key) or product.get(key)
+        if value not in (None, "", 0, "0", "None", "[]", "{}"):
+            save[key] = value
+            return True
+    return False
+
+
 def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | None = None,
                            log=None) -> str:
-    """采集视频优先；没有时用主图/详情图生成轮播视频并写 videoUrl。"""
+    """按用户选择处理视频：模板/采集/轮播生成/不要；模板来源绝不回退采集视频。"""
     ov = overrides or {}
-    source = str(_cfg_get(cfg, "alibaba_video_source", "auto") or "auto").lower()
+    source = str(_cfg_get(cfg, "alibaba_video_source", "auto") or "auto").strip().lower()
+    legacy = str(_cfg_get(cfg, "video_source", "") or "").strip().lower()
+    if source in ("", "auto") and (
+            bool(_cfg_get(cfg, "use_template_video", False)) or legacy == "template"):
+        source = "template"
+    elif source in ("", "auto") and legacy in ("generated", "none"):
+        # 兼容旧版「商品视频」设置页的 video_source。
+        source = legacy
     if source == "none":
         return ""
-    for key in ("mainVideoId", "detailVideoId", "videoUrl", "video"):
-        v = ov.get(key) or product.get(key)
-        if v not in (None, "", 0, "0", "None"):
-            save[key] = v
-            return str(v)
-    if source == "collected":
-        return ""
+    if source == "template":
+        value = _template_video_value(cfg, ov)
+        if not value:
+            if log:
+                log("已选择模板视频，但模板视频为空/不可读；已停止，不回落采集视频", "WARN")
+            return ""
+        if value.startswith(("http://", "https://")):
+            save["videoUrl"] = value
+        else:
+            save["mainVideoId"] = value
+        return value
+    if source in ("collected", "auto"):
+        if _write_product_video(product, save, ov):
+            return str(save.get("videoUrl") or save.get("mainVideoId")
+                       or save.get("detailVideoId") or save.get("video") or "")
+        if source == "collected":
+            return ""
+    # generated（以及 auto 找不到采集视频）：从主图/详情图生成轮播视频
     raw = (ov.get("main_images") or save.get("mainImage")
            or product.get("mainImage") or product.get("draftImgUrl") or "")
     urls = [x.strip() for x in str(raw).replace("|", ",").split(",") if x.strip()]
@@ -1158,6 +1233,17 @@ def build_alibaba_save(product: dict, cfg=None, overrides: dict | None = None,
         if not isinstance(ov["product_sku"], dict):
             raise ValueError("当前商品 SKU 数据必须是对象")
         save["productSku"] = json.dumps(ov["product_sku"], ensure_ascii=False)
+    # 用户显式选择的运费模板优先于模板商品/采集商品自带的运费模板。
+    # 兼容旧配置：非默认 ID 视为用户自己选过；UI 新选择会写 override=True。
+    if cfg is not None:
+        _freight_id = str(getattr(cfg, "alibaba_freight_template_id", "") or "").strip()
+        _freight_override = bool(getattr(cfg, "alibaba_freight_template_override", False))
+        if _freight_id and (_freight_override or _freight_id != "2055583029"):
+            _old_freight = str(trade.get("shipping_line_template_id") or "").strip()
+            if _old_freight and _old_freight != _freight_id:
+                _overwrites.append(f"运费模板：{_old_freight} → {_freight_id}（用户设置优先）")
+            trade["shipping_line_template_id"] = _freight_id
+            save["wholesaleTrade"] = json.dumps(trade, ensure_ascii=False)
     save["_overwrites"] = _overwrites
     return save
 

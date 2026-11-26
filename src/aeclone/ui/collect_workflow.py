@@ -610,6 +610,7 @@ def functional_settings(app, platform, page, *, run_link=True):
                                                 str(getattr(app.cfg, "alibaba_default_freight_name", "买卖双方协商物流")))]
                     if getattr(app.cfg, "alibaba_freight_template_id", "") else [])
                 _freight.on_change = lambda e: (write(app, "alibaba_freight_template_id", str(e.control.value or "")),
+                                                 write(app, "alibaba_freight_template_override", bool(str(e.control.value or "").strip())),
                                                 write(app, "alibaba_default_freight_name",
                                                       next((o.text for o in _freight.options if o.key == e.control.value), "")))
                 def _load_freight(e=None):
@@ -770,9 +771,15 @@ def functional_settings(app, platform, page, *, run_link=True):
         from .batch_media import controls as batch_media
         _video_row = []
         if platform == "alibaba":
-            _vsrc = ft.Dropdown(label="商品视频来源", width=260, color=ui.TEXT, bgcolor=ui.CARD_2,
-                value=str(getattr(app.cfg, "alibaba_video_source", "auto") or "auto"),
+            _vsrc_value = str(getattr(app.cfg, "alibaba_video_source", "auto") or "auto")
+            if _vsrc_value == "auto" and (
+                    str(getattr(app.cfg, "video_source", "") or "").lower() == "template"
+                    or bool(getattr(app.cfg, "use_template_video", False))):
+                _vsrc_value = "template"
+            _vsrc = ft.Dropdown(label="商品视频来源", width=280, color=ui.TEXT, bgcolor=ui.CARD_2,
+                value=_vsrc_value,
                 options=[ft.dropdown.Option("auto", "采集视频优先，缺失用图片轮播生成"),
+                         ft.dropdown.Option("template", "只用模板视频（模板链接/本地视频）"),
                          ft.dropdown.Option("collected", "只用采集到的视频"),
                          ft.dropdown.Option("generated", "用主图生成轮播视频"),
                          ft.dropdown.Option("none", "不要视频")])

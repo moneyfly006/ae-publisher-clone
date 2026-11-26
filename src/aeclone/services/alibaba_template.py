@@ -36,8 +36,8 @@ def build_snapshot(client, product_id: str) -> dict:
     for k in ("categoryId", "fullCid", "priceType", "bulkDiscountPrices",
               "wholesaleTrade", "salePkgDesc", "logisticsProperty", "shipmentPlace",
               "warehouseType", "marketSamplingQuantity", "marketSamplingPrice",
-              "marketSample"):
-        fields[k] = save.get(k)
+              "marketSample", "mainVideoId", "detailVideoId", "videoUrl", "video"):
+        fields[k] = save.get(k) if save.get(k) not in (None, "") else p.get(k)
     return {
         "product_id": str(product_id),
         "title": str(p.get("subject") or p.get("title") or ""),

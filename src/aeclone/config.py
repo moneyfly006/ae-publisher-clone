@@ -423,6 +423,7 @@ DEFAULTS: dict = {
     "alibaba_fob_min_price": "",
     "alibaba_fob_max_price": "",
     "alibaba_freight_template_id": "2055583029",   # 运费模板 ID（发布时与重量/尺寸一起校验）
+    "alibaba_freight_template_override": False,    # 用户在软件里显式选择运费模板后置 true
     "alibaba_logistics_property": "general_cargo_0",  # 物流属性；实测 online 商品用 general_cargo_0
     "alibaba_op": 1,
     "alibaba_package_size": "10X10X10",
