@@ -784,7 +784,11 @@ def functional_settings(app, platform, page, *, run_link=True):
                          ft.dropdown.Option("generated", "用主图生成轮播视频"),
                          ft.dropdown.Option("none", "不要视频")])
             _vsrc.on_change = lambda e: write(app, "alibaba_video_source", str(e.control.value or "auto"))
-            _video_row = [_vsrc, ui.muted("轮播视频本地 ffmpeg 合成，不消耗 AI 图片额度；视频不足 5 分项。")]
+            _overwrite = ft.Switch(label="覆盖商品已有视频", active_color=ui.ACCENT,
+                value=bool(getattr(app.cfg, "overwrite_existing_video", False)))
+            _overwrite.on_change = lambda e: write(app, "overwrite_existing_video", bool(e.control.value))
+            _video_row = [_vsrc, _overwrite,
+                          ui.muted("关闭覆盖时保留商品原视频；开启后模板/生成视频才会替换。轮播视频不消耗 AI 图片额度。")]
         controls += [enabled,
             *_video_row,
             ui.muted("为每个商品指定要处理的图片分组和位置。商品缺少对应图片时跳过该规则。"),

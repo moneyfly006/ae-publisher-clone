@@ -461,6 +461,14 @@ def _write_product_video(product: dict, save: dict, ov: dict) -> bool:
     return False
 
 
+def _existing_product_video(product: dict, save: dict) -> str:
+    for key in ("mainVideoId", "detailVideoId", "videoUrl", "video"):
+        value = (product or {}).get(key) or (save or {}).get(key)
+        if value not in (None, "", 0, "0", "None", "[]", "{}"):
+            return str(value)
+    return ""
+
+
 def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | None = None,
                            log=None) -> str:
     """按用户选择处理视频：模板/采集/轮播生成/不要；模板来源绝不回退采集视频。"""
@@ -475,6 +483,17 @@ def prepare_video_for_save(product: dict, cfg, save: dict, overrides: dict | Non
         source = legacy
     if source == "none":
         return ""
+    # 「覆盖商品已有视频」：模板/生成视频不应在开关关闭时静默替换商品原视频。
+    existing = _existing_product_video(product, save)
+    if source in ("template", "generated") and existing and not bool(
+            _cfg_get(cfg, "overwrite_existing_video", False)):
+        for key in ("mainVideoId", "detailVideoId", "videoUrl", "video"):
+            value = (product or {}).get(key)
+            if value not in (None, "", 0, "0", "None", "[]", "{}"):
+                save[key] = value
+        if log:
+            log("商品已有视频，未开启「覆盖商品已有视频」；已保留原视频", "INFO")
+        return existing
     if source == "template":
         value = _template_video_value(cfg, ov)
         if not value:
