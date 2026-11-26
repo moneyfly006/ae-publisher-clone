@@ -318,11 +318,12 @@ class BuildPayloadTests(unittest.TestCase):
         self.assertEqual(payload["switchFulfillmentTo"], "AFN")
         self.assertIsNone(payload["merchantShippingGroup"])
 
-    def test_cfg_price_does_not_override_existing_product_price(self):
+    def test_cfg_price_overrides_collected_product_price(self):
+        # 用户要求：设置里填了价格优先；没填才用采集价。
         cfg = {"amazon_price": "88.8", "amazon_sale_price": "77.7"}
         payload = build_amazon_payload(make_product(), cfg, {})
-        self.assertEqual(payload["standardPrice"], 15999.0)
-        self.assertEqual(payload["saleSalePrice"], 14999.0)
+        self.assertEqual(payload["standardPrice"], 88.8)
+        self.assertEqual(payload["saleSalePrice"], 77.7)
 
     def test_plain_text_description_is_wrapped(self):
         payload = make_payload(description="line1\nline2")

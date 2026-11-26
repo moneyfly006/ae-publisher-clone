@@ -446,6 +446,7 @@ DEFAULTS: dict = {
     "amazon_site": "",              # marketPlaceId（如 A2EUQ1WTGCTBG2）
     "amazon_site_code": "",         # 站点代码（US/CA/MX/BR…）
     "amazon_site_name": "",
+    "amazon_currency": "",          # 可选：覆盖站点币种（如 CA 选 CAD）
     "amazon_test_product_id": "",
     "amazon_list_state": "draft",
     "amazon_category_id": "",
@@ -464,6 +465,7 @@ DEFAULTS: dict = {
     "amazon_standard_product_type": "",
     "amazon_sku_prefix": "",
     "amazon_sku_suffix": "",
+    "amazon_sku_sequence": True,   # 前缀 + 顺序号 1,2,3…（批量）
     "amazon_bullet_count": 5,       # AI 生成条数（5）；加载已有商品最多 10 条，保存不得截断
     "amazon_op": 1,   # 默认保存到采集箱，不直接提交线上
     "amazon_auto_op": "1",  # 自动流程默认同样只保存，禁止默认发线上
@@ -502,6 +504,9 @@ DEFAULTS: dict = {
     "amazon_default_voltage": "220",
     "amazon_default_dg_regulation": "not_applicable",
     "amazon_default_dimensions": "10x10x10",
+    "amazon_default_length": "10",
+    "amazon_default_width": "10",
+    "amazon_default_height": "10",
     "amazon_publish_wait": 60,           # op=2 发布后轮询发布状态的最长秒数（0=只查一次）
     "amazon_autofill_attrs": True,       # 保存/发布前自动补齐缺失的必填属性（只补缺失，不覆盖已有）
     # ---- 真实发布自动修复闭环（services/amazon_auto.py） ----

@@ -3824,6 +3824,9 @@ class Publisher:
             _need_sku = bool(self.cfg.enable_ai_sku and p.get("skus"))
             _title_res = None
             _sku_res = None
+            _title_err = ""
+            _sku_err = ""
+            _parallel_err = ""
             _sku_names = [str(x.get("sku") or x.get("name") or "") for x in (p.get("skus") or [])]
             if _need_title or _need_sku:
                 try:
@@ -3847,8 +3850,9 @@ class Publisher:
                                 _t_wait.sleep(0.2)
                             try:
                                 _title_res = _f_t.result()
-                            except Exception:  # noqa: BLE001
+                            except Exception as _te:  # noqa: BLE001
                                 _title_res = None
+                                _title_err = str(_te)[:200]
                         if _f_s is not None:
                             import time as _t_wait2
                             while not _f_s.done():
@@ -3857,10 +3861,12 @@ class Publisher:
                                 _t_wait2.sleep(0.2)
                             try:
                                 _sku_res = _f_s.result()
-                            except Exception:  # noqa: BLE001
+                            except Exception as _se:  # noqa: BLE001
                                 _sku_res = None
-                except Exception:
+                                _sku_err = str(_se)[:200]
+                except Exception as _pe:  # noqa: BLE001
                     _title_res = _sku_res = None
+                    _parallel_err = str(_pe)[:200]
 
             if _title_res is not None:
                 if _title_res.ok:
@@ -3869,7 +3875,9 @@ class Publisher:
                 else:
                     add_step(res, "AI 标题", False, _title_res.error)
             elif _need_title:
-                add_step(res, "AI 标题", False, "调用异常，已跳过")
+                _why = _title_err or _parallel_err or "未知异常"
+                add_step(res, "AI 标题", False,
+                         f"调用异常，已跳过：{_why}"[:240])
             else:
                 add_step(res, "AI 标题", True, "未启用，跳过")
 
@@ -3961,7 +3969,9 @@ class Publisher:
                 elif _sku_res is not None:
                     add_step(res, "AI SKU", False, _sku_res.error)
                 else:
-                    add_step(res, "AI SKU", False, "调用异常，已跳过")
+                    _why_sku = _sku_err or _parallel_err or "未知异常"
+                    add_step(res, "AI SKU", False,
+                             f"调用异常，已跳过：{_why_sku}"[:240])
 
             # 注意：四合一和水印现在统一通过 _apply_image_jobs 处理
             # 如果用户使用旧配置 cfg.four_in_one 或 cfg.watermark，

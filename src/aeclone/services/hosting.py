@@ -103,8 +103,9 @@ def _resolve(base: str | None, key: str | None) -> tuple[str, str]:
     return str(b).rstrip("/"), str(k or "")
 
 
-def _try_cf_imgbed(path: Path, base: str, key: str, folder: str, timeout: int) -> str | None:
-    """Cloudflare-ImgBed 协议；不适用就返回 None。"""
+def _try_cf_imgbed(path: Path, base: str, key: str, folder: str, timeout: int,
+                   errors: list | None = None) -> str | None:
+    """Cloudflare-ImgBed 协议；不适用就返回 None（失败细节写进 errors）。"""
     try:
         headers = {"Authorization": key} if key else {}
         data: dict[str, str] = {"keepName": "false"}   # 让服务端生成唯一名，避免重名覆盖
@@ -115,6 +116,8 @@ def _try_cf_imgbed(path: Path, base: str, key: str, folder: str, timeout: int) -
                               files={"files": (path.name, f, "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png")},
                               data=data, timeout=timeout)
         if r.status_code >= 400:
+            if errors is not None:
+                errors.append(f"CF {base}: HTTP {r.status_code} {str(r.text or '')[:80]}")
             return None
         j = r.json()
         items = j.get("data") or []
@@ -125,22 +128,37 @@ def _try_cf_imgbed(path: Path, base: str, key: str, folder: str, timeout: int) -
                 _ledger_add(url, str(it.get("delToken") or ""), str(it.get("filename") or path.name))
                 return url
         url = str(j.get("url") or "")
-        return url if url.startswith("http") else None
-    except Exception:
+        if url.startswith("http"):
+            return url
+        if errors is not None:
+            errors.append(f"CF {base}: 响应缺少图片 URL")
+        return None
+    except Exception as ex:  # noqa: BLE001
+        if errors is not None:
+            errors.append(f"CF {base}: {type(ex).__name__}: {str(ex)[:100]}")
         return None
 
 
-def _try_legacy(path: Path, base: str, timeout: int) -> str | None:
-    """老自建服务：POST /upload, 字段 file, 返回 {url}。"""
+def _try_legacy(path: Path, base: str, timeout: int,
+                errors: list | None = None) -> str | None:
+    """老自建服务：POST /upload, 字段 file, 返回 {url}（失败细节写进 errors）。"""
     try:
         with open(path, "rb") as f:
             r = requests.post(f"{base}/upload",
                               files={"file": (path.name, f, "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png")}, timeout=timeout)
         if r.status_code >= 400:
+            if errors is not None:
+                errors.append(f"LEGACY {base}: HTTP {r.status_code} {str(r.text or '')[:80]}")
             return None
         url = str((r.json() or {}).get("url") or "")
-        return url if url.startswith("http") else None
-    except Exception:
+        if not url.startswith("http"):
+            if errors is not None:
+                errors.append(f"LEGACY {base}: 响应缺少图片 URL")
+            return None
+        return url
+    except Exception as ex:  # noqa: BLE001
+        if errors is not None:
+            errors.append(f"LEGACY {base}: {type(ex).__name__}: {str(ex)[:100]}")
         return None
 
 
@@ -174,16 +192,44 @@ def upload(path: Path, base: str | None = None, timeout: int = 90,
 
     b, k = _resolve(base, key)
     send_path, _converted = _prepare_image(path)
-    url = _try_cf_imgbed(send_path, b, k, folder, timeout) or _try_legacy(send_path, b, timeout)
-    # 旧配置可能指向已超时的自建地址；失败后回退官方图床，避免整批营销图失败。
-    if not url and b.rstrip("/") != DEFAULT_HOST.rstrip("/"):
-        try:
-            url = (_try_cf_imgbed(send_path, DEFAULT_HOST, DEFAULT_KEY, folder, timeout)
-                   or _try_legacy(send_path, DEFAULT_HOST, timeout))
-        except Exception:
-            url = None
+
+    errors: list[str] = []
+
+    def _attempt(host: str, host_key: str) -> str | None:
+        return (_try_cf_imgbed(send_path, host, host_key, folder, timeout, errors)
+                or _try_legacy(send_path, host, timeout, errors))
+
+    # 第一次：按配置（自定义图床/密钥）
+    url = _attempt(b, k)
     if not url:
-        raise HostError(f"上传失败：{b}（两种协议都试过了，检查地址/密钥/网络）")
+        # 网络瞬断/服务端抖动：同一配置再试一次
+        try:
+            import time as _t
+            _t.sleep(0.4)
+        except Exception:
+            pass
+        url = _attempt(b, k)
+    fallback_used = False
+    if not url:
+        # 自定义地址或密钥失败 → 回退官方图床+官方密钥（即使 base 相同、只是 key 空/错）
+        same_as_default = (b.rstrip("/") == DEFAULT_HOST.rstrip("/")
+                           and str(k or "") == str(DEFAULT_KEY))
+        if not same_as_default:
+            fallback_used = True
+            url = _attempt(DEFAULT_HOST, DEFAULT_KEY)
+            if not url:
+                try:
+                    import time as _t2
+                    _t2.sleep(0.4)
+                except Exception:
+                    pass
+                url = _attempt(DEFAULT_HOST, DEFAULT_KEY)
+    if not url:
+        detail = "；".join(errors[-6:]) if errors else "无响应"
+        raise HostError(
+            f"上传失败：{b}"
+            f"（两种协议都试过，已重试{' 并回退默认图床 ' + DEFAULT_HOST if fallback_used else ''}；"
+            f"最后错误：{detail[:180]}）")
 
     _CACHE[h] = url
     if _converted:

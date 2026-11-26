@@ -502,27 +502,42 @@ def merge_attributes(attr_data, attributes, marketplace_id: str = "",
 
 
 def _images(product: dict, main=None) -> tuple[str, str, str]:
-    """返回 (mainImage, extraImagesStr, draftImgUrl)。"""
+    """返回 (mainImage, extraImagesStr, draftImgUrl)。
+
+    Amazon 最多 9 张（1 主图 + 8 附图）。主图优先，全部去重且保持顺序；
+    超过 9 张截断，重复 URL 不重复写入，避免保存时触发重复图片错误。
+    """
     p = product or {}
     main_image = _text(main) if main is not None else _text(p.get("mainImage"))
     if not main_image:
         img_url = _text(p.get("imgUrl"))
         if img_url:
             main_image = img_url.split("|")[0].strip()
-    extra_list: list[str] = []
+    candidates: list[str] = []
+    if main_image:
+        candidates.append(main_image)
     raw_list = p.get("extraImages")
     if isinstance(raw_list, list):
-        extra_list = [str(x).strip() for x in raw_list if str(x).strip()]
+        candidates.extend(str(x).strip() for x in raw_list if str(x).strip())
     extra_str = _text(p.get("extraImagesStr"))
-    if not extra_str and extra_list:
-        extra_str = ";".join(extra_list)
-    if not extra_list and extra_str:
-        extra_list = [x.strip() for x in extra_str.split(";") if x.strip()]
+    if extra_str:
+        candidates.extend(x.strip() for x in extra_str.split(";") if x.strip())
     draft = _text(p.get("draftImgUrl"))
-    if not draft and extra_list:
-        draft = "|".join(extra_list)
-    return main_image, extra_str, draft
-
+    if draft:
+        candidates.extend(x.strip() for x in draft.split("|") if x.strip())
+    unique: list[str] = []
+    seen = set()
+    for url in candidates:
+        clean = str(url or "").strip()
+        if not clean or clean in seen:
+            continue
+        seen.add(clean)
+        unique.append(clean)
+    if not unique:
+        return "", "", ""
+    main_image = unique[0]
+    extras = unique[1:9]
+    return main_image, ";".join(extras), "|".join(extras)
 
 def _sync_offer_prices(attributes, payload, overrides):
     changed = False
@@ -604,7 +619,8 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     old_mp = _text(p.get("marketPlaceId"))
     out["marketPlaceId"] = new_mp
     meta = prompt_site_meta(new_mp) if new_mp else {}
-    cur = (_text(currency) or _text(_override(ov, "currency"))
+    cur = (_text(_override(ov, "currency"))
+           or _text(currency)
            or _text(p.get("currency")) or _text(p.get("standardPriceCurrency")))
     if new_mp and new_mp != old_mp and not _text(_override(ov, "currency")):
         cur = _text(meta.get("currency")) or cur
@@ -639,6 +655,11 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     if not _text(sku) and _has_cfg(cfg, "amazon_sku"):
         sku = _cfg_value(cfg, "amazon_sku")
     sku = _text(sku)
+    if not sku:
+        # 不再提供 UI 开关：商品缺 SKU 时默认生成稳定本地编码。
+        _pid = _text(out.get("id") or p.get("idStr") or p.get("id"))
+        if _pid:
+            sku = "SKU-" + _pid[-12:]
     _prefix = _text(_cfg_value(cfg, "amazon_sku_prefix", ""))
     _suffix = _text(_cfg_value(cfg, "amazon_sku_suffix", ""))
     if sku and (_prefix or _suffix) and not sku.startswith(_prefix):
@@ -650,19 +671,21 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     # 价格 / 库存
     # 价格：overrides > 商品原值 > cfg 兜底（cfg 只在商品没价时生效，避免静默改价）
     std_price = _override(ov, "standard_price", None)
+    if std_price is None and _has_cfg(cfg, "amazon_price"):
+        # 设置里填了价格就覆盖采集价；没填才回退商品采集价。
+        std_price = _cfg_value(cfg, "amazon_price")
     if std_price is None:
         std_price = p.get("standardPrice")
-    if _to_float(std_price) in (None, 0.0) and _has_cfg(cfg, "amazon_price"):
-        std_price = _cfg_value(cfg, "amazon_price")
     out["standardPrice"] = _price(std_price)
     sale_price = _override(ov, "sale_price", None)
+    if sale_price is None and _has_cfg(cfg, "amazon_sale_price"):
+        # 与标准价一致：设置里填了促销价优先，没填才用采集价。
+        sale_price = _cfg_value(cfg, "amazon_sale_price")
     if sale_price is None:
         sale_price = p.get("saleSalePrice")
     if "sale_price" in ov and _to_float(ov["sale_price"]) == 0:
         ov["sale_price"] = 0
         sale_price = 0
-    elif _to_float(sale_price) in (None, 0.0) and _has_cfg(cfg, "amazon_sale_price"):
-        sale_price = _cfg_value(cfg, "amazon_sale_price")
     # 促销价必须小于标准价；否则自动清空促销价，避免保存前校验失败。
     _std_f = _to_float(out.get("standardPrice"))
     _sale_f = _to_float(_price(sale_price))
@@ -688,9 +711,15 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     if "main_image" in ov:
         image_product["mainImage"] = str(ov["main_image"] or "")
     if "extra_images" in ov:
-        extra = [str(x).strip() for x in ov["extra_images"] if str(x).strip()]
+        extra = []
+        _seen_extra = set()
+        for x in ov["extra_images"]:
+            clean = str(x).strip()
+            if clean and clean not in _seen_extra:
+                _seen_extra.add(clean)
+                extra.append(clean)
         if len(extra) > 8:
-            raise ValueError("Amazon 图片最多 9 张（1 张主图和 8 张附图）")
+            raise ValueError("Amazon 图片最多 9 张（1 张主图和 8 张附图），请先合并重复图片")
         image_product["extraImagesStr"] = ";".join(extra)
         image_product["extraImages"] = extra
         image_product["draftImgUrl"] = "|".join(extra)
@@ -742,7 +771,9 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     attr_notes: list[str] = []
     if _attr_json_ok(raw_attr):
         filled, attr_notes = _payload_autofill(p, cfg, ov, new_mp)
-    if has_attrs_ov or rewrite_mp or filled:
+    from .amazon_pipeline import _configured_dimensions
+    _cfg_dims = _configured_dimensions(cfg, new_mp or out.get("marketPlaceId") or "")
+    if has_attrs_ov or rewrite_mp or filled or _cfg_dims:
         if rewrite_mp:
             attr_data = _rewrite_marketplace(attr_data, rewrite_mp)
         if has_attrs_ov:
@@ -751,6 +782,9 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
         if filled:
             attr_data = merge_attributes(attr_data, filled, new_mp,
                                          language_tag_for(new_mp))
+        if _cfg_dims:
+            # 后台尺寸是显式设置：优先于采集详情，确保保存草稿也写入。
+            attr_data["item_dimensions"] = _cfg_dims
         _asin = str(_cfg_value(cfg, "amazon_merchant_suggested_asin", "") or "").strip()
         if not _asin and bool(_cfg_value(cfg, "amazon_auto_merchant_asin", True)):
             _asin = _auto_merchant_asin(out.get("id") or "", out.get("sku") or "")
@@ -790,7 +824,7 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
                     "value": _contact, "language_tag": "en_CA",
                     "marketplace_id": new_mp or out.get("marketPlaceId") or ""}]
         out["productAttr"] = json.dumps(attr_data, ensure_ascii=False)
-    elif has_attrs_ov or rewrite_mp or filled:
+    elif has_attrs_ov or rewrite_mp or filled or _cfg_dims:
         out["productAttr"] = json.dumps(attr_data, ensure_ascii=False)
     else:
         # 无需改写时保持原样回写（真实写 #1 的 productAttr 往返一致）

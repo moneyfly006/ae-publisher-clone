@@ -121,6 +121,12 @@ def settings(cfg, platform):
             data.setdefault("category_id", _cid)
         if _cpath:
             data.setdefault("category_path", _cpath)
+        _currency = str(getattr(cfg, "amazon_currency", "") or "").strip().upper()
+        if _currency:
+            data.setdefault("currency", _currency)
+        _price = str(getattr(cfg, "amazon_price", "") or "").strip()
+        if _price:
+            data.setdefault("standard_price", _price)
     validate_overrides(data)
     attribute_key = "product_attributes" if platform == "tiktok" else "attributes"
     if attribute_key in data:
@@ -211,7 +217,9 @@ def isolated_config(cfg, platform):
                  "template_product_id", "default_country_of_origin",
                  "default_included_components", "default_unit_count",
                  "default_power_source_type", "default_voltage",
-                 "default_dg_regulation", "default_dimensions")
+                 "default_dg_regulation", "default_dimensions",
+                 "default_length", "default_width", "default_height", "currency",
+                 "sku_prefix", "sku_suffix", "sku_sequence")
     for key in list(data):
         if key.startswith(platform + "_"):
             suffix = key[len(platform) + 1:]
@@ -405,6 +413,7 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
     op = str(getattr(cfg, platform + "_collect_op", "1") or "1")
     if op not in ("1", "2", "3"):
         raise ValueError("无效的保存去向")
+    _provided_client = client is not None
     client = ReadClient(client or client_for(platform, config), config, platform, stop)
     policy = RunPolicy(config, platform, stop)
     emit(platform + " · 自动采集箱", "开始", "读取处理范围，准备后逐个执行")
@@ -415,18 +424,26 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
         _picked = [str(x) for x in _picked if str(x).strip()] if isinstance(_picked, list) else []
     except (ValueError, TypeError):
         _picked = []
+    _keyword = str(getattr(cfg, platform + "_collect_keyword", "") or "").strip()
+    try:
+        _limit = int(getattr(cfg, platform + "_collect_limit", 10) or 0)
+    except (TypeError, ValueError):
+        _limit = 10
+    if _limit < 0:
+        _limit = 0
     try:
         if _picked and rows is None and not resumed:
-            selected = snapshot(client, platform, keyword="", limit=0,
+            # 已选商品仍要先按关键词筛选；数量在勾选集合确定后再截断。
+            selected = snapshot(client, platform, keyword=_keyword, limit=0,
                                 shop_id=client.expected_shop, site_id=client.expected_site,
                                 stop=stop,
                                 progress=lambda p, n: emit(platform + " · 读取范围", "进行中",
-                                                           f"读取全量第 {p} 页 · 已读 {n} 件"))
+                                                           f"读取全量第 {p} 页 · 已筛选 {n} 件"))
         else:
             selected = [item["row"] for item in resumed["items"]] if resumed else snapshot(client, platform,
-                keyword=str(getattr(cfg, platform + "_collect_keyword", "") or ""),
+                keyword=_keyword,
                 shop_id=client.expected_shop, site_id=client.expected_site,
-                limit=int(getattr(cfg, platform + "_collect_limit", 10)), stop=stop,
+                limit=_limit, stop=stop,
                 progress=lambda p, n: emit(platform + " · 读取范围", "进行中", f"第 {p} 页 · 匹配 {n} 件")) if rows is None else deepcopy(rows)
     except RunStopped:
         emit(platform + " · 自动采集箱", "已停止", "读取范围时停止，未开始写入")
@@ -440,6 +457,45 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
         if _miss:
             emit(platform + " · 选择范围", "提醒",
                  f"有 {len(_miss)} 个已选商品不在当前店铺/站点/数据源中，已跳过")
+        if _limit and len(selected) > _limit:
+            selected = selected[:_limit]
+            emit(platform + " · 数量限制", "完成", f"按本次处理数量截取前 {_limit} 件")
+
+    # Amazon：前缀 + 本次任务顺序号（1,2,3…），批量并行前统一分配。
+    if platform == "amazon" and bool(getattr(config, "amazon_sku_sequence", True)):
+        _pfx = str(getattr(config, "amazon_sku_prefix", "") or "").strip()
+        if _pfx:
+            for _seq, _row in enumerate(selected, 1):
+                if isinstance(_row, dict):
+                    _row["_sku_seq"] = _seq
+
+    # 多线程：按商品切成连续块并行执行。已注入 client（测试/调用方）时保持串行，
+    # 避免共享 fake client；真实运行时每个线程创建独立客户端。
+    try:
+        _workers = max(1, min(8, int(getattr(config, "concurrency", 3) or 3)))
+    except (TypeError, ValueError, OverflowError):
+        _workers = 1
+    if not _provided_client and not resumed and _workers > 1 and len(selected) > 1:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        size = max(1, math.ceil(len(selected) / _workers))
+        chunks = [selected[i:i + size] for i in range(0, len(selected), size)]
+        emit(platform + " · 并发处理", "开始", f"{len(chunks)} 个批次，每批最多 {size} 件")
+        raw_run = getattr(run_collect, "__wrapped__", run_collect)
+        merged = []
+        def _one(chunk):
+            worker = ReadClient(client_for(platform, config), config, platform, stop)
+            return raw_run(cfg, platform, dry_run=dry_run, client=worker, stop=stop, rows=chunk)
+        with ThreadPoolExecutor(max_workers=min(_workers, len(chunks))) as pool:
+            futures = [pool.submit(_one, chunk) for chunk in chunks]
+            for fut in as_completed(futures):
+                try:
+                    merged.extend(fut.result() or [])
+                except Exception as exc:  # noqa: BLE001
+                    emit(platform + " · 并发处理", "批次失败", str(exc)[:160], level="ERROR")
+        _order = {identity(row): pos for pos, row in enumerate(selected)}
+        merged.sort(key=lambda rec: _order.get(str(rec.get("id") or ""), 10 ** 9))
+        emit(platform + " · 并发处理", "结束", f"已完成 {len(merged)} 件")
+        return merged
 
     emit(platform + " · 范围已确定", "完成", f"共 {len(selected)} 件，去向 {op}")
     from .progress import BUS
@@ -489,6 +545,11 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
 
         try:
             item_overrides = deepcopy(overrides)
+            if platform == "amazon" and row.get("_sku_seq"):
+                _pfx = str(getattr(config, "amazon_sku_prefix", "") or "").strip()
+                if _pfx:
+                    _sep = "" if _pfx.endswith(("-", "_")) else "-"
+                    item_overrides["sku"] = f"{_pfx}{_sep}{row.get('_sku_seq')}"
             if not dry_run:
                 from .collect_ai import prepare
                 item_overrides = prepare(platform, pid, config, client, item_overrides)

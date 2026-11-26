@@ -436,7 +436,7 @@ class OptimizationTests(unittest.TestCase):
             export.on_click(None)
             picker.assert_called_once()
         jump = next(c for c in controls() if getattr(c, "text", "") == "查看任务结果")
-        with patch.object(ft.Column, "scroll_to") as scroll:
+        with patch.object(ft.ListView, "scroll_to") as scroll:
             jump.on_click(None)
             scroll.assert_called_once_with(key="collect-results", duration=200)
 

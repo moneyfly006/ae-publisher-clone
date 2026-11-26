@@ -492,14 +492,43 @@ def _existing_attributes(product: dict, overrides: dict) -> dict:
     return data
 
 
+def _configured_dimensions(cfg, marketplace_id: str = ""):
+    """后台填写的默认尺寸（cm）转 Amazon item_dimensions 结构。"""
+    _l = str(_cfg_get(cfg, "amazon_default_length", "") or "").strip()
+    _w = str(_cfg_get(cfg, "amazon_default_width", "") or "").strip()
+    _h = str(_cfg_get(cfg, "amazon_default_height", "") or "").strip()
+    _combined = str(_cfg_get(cfg, "amazon_default_dimensions", "") or "").strip()
+    # 旧版本只有 30x20x10 单框；三个新键默认都是 10 时不能覆盖旧值。
+    _separate = (_l, _w, _h)
+    if any(_separate) and (_combined in ("", "10x10x10") or _separate != ("10", "10", "10")):
+        raw = f"{_l or '10'}x{_w or '10'}x{_h or '10'}"
+    else:
+        raw = _combined or "10x10x10"
+    nums = re.findall(r"\d+(?:\.\d+)?", raw)
+    if len(nums) < 3:
+        return None
+    # 10x10x10 是未填写的默认占位，不强行改商品原有尺寸/破坏 productAttr 原样回写。
+    if nums[:3] == ["10", "10", "10"]:
+        return None
+    item = {
+        "length": {"value": nums[0], "unit": "centimeters"},
+        "width": {"value": nums[1], "unit": "centimeters"},
+        "height": {"value": nums[2], "unit": "centimeters"},
+    }
+    mp = str(marketplace_id or "").strip()
+    if mp:
+        item["marketplace_id"] = mp
+    return [item]
+
+
 def _list_price_value(product: dict, overrides: dict, cfg, marketplace_id: str,
                       template_value=None):
     """list_price：以模板结构为准，amount=库存标准价，currency=站点币种。"""
     raw_price = (overrides or {}).get("standard_price")
-    if raw_price in (None, ""):
-        raw_price = (product or {}).get("standardPrice")
     if raw_price in (None, "") and _cfg_get(cfg, "amazon_price", ""):
         raw_price = _cfg_get(cfg, "amazon_price")
+    if raw_price in (None, ""):
+        raw_price = (product or {}).get("standardPrice")
     try:
         amount = float(str(raw_price).strip())
     except Exception:
