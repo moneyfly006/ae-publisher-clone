@@ -3422,6 +3422,15 @@ class Publisher:
             target = self._dedupe_product_skus(target, res)
             target = self._resolve_auto_category(target, res)
             target = self._repair_origin_attribute(target, res)
+            # 自动类目可能在上面的属性补全之后才切换；必须按最终类目再补一次，
+            # 否则新类目的必填属性为空，发布会被平台拒绝（日志：产品必填属性不能为空）。
+            try:
+                _final_attr_ov = self._smt_attr_overrides(target, tpl, res)
+                if _final_attr_ov:
+                    overrides = dict(overrides or {})
+                    overrides.update(_final_attr_ov)
+            except Exception as _attr_ex:  # noqa: BLE001
+                add_step(res, "属性补全", False, f"最终类目补全跳过：{str(_attr_ex)[:60]}")
             try:
                 _mk_cur = self._fix_market_images(
                     str(target.get("marketImg1") or ""), str(target.get("marketImg2") or ""),
