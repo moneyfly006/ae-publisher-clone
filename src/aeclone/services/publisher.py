@@ -1532,7 +1532,8 @@ class Publisher:
                 # 第一次失败后已判定接口不可用：静默跳过。
                 pass
             else:
-                add_step(res, "传店小秘相册", failed == 0 and done > 0, _msg)
+                # 全部跳过（图片已经在图床/店小秘域名）不是失败；只有真实失败才算失败。
+                add_step(res, "传店小秘相册", failed == 0, _msg)
         return p
 
     def _publicize_images(self, p: dict, res, dry_run: bool = False) -> dict:
@@ -2783,25 +2784,25 @@ class Publisher:
                 return
         if not src_video:
             return
-        # 上传
+        # 上传：店小秘上传接口已确认经常返回“参数缺失”，优先用自有托管，
+        # 失败后仍保留旧接口兜底；网络抖动在 upload_video_file 内会重试。
         try:
-            from ..integrations.cos_upload import upload_video
-            vid = upload_video(self.dxm, Path(src_video))
-            if vid:
-                p["csp_video_id"] = vid
-                add_step(res, "视频上传", True, f"cspVideoId={vid[:24]}")
-        except Exception as ex:  # noqa: BLE001
-            # 店小秘上传接口已停用（返回“上传失败，参数缺失”）：改传自有文件服务，
-            # 用 videoUrl 写回商品（实测店小秘接受外部 videoUrl）。
+            from .hosting import upload_video_file
+            vurl = upload_video_file(Path(src_video))
+            p["video_url"] = vurl
+            add_step(res, "视频上传", True, f"已用自有地址写入 videoUrl：{vurl[-40:]}")
+            return
+        except Exception as own_ex:  # noqa: BLE001
             try:
-                from .hosting import upload_video_file
-                vurl = upload_video_file(Path(src_video))
-                p["video_url"] = vurl
-                add_step(res, "视频上传", True,
-                         f"店小秘上传不可用，已用自有地址写入 videoUrl：{vurl[-40:]}")
-                return
-            except Exception as ex2:  # noqa: BLE001
-                add_step(res, "视频上传", False, f"{str(ex)[:50]} / 兜底失败：{str(ex2)[:50]}")
+                from ..integrations.cos_upload import upload_video
+                vid = upload_video(self.dxm, Path(src_video))
+                if vid:
+                    p["csp_video_id"] = vid
+                    add_step(res, "视频上传", True, f"cspVideoId={vid[:24]}")
+                    return
+            except Exception as ex:  # noqa: BLE001
+                add_step(res, "视频上传", False,
+                         f"自有托管失败：{str(own_ex)[:70]} / 店小秘兜底失败：{str(ex)[:70]}")
 
     def _category_sku_score(self, category_id: str, target: dict) -> int:
         """类目与现有 SKU 属性值的匹配分：越高越适合当前 SKU。"""

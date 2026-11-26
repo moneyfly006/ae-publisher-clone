@@ -335,14 +335,21 @@ def upload_video_file(path: Path) -> str:
         base = str(getattr(get_config(), "video_host_url", "") or base).rstrip("/")
     except Exception:
         pass
-    try:
-        with open(p, "rb") as fh:
-            r = _rq.post(base + "/upload", files={"file": (p.name, fh, "video/mp4")}, timeout=300)
-        r.raise_for_status()
-        j = r.json()
-        url = str((j or {}).get("url") or "")
-        if url.startswith("http"):
-            return url
-    except Exception as ex:  # noqa: BLE001
-        raise HostError(f"视频托管失败：{str(ex)[:120]}")
-    raise HostError("视频托管失败：未返回 URL")
+    import time as _time
+    last_error = ""
+    for attempt in range(3):
+        try:
+            with open(p, "rb") as fh:
+                r = _rq.post(base + "/upload", files={"file": (p.name, fh, "video/mp4")},
+                             timeout=300)
+            r.raise_for_status()
+            j = r.json()
+            url = str((j or {}).get("url") or "")
+            if url.startswith("http"):
+                return url
+            last_error = "未返回 URL"
+        except Exception as ex:  # noqa: BLE001
+            last_error = f"{type(ex).__name__}: {str(ex)[:120]}"
+        if attempt < 2:
+            _time.sleep(1.0 * (attempt + 1))
+    raise HostError(f"视频托管失败（已重试 3 次）：{last_error}")

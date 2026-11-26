@@ -10551,10 +10551,10 @@ class App:
         done, total, cost, used = BUS.progress()
         if total:
             self.log_progress.value = min(1.0, done / max(1, total))
-            self.log_progress_text.value = f"步骤 {done}/{total} · 用时 {used:.1f}s · 累计花费 ¥{cost:.3f}"
+            self.log_progress_text.value = f"步骤 {done}/{total} · 用时 {used:.1f}s · 本次运行花费 ¥{cost:.3f}"
         else:
             self.log_progress.value = 0
-            self.log_progress_text.value = f"空闲 · 累计花费 ¥{cost:.3f}" if cost else "空闲"
+            self.log_progress_text.value = f"空闲 · 上次运行花费 ¥{cost:.3f}" if cost else "空闲"
         try:
             self._safe_update()
         except Exception:
