@@ -77,6 +77,37 @@ def classify_api_error(ex: Exception) -> str:
     return "other"
 
 
+def _image_item_url(item: dict) -> str:
+    """兼容 /images 返回 url 或 b64_json（部分 gpt-image 渠道只返回 base64）。"""
+    if not isinstance(item, dict):
+        return ""
+    url = str(item.get("url") or item.get("image_url") or "").strip()
+    if url:
+        return url
+    raw = item.get("b64_json") or item.get("b64") or item.get("image_base64") or ""
+    if not raw:
+        return ""
+    try:
+        import base64
+        import tempfile
+        from pathlib import Path as _P
+        text = str(raw)
+        if text.startswith("data:"):
+            text = text.split(",", 1)[-1]
+        data = base64.b64decode(text)
+        p = _P(tempfile.mkdtemp()) / "image-result.png"
+        p.write_bytes(data)
+        from .services.hosting import upload as _host_upload
+        out = str(_host_upload(p) or "").strip()
+        try:
+            p.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return out
+    except Exception:
+        return ""
+
+
 class ApiClient:
     def __init__(self, base: str, key: str, timeout: int = 180, session: requests.Session | None = None,
                  proxy: str = ""):
@@ -268,12 +299,16 @@ class ApiClient:
                 if r2.status_code < 400:
                     arr2 = r2.json().get("data") or []
                     if arr2:
-                        return arr2[0].get("url", "")
+                        return _image_item_url(arr2[0])
             raise ApiError(msg, r.status_code, r.text[:500])
         arr = r.json().get("data") or []
         if not arr:
             raise ApiError("图片接口未返回结果", r.status_code, r.text[:300])
-        return arr[0].get("url", "")
+        out = _image_item_url(arr[0])
+        if not out:
+            raise ApiError("图片接口返回成功，但没有 url/b64_json 图片数据",
+                           r.status_code, r.text[:300])
+        return out
 
     def _idem_key(self, *parts: str) -> str:
         """稳定的幂等键：同一请求重试/重跑命中网关缓存，不重复扣费。"""
@@ -311,12 +346,16 @@ class ApiClient:
                 if r2.status_code < 400:
                     arr2 = r2.json().get("data") or []
                     if arr2:
-                        return arr2[0].get("url", "")
+                        return _image_item_url(arr2[0])
             raise ApiError(msg, r.status_code, r.text[:500])
         arr = r.json().get("data") or []
         if not arr:
             raise ApiError("图片接口未返回结果", r.status_code, r.text[:300])
-        return arr[0].get("url", "")
+        out = _image_item_url(arr[0])
+        if not out:
+            raise ApiError("图片接口返回成功，但没有 url/b64_json 图片数据",
+                           r.status_code, r.text[:300])
+        return out
 
     @staticmethod
     def _is_model_missing(msg: str) -> bool:
