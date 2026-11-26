@@ -958,7 +958,7 @@ class App:
                                muted("极光上架 · 运营工作空间", 10)], spacing=2),
                 ], spacing=10),
                 ft.Container(height=22), self.nav_search,
-                ft.Column([nav], spacing=0, expand=True, scroll=ft.ScrollMode.AUTO),
+                ft.ListView([nav], spacing=0, expand=True, padding=0),
                 ft.Divider(color=BORDER, height=12),
                 self.btn_run,
                 ft.Row([ft.Icon(ft.Icons.VERIFIED_USER, size=13, color=SUCCESS_C),
@@ -991,10 +991,11 @@ class App:
                               tooltip="点击展开实时运行日志（所有平台）",
                               on_click=lambda e: self._open_log_panel()),
             ], spacing=8))
-        self.content = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, spacing=16,
-                                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+        # ListView 只按实际内容计算滚动范围；Column(expand+scroll) 在内容不足时
+        # 会留下可无限向下滚动的空白区域。
+        self.content = ft.ListView(expand=True, spacing=16, padding=0)
         self.content_slot = ft.Container(
-            expand=True, content=self.content,
+            expand=True, content=self.content, clip_behavior=ft.ClipBehavior.HARD_EDGE,
             padding=ft.padding.symmetric(horizontal=28, vertical=22))
         self.license_banner = self._build_license_banner()
         self.platform_rail = self._build_platform_rail()
@@ -10118,25 +10119,23 @@ class App:
         self.log_follow = ft.Checkbox(
             label="跟随最新", value=bool(getattr(self.cfg, "log_auto_follow", True)),
             on_change=self._on_log_follow_change)
-        self.log_scroll = ft.Column([self.log_table], height=460, scroll=ft.ScrollMode.AUTO,
+        self.log_scroll = ft.Column([self.log_table], height=360, scroll=ft.ScrollMode.AUTO,
                                     auto_scroll=bool(getattr(self.cfg, "log_auto_follow", True)),
                                     on_scroll=self._on_log_scroll)
         self.log_count_text = ft.Text("0 行", size=12.5, color=MUTED)
         self._refresh_log_table()
 
-        def export(e):
+        def export_all(e):
             out = Path(tempfile.gettempdir()) / "aurora-logs.txt"
             rows = getattr(self, "log_rows", [])
             out.write_text("\n".join(f"{t} [{lv}] {m}" for t, lv, m in rows), encoding="utf-8")
             self.toast(f"已导出：{out}")
 
         def clear_logs(e):
-            self.log_rows.clear()
-            self.logs.clear()
-            if getattr(self, "log_count_text", None) is not None:
-                self.log_count_text.value = "0 行"
-            self._refresh_log_table()
-            self.toast("已清空当前日志")
+            self._confirm(
+                "清空当前日志？",
+                "只清空界面里的日志；磁盘上的 app.log 不受影响。",
+                self._clear_logs_ui)
 
         # ---------- 运行状态 ----------
         status_card = card(ft.Column([
@@ -10152,63 +10151,79 @@ class App:
             self.logs_progress_text,
         ], spacing=10))
 
-        # ---------- 操作栏 ----------
-        self.log_status = ft.Text("", size=12.5, color=MUTED)
-        toolbar = card(ft.Column([
+        # ---------- 日志明细（工具栏按「主操作 / 复制导出 / 筛选」分组） ----------
+        self.log_status = ft.Text("", size=FS_SM, color=MUTED)
+        primary_actions = ft.Row([
+            ft.ElevatedButton("上报运行日志", icon=ft.Icons.CLOUD_UPLOAD, bgcolor=ACCENT,
+                              color=ON_ACCENT, on_click=self._report_logs_now),
+            ft.OutlinedButton("打开日志文件", icon=ft.Icons.DESCRIPTION,
+                              on_click=lambda e: self._open_log_file()),
+            ft.OutlinedButton("导出日志", icon=ft.Icons.DOWNLOAD, on_click=export_all),
+            ft.Container(expand=True),
+            ft.TextButton("清空日志", icon=ft.Icons.DELETE_SWEEP_OUTLINED,
+                          style=ft.ButtonStyle(color=DANGER_C), on_click=clear_logs),
+        ], spacing=SP_SM, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+        copy_export_row = ft.Row([
+            muted("复制 / 导出", FS_XS),
+            ft.TextButton("复制全部日志", icon=ft.Icons.COPY,
+                          tooltip="把当前日志全部复制到剪贴板",
+                          on_click=lambda e: self._copy_logs()),
+            ft.TextButton("导出筛选结果", icon=ft.Icons.FILE_DOWNLOAD,
+                          on_click=lambda e: self._export_logs_filtered("txt")),
+            ft.TextButton("导出 CSV", icon=ft.Icons.TABLE_VIEW,
+                          on_click=lambda e: self._export_logs_filtered("csv")),
+        ], spacing=SP_XS, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+
+        filter_bar = ft.Container(
+            content=ft.Row([
+                muted("筛选", FS_XS),
+                self.log_level,
+                self.log_filter,
+                ft.TextButton("清空筛选", icon=ft.Icons.FILTER_ALT_OFF,
+                              on_click=lambda e: self._clear_log_filter()),
+                self.log_filter_chip,
+                self.log_follow,
+            ], spacing=SP_MD, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            bgcolor=BG, border_radius=RADIUS_CTRL,
+            padding=ft.padding.symmetric(horizontal=SP_MD, vertical=SP_XS))
+
+        log_card = card(ft.Column([
             ft.Row([
-                ft.ElevatedButton("上报运行日志", icon=ft.Icons.CLOUD_UPLOAD, bgcolor=ACCENT,
-                                  color=ON_ACCENT, on_click=self._report_logs_now),
-                ft.OutlinedButton("导出日志", icon=ft.Icons.DOWNLOAD, on_click=export),
-                ft.OutlinedButton("打开日志文件", icon=ft.Icons.DESCRIPTION,
-                                  on_click=lambda e: self._open_log_file()),
-                ft.TextButton("清空", icon=ft.Icons.DELETE_OUTLINE, on_click=clear_logs),
-            ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            *([ft.Row([
+                h1i(ft.Icons.ARTICLE_OUTLINED, "日志明细", 15.5),
+                self.log_count_text,
+                ft.Container(expand=True),
+                self.log_status,
+            ], spacing=SP_SM, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            primary_actions,
+            copy_export_row,
+            filter_bar,
+            ft.Container(content=self.log_scroll, bgcolor=BG,
+                         border_radius=RADIUS_CTRL, padding=SP_XS),
+            muted("出现 ERROR 会自动上报日志到授权后台（已限频/去重），管理员可在后台「全部日志 / 错误日志」"
+                  "按授权 ID、关键词筛选；「上报运行日志」仍可手动补充上报。", FS_XS),
+        ], spacing=SP_SM))
+
+        # 已编辑记录独立成一条紧凑提示，避免和日志操作挤在一起。
+        edited_card = None
+        if self._cap("smt_edited_history"):
+            edited_card = card(ft.Row([
+                ft.Icon(ft.Icons.HISTORY, size=FS_MD, color=MUTED),
                 self._edited_count_text(),
+                ft.Container(expand=True),
                 ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
                               on_click=lambda e: self._clear_edited()),
-            ], spacing=10, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)]
-              if self._cap("smt_edited_history") else []),
-            ft.Row([
-                ft.TextButton("复制全部日志", icon=ft.Icons.COPY,
-                              tooltip="把当前日志全部复制到剪贴板",
-                              on_click=lambda e: self._copy_logs()),
-                ft.TextButton("导出筛选结果", icon=ft.Icons.FILE_DOWNLOAD,
-                              on_click=lambda e: self._export_logs_filtered("txt")),
-                ft.TextButton("导出 CSV", icon=ft.Icons.TABLE_VIEW,
-                              on_click=lambda e: self._export_logs_filtered("csv")),
-                ft.TextButton("清空日志", icon=ft.Icons.CLEAR_ALL,
-                              on_click=lambda e: self._confirm(
-                                  "清空当前日志？",
-                                  "只清空界面里的日志；磁盘上的 app.log 不受影响。",
-                                  self._clear_logs_ui)),
-            ], spacing=8, wrap=True),
-            ft.Row([self.log_level, self.log_filter,
-                    ft.TextButton("清空筛选", icon=ft.Icons.FILTER_ALT_OFF,
-                                  on_click=lambda e: self._clear_log_filter()),
-                    self.log_filter_chip,
-                    self.log_follow], spacing=12,
-                   vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            self.log_status,
-            muted("出现 ERROR 会自动上报日志到授权后台（已限频/去重），管理员可在后台「全部日志 / 错误日志」"
-                  "按授权 ID、关键词筛选；「上报运行日志」仍可手动补充上报。"),
-        ], spacing=8))
+            ], spacing=SP_SM, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                padding=SP_SM + 4)
 
-        # ---------- 日志表 ----------
-        log_card = card(ft.Column([
-            ft.Row([ft.Text("运行日志", size=15.5, weight=ft.FontWeight.BOLD, color=TEXT),
-                    self.log_count_text], spacing=10),
-            ft.Container(content=self.log_scroll, height=300, bgcolor=BG,
-                         border_radius=8, padding=4),
-        ], spacing=8))
-
-        _log_tabs = [("运行日志", [toolbar, log_card])]
+        _log_tabs = [("运行日志", [log_card])]
         _logs_subtitle = (destination(10).description
                           if self._cap("smt_pipeline_actions")
                           else ("跟踪 TikTok 运行日志与任务记录"
                                 if str(getattr(self.active_platform, "id", "")) == "tiktok"
                                 else "跟踪 Amazon 运行日志与任务记录"))
         return [page_header("任务与日志", _logs_subtitle), status_card,
+                *([edited_card] if edited_card is not None else []),
                 workspace_tabs(_log_tabs)]
 
     def _report_logs_now(self, e=None):

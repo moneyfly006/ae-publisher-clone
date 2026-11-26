@@ -655,6 +655,11 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     if not _text(sku) and _has_cfg(cfg, "amazon_sku"):
         sku = _cfg_value(cfg, "amazon_sku")
     sku = _text(sku)
+    if not sku:
+        # 不再提供 UI 开关：商品缺 SKU 时默认生成稳定本地编码。
+        _pid = _text(out.get("id") or p.get("idStr") or p.get("id"))
+        if _pid:
+            sku = "SKU-" + _pid[-12:]
     _prefix = _text(_cfg_value(cfg, "amazon_sku_prefix", ""))
     _suffix = _text(_cfg_value(cfg, "amazon_sku_suffix", ""))
     if sku and (_prefix or _suffix) and not sku.startswith(_prefix):

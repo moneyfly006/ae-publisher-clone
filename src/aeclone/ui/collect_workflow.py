@@ -575,8 +575,10 @@ def functional_settings(app, platform, page, *, run_link=True):
                 controls.append(visual_editor(app, platform, "attributes" if platform != "tiktok" else "product_attributes",
                     "批量属性", [] if platform in ("shopee", "tiktok") else {}))
             controls += auxiliary_ai(app, platform, "attributes")
-        if section == "stock" and platform != "alibaba":
+        if section == "stock" and platform not in ("alibaba", "amazon"):
             controls += auxiliary_ai(app, platform, "sku")
+        if section == "stock" and platform == "amazon":
+            controls.append(ui.muted("SKU 默认自动补齐：优先使用商品原 SKU；缺失时按规则生成本地编码。不需要开启开关，也不调用 AI。", 11))
         if platform == "alibaba" and section == "price":
             controls += auxiliary_ai(app, platform, "sku")
             controls.append(visual_editor(app, platform, "price_tiers", "阶梯报价", []))
@@ -1454,6 +1456,13 @@ def _card_body(panel, drop_texts=()):
     return controls
 
 
+def _jump_results(app, e=None):
+    try:
+        app.content.scroll_to(key="collect-results", duration=200)
+    except Exception:
+        pass
+
+
 def _alibaba_task_card(app, platform, prefix, keyword, limit, selected_text, op, repair, summary, halted):
     """页面 33「本次任务」：合并原处理范围与操作 + 费用预估；运行参数/AI 预算收进折叠区。"""
     from . import app as ui
@@ -1489,7 +1498,7 @@ def _alibaba_task_card(app, platform, prefix, keyword, limit, selected_text, op,
             ft.OutlinedButton("停止", icon=ft.Icons.STOP, on_click=lambda e: app._request_stop()),
             ft.TextButton("查看全过程日志", on_click=lambda e: app._switch(10)),
             ft.TextButton("检查配置冲突", on_click=lambda e: app._check_conflicts()),
-            ft.TextButton("查看任务结果", on_click=lambda e: app.content.scroll_to(key="collect-results", duration=200)),
+            ft.TextButton("查看任务结果", on_click=lambda e: _jump_results(app, e)),
         ], spacing=10, wrap=True),
         ft.Text(summary, color=ui.TEXT, selectable=True),
         *([ft.Text("运行已停止：" + halted, color=ui.DANGER_C, selectable=True)] if halted else []),
@@ -1660,7 +1669,7 @@ def run_page(app, platform):
             ft.OutlinedButton("停止", icon=ft.Icons.STOP, on_click=lambda e: app._request_stop()),
             ft.TextButton("查看全过程日志", on_click=lambda e: app._switch(10)),
             *([] if amazon else [ft.TextButton("检查配置冲突", on_click=lambda e: app._check_conflicts())]),
-            ft.TextButton("查看任务结果", on_click=lambda e: app.content.scroll_to(key="collect-results", duration=200)),
+            ft.TextButton("查看任务结果", on_click=lambda e: _jump_results(app, e)),
         ], spacing=10, wrap=True), ft.Text(summary, color=ui.TEXT, selectable=True),
         *([ft.Text("运行已停止：" + halted, color=ui.DANGER_C, selectable=True)] if halted else [])], spacing=14))
     # 顺序：发品清单 → 处理范围 → 结果 → 选择商品（放到最下面）。

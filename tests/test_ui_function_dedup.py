@@ -51,8 +51,12 @@ class FunctionDedupTests(unittest.TestCase):
                 self.assertNotIn("自动SKU提示词", locations)
                 self.assertEqual(locations["自动属性建议提示词"], [30])
             else:
-                self.assertEqual(locations["自动SKU提示词"],
-                                 [{"amazon": 34, "tiktok": 35, "shopee": 40}[platform]])
+                if platform == "amazon":
+                    # Amazon 的 SKU 卡片已删除；SKU 默认自动生成。
+                    self.assertNotIn("自动SKU提示词", locations)
+                else:
+                    self.assertEqual(locations["自动SKU提示词"],
+                                     [{"tiktok": 35, "shopee": 40}[platform]])
                 self.assertEqual(locations["自动属性建议提示词"],
                                  [{"amazon": 17, "tiktok": 24, "shopee": 38}[platform]])
             self.assertTrue(all(len(pages) == 1 for pages in locations.values()), locations)
