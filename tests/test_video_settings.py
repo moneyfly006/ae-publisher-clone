@@ -13,7 +13,7 @@ from aeclone.services.publisher import Publisher, PublishResult
 from aeclone.services.video import generate_carousel_video, find_ffmpeg
 
 class VideoTests(unittest.TestCase):
-    def test_generated_source_honors_options_once_and_overwrite_switch(self):
+    def test_generated_source_honors_options_and_replaces_existing_video(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source = root / "input.png"
@@ -21,17 +21,14 @@ class VideoTests(unittest.TestCase):
             pub = Publisher.__new__(Publisher)
             pub.cfg = AppConfig(dict(video_source="generated", video_slot_seconds=1.8,
                 video_transition_seconds=.2, video_size="640x480", video_cover=False,
-                video_fade_edges=False, video_output_dir=str(root), overwrite_existing_video=False))
+                video_fade_edges=False, video_output_dir=str(root)))
             pub.dxm = object()
             pub._fetch = lambda url, workdir: Path(url)
             product = {"images": [str(source)]}
             with patch("aeclone.services.video.generate_carousel_video") as generate, \
                  patch("aeclone.integrations.cos_upload.upload_video", return_value="test-video") as upload:
                 result = PublishResult("qa", True)
-                pub._prepare_video(product, result, {"raw": {"videoUrl": "existing"}}, False)
-                generate.assert_not_called()
-                self.assertEqual(product["video_url"], "existing")
-                pub.cfg.overwrite_existing_video = True
+                # 视频来源=生成即为唯一规则：不依赖旧的“覆盖已有视频”开关。
                 pub._prepare_video(product, result, {"raw": {"videoUrl": "existing"}}, False)
                 generate.assert_called_once()
                 self.assertEqual(generate.call_args.kwargs, dict(slot_seconds=1.8,

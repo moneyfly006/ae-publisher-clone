@@ -229,7 +229,7 @@ DEFAULTS: dict = {
     "generate_main_video": False,
     "use_template_video": False,
     "template_video_path": "",
-    "overwrite_existing_video": False,
+    "overwrite_existing_video": False,   # 旧开关，已弃用；视频来源下拉决定覆盖
     # 区域调价模板（本地）
     "adjust_price_template_detail": "{}",
     # 详情文字 / 属性

@@ -633,7 +633,6 @@ def schema_image():
                   hint="生成轮播视频并上传（需 ffmpeg）"),
             Field("use_template_video", "使用模板视频（需填路径）", "bool"),
             Field("template_video_path", "模板视频路径"),
-            Field("overwrite_existing_video", "覆盖产品已有视频", "bool"),
             Field("video_slot_seconds", "每张停留秒数"),
             Field("video_transition_seconds", "转场秒数"),
             Field("video_size", "视频尺寸（如 1080x1080）"),
@@ -6764,7 +6763,6 @@ class App:
             ft.Row([
                 self._sw("video_cover", "铺满裁剪（关闭则留白）"),
                 self._sw("video_fade_edges", "首尾淡入淡出"),
-                self._sw("overwrite_existing_video", "覆盖商品已有视频"),
             ], spacing=12, wrap=True),
             self._tf("video_output_dir", "视频输出目录（留空使用默认目录）", width=560),
             muted("手动选图合成视频：到「图片工作台 → 图片处理与输出」。"),

@@ -2732,15 +2732,6 @@ class Publisher:
             return
         src_video: str = ""
         raw = product.get("raw") or {}
-        existing_url = raw.get("videoUrl") or raw.get("video_url") or ""
-        existing_id = raw.get("cspVideoId") or ""
-        if (existing_url or existing_id) and not bool(getattr(self.cfg, "overwrite_existing_video", False)):
-            if existing_url:
-                p["video_url"] = str(existing_url)
-            if existing_id:
-                p["csp_video_id"] = str(existing_id)
-            add_step(res, "视频", True, "商品已有视频，未开启覆盖，保留原视频")
-            return
         # ① 模板视频（需填路径）
         if _sv == "template":
             _tp = str(getattr(self.cfg, "template_video_path", "") or "").strip()
