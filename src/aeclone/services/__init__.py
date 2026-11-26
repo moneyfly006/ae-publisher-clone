@@ -51,15 +51,37 @@ FIXED_MODEL_LABELS = {
     "image_edit": "图片编辑（白底/去水印/翻译/多图合成）",
     "image_prompt": "按提示词改图（精细化/指定/通用编辑）",
     "image_gen": "图片生成（文生图主图）",
+    "marketing": "营销图生成",
+}
+
+# 配置键 -> 模型槽位。留空时使用上面的固定默认模型。
+AI_MODEL_KEYS = {
+    "text": "ai_model_text",
+    "vision": "ai_model_vision",
+    "image_edit": "ai_model_image_edit",
+    "image_prompt": "ai_model_image_prompt",
+    "image_gen": "ai_model_image_gen",
+    "marketing": "ai_model_marketing",
 }
 
 
 def model_of(cfg=None, kind: str = "text") -> str:
-    """返回固定模型名（kind: text/vision/image_edit/image_gen）。
+    """返回当前生效模型。
 
-    故意忽略配置里的 model_*：客户不需要也不允许自己选模型。
+    未配置时使用固定默认模型；客户显式选择后严格使用所选模型。
+    image_prompt / marketing 未单独选择时跟随图片编辑选择，避免客户只选一处
+    却仍有任务暗中使用旧模型。
     """
-    return FIXED_MODELS.get(kind, TEXT_MODEL)
+    default = FIXED_MODELS.get(kind, TEXT_MODEL)
+    if cfg is None:
+        return default
+    value = str(getattr(cfg, AI_MODEL_KEYS.get(kind, ""), "") or "").strip()
+    if not value and kind == "image_prompt":
+        value = str(getattr(cfg, AI_MODEL_KEYS["image_edit"], "") or "").strip()
+    if not value and kind == "marketing":
+        value = (str(getattr(cfg, AI_MODEL_KEYS["image_prompt"], "") or "").strip()
+                 or str(getattr(cfg, AI_MODEL_KEYS["image_edit"], "") or "").strip())
+    return value or default
 
 PROMPT_WHITE_BG = (
     "Remove the background completely and place the product on a pure white background (#FFFFFF). "
@@ -160,6 +182,9 @@ class ImageService:
                       "timeout", "Timeout", "timed out", "Read timed out",
                       "Connection aborted", "Connection reset")
         _gw_keys = ("500", "502", "503", "520", "521", "522", "524")
+        _default_image_models = {FIXED_MODELS.get(k) for k in
+                                 ("image_edit", "image_prompt", "image_gen", "marketing")}
+        _allow_fallback = m in _default_image_models
         last = None
         # 网关 5xx/524 多半是排队超时；默认只重试 1 次，避免极端情况下重复计费。
         # 想完全不重试：在 config.json 里把 image_retry_times 设为 0。
@@ -170,7 +195,8 @@ class ImageService:
         _retries = max(0, min(2, _retries))
         for attempt in range(_retries + 1):
             try:
-                return self.client.images_edit(m, prompt, files)
+                return self.client.images_edit(m, prompt, files,
+                                               allow_fallback=_allow_fallback)
             except Exception as e:  # noqa: BLE001
                 last = e
                 _msg = str(e)
@@ -185,12 +211,18 @@ class ImageService:
                 break
         self.last_attempts = attempt + 1
         _msg = str(last or "")
-        if m != FALLBACK_IMAGE_MODEL and any(k in _msg for k in _slow_keys):
+        # 客户选择了模型就必须按选择运行；只有仍在使用默认模型时才允许降级，
+        # 避免静默换成别的模型导致结果/费用与客户预期不一致。
+        _default_image_models = {FIXED_MODELS.get(k) for k in
+                                 ("image_edit", "image_prompt", "image_gen", "marketing")}
+        _allow_fallback = m in _default_image_models
+        if _allow_fallback and m != FALLBACK_IMAGE_MODEL and any(k in _msg for k in _slow_keys):
             try:
                 BUS.emit("图片重试", f"{m} 失败", f"改用 {FALLBACK_IMAGE_MODEL} 重试", "WARN")
             except Exception:
                 pass
-            return self.client.images_edit(FALLBACK_IMAGE_MODEL, prompt, files)
+            return self.client.images_edit(FALLBACK_IMAGE_MODEL, prompt, files,
+                                           allow_fallback=True)
         raise last
 
     def _stabilize(self, url: str) -> str:
@@ -261,7 +293,8 @@ class ImageService:
     def generate(self, prompt: str, size: str = "1024x1024", n: int = 1) -> list[str]:
         m = model_of(self.cfg, "image_gen")
         with track("文生图", (prompt or "")[:24], model=m, cost=BUS.price_of(m) * max(1, n)) as t:
-            url = self.client.images_generate(m, prompt, size, n)
+            url = self.client.images_generate(m, prompt, size, n,
+                allow_fallback=m == FIXED_MODELS.get("image_gen"))
             if isinstance(url, list):
                 url = [self._stabilize(u) for u in url]
             else:
@@ -270,8 +303,8 @@ class ImageService:
             return url
 
     def marketing(self, image: Path, prompt: str, n: int = 1) -> list[str]:
-        """基于主图生成营销场景图（用 turbo 模型，优先速度）。"""
-        m = MARKETING_MODEL
+        """基于主图生成营销场景图（默认用 turbo，支持客户选择模型）。"""
+        m = model_of(self.cfg, "marketing")
         with track("营销图", (prompt or "")[:24], model=m, cost=BUS.price_of(m) * max(1, n)) as t:
             url = self._img_edit(prompt, [image], m)
             url = self._stabilize(url)

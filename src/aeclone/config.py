@@ -13,7 +13,13 @@ _SAVE_LOCK = threading.RLock()
 
 DEFAULTS: dict = {
     # ---- 基础 / API ----
-    # 模型已固定（见 services/__init__.py FIXED_MODELS），这里不再提供 model_* 配置项
+    # AI 模型：留空=使用 services.FIXED_MODELS 的推荐默认；填写后按客户选择运行
+    "ai_model_text": "",
+    "ai_model_vision": "",
+    "ai_model_image_edit": "",
+    "ai_model_image_prompt": "",
+    "ai_model_image_gen": "",
+    "ai_model_marketing": "",
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "api_balance": -1.0,                                  # 最近一次已知余额（-1=未知）

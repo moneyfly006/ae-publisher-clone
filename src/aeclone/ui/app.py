@@ -11177,22 +11177,64 @@ class App:
             muted("支持 Cloudflare-ImgBed（POST /rest/upload）和老自建服务（POST /upload），自动识别。"),
         ], spacing=8))
 
-        # ---------------- 模型（已固定，不提供选择） ----------------
-        from ..services import FIXED_MODELS, FIXED_MODEL_LABELS
-        self.model_status = ft.Text("模型已固定，无需设置；价格见下方「模型价格」", size=12.5, color=MUTED)
+        # ---------------- 模型（默认固定，可逐任务选择） ----------------
+        from ..services import (FIXED_MODELS, FIXED_MODEL_LABELS, AI_MODEL_KEYS,
+                                model_of)
+        self.model_status = ft.Text(
+            "未选择时使用推荐默认模型；选择后该任务严格按所选模型运行。"
+            "价格见下方「模型价格」。", size=12.5, color=MUTED)
+        self.ai_model_dropdowns = {}
+        self.ai_price_rows = []
+
+        def _model_save(kind, e=None):
+            val = str(getattr(e.control, "value", "") or "").strip()
+            self.cfg.set(AI_MODEL_KEYS[kind], val)
+            save_config(self.cfg)
+            try:
+                self._log(f"AI 模型 {kind}：{val or '默认 ' + model_of(self.cfg, kind)}")
+            except Exception:
+                pass
+            try:
+                self._refresh_ai_model_dropdowns()
+            except Exception:
+                pass
+
         model_rows = []
-        for kind in ("text", "vision", "image_edit", "image_gen"):
+        for kind in ("text", "vision", "image_edit", "image_prompt",
+                     "image_gen", "marketing"):
+            _cur = str(getattr(self.cfg, AI_MODEL_KEYS[kind], "") or "").strip()
+            dd = ft.Dropdown(label="模型", width=420, color=TEXT, bgcolor=CARD_2,
+                             border_color=CARD_2, value=_cur,
+                             options=[ft.dropdown.Option("", f"默认（{model_of(self.cfg, kind)}）")])
+            dd.on_change = lambda e, k=kind: _model_save(k, e)
+            self.ai_model_dropdowns[kind] = dd
             model_rows.append(ft.Row([
-                ft.Text(FIXED_MODEL_LABELS[kind], size=13.5, color=MUTED, width=300),
-                ft.Text(FIXED_MODELS[kind], size=13.5, color=TEXT, weight=ft.FontWeight.BOLD),
+                ft.Text(FIXED_MODEL_LABELS[kind], size=13, color=MUTED, width=300),
+                dd,
             ], spacing=10, wrap=True))
+
+        def _reset_models(e=None):
+            for _k, _key in AI_MODEL_KEYS.items():
+                self.cfg.set(_key, "")
+            save_config(self.cfg)
+            for _k, _dd in self.ai_model_dropdowns.items():
+                try:
+                    _dd.value = ""
+                except Exception:
+                    pass
+            self._refresh_ai_model_dropdowns()
+            self.toast("AI 模型已恢复默认", True)
+
         model_card = card(ft.Column([
             h1("AI 模型", 15),
-            muted("当前服务使用的模型与用途", 11),
-            muted("已按实测结果固定，客户无需选择，避免选到不可用/超慢/超贵的模型"),
+            muted("默认模型已按实测结果固定；下方可逐任务自由选择，留空即使用默认", 11),
+            muted("注意：图片模型只能用于图片任务，文本/视觉模型用于文本和图片审查；选错会在运行时报错，不会静默换模型。", 11),
             *model_rows,
+            ft.Row([ft.TextButton("全部恢复默认", icon=ft.Icons.RESTORE,
+                                  on_click=_reset_models)], spacing=8),
             self.model_status,
         ], spacing=8))
+        self._refresh_ai_model_dropdowns()
 
         # ---------------- 更新 / 诊断 / 价格 ----------------
         try:
@@ -20130,6 +20172,45 @@ class App:
             except Exception:
                 pass
 
+    def _refresh_ai_model_dropdowns(self):
+        """用价格/模型缓存刷新六个任务槽位的下拉选项，保留当前选择。"""
+        dropdowns = getattr(self, "ai_model_dropdowns", None) or {}
+        if not dropdowns:
+            return
+        from ..services import FIXED_MODELS, AI_MODEL_KEYS
+        rows = getattr(self, "ai_price_rows", None) or []
+        for kind, dd in dropdowns.items():
+            key = AI_MODEL_KEYS.get(kind)
+            cur = str(getattr(self.cfg, key, "") or "").strip() if key else ""
+            opts = [ft.dropdown.Option("", f"默认（{model_of(self.cfg, kind)}）")]
+            seen = {""}
+            # 即使价格接口暂时失败，也至少保留已知默认模型可选。
+            for _fixed in dict.fromkeys(FIXED_MODELS.values()):
+                if _fixed and _fixed not in seen:
+                    opts.append(ft.dropdown.Option(_fixed, f"{_fixed}（推荐默认）"))
+                    seen.add(_fixed)
+            for row in sorted(rows, key=lambda x: str(x.get("model") or "")):
+                name = str(row.get("model") or "").strip()
+                if not name or name in seen:
+                    continue
+                per_call = float(row.get("per_call") or 0)
+                ratio = float(row.get("ratio") or 0)
+                if per_call > 0:
+                    label = f"{name} · ¥{per_call:.3f}/张"
+                elif ratio > 0:
+                    label = f"{name} · 倍率 {ratio:.2f}"
+                else:
+                    label = name
+                opts.append(ft.dropdown.Option(name, label))
+                seen.add(name)
+            if cur and cur not in seen:
+                opts.append(ft.dropdown.Option(cur, f"{cur}（已选，当前列表未返回）"))
+            try:
+                dd.options = opts
+                dd.value = cur
+            except Exception:
+                pass
+
     def _load_prices(self):
         try:
             from ..api import ApiClient
@@ -20163,6 +20244,11 @@ class App:
                 items.append(ft.Text("＊ 旧版模型名（gpt-6-luna、gpt-image-2.5-flare 等）已自动映射到对应模型，价格相同",
                                      size=12, color=MUTED))
             self.price_list.controls = items or [ft.Text("价格获取失败", size=13.5, color=WARN_C)]
+            self.ai_price_rows = rows
+            try:
+                self._refresh_ai_model_dropdowns()
+            except Exception:
+                pass
             if getattr(self, "price_status", None) is not None:
                 self.price_status.value = f"共 {len(rows)} 个模型（缓存 5 分钟）"
                 self.price_status.color = MUTED

@@ -4019,7 +4019,10 @@ class Publisher:
                         client = ApiClient(self.cfg.api_base, self.cfg.api_key, self.cfg.timeout)
                         for _ in range(min(n, 3)):
                             try:
-                                u = client.images_generate(model, prompt)
+                                from . import FIXED_MODELS as _FIXED
+                                u = client.images_generate(
+                                    model, prompt,
+                                    allow_fallback=model == _FIXED.get("image_gen"))
                                 if u:
                                     gen.append(u)
                             except Exception:

@@ -223,7 +223,8 @@ class ApiClient:
             return []
 
     # ---------- 图片 ----------
-    def images_edit(self, model: str, prompt: str, images: Iterable[Path | bytes], size: str = "1024x1024") -> str:
+    def images_edit(self, model: str, prompt: str, images: Iterable[Path | bytes],
+                    size: str = "1024x1024", allow_fallback: bool = True) -> str:
         files = []
         _h = __import__("hashlib").sha256()
         _h.update(str(model).encode())
@@ -259,7 +260,7 @@ class ApiClient:
             __import__("time").time() - _t0)
         if r.status_code >= 400:
             msg = self._extract_error(r)
-            alt = self._fallback_for(model, "image")
+            alt = self._fallback_for(model, "image") if allow_fallback else None
             if alt and self._is_model_missing(msg):
                 data["model"] = alt
                 r2 = self.session.post(self._url("/v1/images/edits"), headers=self._headers(),
@@ -284,7 +285,8 @@ class ApiClient:
             h.update(str(part).encode())
         return "ae-" + h.hexdigest()[:48]
 
-    def images_generate(self, model: str, prompt: str, size: str = "1024x1024", n: int = 1) -> str:
+    def images_generate(self, model: str, prompt: str, size: str = "1024x1024", n: int = 1,
+                        allow_fallback: bool = True) -> str:
         payload = {"model": model, "prompt": prompt, "size": size, "n": max(1, int(n))}
         _t0 = __import__("time").time()
         r = self.session.post(
@@ -300,7 +302,7 @@ class ApiClient:
             __import__("time").time() - _t0)
         if r.status_code >= 400:
             msg = self._extract_error(r)
-            alt = self._fallback_for(model, "image")
+            alt = self._fallback_for(model, "image") if allow_fallback else None
             if alt and self._is_model_missing(msg):
                 payload["model"] = alt
                 r2 = self.session.post(self._url("/v1/images/generations"),
