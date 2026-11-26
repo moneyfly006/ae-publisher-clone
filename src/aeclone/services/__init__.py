@@ -16,19 +16,19 @@ TEXT_MODEL = "qwen-plus"
 # 图像编辑默认用 turbo：qwen-image-3.0 虽然质量稍好，但要 50~130 秒，
 # 还经常被网关判 520/524（实测 48s 失败、132s 才成功各一次）。
 # turbo 版约 14 秒且稳定，图上细节足够电商使用。
-IMAGE_MODEL = "qwen-image-2.1-turbo"
+IMAGE_MODEL = "gpt-image-2.5-sunburst"
 VISION_MODEL = "qwen3-vl-plus"
 IMAGE_GEN_MODEL = "z-image-turbo"
 # 营销图是可选增强，优先速度：qwen-image-3.0 常要 60~130s，
 # turbo 版实测 ~15s 就能出图，质量足够做营销位。
-MARKETING_MODEL = "qwen-image-2.1-turbo"
+MARKETING_MODEL = "gpt-image-2.5-sunburst"
 # 主模型超时/524 时的降级模型（快且稳定）
-FALLBACK_IMAGE_MODEL = "qwen-image-2.1-turbo"
+FALLBACK_IMAGE_MODEL = "gpt-image-1.5"
 # 带自定义提示词的图生图（精细化编辑 / 指定编辑 / 通用编辑）。
 # 按客户要求统一使用 qwen-image-2.1-turbo（快、约 ¥0.20/次）。
 # 注意：早期实测 turbo 有时不严格遵循提示词；如果以后要换回按提示词改图，
 # 只改这一行即可（推荐值 "qwen-image-3.0"），其他代码无需调整。
-IMAGE_MODEL_PROMPT = "qwen-image-2.1-turbo"
+IMAGE_MODEL_PROMPT = "gpt-image-2.5-sunburst"
 
 # 模型已固定（真机实测）：文本 qwen-plus、视觉 qwen3-vl-plus、图片生成 z-image-turbo。
 #
@@ -44,6 +44,9 @@ FIXED_MODELS = {
     "image_gen": IMAGE_GEN_MODEL,
     "marketing": MARKETING_MODEL,
 }
+
+# 只支持 /images/generations（文生图），不能用于 /images/edits（图片编辑）。
+TEXT_TO_IMAGE_ONLY = {"z-image-turbo"}
 
 FIXED_MODEL_LABELS = {
     "text": "文本（标题/描述/SKU）",
@@ -178,6 +181,10 @@ class ImageService:
     def _img_edit(self, prompt: str, files, model: str | None = None):
         """统一的图像编辑调用：网关 5xx 自动重试，超时/失败再降级到 turbo。"""
         m = model or model_of(self.cfg, "image_edit")
+        if m in TEXT_TO_IMAGE_ONLY:
+            raise RuntimeError(
+                f"{m} 只支持文生图，不能用于图片编辑；"
+                "请在「AI 模型」里给图片编辑/提示词改图/营销图选择可编辑模型")
         _slow_keys = ("524", "520", "521", "522", "502", "503", "500",
                       "timeout", "Timeout", "timed out", "Read timed out",
                       "Connection aborted", "Connection reset")

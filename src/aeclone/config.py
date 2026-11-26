@@ -16,10 +16,10 @@ DEFAULTS: dict = {
     # AI 模型：留空=使用 services.FIXED_MODELS 的推荐默认；填写后按客户选择运行
     "ai_model_text": "qwen-plus",
     "ai_model_vision": "qwen3-vl-plus",
-    "ai_model_image_edit": "qwen-image-2.1-turbo",
-    "ai_model_image_prompt": "qwen-image-2.1-turbo",
+    "ai_model_image_edit": "gpt-image-2.5-sunburst",
+    "ai_model_image_prompt": "gpt-image-2.5-sunburst",
     "ai_model_image_gen": "z-image-turbo",
-    "ai_model_marketing": "qwen-image-2.1-turbo",
+    "ai_model_marketing": "gpt-image-2.5-sunburst",
     "api_base": "https://api.moneyfly.club",
     "api_key": "",
     "api_balance": -1.0,                                  # 最近一次已知余额（-1=未知）

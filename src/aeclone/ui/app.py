@@ -20195,6 +20195,9 @@ class App:
                 name = str(row.get("model") or "").strip()
                 if not name or name in seen:
                     continue
+                if kind in ("image_edit", "image_prompt", "marketing") and name in {
+                        "z-image-turbo"}:
+                    continue
                 per_call = float(row.get("per_call") or 0)
                 ratio = float(row.get("ratio") or 0)
                 if per_call > 0:
@@ -20206,7 +20209,10 @@ class App:
                 opts.append(ft.dropdown.Option(name, label))
                 seen.add(name)
             if cur and cur not in seen:
-                opts.append(ft.dropdown.Option(cur, f"{cur}（已选，当前列表未返回）"))
+                _warn = "（不支持图片编辑，请更换）" if (
+                    kind in ("image_edit", "image_prompt", "marketing")
+                    and cur == "z-image-turbo") else "（已选，当前列表未返回）"
+                opts.append(ft.dropdown.Option(cur, f"{cur}{_warn}"))
             try:
                 dd.options = opts
                 dd.value = cur
