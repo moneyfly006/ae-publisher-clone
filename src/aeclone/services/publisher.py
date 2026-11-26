@@ -2734,27 +2734,22 @@ class Publisher:
             # auto：没有采集视频 → 继续走主图轮播生成
         src_video: str = ""
         raw = product.get("raw") or {}
-        # ① 模板视频（需填路径）
+        # ① 模板视频：自动读取模板商品视频链接，不允许本地路径
         if _sv == "template":
-            _tp = str(getattr(self.cfg, "template_video_path", "") or "").strip()
-            if _tp and Path(_tp).exists():
-                src_video = _tp
-            else:
-                # 没填本地路径：直接用「模板商品」的视频链接，客户不用准备文件
+            _vu = ""
+            try:
+                _tpl_id = str(getattr(self.cfg, "template_product_id", "") or "").strip()
+                if self.dxm is not None and _tpl_id:
+                    _tpl = _cached_template_edit(self.dxm, _tpl_id)
+                    _vu = str(_tpl.get("videoUrl") or _tpl.get("video_url") or "").strip()
+            except Exception:
                 _vu = ""
-                try:
-                    _tpl_id = str(getattr(self.cfg, "template_product_id", "") or "").strip()
-                    if self.dxm is not None and _tpl_id:
-                        _tpl = _cached_template_edit(self.dxm, _tpl_id)
-                        _vu = str(_tpl.get("videoUrl") or _tpl.get("video_url") or "").strip()
-                except Exception:
-                    _vu = ""
-                if _vu:
-                    p["video_url"] = _vu
-                    add_step(res, "视频", True, "使用模板商品的视频（videoUrl 写回）")
-                    return
-                add_step(res, "视频", False, "模板视频：未填本地路径，模板商品也没有视频，已跳过")
+            if _vu:
+                p["video_url"] = _vu
+                add_step(res, "视频", True, "使用模板商品的视频（videoUrl 写回）")
                 return
+            add_step(res, "视频", False, "模板视频：模板商品没有视频链接，已跳过")
+            return
         # ② 生成轮播视频（本地 ffmpeg 合成，不调 AI）
         if not src_video and _sv in ("generated", "auto") and p.get("images"):
             try:

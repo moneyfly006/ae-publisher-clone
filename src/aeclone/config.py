@@ -228,7 +228,7 @@ DEFAULTS: dict = {
     "video_source": "collected",
     "generate_main_video": False,
     "use_template_video": False,
-    "template_video_path": "",
+    "template_video_path": "",   # 旧本地路径，已弃用；模板视频自动取链接
     "overwrite_existing_video": False,   # 旧开关，已弃用；视频来源下拉决定覆盖
     # 区域调价模板（本地）
     "adjust_price_template_detail": "{}",

@@ -631,8 +631,7 @@ def schema_image():
         ("主图视频", [
             Field("generate_main_video", "发布时生成主图视频", "bool",
                   hint="生成轮播视频并上传（需 ffmpeg）"),
-            Field("use_template_video", "使用模板视频（需填路径）", "bool"),
-            Field("template_video_path", "模板视频路径"),
+            Field("use_template_video", "使用模板商品视频（自动取链接）", "bool"),
             Field("video_slot_seconds", "每张停留秒数"),
             Field("video_transition_seconds", "转场秒数"),
             Field("video_size", "视频尺寸（如 1080x1080）"),
@@ -715,7 +714,6 @@ class App:
         self.field_refs: list[Field] = []
         self.file_picker = ft.FilePicker(on_result=self._on_files)
         self.wm_picker = ft.FilePicker(on_result=self._on_watermark_file)
-        self.video_picker = ft.FilePicker(on_result=self._on_video_file)
         self.api_state: dict = {}
         self.license_state: dict = {}
         self._machine_cache = ""
@@ -787,7 +785,6 @@ class App:
             pass
         page.overlay.append(self.file_picker)
         page.overlay.append(self.wm_picker)
-        page.overlay.append(self.video_picker)
         page.snack_bar = ft.SnackBar(ft.Text(""), bgcolor=CARD_2)
         self.entitlements = load_entitlements(self.cfg, machine=self.machine_code())
         self.active_platform = get_platform(getattr(self.cfg, "active_platform", "") or "alibaba")
@@ -6729,32 +6726,11 @@ class App:
             self._log(f"视频来源：{self.video_src_dd.value}")
 
         self.video_src_dd.on_change = _on_video_src
-        self.video_path_tf = ft.TextField(
-            label="本地视频路径（可选；留空=用模板商品的视频）", width=380,
-            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-            value=str(getattr(self.cfg, "template_video_path", "") or ""),
-            hint_text="留空即可：自动使用模板商品视频；也可填本地 mp4 覆盖")
-
-        def _on_video_path(e):
-            self.cfg.set("template_video_path", str(e.control.value or "").strip())
-            save_config(self.cfg)
-
-        self.video_path_tf.on_change = _on_video_path
-
-        def _pick_video(e=None):
-            try:
-                self.video_picker.pick_files(
-                    allow_multiple=False,
-                    allowed_extensions=["mp4", "mov", "m4v", "webm"])
-            except Exception as ex:  # noqa: BLE001
-                self.toast(f"打开文件选择器失败：{ex}", False)
 
         return card(ft.Column([
             h1i(ft.Icons.VIDEOCAM_OUTLINED, "商品视频"),
-            muted("选择商品视频来源；合成视频使用处理后的主图，不消耗 AI 图片额度"),
-            ft.Row([self.video_src_dd, self.video_path_tf,
-                    ft.OutlinedButton("选择本地视频", icon=ft.Icons.UPLOAD_FILE,
-                                      on_click=_pick_video)], spacing=12, wrap=True),
+            muted("选择商品视频来源；模板视频自动读取模板商品视频链接；合成视频使用处理后的主图，不消耗 AI 图片额度。"),
+            ft.Row([self.video_src_dd], spacing=12, wrap=True),
             h1("轮播合成参数", 14),
             ft.Row([
                 self._tf("video_slot_seconds", "每张停留秒数", width=160),
@@ -22074,22 +22050,6 @@ class App:
         except Exception:
             pass
         self._log(txt)
-        self._safe_update()
-
-    def _on_video_file(self, e):
-        """选择本地视频：用于商品视频来源覆盖模板视频。"""
-        files = [f for f in (getattr(e, "files", None) or []) if getattr(f, "path", "")]
-        if not files:
-            return
-        path = str(files[0].path)
-        self.cfg.set("template_video_path", path)
-        save_config(self.cfg)
-        try:
-            self.video_path_tf.value = path
-        except Exception:
-            pass
-        self._log(f"本地视频：{path}")
-        self.toast(f"已选择本地视频：{Path(path).name}")
         self._safe_update()
 
     def _maybe_quota(self, msg: str) -> None:

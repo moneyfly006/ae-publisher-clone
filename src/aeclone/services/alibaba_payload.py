@@ -405,26 +405,7 @@ def merge_attributes(product: dict, cfg=None, overrides: dict | None = None,
 
 
 def _template_video_value(cfg, ov: dict) -> str:
-    """取模板视频：本地覆盖文件 > 模板快照/模板字段里的视频链接。"""
-    path = str(getattr(cfg, "template_video_path", "") or "").strip()
-    if path:
-        if path.startswith(("http://", "https://")):
-            return path
-        try:
-            from pathlib import Path as _P
-            from .hosting import upload_video_file
-            file = _P(path)
-            if file.exists():
-                key = str(file) + ":" + str(file.stat().st_mtime)
-                cached = _VIDEO_CACHE.get(key)
-                if cached:
-                    return cached
-                url = upload_video_file(file)
-                if url:
-                    _VIDEO_CACHE[key] = url
-                    return url
-        except Exception:
-            pass
+    """模板视频只取模板商品/模板字段里的视频链接，不接受本地路径。"""
     groups = [ov or {}]
     tpl_fields = (ov or {}).get("template_fields")
     if isinstance(tpl_fields, dict):
@@ -446,10 +427,6 @@ def _template_video_value(cfg, ov: dict) -> str:
             if value not in (None, "", 0, "0", "None", "[]", "{}"):
                 return str(value)
     return ""
-
-
-_VIDEO_CACHE: dict[str, str] = {}
-
 
 def _write_product_video(product: dict, save: dict, ov: dict) -> bool:
     """采集视频只从商品/显式 override 取，模板字段不混入。"""
