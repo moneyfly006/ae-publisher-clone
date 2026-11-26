@@ -20,6 +20,8 @@ import html as _html
 import json
 import math
 import re
+import secrets
+import string
 
 from .amazon_prompts import (
     BULLET_MAX_CHARS, BULLET_MAX_ITEMS, BULLET_SUGGEST_CHARS,
@@ -27,6 +29,15 @@ from .amazon_prompts import (
     HIGHLIGHT_MAX, SITE_META, TITLE_MAX, has_chinese, is_chinese_site, remove_emoji,
     site_meta as prompt_site_meta, strip_html,
 )
+
+def random_amazon_sku(prefix: str, length: int = 9) -> str:
+    """Amazon SKU：用户前缀 + 9 位大写字母/数字随机组合（默认 9 位）。"""
+    clean = str(prefix or "").strip()
+    sep = "" if clean.endswith(("-", "_")) else "-"
+    alphabet = string.ascii_uppercase + string.digits
+    suffix = "".join(secrets.choice(alphabet) for _ in range(max(1, int(length or 9))))
+    return f"{clean}{sep}{suffix}"
+
 
 def _auto_merchant_asin(product_id: str, sku: str = "") -> str:
     """生成稳定的 Amazon 10 位 Merchant Suggested ASIN（仅补齐缺失字段）。"""
@@ -655,13 +666,17 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     if not _text(sku) and _has_cfg(cfg, "amazon_sku"):
         sku = _cfg_value(cfg, "amazon_sku")
     sku = _text(sku)
+    _prefix = _text(_cfg_value(cfg, "amazon_sku_prefix", ""))
+    _suffix = _text(_cfg_value(cfg, "amazon_sku_suffix", ""))
+    _random = bool(_cfg_value(cfg, "amazon_sku_random", True))
+    if _prefix and _random:
+        # 新规则：前缀 + 9 位随机字母数字；批量流程会在进入线程前预生成并写入
+        # item_overrides，单条保存时在这里生成。
+        sku = random_amazon_sku(_prefix, 9)
     if not sku:
-        # 不再提供 UI 开关：商品缺 SKU 时默认生成稳定本地编码。
         _pid = _text(out.get("id") or p.get("idStr") or p.get("id"))
         if _pid:
             sku = "SKU-" + _pid[-12:]
-    _prefix = _text(_cfg_value(cfg, "amazon_sku_prefix", ""))
-    _suffix = _text(_cfg_value(cfg, "amazon_sku_suffix", ""))
     if sku and (_prefix or _suffix) and not sku.startswith(_prefix):
         sku = _prefix + sku
     if sku and _suffix and not sku.endswith(_suffix):

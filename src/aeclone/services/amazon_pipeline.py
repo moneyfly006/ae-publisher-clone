@@ -1486,6 +1486,16 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
             return _fail(res, "授权校验", f"授权校验未通过：{_short(exc)}")
         _step(res, "授权校验", True, "通过")
 
+        # 保存前复核商品仍然存在：图片/AI 处理可能耗时几十秒，期间商品可能被
+        # 删除、合并或移出采集箱；直接用旧 ID 保存会得到「产品不存在」。
+        try:
+            c.product_detail(pid)
+        except Exception as exc:  # noqa: BLE001
+            return _fail(
+                res, "保存到 Amazon",
+                f"商品已不在采集箱（可能被删除、合并或移出当前店铺），已跳过保存：{pid}；"
+                f"请重新加载商品后再试（{_short(exc, 160)}）")
+
         # 唯一写收口：save_to_amazon（内部还会再校验一次 forced_preview/guard/issues）
         try:
             from .amazon_publish import save_to_amazon
