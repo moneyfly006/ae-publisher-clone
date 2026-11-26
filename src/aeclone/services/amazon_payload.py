@@ -502,27 +502,42 @@ def merge_attributes(attr_data, attributes, marketplace_id: str = "",
 
 
 def _images(product: dict, main=None) -> tuple[str, str, str]:
-    """返回 (mainImage, extraImagesStr, draftImgUrl)。"""
+    """返回 (mainImage, extraImagesStr, draftImgUrl)。
+
+    Amazon 最多 9 张（1 主图 + 8 附图）。主图优先，全部去重且保持顺序；
+    超过 9 张截断，重复 URL 不重复写入，避免保存时触发重复图片错误。
+    """
     p = product or {}
     main_image = _text(main) if main is not None else _text(p.get("mainImage"))
     if not main_image:
         img_url = _text(p.get("imgUrl"))
         if img_url:
             main_image = img_url.split("|")[0].strip()
-    extra_list: list[str] = []
+    candidates: list[str] = []
+    if main_image:
+        candidates.append(main_image)
     raw_list = p.get("extraImages")
     if isinstance(raw_list, list):
-        extra_list = [str(x).strip() for x in raw_list if str(x).strip()]
+        candidates.extend(str(x).strip() for x in raw_list if str(x).strip())
     extra_str = _text(p.get("extraImagesStr"))
-    if not extra_str and extra_list:
-        extra_str = ";".join(extra_list)
-    if not extra_list and extra_str:
-        extra_list = [x.strip() for x in extra_str.split(";") if x.strip()]
+    if extra_str:
+        candidates.extend(x.strip() for x in extra_str.split(";") if x.strip())
     draft = _text(p.get("draftImgUrl"))
-    if not draft and extra_list:
-        draft = "|".join(extra_list)
-    return main_image, extra_str, draft
-
+    if draft:
+        candidates.extend(x.strip() for x in draft.split("|") if x.strip())
+    unique: list[str] = []
+    seen = set()
+    for url in candidates:
+        clean = str(url or "").strip()
+        if not clean or clean in seen:
+            continue
+        seen.add(clean)
+        unique.append(clean)
+    if not unique:
+        return "", "", ""
+    main_image = unique[0]
+    extras = unique[1:9]
+    return main_image, ";".join(extras), "|".join(extras)
 
 def _sync_offer_prices(attributes, payload, overrides):
     changed = False
@@ -691,9 +706,15 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     if "main_image" in ov:
         image_product["mainImage"] = str(ov["main_image"] or "")
     if "extra_images" in ov:
-        extra = [str(x).strip() for x in ov["extra_images"] if str(x).strip()]
+        extra = []
+        _seen_extra = set()
+        for x in ov["extra_images"]:
+            clean = str(x).strip()
+            if clean and clean not in _seen_extra:
+                _seen_extra.add(clean)
+                extra.append(clean)
         if len(extra) > 8:
-            raise ValueError("Amazon 图片最多 9 张（1 张主图和 8 张附图）")
+            raise ValueError("Amazon 图片最多 9 张（1 张主图和 8 张附图），请先合并重复图片")
         image_product["extraImagesStr"] = ";".join(extra)
         image_product["extraImages"] = extra
         image_product["draftImgUrl"] = "|".join(extra)

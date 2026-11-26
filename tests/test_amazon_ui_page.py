@@ -1359,7 +1359,10 @@ class AmazonPageTests(unittest.TestCase):
         button = next(c for c in walk(self.app.content.controls) if getattr(c, "text", "") == "去运行与结果")
         button.on_click(SimpleNamespace(control=button))
         self.assertEqual(self.app._page_idx, 21)
-        self.assertTrue(any(getattr(c, "label", "") == "采集箱关键词（可选）" for c in walk(self.app.content.controls)))
+        labels = [getattr(c, "label", "") for c in walk(self.app.content.controls)]
+        self.assertNotIn("采集箱关键词（可选）", labels)
+        self.assertIn("完成后去向", labels)
+        self.assertIn("本次处理数量（0 = 全部）", labels)
 
     def test_amazon_platform_guards_block_smt_pipeline(self):
         self.app._switch(0)

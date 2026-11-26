@@ -217,7 +217,8 @@ def isolated_config(cfg, platform):
                  "template_product_id", "default_country_of_origin",
                  "default_included_components", "default_unit_count",
                  "default_power_source_type", "default_voltage",
-                 "default_dg_regulation", "default_dimensions", "currency")
+                 "default_dg_regulation", "default_dimensions", "currency",
+                 "sku_prefix", "sku_suffix", "sku_sequence")
     for key in list(data):
         if key.startswith(platform + "_"):
             suffix = key[len(platform) + 1:]
@@ -459,6 +460,14 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
             selected = selected[:_limit]
             emit(platform + " · 数量限制", "完成", f"按本次处理数量截取前 {_limit} 件")
 
+    # Amazon：前缀 + 本次任务顺序号（1,2,3…），批量并行前统一分配。
+    if platform == "amazon" and bool(getattr(config, "amazon_sku_sequence", True)):
+        _pfx = str(getattr(config, "amazon_sku_prefix", "") or "").strip()
+        if _pfx:
+            for _seq, _row in enumerate(selected, 1):
+                if isinstance(_row, dict):
+                    _row["_sku_seq"] = _seq
+
     # 多线程：按商品切成连续块并行执行。已注入 client（测试/调用方）时保持串行，
     # 避免共享 fake client；真实运行时每个线程创建独立客户端。
     try:
@@ -535,6 +544,11 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
 
         try:
             item_overrides = deepcopy(overrides)
+            if platform == "amazon" and row.get("_sku_seq"):
+                _pfx = str(getattr(config, "amazon_sku_prefix", "") or "").strip()
+                if _pfx:
+                    _sep = "" if _pfx.endswith(("-", "_")) else "-"
+                    item_overrides["sku"] = f"{_pfx}{_sep}{row.get('_sku_seq')}"
             if not dry_run:
                 from .collect_ai import prepare
                 item_overrides = prepare(platform, pid, config, client, item_overrides)

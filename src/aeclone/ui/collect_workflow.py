@@ -52,6 +52,30 @@ FIELDS = {
 }
 
 
+def _product_thumbnail(item, size: int = 52):
+    """商品选择列表缩略图；没有可用图片时用占位图标。"""
+    from . import app as _ui
+    raw = ""
+    for key in ("mainImage", "imgUrl", "draftImgUrl", "extraImagesStr"):
+        value = item.get(key)
+        if isinstance(value, (list, tuple)):
+            value = next((str(x).strip() for x in value if str(x).strip()), "")
+        text = str(value or "").strip()
+        if text:
+            raw = text.split("|")[0].split(";")[0].strip()
+            if raw:
+                break
+    if raw.startswith(("http://", "https://")):
+        try:
+            return ft.Container(
+                content=ft.Image(src=raw, width=size, height=size, fit=ft.ImageFit.COVER),
+                width=size, height=size, border_radius=6)
+        except Exception:
+            pass
+    return ft.Container(content=ft.Icon(ft.Icons.IMAGE_NOT_SUPPORTED_OUTLINED, size=22, color=_ui.MUTED),
+                        width=size, height=size, alignment=ft.alignment.center)
+
+
 def write(app, key, value):
     previous = app.cfg.get(key)
     app.cfg.set(key, value)
@@ -302,15 +326,23 @@ def functional_settings(app, platform, page, *, run_link=True):
             _sfx = ft.TextField(label="SKU 后缀（可选）", width=220, color=ui.TEXT,
                 bgcolor=ui.CARD_2, value=str(getattr(app.cfg, "amazon_sku_suffix", "") or ""),
                 hint_text="例如 -CA")
+            _seq_sw = ft.Switch(label="前缀后自动加顺序号（1、2、3…）", active_color=ui.ACCENT,
+                value=bool(getattr(app.cfg, "amazon_sku_sequence", True)))
             _preview = ft.Text("", size=12, color=ui.ACCENT_2, selectable=True)
             def _refresh_sku_preview(e=None):
-                base = "SKU-001"
-                _preview.value = "编码示例：" + str(_pfx.value or "") + base + str(_sfx.value or "")
+                prefix = str(_pfx.value or "").strip()
+                if prefix and bool(_seq_sw.value):
+                    sep = "" if prefix.endswith(("-", "_")) else "-"
+                    preview = f"{prefix}{sep}1、{prefix}{sep}2、{prefix}{sep}3 …"
+                else:
+                    preview = str(prefix) + "SKU-001" + str(_sfx.value or "")
+                _preview.value = "编码示例：" + preview
                 try: app._safe_update()
                 except Exception: pass
             def _save_skus(e=None):
                 app.cfg.set("amazon_sku_prefix", str(_pfx.value or ""))
                 app.cfg.set("amazon_sku_suffix", str(_sfx.value or ""))
+                app.cfg.set("amazon_sku_sequence", bool(_seq_sw.value))
                 try:
                     save_config(app.cfg)
                     from ..core.platform_config import save as _save_platform
@@ -320,10 +352,12 @@ def functional_settings(app, platform, page, *, run_link=True):
                 _refresh_sku_preview()
             _pfx.on_change = _save_skus
             _sfx.on_change = _save_skus
+            _seq_sw.on_change = _save_skus
             _refresh_sku_preview()
             controls += [ft.Row([_pfx, _sfx], wrap=True),
+                         _seq_sw,
                          _preview,
-                         ui.muted("填写即保存。保存商品时按「前缀 + 自动生成 SKU + 后缀」写入 Amazon；原 SKU 已包含相同前后缀时不会重复添加。", 11)]
+                         ui.muted("填写即保存。开启顺序号后批量按前缀-1、前缀-2…统一编码；原始 SKU 不再拼接。", 11)]
             _contact = ft.TextField(label="制造商联系信息", width=300, color=ui.TEXT, bgcolor=ui.CARD_2,
                 value=str(getattr(app.cfg, "amazon_manufacturer_contact", "Generic, CN") or ""),
                 hint_text="例如 Generic, CN")
@@ -970,7 +1004,7 @@ def product_picker(app, platform, on_done=None):
             pid = str(it.get("id") or it.get("idStr") or "")
             cb = ft.Checkbox(value=pid in picked, on_change=lambda e, _p=pid: toggle(_p, e.control.value))
             rows.append(ft.ListTile(
-                leading=cb,
+                leading=ft.Row([cb, _product_thumbnail(it)], spacing=6, tight=True),
                 title=ft.Text((it.get("title") or it.get("subject") or it.get("productName")
                                or it.get("itemName") or pid)[:80], size=13.5,
                               color=ui.TEXT, max_lines=2),
@@ -1120,7 +1154,7 @@ def _inline_picker(app, platform, prefix):
             title = (it.get("title") or it.get("subject") or it.get("productName")
                      or it.get("itemName") or pid)
             rows.append(ft.ListTile(
-                leading=cb,
+                leading=ft.Row([cb, _product_thumbnail(it)], spacing=6, tight=True),
                 title=ft.Text(str(title)[:80], size=13.5, color=ui.TEXT, max_lines=2),
                 subtitle=ft.Text(pid, size=11.5, color=ui.MUTED), dense=True))
         col.controls = rows or [ui.muted("没有匹配的商品；点「加载商品」读取采集箱")]
@@ -1600,11 +1634,13 @@ def run_page(app, platform):
     # 立即处理 Tab：Amazon 选品卡已移到「处理规则 → 类目与属性」。
     picker_card = None if amazon else _inline_picker(app, platform, prefix)
     cost_card = _cost_estimate(app, platform, prefix)
+    _range_head = (ft.Row([op, limit], wrap=True, spacing=12) if amazon
+                   else ft.Row([keyword, limit], wrap=True, spacing=12))
     range_card = ui.card(ft.Column([ui.h1("处理范围与操作", ui.FS_MD), *shop_info,
-        ft.Row([keyword, limit], wrap=True, spacing=12),
+        _range_head,
         ft.Row([selected_text, select_btn], wrap=True, spacing=10),
-        ui.muted("默认前 10 件、保存草稿、保留原商品资料。关键词匹配后再限制数量；每件失败原因写入日志。"),
-        op, *([repair, ui.muted("低于 4.5 分时用商品已有资料补齐并重评。只有已启用的 AI 文案字段会追加调用。")]
+        ui.muted("默认前 10 件、保存草稿、保留原商品资料。关键词在「处理规则 → 类目与属性」填写；每件失败原因写入日志。"),
+        *([] if amazon else [op]), *([repair, ui.muted("低于 4.5 分时用商品已有资料补齐并重评。只有已启用的 AI 文案字段会追加调用。")]
               if alibaba else []), ft.Row([
             ft.OutlinedButton("检查本次范围", icon=ft.Icons.FACT_CHECK,
                 on_click=lambda e: launch(app, platform, dry_run=True)),

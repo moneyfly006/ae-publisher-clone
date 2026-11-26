@@ -55,7 +55,11 @@ class CollectUiTests(unittest.TestCase):
             self.app._switch_platform(platform)
             self.app._switch(page)
             labels = [getattr(c, "label", "") for c in self.controls()]
-            self.assertIn("采集箱关键词（可选）", labels)
+            if platform == "amazon":
+                # 关键词统一在「处理规则 → 类目与属性」；运行页只保留去向和数量。
+                self.assertNotIn("采集箱关键词（可选）", labels)
+            else:
+                self.assertIn("采集箱关键词（可选）", labels)
             self.assertIn("完成后去向", labels)
             self.assertNotIn("商品 ID", labels)
             self.assertIn("开始自动处理", [getattr(c, "text", "") for c in self.controls()])
