@@ -16,19 +16,19 @@ TEXT_MODEL = "qwen-plus"
 # 图像编辑默认用 turbo：qwen-image-3.0 虽然质量稍好，但要 50~130 秒，
 # 还经常被网关判 520/524（实测 48s 失败、132s 才成功各一次）。
 # turbo 版约 14 秒且稳定，图上细节足够电商使用。
-IMAGE_MODEL = "gpt-image-2.5-sunburst"
+IMAGE_MODEL = "qwen-image-2.1-turbo"
 VISION_MODEL = "qwen3-vl-plus"
 IMAGE_GEN_MODEL = "z-image-turbo"
 # 营销图是可选增强，优先速度：qwen-image-3.0 常要 60~130s，
 # turbo 版实测 ~15s 就能出图，质量足够做营销位。
-MARKETING_MODEL = "gpt-image-2.5-sunburst"
+MARKETING_MODEL = "qwen-image-2.1-turbo"
 # 主模型超时/524 时的降级模型（快且稳定）
-FALLBACK_IMAGE_MODEL = "gpt-image-1.5"
+FALLBACK_IMAGE_MODEL = "qwen-image-2.1-turbo"
 # 带自定义提示词的图生图（精细化编辑 / 指定编辑 / 通用编辑）。
 # 按客户要求统一使用 qwen-image-2.1-turbo（快、约 ¥0.20/次）。
 # 注意：早期实测 turbo 有时不严格遵循提示词；如果以后要换回按提示词改图，
 # 只改这一行即可（推荐值 "qwen-image-3.0"），其他代码无需调整。
-IMAGE_MODEL_PROMPT = "gpt-image-2.5-sunburst"
+IMAGE_MODEL_PROMPT = "qwen-image-2.1-turbo"
 
 # 模型已固定（真机实测）：文本 qwen-plus、视觉 qwen3-vl-plus、图片生成 z-image-turbo。
 #
