@@ -11181,7 +11181,7 @@ class App:
         from ..services import (FIXED_MODELS, FIXED_MODEL_LABELS, AI_MODEL_KEYS,
                                 model_of)
         self.model_status = ft.Text(
-            "未选择时使用推荐默认模型；选择后该任务严格按所选模型运行。"
+            "每个任务只给一个模型标「推荐」；选择其他模型后严格按所选模型运行。"
             "价格见下方「模型价格」。", size=12.5, color=MUTED)
         self.ai_model_dropdowns = {}
         self.ai_price_rows = []
@@ -11204,9 +11204,11 @@ class App:
                      "image_gen", "marketing"):
             _cur = str(getattr(self.cfg, AI_MODEL_KEYS[kind], "") or "").strip() \
                 or FIXED_MODELS[kind]
+            _rec = FIXED_MODELS[kind]
+            _opts = [ft.dropdown.Option(_cur,
+                                        f"{_cur} · 推荐" if _cur == _rec else _cur)]
             dd = ft.Dropdown(label="模型", width=420, color=TEXT, bgcolor=CARD_2,
-                             border_color=CARD_2, value=_cur,
-                             options=[ft.dropdown.Option("", f"默认（{model_of(self.cfg, kind)}）")])
+                             border_color=CARD_2, value=_cur, options=_opts)
             dd.on_change = lambda e, k=kind: _model_save(k, e)
             self.ai_model_dropdowns[kind] = dd
             model_rows.append(ft.Row([
@@ -11224,14 +11226,14 @@ class App:
                 except Exception:
                     pass
             self._refresh_ai_model_dropdowns()
-            self.toast("AI 模型已恢复预设", True)
+            self.toast("AI 模型已恢复推荐模型", True)
 
         model_card = card(ft.Column([
             h1("AI 模型", 15),
-            muted("默认模型已按实测结果固定；下方可逐任务自由选择，留空即使用默认", 11),
+            muted("每个任务预设一个推荐模型；下拉可换其他模型，推荐项只有一项带「推荐」标记。", 11),
             muted("注意：图片模型只能用于图片任务，文本/视觉模型用于文本和图片审查；选错会在运行时报错，不会静默换模型。", 11),
             *model_rows,
-            ft.Row([ft.TextButton("全部恢复默认", icon=ft.Icons.RESTORE,
+            ft.Row([ft.TextButton("全部恢复推荐模型", icon=ft.Icons.RESTORE,
                                   on_click=_reset_models)], spacing=8),
             self.model_status,
         ], spacing=8))
@@ -20174,45 +20176,52 @@ class App:
                 pass
 
     def _refresh_ai_model_dropdowns(self):
-        """用价格/模型缓存刷新六个任务槽位的下拉选项，保留当前选择。"""
+        """刷新六个任务槽位：每个槽位只有一个模型带「推荐」标记。"""
         dropdowns = getattr(self, "ai_model_dropdowns", None) or {}
         if not dropdowns:
             return
-        from ..services import FIXED_MODELS, AI_MODEL_KEYS
+        from ..services import FIXED_MODELS, AI_MODEL_KEYS, TEXT_TO_IMAGE_ONLY
         rows = getattr(self, "ai_price_rows", None) or []
+        price = {str(r.get("model") or ""): r for r in rows}
         for kind, dd in dropdowns.items():
             key = AI_MODEL_KEYS.get(kind)
-            cur = (str(getattr(self.cfg, key, "") or "").strip() if key else "") \
-                or FIXED_MODELS.get(kind, "")
-            opts = [ft.dropdown.Option("", f"默认（{model_of(self.cfg, kind)}）")]
-            seen = {""}
-            # 即使价格接口暂时失败，也至少保留已知默认模型可选。
-            for _fixed in dict.fromkeys(FIXED_MODELS.values()):
-                if _fixed and _fixed not in seen:
-                    opts.append(ft.dropdown.Option(_fixed, f"{_fixed}（推荐默认）"))
-                    seen.add(_fixed)
+            rec = FIXED_MODELS.get(kind, "")
+            cur = (str(getattr(self.cfg, key, "") or "").strip() if key else "") or rec
+            names = []
+            # 推荐模型永远排第一，只有它带「推荐」标记
+            if rec:
+                names.append(rec)
             for row in sorted(rows, key=lambda x: str(x.get("model") or "")):
                 name = str(row.get("model") or "").strip()
-                if not name or name in seen:
+                if not name or name in names:
                     continue
-                if kind in ("image_edit", "image_prompt", "marketing") and name in {
-                        "z-image-turbo"}:
+                if kind in ("image_edit", "image_prompt", "marketing")                         and name in TEXT_TO_IMAGE_ONLY:
                     continue
-                per_call = float(row.get("per_call") or 0)
-                ratio = float(row.get("ratio") or 0)
+                names.append(name)
+            for fixed in dict.fromkeys(FIXED_MODELS.values()):
+                if (kind in ("image_edit", "image_prompt", "marketing")
+                        and fixed in TEXT_TO_IMAGE_ONLY):
+                    continue
+                if fixed and fixed not in names:
+                    names.append(fixed)
+            if cur and cur not in names:
+                names.append(cur)
+            opts = []
+            for name in names:
+                r = price.get(name) or {}
+                per_call = float(r.get("per_call") or 0)
+                ratio = float(r.get("ratio") or 0)
                 if per_call > 0:
-                    label = f"{name} · ¥{per_call:.3f}/张"
+                    suffix = f" · ¥{per_call:.3f}/张"
                 elif ratio > 0:
-                    label = f"{name} · 倍率 {ratio:.2f}"
+                    suffix = f" · 倍率 {ratio:.2f}"
                 else:
-                    label = name
-                opts.append(ft.dropdown.Option(name, label))
-                seen.add(name)
-            if cur and cur not in seen:
-                _warn = "（不支持图片编辑，请更换）" if (
-                    kind in ("image_edit", "image_prompt", "marketing")
-                    and cur == "z-image-turbo") else "（已选，当前列表未返回）"
-                opts.append(ft.dropdown.Option(cur, f"{cur}{_warn}"))
+                    suffix = ""
+                mark = " · 推荐" if name == rec else ""
+                if (kind in ("image_edit", "image_prompt", "marketing")
+                        and name in TEXT_TO_IMAGE_ONLY):
+                    mark = " · 不支持图片编辑"
+                opts.append(ft.dropdown.Option(name, f"{name}{suffix}{mark}"))
             try:
                 dd.options = opts
                 dd.value = cur
