@@ -389,7 +389,7 @@ def process_images(platform, pid, cfg, client, overrides):
 
 @exclusive
 def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress=None,
-                rows=None, resume_id=None):
+                rows=None, resume_id=None, _nested=False):
     """One run, one config snapshot, one source snapshot; per-item failure continues."""
     if platform not in PLATFORMS:
         raise ValueError("不支持的自动处理平台")
@@ -420,7 +420,8 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
     _provided_client = client is not None
     client = ReadClient(client or client_for(platform, config), config, platform, stop)
     policy = RunPolicy(config, platform, stop)
-    emit(platform + " · 自动采集箱", "开始", "读取处理范围，准备后逐个执行")
+    if not _nested:
+        emit(platform + " · 自动采集箱", "开始", "读取处理范围，准备后逐个执行")
     # 已勾选商品优先：读取全量源数据再按 ID 过滤，不能被关键词/数量限制提前截断。
     try:
         _picked_raw = str(getattr(cfg, platform + "_collect_selected_ids", "") or "[]")
@@ -481,6 +482,13 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
                 _used.add(_sku)
                 _row["_sku_generated"] = _sku
 
+    # 外层统一进度：并行子批次只上报 done_stage，不能各自 BUS.begin(1)，
+    # 否则界面会出现「步骤 10/1」。
+    from .progress import BUS
+    if not _nested:
+        emit(platform + " · 范围已确定", "完成", f"共 {len(selected)} 件，去向 {op}")
+        BUS.begin(len(selected))
+
     # 多线程：按商品切成连续块并行执行。已注入 client（测试/调用方）时保持串行，
     # 避免共享 fake client；真实运行时每个线程创建独立客户端。
     try:
@@ -496,7 +504,8 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
         merged = []
         def _one(chunk):
             worker = ReadClient(client_for(platform, config), config, platform, stop)
-            return raw_run(cfg, platform, dry_run=dry_run, client=worker, stop=stop, rows=chunk)
+            return raw_run(cfg, platform, dry_run=dry_run, client=worker, stop=stop,
+                           rows=chunk, _nested=True)
         with ThreadPoolExecutor(max_workers=min(_workers, len(chunks))) as pool:
             futures = [pool.submit(_one, chunk) for chunk in chunks]
             for fut in as_completed(futures):
@@ -506,12 +515,23 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
                     emit(platform + " · 并发处理", "批次失败", str(exc)[:160], level="ERROR")
         _order = {identity(row): pos for pos, row in enumerate(selected)}
         merged.sort(key=lambda rec: _order.get(str(rec.get("id") or ""), 10 ** 9))
-        emit(platform + " · 并发处理", "结束", f"已完成 {len(merged)} 件")
+        # 子批次各有自己的 run；再建一个外层汇总 run，保证结果面板/重启后
+        # store.latest() 看到的是完整 5 件而不是最后一个子批次 1 件。
+        if not _nested:
+            try:
+                _parent = store.create(cfg, platform, selected, dry=dry_run)
+                for _rec in merged:
+                    if isinstance(_rec, dict) and _rec.get("id"):
+                        store.item_update(_parent, str(_rec["id"]), "done", result=_rec)
+                store.finish(_parent, "complete")
+            except Exception:
+                pass
+            emit(platform + " · 并发处理", "结束", f"已完成 {len(merged)} 件")
+            emit(platform + " · 自动采集箱", "结束",
+                 f"范围 {len(selected)} · 完成 {len(merged)} · 成功 {sum(r['ok'] for r in merged)} · "
+                 f"失败 {sum(not r['ok'] for r in merged)}")
         return merged
 
-    emit(platform + " · 范围已确定", "完成", f"共 {len(selected)} 件，去向 {op}")
-    from .progress import BUS
-    BUS.begin(len(selected))
     run_id = resume_id or store.create(cfg, platform, selected, dry=dry_run)
     from .collect_budget import Budget
     object.__setattr__(config, "_collect_budget", Budget(config, platform, run_id))
@@ -629,6 +649,8 @@ def run_collect(cfg, platform, *, dry_run=True, client=None, stop=None, progress
     stopped = bool(stop and stop())
     halted = bool(results and results[-1].get("halt_reason"))
     store.finish(run_id, "stopped" if stopped or halted or len(results) < len(selected) else "complete")
-    emit(platform + " · 自动采集箱", "已停止" if stopped or halted else "结束",
-         f"范围 {len(selected)} · 完成 {len(results)} · 成功 {sum(r['ok'] for r in results)} · 失败 {sum(not r['ok'] for r in results)}")
+    if not _nested:
+        emit(platform + " · 自动采集箱", "已停止" if stopped or halted else "结束",
+             f"范围 {len(selected)} · 完成 {len(results)} · 成功 {sum(r['ok'] for r in results)} · "
+             f"失败 {sum(not r['ok'] for r in results)}")
     return results

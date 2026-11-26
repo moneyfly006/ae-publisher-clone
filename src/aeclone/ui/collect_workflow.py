@@ -1605,14 +1605,17 @@ def run_page(app, platform):
         color=ui.TEXT, bgcolor=ui.CARD_2, options=[ft.dropdown.Option("1", "保存草稿（默认）"),
             ft.dropdown.Option("3", "移入待发布"), ft.dropdown.Option("2", "提交发布")])
     op.on_change = lambda e: write(app, prefix + "op", str(e.control.value))
-    results = [] if platform == "amazon" else getattr(app, "_collect_results", {}).get(platform, [])
-    try:
-        from ..services import collect_store as store
-        recent = store.latest(app.cfg, platform)
-        if recent:
-            results = [item["result"] for item in recent["items"] if item["result"]]
-    except (OSError, ValueError, sqlite3.Error):
-        pass
+    # 并行任务会拆成多个内部 run；优先使用 launch 汇总后的完整结果，
+    # 否则 store.latest() 只看到最后一个子批次（界面显示「已处理 1 件」）。
+    results = list(getattr(app, "_collect_results", {}).get(platform, []) or [])
+    if not results:
+        try:
+            from ..services import collect_store as store
+            recent = store.latest(app.cfg, platform)
+            if recent:
+                results = [item["result"] for item in recent["items"] if item["result"]]
+        except (OSError, ValueError, sqlite3.Error):
+            pass
     repair = ft.Switch(label="低分商品自动补齐并复评" if platform == "alibaba" else "自动修复可确定的问题",
         active_color=ui.ACCENT, value=bool(getattr(app.cfg, prefix + "auto_repair", True)))
     repair.on_change = lambda e: write(app, prefix + "auto_repair", bool(e.control.value))
