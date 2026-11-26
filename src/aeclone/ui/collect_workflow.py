@@ -56,7 +56,11 @@ def _product_thumbnail(item, size: int = 52):
     """商品选择列表缩略图；没有可用图片时用占位图标。"""
     from . import app as _ui
     raw = ""
-    for key in ("mainImage", "imgUrl", "draftImgUrl", "extraImagesStr"):
+    # Amazon normalize_product 使用 snake_case：main_image / extra_images；
+    # Alibaba/TikTok 等仍可能是 camelCase 或 extraImagesStr。
+    for key in ("mainImage", "main_image", "imgUrl", "img_url", "image",
+                "thumbnail", "draftImgUrl", "draft_img_url",
+                "extraImagesStr", "extra_images", "extraImages"):
         value = item.get(key)
         if isinstance(value, (list, tuple)):
             value = next((str(x).strip() for x in value if str(x).strip()), "")
