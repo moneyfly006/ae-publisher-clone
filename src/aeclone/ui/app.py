@@ -3406,7 +3406,7 @@ class App:
         self._stop_requested = False
         try:
             if getattr(self, "run_status", None) is not None:
-                self.run_status.value = "状态：运行中…"
+                self.run_status.value = "运行中…"
                 self.run_status.color = ACCENT_2
         except Exception:
             pass
@@ -4360,7 +4360,7 @@ class App:
             pass
         try:
             if getattr(self, "run_status", None) is not None:
-                self.run_status.value = "状态：停止中…（正在中断当前步骤，不会继续保存）"
+                self.run_status.value = "停止中…（正在中断当前步骤，不会继续保存）"
                 self.run_status.color = WARN_C
         except Exception:
             pass
@@ -4429,7 +4429,7 @@ class App:
             hb_stop.set()
             try:
                 if getattr(self, "run_status", None) is not None:
-                    self.run_status.value = "状态：" + (msg or "空闲")
+                    self.run_status.value = (msg or "空闲")
                     self.run_status.color = ACCENT_2 if "完成" in (msg or "") else MUTED
             except Exception:
                 pass
@@ -10098,8 +10098,8 @@ class App:
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             on_change=lambda e: self._refresh_log_table())
         self.logs_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
-        self.logs_progress_text = ft.Text("空闲", size=13.5, color=MUTED)
-        self.run_status = ft.Text("状态：空闲", size=13.5, color=MUTED)
+        self.logs_progress_text = ft.Text("尚未开始", size=13.5, color=MUTED)
+        self.run_status = ft.Text("空闲", size=13.5, color=MUTED)
         self.log_level = ft.Dropdown(
             width=112, value="全部", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             options=[ft.dropdown.Option(x) for x in ("全部", "INFO", "WARN", "ERROR")],
@@ -10153,19 +10153,19 @@ class App:
 
         # ---------- 日志明细（工具栏按「主操作 / 复制导出 / 筛选」分组） ----------
         self.log_status = ft.Text("", size=FS_SM, color=MUTED)
+        # 第一排：日志的导入/导出/清理主操作
         primary_actions = ft.Row([
             ft.ElevatedButton("上报运行日志", icon=ft.Icons.CLOUD_UPLOAD, bgcolor=ACCENT,
                               color=ON_ACCENT, on_click=self._report_logs_now),
             ft.OutlinedButton("打开日志文件", icon=ft.Icons.DESCRIPTION,
                               on_click=lambda e: self._open_log_file()),
             ft.OutlinedButton("导出日志", icon=ft.Icons.DOWNLOAD, on_click=export_all),
-            ft.Container(expand=True),
             ft.TextButton("清空日志", icon=ft.Icons.DELETE_SWEEP_OUTLINED,
                           style=ft.ButtonStyle(color=DANGER_C), on_click=clear_logs),
         ], spacing=SP_SM, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER)
 
+        # 第二排：复制/导出筛选结果
         copy_export_row = ft.Row([
-            muted("复制 / 导出", FS_XS),
             ft.TextButton("复制全部日志", icon=ft.Icons.COPY,
                           tooltip="把当前日志全部复制到剪贴板",
                           on_click=lambda e: self._copy_logs()),
@@ -10183,7 +10183,6 @@ class App:
                 ft.TextButton("清空筛选", icon=ft.Icons.FILTER_ALT_OFF,
                               on_click=lambda e: self._clear_log_filter()),
                 self.log_filter_chip,
-                self.log_follow,
             ], spacing=SP_MD, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             bgcolor=BG, border_radius=RADIUS_CTRL,
             padding=ft.padding.symmetric(horizontal=SP_MD, vertical=SP_XS))
@@ -10193,8 +10192,9 @@ class App:
                 h1i(ft.Icons.ARTICLE_OUTLINED, "日志明细", 15.5),
                 self.log_count_text,
                 ft.Container(expand=True),
+                self.log_follow,
                 self.log_status,
-            ], spacing=SP_SM, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ], spacing=SP_MD, vertical_alignment=ft.CrossAxisAlignment.CENTER),
             primary_actions,
             copy_export_row,
             filter_bar,
@@ -10208,12 +10208,14 @@ class App:
         edited_card = None
         if self._cap("smt_edited_history"):
             edited_card = card(ft.Row([
-                ft.Icon(ft.Icons.HISTORY, size=FS_MD, color=MUTED),
-                self._edited_count_text(),
-                ft.Container(expand=True),
+                ft.Row([
+                    ft.Icon(ft.Icons.HISTORY, size=FS_MD, color=MUTED),
+                    self._edited_count_text(),
+                ], spacing=SP_SM, wrap=True),
                 ft.TextButton("清空已编辑记录", icon=ft.Icons.RESTART_ALT,
                               on_click=lambda e: self._clear_edited()),
-            ], spacing=SP_SM, wrap=True, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ], spacing=SP_SM, alignment=ft.MainAxisAlignment.SPACE_BETWEEN, wrap=True,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 padding=SP_SM + 4)
 
         _log_tabs = [("运行日志", [log_card])]
@@ -17297,11 +17299,11 @@ class App:
                 self.logs_progress_text.value = text or f"Alibaba 批量处理 {done}/{total}"
             if getattr(self, "run_status", None) is not None:
                 if not total:
-                    self.run_status.value = "状态：Alibaba 批量处理中"
+                    self.run_status.value = "Alibaba 批量处理中"
                 elif done < total:
-                    self.run_status.value = f"状态：Alibaba 批量处理中 {done}/{total}"
+                    self.run_status.value = f"Alibaba 批量处理中 {done}/{total}"
                 else:
-                    self.run_status.value = "状态：空闲"
+                    self.run_status.value = "空闲"
         except Exception:
             pass
 

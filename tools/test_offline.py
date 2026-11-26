@@ -33,7 +33,7 @@ MODULES = (
     "test_licensing", "test_license_server", "test_license_compatibility",
     "test_machine_identity", "test_device_manager", "test_publish_counts",
     "test_entitlement_state", "test_relogin_after_unbind", "test_heartbeat",
-    "test_license_rev", "test_license_consistency_audit", "test_entitlement_state",
+    "test_license_rev", "test_license_consistency_audit", "test_user22_log_fixes", "test_entitlement_state",
     # TikTok Shop 刊登（task-5 接入；AURORA_TEST=1 下应全绿）
     "test_tiktok_client", "test_tiktok_payload", "test_tiktok_prompts",
     "test_tiktok_pipeline", "test_tiktok_contract", "test_tiktok_ui_page",

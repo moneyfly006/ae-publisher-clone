@@ -5,9 +5,13 @@
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
+from urllib.parse import quote
 
 import requests
+
+log = logging.getLogger(__name__)
 
 BASE = "https://www.dianxiaomi.com"
 
@@ -69,6 +73,44 @@ class DianxiaomiError(RuntimeError):
     pass
 
 
+def _sanitize_cookie_value(value) -> tuple[str, bool]:
+    """Cookie 值必须是 latin-1 可编码（requests 写 Cookie 头要求）。
+
+    生产日志：采集的 Cookie 值里有阿拉伯字符（U+063E）→
+    `'latin-1' codec can't encode character` 导致整批商品读取/自动处理失败。
+    非 latin-1 值改为 percent-encode（Cookie 头合法且服务端可还原）。
+    """
+    raw = str(value)
+    try:
+        raw.encode("latin-1")
+        return raw, False
+    except Exception:
+        return quote(raw, safe="!#$%&'()*+-./:<=>?@[]^_`{|}~"), True
+
+
+def sanitize_cookies(cookies: dict[str, str]) -> dict[str, str]:
+    """净化 Cookie 名称/值：名称非 latin-1 跳过，值非 latin-1 percent-encode。"""
+    out: dict[str, str] = {}
+    for name, value in (cookies or {}).items():
+        try:
+            cookie_name = str(name or "").strip()
+            if not cookie_name:
+                continue
+            try:
+                cookie_name.encode("latin-1")
+            except Exception:
+                log.warning("Cookie 名称含非 latin-1 字符，已跳过：%r", cookie_name[:40])
+                continue
+            clean, changed = _sanitize_cookie_value(value)
+            if changed:
+                log.warning("Cookie %s 含非 latin-1 字符，已 percent-encode 后使用",
+                            cookie_name[:40])
+            out[cookie_name] = clean
+        except Exception as ex:  # noqa: BLE001
+            log.warning("Cookie 净化失败并跳过（%s）：%s", str(name)[:24], str(ex)[:80])
+    return out
+
+
 class DianxiaomiClient:
     def __init__(self, cookies: dict[str, str], base: str = BASE, timeout: int = 20,
                  overrides: dict | None = None):
@@ -78,7 +120,8 @@ class DianxiaomiClient:
             self.endpoints.update({k: v for k, v in overrides.items() if v})
         self.timeout = timeout
         self.session = requests.Session()
-        self.session.cookies.update(cookies)
+        # 非 latin-1 Cookie 值会让 requests 写 Cookie 头时抛 UnicodeEncodeError
+        self.session.cookies.update(sanitize_cookies(cookies))
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                           "(KHTML, like Gecko) Chrome/120 Safari/537.36",

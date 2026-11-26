@@ -22,8 +22,27 @@ def _context(product):
     return tuple(str(product.get(key) or "") for key in ("id", "shopId", "categoryId"))
 
 
+def _context_matches(left, right) -> bool:
+    """商品身份一致：id 必须都有且相同；店铺/类目只在双方都有值时才比较。
+
+    采集箱 raw 与详情 product_detail 来自不同来源，raw 常常没有 shopId/categoryId，
+    以前直接做 tuple 相等会把正常的同商品修复误判成「规格发生变化」。
+    """
+    try:
+        lctx = _context(left)
+        rctx = _context(right)
+    except Exception:
+        return False
+    if not lctx[0] or not rctx[0] or str(lctx[0]) != str(rctx[0]):
+        return False
+    for i in (1, 2):
+        if lctx[i] and rctx[i] and str(lctx[i]) != str(rctx[i]):
+            return False
+    return True
+
+
 def _validate_source(target, source):
-    if not all(_context(target)) or _context(target) != _context(source):
+    if not _context_matches(target, source):
         raise ValueError("恢复来源的商品、店铺或类目不一致")
     rows = sku_rows(source.get("aeopAeProductSKUs"))
     current = sku_rows(target.get("aeopAeProductSKUs"))
@@ -172,28 +191,68 @@ def recover_skus(product, client=None, directory=None):
     return result, ""
 
 
+def _drop_repair(product):
+    """清掉失效的旧修复结果，避免下次保存再复用同一个坏 repair。"""
+    try:
+        product.pop("_sku_spec_repair", None)
+    except Exception:
+        pass
+
+
 def apply_sku_repair(target, product):
-    """Reapply a proven repair after re-fetch, rejecting concurrent specification changes."""
+    """Reapply a proven repair after re-fetch.
+
+    关键修复（生产日志：20/20 商品全失败）：
+    - `repair["before"]` 来自采集箱 raw，`target` 来自 product_detail，两个来源的
+      SKU 行/上下文天然可能不同；**不再**用 target 与 repair["before"] 做规格签名比较，
+      否则同商品也会被误判为「保存前商品规格发生变化」。
+    - 仍保留商品/店铺/类目上下文校验（双方都有值时才比较）；
+    - 目标规格无效时直接按已验证的 repair source 修复（_replace/_validate_source
+      会校验同商品、SKU 编码完整覆盖、真实规格属性）；
+    - 修复结果编码对不上时给可操作错误并清空旧 repair，避免无限复用坏结果。
+    """
     repair = product.get("_sku_spec_repair")
-    if not repair:
+    if not repair or not isinstance(repair, dict):
         return target
+    before = repair.get("before") or {}
+    source = repair.get("source") or {}
     current = sku_rows(target.get("aeopAeProductSKUs"))
     try:
         validate_sku_combinations(current)
     except ValueError:
-        def signatures(value):
-            rows = sku_rows(value.get("aeopAeProductSKUs"))
-            return sorted((str(row.get("skuCode")), json.dumps(row.get("aeopSKUProperty"), sort_keys=True)) for row in rows)
-        if _context(target) != _context(repair["before"]) or signatures(target) != signatures(repair["before"]):
-            raise ValueError("保存前商品规格发生变化，已停止使用旧的修复结果，请重新读取")
+        # 目标规格本身无效（重复/缺属性）→ 需要用已验证的修复结果
+        if not (_context_matches(target, before) or _context_matches(target, source)):
+            _drop_repair(product)
+            raise ValueError(
+                "旧规格修复结果与当前商品/店铺/类目不一致，已清除该修复结果；"
+                "请重新读取商品后再保存")
         if repair.get("merged"):
+            try:
+                rows = sku_rows(source.get("aeopAeProductSKUs"))
+                validate_sku_combinations(rows)
+                source_codes = set(_codes(rows))
+                target_codes = set(_codes(current))
+                if not source_codes or not source_codes <= target_codes:
+                    raise ValueError("SKU 编码不一致")
+            except Exception as error:
+                _drop_repair(product)
+                raise ValueError(
+                    "旧规格修复结果已失效（SKU 编码与当前商品不匹配），已清除该修复结果；"
+                    "请重新读取商品后再保存") from error
             # 合并修复：修复后的行集就是最终要保存的行集（数量可能少于平台当前行）
             fixed = deepcopy(target)
-            fixed["aeopAeProductSKUs"] = deepcopy(sku_rows(
-                (repair["source"] or {}).get("aeopAeProductSKUs")))
-            validate_sku_combinations(fixed["aeopAeProductSKUs"])
+            fixed["aeopAeProductSKUs"] = deepcopy(rows)
             return fixed
-        return _replace(target, repair["source"])
-    # Prefer valid fresh platform data over a historical repair.
-    _validate_source(repair["source"], target)
+        try:
+            return _replace(target, source)
+        except Exception as error:  # noqa: BLE001
+            _drop_repair(product)
+            raise ValueError(
+                f"旧规格修复结果已失效（{str(error)[:60]}），已清除该修复结果；"
+                "请重新读取商品后再保存") from error
+    # 平台最新数据本身有效：优先用它；旧 repair 与当前商品不再匹配时清掉即可
+    try:
+        _validate_source(target, source)
+    except Exception:
+        _drop_repair(product)
     return target

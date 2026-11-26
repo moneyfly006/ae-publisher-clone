@@ -78,15 +78,68 @@ class RecoveryTests(unittest.TestCase):
             self.assertIn("自动合并", note)
             validate_sku_combinations(product["_source_sku_rows"])
 
-    def test_concurrent_spec_change_before_save_is_rejected(self):
-        raw=detail(True); raw["smtProductSkuList"]=detail()["aeopAeProductSKUs"]
+    def test_cross_source_spec_difference_is_repaired_not_rejected(self):
+        """task-33：采集箱 raw 与详情 target 来源不同，不得误报「规格发生变化」。"""
+        raw = detail(True)
+        raw["shopId"] = ""          # 采集箱 raw 常常没有店铺/类目
+        raw["categoryId"] = ""
+        raw["smtProductSkuList"] = detail()["aeopAeProductSKUs"]
         with tempfile.TemporaryDirectory() as folder:
-            product, _=recover_skus(hydrate_product({"id":"product"},raw), directory=folder)
-        target=detail(True)
+            product, _ = recover_skus(hydrate_product({"id": "product"}, raw),
+                                      directory=folder)
+        target = detail(True)
         for row in target["aeopAeProductSKUs"]:
-            row["aeopSKUProperty"][0]["propertyValueId"]=3
-        with self.assertRaisesRegex(ValueError,"规格发生变化"):
-            apply_sku_repair(target,product)
+            row["aeopSKUProperty"][0]["propertyValueId"] = 3   # 与 raw 不同的规格值
+        repaired = apply_sku_repair(target, deepcopy(product))
+        rows = repaired["aeopAeProductSKUs"]
+        validate_sku_combinations(rows)
+        self.assertEqual([r["aeopSKUProperty"][0]["propertyValueId"] for r in rows], [1, 2])
+
+    def test_real_context_mismatch_is_still_rejected(self):
+        raw = detail(True)
+        raw["smtProductSkuList"] = detail()["aeopAeProductSKUs"]
+        with tempfile.TemporaryDirectory() as folder:
+            product, _ = recover_skus(hydrate_product({"id": "product"}, raw),
+                                      directory=folder)
+        other = detail(True)
+        other["id"] = "other-product"
+        with self.assertRaisesRegex(ValueError, "不一致"):
+            apply_sku_repair(other, deepcopy(product))
+
+    def test_broken_repair_is_cleared_with_actionable_error(self):
+        raw = detail(True)
+        raw["smtProductSkuList"] = detail()["aeopAeProductSKUs"]
+        with tempfile.TemporaryDirectory() as folder:
+            product, _ = recover_skus(hydrate_product({"id": "product"}, raw),
+                                      directory=folder)
+        broken = deepcopy(product)
+        broken["_sku_spec_repair"] = {
+            "before": {"id": "product", "aeopAeProductSKUs": detail(True)["aeopAeProductSKUs"]},
+            "source": {**detail(True), "aeopAeProductSKUs": [
+                dict(detail(True)["aeopAeProductSKUs"][0], skuCode="X"),
+                dict(detail(True)["aeopAeProductSKUs"][1], skuCode="Y")]},
+        }
+        with self.assertRaisesRegex(ValueError, "已清除"):
+            apply_sku_repair(detail(True), broken)
+        self.assertNotIn("_sku_spec_repair", broken)
+
+    def test_merged_repair_applies_verified_rows(self):
+        raw = detail(True)
+        raw["smtProductSkuList"] = detail()["aeopAeProductSKUs"]
+        with tempfile.TemporaryDirectory() as folder:
+            product, _ = recover_skus(hydrate_product({"id": "product"}, raw),
+                                      directory=folder)
+        merged = deepcopy(product)
+        source_rows = [dict(detail()["aeopAeProductSKUs"][0])]
+        merged["_sku_spec_repair"] = {
+            "before": {"id": "product", "aeopAeProductSKUs": detail(True)["aeopAeProductSKUs"]},
+            "source": {"id": "product", "shopId": "shop", "categoryId": "123",
+                       "aeopAeProductSKUs": source_rows},
+            "merged": True,
+        }
+        fixed = apply_sku_repair(detail(True), merged)
+        self.assertEqual([r["skuCode"] for r in fixed["aeopAeProductSKUs"]], ["A"])
+        validate_sku_combinations(fixed["aeopAeProductSKUs"])
 
 
 if __name__ == "__main__": unittest.main(verbosity=2)

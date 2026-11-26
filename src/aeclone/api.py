@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from pathlib import Path
 from typing import Iterable
 
@@ -145,18 +147,58 @@ class ApiClient:
         return {"limit": limit, "used": used, "remain": max(0.0, limit - used)}
 
     # ---------- 文本 ----------
+    # 文本请求重试：AI 网关偶发 timeout/429/5xx；默认重试 2 次（指数退避）。
+    RETRIES = 2
+    RETRY_STATUS = (429, 500, 502, 503, 504)
+    RETRY_EXCEPTIONS = (requests.exceptions.Timeout,
+                        requests.exceptions.ConnectionError,
+                        requests.exceptions.ChunkedEncodingError,
+                        requests.exceptions.SSLError)
+
+    def _retry_count(self) -> int:
+        try:
+            raw = str(os.environ.get("AURORA_AI_RETRIES", "") or "").strip()
+            if raw:
+                return max(0, min(5, int(raw)))
+        except Exception:
+            pass
+        return max(0, int(getattr(self, "RETRIES", 2) or 0))
+
     def chat(self, model: str, messages: list[dict], temperature: float = 0.6, max_tokens: int = 2048) -> str:
-        payload = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
-        r = self.session.post(
-            self._url("/v1/chat/completions"),
-            headers=self._headers({"Content-Type": "application/json"}),
-            data=json.dumps(payload).encode(),
-            timeout=self.timeout,
-        )
-        if r.status_code >= 400:
-            raise ApiError(self._extract_error(r), r.status_code, r.text[:500])
-        data = r.json()
-        return (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+        payload = {"model": model, "messages": messages,
+                   "temperature": temperature, "max_tokens": max_tokens}
+        attempts = self._retry_count()
+        last_error: Exception | None = None
+        for attempt in range(attempts + 1):
+            try:
+                r = self.session.post(
+                    self._url("/v1/chat/completions"),
+                    headers=self._headers({"Content-Type": "application/json"}),
+                    data=json.dumps(payload).encode(),
+                    timeout=self.timeout,
+                )
+            except self.RETRY_EXCEPTIONS as ex:  # 超时/连接中断：退避后重试
+                last_error = ex
+                if attempt < attempts:
+                    time.sleep(min(4.0, 0.8 * (attempt + 1)))
+                    continue
+                raise ApiError(
+                    "AI 请求失败（网络超时/连接异常，已重试 "
+                    f"{attempt} 次）：{str(ex)[:120]}", 0, "") from ex
+            if r.status_code >= 400:
+                msg = self._extract_error(r)
+                last_error = ApiError(msg, r.status_code, r.text[:500])
+                if r.status_code in self.RETRY_STATUS and attempt < attempts:
+                    time.sleep(min(4.0, 0.8 * (attempt + 1)))
+                    continue
+                raise last_error
+            try:
+                data = r.json()
+            except Exception as ex:  # noqa: BLE001
+                raise ApiError(f"AI 响应不是 JSON：{str(ex)[:80]}",
+                               r.status_code, r.text[:300]) from ex
+            return (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+        raise ApiError(str(last_error or "AI 请求失败"))
 
     def pricing(self, force: bool = False) -> list[dict]:
         """公开价格表（无需鉴权，缓存 5 分钟）。"""

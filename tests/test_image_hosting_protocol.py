@@ -137,8 +137,11 @@ def t3_cache_no_double_upload():
 
 
 def t4_bad_key_raises():
-    print("\n[测试4] 两种协议都失败 → 抛 HostError")
+    print("\n[测试4] 两种协议都失败 → 抛 HostError（含默认图床回退也失败）")
     srv, base = _serve("none")
+    old_host, old_key = H.DEFAULT_HOST, H.DEFAULT_KEY
+    # 让「回退默认图床」也指向这个失败的本机服务，避免真连外网
+    H.DEFAULT_HOST, H.DEFAULT_KEY = base, "k"
     try:
         H._CACHE.clear()
         try:
@@ -146,8 +149,10 @@ def t4_bad_key_raises():
             raise AssertionError("应当抛 HostError")
         except H.HostError as ex:
             assert "上传失败" in str(ex)
+            assert "HTTP 500" in str(ex) or "最后错误" in str(ex), str(ex)
             print("  ✓", str(ex)[:60])
     finally:
+        H.DEFAULT_HOST, H.DEFAULT_KEY = old_host, old_key
         srv.shutdown()
 
 
