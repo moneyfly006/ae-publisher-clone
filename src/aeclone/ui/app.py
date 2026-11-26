@@ -11056,7 +11056,7 @@ class App:
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
         self.host_status = ft.Text("", size=12.5, color=MUTED)
         self.host_keep = ft.TextField(
-            label="保留天数（清理时删更早的）", width=210,
+            label="保留天数（清理图床旧图）", width=210,
             value=str(getattr(self.cfg, "host_keep_days", 7)),
             bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
 
@@ -11161,7 +11161,9 @@ class App:
             muted("图片上传失败、或想换成自己的图床时改这里（默认 image.moneyfly.club）", 11),
             muted("AI 出图先放这里，店小秘编辑器再按 URL 取图。"
                   "AI 返回的是约 1 天过期的临时地址，不能直接写进商品。"),
-            ft.Row([self.host_keep, ft.ElevatedButton("清理旧图", icon=ft.Icons.DELETE_SWEEP,
+            muted("这里只管理图床上的图片：清理旧图按保留天数删除图床旧图，"
+                  "不会清理店小秘图片空间。视频不支持传到图床，统一走店小秘视频上传。"),
+            ft.Row([self.host_keep, ft.ElevatedButton("清理旧图（图床）", icon=ft.Icons.DELETE_SWEEP,
                                                      on_click=lambda e: clean_host())],
                    spacing=8, wrap=True),
             ft.Row([ft.ElevatedButton("保存", icon=ft.Icons.SAVE, bgcolor=ACCENT, color=ON_ACCENT,
