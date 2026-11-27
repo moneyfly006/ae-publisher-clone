@@ -555,6 +555,18 @@ class AmazonClient:
         data = d.get("data")
         return data if isinstance(data, dict) else {}
 
+    def search_categories(self, site_code: str, keyword: str) -> list[dict]:
+        """按关键词搜索 Amazon 类目；返回包含 nodePathId 的候选项。"""
+        query = str(keyword or "").strip()
+        if not query:
+            return []
+        d = self._post("/api/amazonProductSp/searchCategory.json",
+                       {"site": str(site_code), "category": query})
+        data = d.get("data") if isinstance(d, dict) else d
+        if isinstance(data, dict):
+            data = data.get("list") or data.get("categoryList") or []
+        return [n for n in data if isinstance(n, dict)] if isinstance(data, list) else []
+
     def category_history(self, shop_id: str, site_code: str) -> list[dict]:
         d = self._post("/api/amazonProductSp/listHistory.json",
                        {"shopId": str(shop_id), "site": str(site_code)})
@@ -707,6 +719,25 @@ def _banned_hits(raw) -> list[str]:
             seen.add(h)
             out.append(h)
     return out[:20]
+
+
+def is_node_path(value: str) -> bool:
+    """Amazon nodePath 必须是数字节点 ID 路径，不能是展示用类目名称。"""
+    text = str(value or "").strip()
+    if not text:
+        return False
+    parts = [x.strip() for x in text.replace(">", "/").split("/") if x.strip()]
+    return bool(parts) and all(x.isdigit() for x in parts)
+
+
+def category_node_path(node: dict) -> str:
+    """从类目节点取可校验的 nodePath；取不到返回空串。"""
+    node = node or {}
+    for key in ("nodePathId", "nodePath", "node_path", "path"):
+        value = str(node.get(key) or "").strip()
+        if is_node_path(value):
+            return value
+    return ""
 
 
 def is_leaf_category(node: dict) -> bool:

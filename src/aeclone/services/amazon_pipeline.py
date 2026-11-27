@@ -24,7 +24,8 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from ..integrations.amazon import is_leaf_category, parse_required_attrs
+from ..integrations.amazon import (is_leaf_category, is_node_path,
+                                     category_node_path, parse_required_attrs)
 from .amazon_payload import (
     BULLET_MAX_ITEMS, DESCRIPTION_MAX_BYTES, REQUIRED_COMMON,
     SEARCH_TERMS_MAX_CHARS, TITLE_MAX, attribute_present, attribute_value_text,
@@ -177,6 +178,10 @@ def _site_code(meta: dict) -> str:
 
 
 def _check_category_path(client, code, path):
+    # 商品自带 categoryBrowsePath 可能是展示名称，不是 nodePath；这种情况
+    # 不能拿去做远程路径校验，改用商品 categoryId。
+    if path and not is_node_path(path):
+        return {}, ""
     try:
         node = client.category_by_path(code, path)
     except Exception as exc:
@@ -1089,7 +1094,7 @@ def _schema_category_id(client, category_id: str, category_path: str,
                          site_code: str) -> str:
     """getAttrJsUrl 需要类目内部 id；节点 id（7205…）会报没有此分类。"""
     try:
-        if category_path and site_code:
+        if category_path and is_node_path(category_path) and site_code:
             node = client.category_by_path(str(site_code), str(category_path)) or {}
             internal = str(node.get("id") or "").strip()
             if internal:
@@ -1152,7 +1157,7 @@ def prepare_save(product_id: str, cfg, overrides: dict | None = None,
             template["_product"] = _tp
             if not _cat:
                 ov["category_id"] = str(_tp.get("categoryId") or "")
-                ov["category_path"] = str(_tp.get("categoryBrowsePath") or "")
+                ov["category_path"] = category_node_path(_tp)
     except Exception:
         pass
     filled: dict = {}
@@ -1335,7 +1340,7 @@ def run_amazon_product(product_id: str, cfg, overrides: dict | None = None,
                 _tpl_product = _tpl_detail.get("product", _tpl_detail)
                 if not _cat_id:
                     ov["category_id"] = str(_tpl_product.get("categoryId") or "")
-                    ov["category_path"] = str(_tpl_product.get("categoryBrowsePath") or "")
+                    ov["category_path"] = category_node_path(_tpl_product)
                 _step(res, "模板检测", True,
                       f"模板 {_tpl_id} · 类目 {_tpl_product.get('categoryId') or '-'}"
                       f" · 必填 {len(_schema_req)} 项")

@@ -13868,7 +13868,8 @@ class App:
         """Amazon 刊登六张卡片（契约 §4.3）；所有回调 try/except + toast，不抛到界面。"""
         import json as _json
         from copy import deepcopy
-        from ..integrations.amazon import is_leaf_category, product_scope_issue
+        from ..integrations.amazon import (is_leaf_category, is_node_path,
+                                            category_node_path, product_scope_issue)
         from ..services.listing_failures import review_only
         view_token = object()
         if single:
@@ -14284,6 +14285,10 @@ class App:
             label="类目路径 nodePath（可粘贴校验，如 6299024011/6256963011/13553005011）",
             width=520, dense=True, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value=str(_cget("amazon_category_path", "") or ""))
+        cat_search_tf = ft.TextField(
+            label="关键词搜索类目（例如 Sprayers / 喷雾器）", width=360, dense=True,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT)
+        cat_search_box = ft.Column(spacing=3)
         cat_hist_dd = ft.Dropdown(label="最近使用类目", width=380, bgcolor=CARD_2,
                                   border_color=CARD_2, color=TEXT, options=[])
         cat_status = ft.Text("先连接并选择站点，再加载类目", size=12.5, color=MUTED,
@@ -14755,7 +14760,9 @@ class App:
         def _set_category(node, path=""):
             node = node or {}
             cid = str(node.get("categoryId") or node.get("id") or "")
-            npath = str(path or node.get("nodePath") or node.get("nodePathId") or cid)
+            npath = str(path or category_node_path(node) or "").strip()
+            if not is_node_path(npath):
+                npath = ""
             name = str(node.get("categoryName") or node.get("chineseName") or "")
             form["category_id"] = cid
             form["category_path"] = npath
@@ -15220,6 +15227,11 @@ class App:
             predict_text.value = ""
             cat_root_dd.value = None
             cat_child_box.controls.clear()
+            try:
+                cat_search_tf.value = ""
+                cat_search_box.controls = []
+            except Exception:
+                pass
             cat_status.value = "可按需选择末级类目"
             _refresh_missing_hint([])
             _cset("amazon_last_category_required", "")
@@ -15277,8 +15289,12 @@ class App:
                 pass
             # 类目（商品自带类目：原样填充，切站点时才清空）
             cid = str(_pick(p, "categoryId", "category_id"))
-            cpath = str(_pick(p, "categoryBrowsePath", "category_browse_path",
-                              "category_path"))
+            # categoryBrowsePath 可能是展示名称，不能当 nodePath；只接受数字路径。
+            cpath = str(_pick(p, "nodePathId", "node_path_id", "nodePath",
+                              "node_path", "categoryBrowsePath",
+                              "category_browse_path") or "").strip()
+            if not is_node_path(cpath):
+                cpath = ""
             cname = str(_pick(p, "categoryName") or
                         (d.get("categoryName") if isinstance(d, dict) else "") or "")
             if cid and cid.lower() not in ("none", "null"):
@@ -15432,6 +15448,55 @@ class App:
                     _ui()
             threading.Thread(target=work, daemon=True).start()
 
+        def search_categories(e=None):
+            keyword = str(getattr(cat_search_tf, "value", "") or "").strip()
+            code = str(_cget("amazon_site_code", "") or "")
+            if not code:
+                _status(cat_status, "先选择站点，再搜索类目", WARN_C)
+                return
+            if not keyword:
+                _status(cat_status, "请输入关键词，例如 Sprayers / 喷雾器", WARN_C)
+                return
+            _status(cat_status, f"正在搜索「{keyword}」…", MUTED)
+            target = category_context()
+
+            def work():
+                try:
+                    c = _client()
+                    rows = c.search_categories(code, keyword) or []
+                    if not category_current(target):
+                        return
+                    boxes = []
+                    for n in rows:
+                        cid = str(n.get("categoryId") or n.get("id") or "")
+                        if not cid:
+                            continue
+                        name = str(n.get("chineseName") or n.get("categoryName") or cid)
+                        en = str(n.get("categoryName") or "")
+                        leaf = is_leaf_category(n)
+                        label = f"{name}" + (f" / {en}" if en and en != name else "")
+                        label += f"（{cid}）" + (" · 末级" if leaf else " · 有下级")
+                        def _choose(ev, _n=n, _leaf=leaf):
+                            _pick_category_node(_n, _leaf)
+                        boxes.append(ft.Row([
+                            ft.Icon(ft.Icons.CATEGORY_OUTLINED if leaf
+                                    else ft.Icons.FOLDER_OPEN, size=14, color=MUTED),
+                            ft.Text(label, size=12, color=TEXT, expand=True),
+                            ft.OutlinedButton("选择" if leaf else "下级",
+                                              on_click=_choose),
+                        ], spacing=8))
+                    cat_search_box.controls = boxes or [
+                        muted(f"没有找到「{keyword}」，换英文/中文关键词试试", 11)]
+                    _status(cat_status,
+                            f"搜索到 {len(boxes)} 个类目；选择末级类目后保存",
+                            SUCCESS_C if boxes else WARN_C)
+                except Exception as ex:
+                    cat_search_box.controls = [muted(f"搜索失败：{str(ex)[:120]}", 11)]
+                    _status(cat_status, f"搜索类目失败：{str(ex)[:150]}", DANGER_C)
+                finally:
+                    _ui()
+            threading.Thread(target=work, daemon=True).start()
+
         def _children(parent_id, parent=None):
             code = str(_cget("amazon_site_code", "") or "")
             if not code:
@@ -15507,7 +15572,7 @@ class App:
             if not node:
                 return
             category_context()
-            path = str(node.get("categoryBrowsePath") or "")
+            path = category_node_path(node)
             _set_category({"categoryId": node.get("categoryId"),
                            "categoryName": node.get("categoryName")}, path)
             try:
@@ -16897,12 +16962,18 @@ class App:
         cat_card = card(ft.Column([
             h1i(ft.Icons.CATEGORY_OUTLINED, "③ 站点与类目", FS_MD),
             site_now,
-            muted("逐级下钻或「最近使用类目」选择末级类目；保存前会校验站点与类目。"
-                  "切换站点后原类目会清空（除非商品原本就在该站点）。"),
+            muted("可直接用关键词搜索类目，或逐级下钻/最近使用类目选择末级类目；"
+                  "不需要输入 nodePath。保存前会校验站点与类目。切换站点后原类目会清空。"),
             ft.Row([cat_root_dd,
                     ft.OutlinedButton("加载类目", icon=ft.Icons.REFRESH,
                                       on_click=load_categories),
                     cat_hist_dd], spacing=10, wrap=True),
+            ft.Row([cat_search_tf,
+                    ft.ElevatedButton("搜索类目", icon=ft.Icons.SEARCH,
+                                      bgcolor=ACCENT, color=ON_ACCENT,
+                                      on_click=lambda e: search_categories())],
+                   spacing=10, wrap=True),
+            cat_search_box,
             cat_crumb,
             cat_child_box,
             ft.Row([ft.OutlinedButton("AI/平台推荐产品类型", icon=ft.Icons.AUTO_AWESOME,

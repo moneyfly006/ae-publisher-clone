@@ -15,7 +15,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from aeclone.integrations.amazon import (
     AmazonClient, AmazonError, AmazonNotReady, SAVE_NAME, extract_list,
-    normalize_product, parse_cookie, parse_required_attrs,
+    is_node_path, normalize_product, parse_cookie, parse_required_attrs,
 )
 
 BASE = "https://www.dianxiaomi.com"
@@ -213,6 +213,19 @@ class CategoryAndAuxTests(unittest.TestCase):
         self.assertEqual(roots[0]["id"], 166)
         self.assertEqual(calls[0]["data"], {"site": "CA", "parentId": "0"})
         self.assertEqual(calls[1]["data"], {"site": "CA", "parentId": "188"})
+
+    def test_search_categories_uses_keyword_endpoint(self):
+        c = AmazonClient("a=1")
+        node = {"id": 166, "categoryId": "6257158011", "categoryName": "Sprayers",
+                "chineseName": "喷雾器", "nodePathId": "6299/6257/6257158011",
+                "leafCategory": True}
+        calls = install_responses(self, [ok([node])])
+        rows = c.search_categories("CA", "Sprayers")
+        self.assertEqual(rows[0]["categoryId"], "6257158011")
+        self.assertIn("/api/amazonProductSp/searchCategory.json", calls[0]["url"])
+        self.assertEqual(calls[0]["data"], {"site": "CA", "category": "Sprayers"})
+        self.assertTrue(is_node_path("6299/6257/6257158011"))
+        self.assertFalse(is_node_path("Patio, Lawn & Garden/Sprayers"))
 
     def test_category_by_path(self):
         c = AmazonClient("a=1")

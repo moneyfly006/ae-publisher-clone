@@ -109,7 +109,7 @@ class FakeClient:
 
     def category_by_path(self, site_code, node_path):
         self.category_queries.append((site_code, node_path))
-        if "bad" in node_path:
+        if "bad" in node_path or node_path == "123/999":
             raise RuntimeError("分类数据加载失败")
         return {"id": 159365, "categoryId": "13553005011", "chineseName": "反铲"}
 
@@ -357,7 +357,7 @@ class RunDryRunTests(EnvIsolatedCase):
         fake = FakeClient()
         res = run_amazon_product(
             "220114595363182310", AppConfig(), client=fake, dry_run=True,
-            overrides={"category_path": "bad/path"})
+            overrides={"category_path": "123/999"})
         self.assertFalse(res.ok)
         self.assertTrue(any("类目路径" in i for i in res.issues))
 
