@@ -210,7 +210,6 @@ PLATFORM_CAPS: dict[str, dict[str, bool]] = {
         "smt_diff_preview": False,      # 概览「改前后对比」（SMT 管线预览）
         "smt_run_stop": False,          # 任务与日志「停止任务」（SMT 批量任务）
         "smt_edited_history": False,    # 任务与日志「已编辑记录 / 清空已编辑记录」
-        "image_settings": False,        # 设置「图片与模型」tab（Amazon v1 不处理图片上传）
         "video_tools": False,           # ffmpeg 下载/诊断/启动提示（Amazon 无视频功能）
         "smt_wizard": False,            # 首次引导（模板产品/模板来源）
         "smt_conflicts": False,         # 概览「配置冲突 / 检查配置冲突」（SMT 设置规则）

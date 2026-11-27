@@ -22,7 +22,7 @@ from aeclone.ui import app as ui  # noqa: E402
 AMAZON_ONLY_CAPS = (
     "smt_store_selector", "smt_pipeline_actions", "smt_pipeline_stats",
     "smt_diff_preview", "smt_run_stop", "smt_edited_history",
-    "image_settings", "video_tools", "smt_wizard", "smt_conflicts",
+    "video_tools", "smt_wizard", "smt_conflicts",
 )
 # 复用已有 cap（Alibaba 本来就 False）：Amazon 也隐藏
 def controls(app):
@@ -107,24 +107,23 @@ class AmazonPlatformUiFilterTests(unittest.TestCase):
                       "Amazon 日志页副标题应替换为 Amazon 文案")
 
     # ---------- D. 设置：图片与模型 / ffmpeg ----------
-    def test_amazon_settings_hides_image_tab_and_ffmpeg(self):
+    def test_amazon_settings_keeps_image_tab_and_hides_ffmpeg(self):
         self.app._switch_platform("amazon")
         self.app._switch(11)
         tabs = find_tabs(self.app)
         self.assertEqual([t.text for t in tabs.tabs],
-                         ["账号与连接", "界面", "维护与诊断"],
-                         "Amazon 设置应隐藏「图片与模型」tab")
-        self.assertNotIn("图片与模型", [t.text for t in tabs.tabs])
+                         ["账号与连接", "图片与模型", "界面", "维护与诊断"],
+                         "Amazon 设置应像速卖通一样保留「图片与模型」tab")
+        self.assertIn("图片与模型", [t.text for t in tabs.tabs])
         ff = [b for b in buttons(self.app)
               if "ffmpeg" in str(getattr(b, "text", ""))]
         self.assertFalse(any(bool(getattr(b, "visible", True)) for b in ff),
                          "Amazon 不应显示 ffmpeg 下载按钮")
         current = texts(self.app)
         self.assertIn("诊断（出问题时再点）", current, "其它诊断项应保留")
-        # 设置副标题去掉「图片服务」
-        self.assertIn("管理 API、授权、界面与维护", current,
-                      "Amazon 设置副标题应去掉「图片服务」")
-        self.assertFalse(any("图片服务" in t for t in current))
+        # 设置副标题恢复「图片服务」
+        self.assertTrue(any("图片服务" in t for t in current),
+                        "Amazon 设置副标题应恢复「图片服务」")
         # 已移除多开实例/任务配置卡片
         self.assertFalse(any("多开 / 多任务" in t for t in current))
         self.assertFalse(any("任务队列与定时发布" in t for t in current))

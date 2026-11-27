@@ -6,7 +6,7 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from aeclone.config import AppConfig  # noqa: E402
 from aeclone.services import (FIXED_MODELS, AI_MODEL_KEYS, model_of,  # noqa: E402
-                              ImageService, FALLBACK_IMAGE_MODEL)
+                              ImageService, FALLBACK_IMAGE_MODEL, models_for)
 
 FAILED = []
 
@@ -32,6 +32,17 @@ def main():
     cfg = AppConfig()
     check("默认文本模型", model_of(cfg, "text") == FIXED_MODELS["text"], model_of(cfg, "text"))
     check("默认视觉模型", model_of(cfg, "vision") == FIXED_MODELS["vision"])
+    # 任务模型白名单：文案不出现图片模型，文生图不出现文本模型，图片编辑不含 z-image
+    text_models = models_for("text")
+    image_edit_models = models_for("image_edit")
+    image_gen_models = models_for("image_gen")
+    check("文案只列文本模型", "qwen-plus" in text_models and
+          "qwen-image-2.1-turbo" not in text_models, text_models)
+    check("视觉只列视觉模型", models_for("vision") == ["qwen3-vl-plus"], models_for("vision"))
+    check("图片编辑排除文生图模型", "qwen-image-2.1-turbo" in image_edit_models and
+          "z-image-turbo" not in image_edit_models, image_edit_models)
+    check("文生图只列生成模型", "z-image-turbo" in image_gen_models and
+          "qwen-plus" not in image_gen_models, image_gen_models)
     cfg.set("ai_model_text", "qwen-turbo")
     check("文本模型可覆盖", model_of(cfg, "text") == "qwen-turbo", model_of(cfg, "text"))
     cfg = AppConfig()

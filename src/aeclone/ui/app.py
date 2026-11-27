@@ -11254,7 +11254,7 @@ class App:
 
         # ---------------- 模型（默认固定，可逐任务选择） ----------------
         from ..services import (FIXED_MODELS, FIXED_MODEL_LABELS, AI_MODEL_KEYS,
-                                model_of)
+                                model_of, model_supported)
         self.model_status = ft.Text(
             "每个任务只给一个模型标「推荐」；选择其他模型后严格按所选模型运行。"
             "价格见下方「模型价格」。", size=12.5, color=MUTED)
@@ -11263,6 +11263,10 @@ class App:
 
         def _model_save(kind, e=None):
             val = str(getattr(e.control, "value", "") or "").strip()
+            if val and not model_supported(kind, val):
+                self.toast(f"该模型不支持当前任务：{val}", False)
+                self._refresh_ai_model_dropdowns()
+                return
             self.cfg.set(AI_MODEL_KEYS[kind], val)
             save_config(self.cfg)
             try:
@@ -20369,32 +20373,21 @@ class App:
         dropdowns = getattr(self, "ai_model_dropdowns", None) or {}
         if not dropdowns:
             return
-        from ..services import FIXED_MODELS, AI_MODEL_KEYS, TEXT_TO_IMAGE_ONLY
+        from ..services import (FIXED_MODELS, AI_MODEL_KEYS, model_supported,
+                                models_for)
         rows = getattr(self, "ai_price_rows", None) or []
         price = {str(r.get("model") or ""): r for r in rows}
         for kind, dd in dropdowns.items():
             key = AI_MODEL_KEYS.get(kind)
             rec = FIXED_MODELS.get(kind, "")
             cur = (str(getattr(self.cfg, key, "") or "").strip() if key else "") or rec
-            names = []
-            # 推荐模型永远排第一，只有它带「推荐」标记
-            if rec:
-                names.append(rec)
-            for row in sorted(rows, key=lambda x: str(x.get("model") or "")):
-                name = str(row.get("model") or "").strip()
-                if not name or name in names:
-                    continue
-                if kind in ("image_edit", "image_prompt", "marketing")                         and name in TEXT_TO_IMAGE_ONLY:
-                    continue
-                names.append(name)
-            for fixed in dict.fromkeys(FIXED_MODELS.values()):
-                if (kind in ("image_edit", "image_prompt", "marketing")
-                        and fixed in TEXT_TO_IMAGE_ONLY):
-                    continue
-                if fixed and fixed not in names:
-                    names.append(fixed)
-            if cur and cur not in names:
-                names.append(cur)
+            names = models_for(kind, [str(r.get("model") or "") for r in rows])
+            # 旧配置里若是不兼容模型，回落到推荐模型，避免下拉显示非法选项。
+            if cur not in names:
+                cur = rec
+                if key:
+                    self.cfg.set(key, cur)
+                    save_config(self.cfg)
             opts = []
             for name in names:
                 r = price.get(name) or {}
@@ -20407,9 +20400,6 @@ class App:
                 else:
                     suffix = ""
                 mark = " · 推荐" if name == rec else ""
-                if (kind in ("image_edit", "image_prompt", "marketing")
-                        and name in TEXT_TO_IMAGE_ONLY):
-                    mark = " · 不支持图片编辑"
                 opts.append(ft.dropdown.Option(name, f"{name}{suffix}{mark}"))
             try:
                 dd.options = opts

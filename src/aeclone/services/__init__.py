@@ -48,6 +48,44 @@ FIXED_MODELS = {
 # 只支持 /images/generations（文生图），不能用于 /images/edits（图片编辑）。
 TEXT_TO_IMAGE_ONLY = {"z-image-turbo"}
 
+# 每个任务槽位允许的模型白名单。下拉框只展示这些模型，避免把文生图/
+# 文本模型误选到图片编辑等不兼容任务。
+MODEL_CAPABILITIES = {
+    "qwen-plus": {"text"},
+    "qwen-turbo": {"text"},
+    "deepseek-chat": {"text"},
+    "deepseek-reasoner": {"text"},
+    "codex-auto-review": {"text"},
+    "qwen3-vl-plus": {"vision"},
+    "qwen-image-2.1-turbo": {"image_edit", "image_prompt", "marketing", "image_gen"},
+    "qwen-image-3.0": {"image_edit", "image_prompt", "marketing", "image_gen"},
+    "z-image-turbo": {"image_gen"},
+    "gpt-image-1": {"image_edit", "image_prompt", "marketing", "image_gen"},
+    "gpt-image-1.5": {"image_edit", "image_prompt", "marketing", "image_gen"},
+    "gpt-image-2": {"image_edit", "image_prompt", "marketing", "image_gen"},
+    "gpt-image-2.5-sunburst": {"image_edit", "image_prompt", "marketing", "image_gen"},
+}
+for _gpt in ("gpt-5.2", "gpt-5.4", "gpt-5.4-mini", "gpt-5.5", "gpt-5.6",
+             "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6",
+             "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol",
+             "gpt-6.1-terra", "gpt-6.2-astra", "gpt-6.2-sol"):
+    MODEL_CAPABILITIES[_gpt] = {"text"}
+
+
+def model_supported(kind: str, name: str) -> bool:
+    """该模型是否允许用于指定任务槽位。"""
+    return str(kind or "") in MODEL_CAPABILITIES.get(str(name or "").strip(), set())
+
+
+def models_for(kind: str, available=()) -> list[str]:
+    """返回某任务可选的模型；推荐模型固定排第一，其余按已知/API 列表排序。"""
+    rec = FIXED_MODELS.get(kind, "")
+    names: list[str] = [rec] if rec else []
+    for name in list(MODEL_CAPABILITIES) + [str(x or "").strip() for x in available]:
+        if name and name not in names and model_supported(kind, name):
+            names.append(name)
+    return names
+
 FIXED_MODEL_LABELS = {
     "text": "文本（标题/描述/SKU）",
     "vision": "视觉（图片审查/估重）",
