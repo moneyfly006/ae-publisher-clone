@@ -10088,22 +10088,14 @@ class App:
             width=112, value="全部", bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             options=[ft.dropdown.Option(x) for x in ("全部", "INFO", "WARN", "ERROR")],
             on_change=lambda e: self._refresh_log_table())
-        self.log_table = ft.DataTable(
-            columns=[ft.DataColumn(ft.Text("时间", size=12.5, color=MUTED)),
-                     ft.DataColumn(ft.Text("级别", size=12.5, color=MUTED)),
-                     ft.DataColumn(ft.Text("内容", size=12.5, color=MUTED)),
-                     ft.DataColumn(ft.Text("按产品筛选", size=12.5, color=MUTED))],
-            rows=[], column_spacing=18, heading_row_height=36,
-            data_row_min_height=ROW_MIN_H, data_row_max_height=180,
-            heading_text_style=ft.TextStyle(size=FS_SM, color=MUTED),
-            data_text_style=ft.TextStyle(size=FS_BASE, color=TEXT),
-        )
         if not getattr(self, "log_rows", None):
-            self.log_rows = []          # 表格只显示本次运行；历史见「打开日志文件」
+            self.log_rows = []          # 列表只显示本次运行；历史见「打开日志文件」
         self.log_follow = ft.Checkbox(
             label="跟随最新", value=bool(getattr(self.cfg, "log_auto_follow", True)),
             on_change=self._on_log_follow_change)
-        self.log_scroll = ft.Column([self.log_table], height=360, scroll=ft.ScrollMode.AUTO,
+        # 日志明细：一行一条、行高随内容自动伸缩（和右上角「实时日志」一致），
+        # 不再用 DataTable 的固定行高，避免短日志也被撑出很大的上下空隙。
+        self.log_scroll = ft.Column([], height=360, spacing=2, scroll=ft.ScrollMode.AUTO,
                                     auto_scroll=bool(getattr(self.cfg, "log_auto_follow", True)),
                                     on_scroll=self._on_log_scroll)
         self.log_count_text = ft.Text("0 行", size=12.5, color=MUTED)
@@ -10698,7 +10690,7 @@ class App:
         self.log_rows = self.log_rows[-1000:]
         self.logs = [f"{t} [{lv}] {m}" for t, lv, m in self.log_rows]
         self._write_log_file(ts, level, str(msg))
-        if getattr(self, "log_table", None) is not None:
+        if getattr(self, "log_scroll", None) is not None:
             self._refresh_log_table()
         if str(level).upper() == "ERROR":
             try:
@@ -10877,10 +10869,13 @@ class App:
         import re as _re
         m = _re.search(r"\b(\d{9,})\b", str(msg or ""))
         if not m:
-            return ft.Text("", size=12.5)
+            return ft.Container(width=20)
         pid = m.group(1)
-        return ft.IconButton(ft.Icons.FILTER_ALT, icon_size=15.5, tooltip=f"只看 {pid}",
-                             on_click=lambda e, _p=pid: self._log_filter_by(_p))
+        return ft.Container(
+            content=ft.Icon(ft.Icons.FILTER_ALT, size=14, color=MUTED),
+            tooltip=f"只看 {pid}", width=20, height=20,
+            alignment=ft.alignment.center,
+            on_click=lambda e, _p=pid: self._log_filter_by(_p))
 
     def _refresh_log_table(self):
         # 事件很多时不要每条都重建表格（会把 UI 拖死），0.5 秒合并一次
@@ -10908,16 +10903,28 @@ class App:
                     self.log_filter_chip.value = ""
         except Exception:
             pass
-        self.log_table.rows = [
-            ft.DataRow(cells=[
-                ft.DataCell(ft.Text(t, size=12, color=MUTED, width=62)),
-                ft.DataCell(ft.Text(x, size=12, width=48, weight=ft.FontWeight.BOLD,
-                                    color=log_level_color(x))),
-                ft.DataCell(ft.Text(m, size=12.5, color=TEXT, width=600, selectable=True,
-                                     max_lines=6, overflow=ft.TextOverflow.ELLIPSIS)),
-                ft.DataCell(self._filter_cell(m)),
-            ]) for t, x, m in shown[-300:]
-        ]
+        def _log_row(t, x, m):
+            # 单行容器：高度随内容自动变化；长日志自动换行，短日志保持紧凑。
+            return ft.Container(
+                content=ft.Row([
+                    ft.Text(str(t), size=12, color=MUTED, width=62),
+                    ft.Text(str(x), size=12, width=48, weight=ft.FontWeight.BOLD,
+                            color=log_level_color(x)),
+                    ft.Text(str(m), size=12.5, color=TEXT, selectable=True, expand=True),
+                    self._filter_cell(str(m)),
+                ], spacing=8, wrap=False, vertical_alignment=ft.CrossAxisAlignment.START),
+                padding=ft.padding.symmetric(horizontal=6, vertical=2),
+                border_radius=6,
+            )
+
+        shown_rows = shown[-300:]
+        if getattr(self, "log_scroll", None) is not None:
+            if shown_rows:
+                self.log_scroll.controls = [_log_row(t, x, m) for t, x, m in shown_rows]
+            else:
+                self.log_scroll.controls = [ft.Container(
+                    content=muted("暂无日志" if not rows else "没有符合筛选条件的日志"),
+                    padding=ft.padding.symmetric(horizontal=8, vertical=10))]
         try:
             if getattr(self, "log_count_text", None) is not None:
                 self.log_count_text.value = f"{len(shown)} 行"
