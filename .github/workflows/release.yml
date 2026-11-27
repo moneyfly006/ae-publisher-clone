@@ -101,6 +101,41 @@ jobs:
       - name: Show artifacts
         run: find artifacts -type f | head -20
 
+      - name: Prepare Chinese release notes
+        shell: bash
+        run: |
+          TAG="${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}"
+          python3 - "$TAG" <<'PY'
+          import re, sys
+          tag = sys.argv[1].strip()
+          ver = tag[1:] if tag.lower().startswith("v") else tag
+          body = ""
+          try:
+              text = open("CHANGELOG.md", encoding="utf-8").read()
+              pattern = re.compile(
+                  r"^##\s*v?" + re.escape(ver) + r".*?$\n(.*?)(?=^##\s|\Z)",
+                  re.S | re.M)
+              m = pattern.search(text)
+              if m:
+                  body = (m.group(1) or "").strip()
+          except FileNotFoundError:
+              pass
+          if not body:
+              body = "- 本次更新包含问题修复与稳定性改进；详细说明见项目提交记录。"
+          downloads = (
+              "## 下载\n\n"
+              "- macOS（Apple Silicon / M1–M4）：`AuroraList-macos-arm64.zip`\n"
+              "- macOS（Intel x86_64）：`AuroraList-macos-x64.zip`\n"
+              "- Windows 便携版：`AuroraList-windows-x64.zip`\n"
+              "- Windows 安装包：`AuroraList-Setup-" + ver + ".exe`\n\n"
+              "> 请选择与你的芯片匹配的 macOS 包：苹果菜单 → 关于本机 → 芯片 / 处理器。\n"
+          )
+          with open("release-notes.md", "w", encoding="utf-8") as fh:
+              fh.write("## 更新内容\n\n" + body + "\n\n" + downloads)
+          PY
+          echo "----- release-notes.md -----"
+          head -40 release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -108,23 +143,7 @@ jobs:
           name: AuroraList ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version || '1.0.0') }}
           draft: false
           prerelease: false
-          body: |
-            ## What's new
-
-            - **Hardened build** — core modules are compiled to native code (Nuitka); no Python bytecode for the license/publisher/payload logic.
-            - **Core-layer license enforcement** — ECDSA voucher verification happens inside `Publisher.run`, so patching UI flags no longer bypasses the license.
-            - **Fixed: publish-failed scanner** — the store list API returns stale state; the scanner now verifies each candidate through the product-detail API.
-            - **UI** — redesigned "Tasks & Logs" page (software) and a cleaner, denser admin user-detail layout (website).
-            - **Cleanup** — removed unused config keys, dead methods and unused imports.
-
-            ## Downloads
-
-            - macOS — Apple Silicon (M1/M2/M3/M4): `AuroraList-macos-arm64.zip`
-            - macOS — Intel (x86_64): `AuroraList-macos-x64.zip`
-            - Windows portable: `AuroraList-windows-x64.zip`
-            - Windows installer: `AuroraList-Setup-<version>.exe`
-
-            > Pick the macOS package that matches your chip. To check: Apple menu → About This Mac → Chip (Apple M…) or Processor (Intel).
+          body_path: release-notes.md
           files: |
             artifacts/**/AuroraList-*.zip
         env:

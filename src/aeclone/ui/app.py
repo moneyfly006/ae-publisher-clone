@@ -20641,7 +20641,9 @@ class App:
         from ..core import updater as _up
         latest = str(info.get("latest") or "")
         url = str(info.get("url") or "").strip()
-        notes = str(info.get("notes") or "").strip()
+        # 更新说明固定显示中文：优先取 Release 正文的中文段落，旧英文模板自动对照，
+        # 都没有时给中文兜底（用户反馈更新弹窗里出现英文 "What's new"）。
+        notes = _up.localized_notes(str(info.get("notes") or ""), latest)
 
         self._upd_installing = False
         self._upd_auto_timer = None
@@ -20699,6 +20701,35 @@ class App:
             install()
 
         self.upd_install_btn.on_click = install
+
+        def _notes_controls(text: str):
+            """把中文更新说明排成「标题 + 项目符号」列表，避免出现 markdown 记号。"""
+            rows = []
+            for line in str(text or "").splitlines():
+                item = line.strip()
+                if not item:
+                    continue
+                if item.startswith(("- ", "* ", "• ")):
+                    rows.append(ft.Row([
+                        ft.Text("•", size=12.5, color=ACCENT_2),
+                        ft.Text(item[2:].strip(), size=12.5, color=TEXT, selectable=True,
+                                expand=True),
+                    ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.START))
+                elif item.startswith(("## ", "# ")):
+                    rows.append(ft.Text(item.lstrip("#").strip(), size=13,
+                                        weight=ft.FontWeight.BOLD, color=TEXT))
+                else:
+                    rows.append(ft.Text(item, size=12.5, color=TEXT, selectable=True))
+            return rows or [muted("暂无更新说明")]
+
+        notes_box = ft.Container(
+            content=ft.Column([
+                ft.Text("更新内容", size=12.5, weight=ft.FontWeight.BOLD, color=MUTED),
+                ft.Column(_notes_controls(notes), spacing=4,
+                          height=132, scroll=ft.ScrollMode.AUTO),
+            ], spacing=6),
+            bgcolor=CARD_2, border_radius=8, padding=10, height=172)
+
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(f"需要更新到 v{latest}"),
@@ -20706,9 +20737,7 @@ class App:
                 ft.Text(f"当前版本 v{_up.CURRENT} · 最新 v{latest}", size=13.5, color=TEXT),
                 ft.Text("下载和安装进度会显示在这里；完成后会自动安装、关闭并重启软件。",
                         size=12.5, color=WARN_C),
-                (ft.Container(content=ft.Text(notes[:500], size=12.5, color=MUTED, selectable=True),
-                              height=120, bgcolor=CARD_2, border_radius=8, padding=8)
-                 if notes else ft.Container()),
+                notes_box,
                 self.upd_progress, self.upd_status,
             ], spacing=8, width=520),
             actions=[ft.TextButton("退出软件", on_click=quit_app),

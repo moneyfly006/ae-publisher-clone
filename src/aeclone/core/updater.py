@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -136,6 +137,91 @@ def check(server: str = "", app_name: str = "AuroraList", timeout: int = 10) -> 
         }
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)}
+
+
+# ---------------- 更新说明（界面固定显示中文） ----------------
+# 旧版本 Release 正文是英文模板；遇到这些旧文案时直接对照成中文，
+# 保证老客户端/老 Release 也不会在更新弹窗里出现英文 "What's new"。
+_LEGACY_NOTES_ZH = (
+    (("hardened build",),
+     "加固构建：核心模块编译为原生代码（Nuitka），授权/刊登/数据逻辑不再以 Python 字节码发布。"),
+    (("core-layer license enforcement",),
+     "核心层授权校验：ECDSA 凭证校验在 Publisher.run 内部执行，改 UI 开关无法绕过授权。"),
+    (("publish-failed scanner",),
+     "修复发布失败扫描：改为通过商品详情接口逐条核对，避免店铺列表旧状态误判。"),
+    (("tasks & logs", "tasks and logs"),
+     "界面：重做「任务与日志」页，并优化后台用户详情布局。"),
+    (("cleanup",),
+     "清理：移除未使用的配置项、废弃方法和多余导入。"),
+)
+_NOTES_DEFAULT_ZH = "本次更新包含问题修复与稳定性改进。"
+_DOWNLOAD_HEADINGS = ("下载", "download", "安装包", "assets")
+_NOTES_HEADINGS = ("更新内容", "what's new", "whats new", "更新日志", "changelog", "更新说明")
+
+
+def _has_cjk(text: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def _strip_md_line(text: str) -> str:
+    """去掉行内的 markdown 记号（图片/链接/加粗/代码），保留可读文字。"""
+    s = str(text or "")
+    s = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", s)
+    s = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", s)
+    s = re.sub(r"(\*\*|__)(.+?)\1", r"\2", s)
+    s = re.sub(r"(`+)(.+?)\1", r"\2", s)
+    return s.strip()
+
+
+def release_notes_text(body: str) -> str:
+    """把 Release 正文整理成「更新内容」段落：去掉下载/安装包等无关段落与 markdown 噪音。"""
+    text = (body or "").replace("\r\n", "\n").replace("\r", "\n")
+    kept: list[str] = []
+    skip_section = False
+    for raw in text.split("\n"):
+        line = raw.strip()
+        if line.startswith("#"):
+            title = _strip_md_line(line.lstrip("#").strip()).lower()
+            if any(k in title for k in _DOWNLOAD_HEADINGS):
+                skip_section = True
+                continue
+            if any(k in title for k in _NOTES_HEADINGS):
+                skip_section = False
+                continue
+            skip_section = False
+            cleaned_title = _strip_md_line(line.lstrip("#").strip())
+            if cleaned_title:
+                kept.append(cleaned_title)
+            continue
+        if skip_section or not line:
+            continue
+        if line.startswith(("<!--", "![", "[![", "|", ">")):
+            continue
+        if set(line) <= {"-", "=", "*", " "}:
+            continue
+        cleaned = _strip_md_line(line)
+        if cleaned and cleaned not in ("-", "*"):
+            kept.append(cleaned)
+    return "\n".join(kept).strip()
+
+
+def localized_notes(body: str, latest: str = "") -> str:
+    """返回给界面显示的中文更新说明。
+
+    优先级：Release 正文里的中文说明 → 旧英文模板的中文对照 → 中文兜底。
+    这样无论 GitHub Release 是新版中文正文，还是历史英文正文，弹窗都不会再显示英文。
+    """
+    cleaned = release_notes_text(body)
+    if cleaned and _has_cjk(cleaned):
+        return cleaned
+    low = (body or "").lower()
+    hits = [zh for keys, zh in _LEGACY_NOTES_ZH if any(k in low for k in keys)]
+    if hits:
+        return "\n".join("- " + h for h in hits)
+    if latest:
+        return (_NOTES_DEFAULT_ZH + "\n- 版本 v" + str(latest).lstrip("v")
+                + "：详细更新说明见发布页。")
+    return _NOTES_DEFAULT_ZH
 
 
 def download(url: str, dest: Path | None = None, timeout: int = 120) -> Path:

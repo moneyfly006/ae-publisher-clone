@@ -73,6 +73,54 @@ _inst.mkdir(parents=True)
 _args = updater.windows_setup_args(_inst)
 chk("静默安装参数带原目录", any(a.startswith("/DIR=") and str(_inst) in a for a in _args), str(_args))
 chk("静默安装会关闭旧进程", "/CLOSEAPPLICATIONS" in _args, str(_args))
+# ---------------- 更新说明必须显示中文 ----------------
+_OLD_EN = """## What's new
+
+- **Hardened build** — core modules are compiled to native code (Nuitka).
+- **Core-layer license enforcement** — ECDSA voucher verification inside `Publisher.run`.
+- **Fixed: publish-failed scanner** — verify each candidate through the product-detail API.
+- **UI** — redesigned "Tasks & Logs" page.
+- **Cleanup** — removed unused config keys.
+
+## Downloads
+
+- macOS: `AuroraList-macos-arm64.zip`
+"""
+_ZH = """## 更新内容
+
+- 修复：速卖通自定义属性值里的空格被误删。
+- 优化：发布流程稳定性改进。
+
+## 下载
+
+- macOS：`AuroraList-macos-arm64.zip`
+"""
+_chk = updater.localized_notes(_OLD_EN, "1.0.25")
+chk("旧英文说明自动转中文", ("加固构建" in _chk and "授权校验" in _chk
+                             and "What's new" not in _chk and "Downloads" not in _chk), _chk[:80])
+_zh = updater.localized_notes(_ZH, "1.0.26")
+chk("中文说明原样保留", "速卖通自定义属性值里的空格" in _zh and "##" not in _zh, _zh[:60])
+chk("中文说明不含下载段", "下载" not in _zh and "macos-arm64" not in _zh, _zh[:80])
+chk("未知英文有中文兜底", "更新" in updater.localized_notes("## What's new\n\n- English only.", "1.0.26"))
+chk("空说明有中文兜底", bool(updater.localized_notes("", "1.0.26")))
+
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    import flet as ft
+    from ui_sandbox import build_app, sandbox, walk
+    with sandbox():
+        app = build_app(eager_editors=False)
+        app._show_update_gate({"latest": "1.0.26", "url": "", "notes": _OLD_EN})
+        texts = [str(getattr(c, "value", "") or "") for c in walk([app._dlg])
+                 if isinstance(c, ft.Text)]
+        joined = "\n".join(texts)
+        chk("更新弹窗显示「更新内容」", "更新内容" in joined)
+        chk("更新弹窗中文要点", ("加固构建" in joined) and ("清理：" in joined))
+        chk("更新弹窗无英文 markdown", ("What's new" not in joined and "##" not in joined
+                                       and "**" not in joined))
+except Exception as _ex:  # noqa: BLE001
+    chk("更新弹窗渲染检查", False, f"{type(_ex).__name__}: {_ex}")
+
 print("=" * 60)
 print(f"结果: {ok} 通过, {fail} 失败")
 sys.exit(1 if fail else 0)
