@@ -115,6 +115,17 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(kwargs["data"]["dxmState"], "offline")
         self.assertEqual(result["items"], [])
 
+    def test_category_keyword_search_uses_search_endpoint(self):
+        for mode, endpoint in (("global", "/shopeeCategory/searchGlobalCategory.json"),
+                               ("site", "/shopeeCategory/searchCategoryNew.json")):
+            client = ShopeeClient({}, mode=mode)
+            client.http._post = Mock(return_value={"code": 0, "data": []})
+            client.categories("0", shop_id="88", keyword="phone")
+            args, kwargs = client.http._post.call_args
+            self.assertEqual(args[0], endpoint)
+            self.assertEqual(kwargs["data"], {"categoryParentId": "0", "shopId": "88",
+                                              "category": "phone"})
+
     def test_category_drilldown_uses_native_parent_parameter(self):
         client = ShopeeClient({})
         client.http._post = Mock(return_value={"code": 0, "data": []})

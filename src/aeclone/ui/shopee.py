@@ -107,6 +107,15 @@ def build(app, section):
         state["categories"] = rows(data)
         return f"已读取 {len(state['categories'])} 个类目"
 
+    def search_categories(keyword):
+        keyword = str(keyword or "").strip()
+        if not keyword:
+            return category_children("0")
+        data = make_client(app.cfg).categories(
+            "0", getattr(app.cfg, "shopee_shop_id", ""), keyword=keyword)
+        state["categories"] = rows(data)
+        return f"搜索到 {len(state['categories'])} 个类目"
+
     def load_product(product_id):
         if not str(product_id or "").strip():
             app.toast("请填写有效商品ID", False)
@@ -293,10 +302,18 @@ def build(app, section):
                                        value=str(first.get("original_value_name") or ""))
             control.on_change = update
             fields.append(control)
+        cat_search = ft.TextField(
+            label="关键词搜索类目（如 phone / 手机）", width=320,
+            color=ui.TEXT, bgcolor=ui.CARD_2)
         content += [ui.card(ft.Column([
             ui.h1("类目选择", ui.FS_MD), ui.muted("当前类目：" + str(state.get("category_name") or ov.get("categoryId") or product.get("categoryId") or "未选择")),
-            ft.Row([ft.OutlinedButton("读取根类目", on_click=lambda e: run("读取类目", category_children, rebuild=True)),
-                ft.OutlinedButton("读取类目属性", on_click=lambda e: run("读取属性", attrs, rebuild=True))], wrap=True, spacing=10),
+            ft.Row([cat_search,
+                    ft.ElevatedButton("搜索类目", icon=ft.Icons.SEARCH,
+                        bgcolor=ui.ACCENT, color=ui.ON_ACCENT,
+                        on_click=lambda e: run("搜索类目", lambda: search_categories(cat_search.value), rebuild=True)),
+                    ft.OutlinedButton("读取根类目", on_click=lambda e: run("读取类目", category_children, rebuild=True)),
+                    ft.OutlinedButton("读取类目属性", on_click=lambda e: run("读取属性", attrs, rebuild=True))], wrap=True, spacing=10),
+            ui.muted("可直接输入关键词搜索类目；搜索结果点「读取下级类目」继续下钻，末级类目直接选择。", 11),
             *tree, ft.ResponsiveRow([ft.Container(c, col={"xs": 12, "lg": 6}) for c in fields]), status,
         ], spacing=10))]
     elif section == 3:

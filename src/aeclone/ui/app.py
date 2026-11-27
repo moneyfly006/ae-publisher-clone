@@ -4918,9 +4918,9 @@ class App:
 
         # 类目来源：使用模板类目 / 自动分类（用商品自带类目）
         self.cat_mode_dd = ft.Dropdown(
-            label="类目来源", width=210, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            label="类目来源", width=300, bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
             value="auto" if bool(getattr(self.cfg, "auto_detect_category", True)) else "template",
-            options=[ft.dropdown.Option("auto", "自动分类（关键词/商品类目/平台预测）"),
+            options=[ft.dropdown.Option("auto", "自动分类（推荐）"),
                      ft.dropdown.Option("template", "使用模板类目")],
         )
         def _on_cat_mode(e):
@@ -4932,14 +4932,18 @@ class App:
         tpl_card = card(ft.Column([
             h1("3 · 选择模板", 15),
             muted("后续产品沿用模板的运费模板、属性、重量尺寸；标题/SKU/图片仍按新生成"),
-            ft.Row([self.tpl_source_dd, self.cat_mode_dd,
-                    ft.OutlinedButton("类目映射 / 学习", icon=ft.Icons.AUTO_AWESOME_MOTION,
-                                      tooltip="配关键词→类目规则，或从你已有的商品里自动学习",
-                                      on_click=lambda e: self._category_map_dialog()),
-                    ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick),
-                    ft.ElevatedButton("保存模板到本地", icon=ft.Icons.SAVE, bgcolor=ACCENT_2, color=ON_ACCENT,
-                                      on_click=lambda e: threading.Thread(target=self._save_tpl_local_quick, daemon=True).start()),
-                    ft.OutlinedButton("模板库", icon=ft.Icons.LIBRARY_BOOKS, on_click=lambda e: self._template_library_dialog())], spacing=10, wrap=True),
+            ft.Row([self.tpl_source_dd, self.cat_mode_dd], spacing=10, wrap=True),
+            muted("自动分类顺序：关键词规则 → 商品自带类目 → 平台预测类目 → 模板兜底；"
+                  "只有同类商品才建议统一使用模板类目。", 11),
+            ft.Row([
+                ft.OutlinedButton("类目映射 / 学习", icon=ft.Icons.AUTO_AWESOME_MOTION,
+                                  tooltip="配关键词→类目规则，或从你已有的商品里自动学习",
+                                  on_click=lambda e: self._category_map_dialog()),
+                ft.ElevatedButton("选择模板产品", icon=ft.Icons.IMAGE_SEARCH, bgcolor=CARD_2, color=TEXT, on_click=pick),
+                ft.ElevatedButton("保存模板到本地", icon=ft.Icons.SAVE, bgcolor=ACCENT_2, color=ON_ACCENT,
+                                  on_click=lambda e: threading.Thread(target=self._save_tpl_local_quick, daemon=True).start()),
+                ft.OutlinedButton("模板库", icon=ft.Icons.LIBRARY_BOOKS, on_click=lambda e: self._template_library_dialog())],
+                spacing=10, wrap=True),
             self.tpl_preview_box,
             ft.Row([ft.ElevatedButton("读取模板参数", icon=ft.Icons.DOWNLOAD_FOR_OFFLINE, bgcolor=CARD_2, color=TEXT,
                                       on_click=lambda e: threading.Thread(target=self._read_template, daemon=True).start()),
