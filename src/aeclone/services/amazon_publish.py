@@ -117,6 +117,15 @@ def save_to_amazon(product_id, cfg, overrides=None, allow_invalid=False,
         raise
     except Exception as exc:  # noqa: BLE001
         raise AmazonError(f"保存失败：{str(exc)[:200]}") from exc
+    # Amazon 的 add.json 在 op=3 时只保存、不会真正移动状态；必须调用独立接口。
+    if op == OP_MOVE_PENDING and hasattr(c, "move_to_pending"):
+        try:
+            moved = c.move_to_pending(str(payload.get("id") or pid),
+                                      str(payload.get("shopId") or ""))
+        except Exception as exc:  # noqa: BLE001
+            raise AmazonError(f"保存成功但移入待发布失败：{str(exc)[:250]}") from exc
+        if isinstance(moved, dict) and moved.get("code") not in (None, 0, "0"):
+            raise AmazonError("移入待发布失败：" + str(moved.get("msg") or moved)[:250])
     return {
         "result": result,
         "issues": list(issues),

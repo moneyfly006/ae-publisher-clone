@@ -73,6 +73,21 @@ _SCRIPT_BLOCK_RE = re.compile(
 )
 _DANGEROUS_TAG_RE = re.compile(r"</?(script|style|iframe|img|object|embed|link)\b[^>]*>", re.I)
 _ALLOWED_TAG_RE = re.compile(r"</?(p|ul|li|b|br)\b[^>]*>", re.I)
+_MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\s*\([^)]*\)", re.I)
+_IMAGE_LINK_RE = re.compile(
+    r"\[[^\]]*\]\s*\(\s*(?:https?://[^)\s]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif)(?:\?[^)]*)?|data:image/[^)]+)\s*\)",
+    re.I)
+_IMAGE_URL_RE = re.compile(
+    r"https?://[^\s<>'\"]+\.(?:png|jpe?g|gif|webp|svg|bmp|avif)(?:\?[^\s<>'\"]*)?",
+    re.I)
+_DATA_IMAGE_RE = re.compile(r"data:image/[a-z0-9.+-]+;base64,[a-z0-9+/=]+", re.I)
+_MEDIA_BLOCK_RE = re.compile(
+    r"<(picture|figure|svg|video|iframe|object|embed)\b[^>]*>.*?</\1\s*>",
+    re.I | re.S)
+_MEDIA_TAG_RE = re.compile(r"<\s*(?:img|source|track|area)\b[^>]*>", re.I)
+_IMAGE_PLACEHOLDER_RE = re.compile(
+    r"[\[【(]\s*(?:图片|图像|image|picture|photo|img)\s*[\]】)]", re.I)
+_HTML_COMMENT_RE = re.compile(r"<!--[\s\S]*?-->")
 _CODE_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\s*|\s*```$")
 _SEARCH_TERM_STOPWORDS = {
     "a", "an", "the", "for", "with", "and", "of", "to", "in", "on", "by", "or",
@@ -174,12 +189,14 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "必须保留原文真实的产品名称、用途、结构、参数和适用场景；只调整表达、结构和合规问题。\n"
         "硬性要求：\n"
         "1) 输出 HTML 片段，只允许 <p> <ul> <li> <b> <br> 标签；"
-        "禁止 <script>/<style>/<iframe>/<img>；\n"
+        "禁止 <script>/<style>/<iframe>/<img>/<picture>/<source>/<svg>/<video>/<figure>；\n"
         "2) 使用{language}（站点语言），3 段 + 一个参数列表（<ul><li>），建议 ≤2000 字符"
         "（schema 硬上限 {desc_bytes} 字节）；\n"
         "3) 内容结构：产品名称/产品用途/适用场景 → 核心参数（只写原文有的）→ 结构与操作/维护 → 包装与服务；\n"
         "4) 禁止联系方式、网址、二维码、促销返现、医疗表述，不得编造认证与参数；\n"
-        "5) 删除原描述中的内嵌图片、Brand Name、Place of Origin、HW、free、cost、fee、diesel、sale、discount、guarantee 等不合规内容；\n"
+        "5) 删除原描述中的内嵌图片、所有图片标签、图片链接、Markdown 图片语法 ![alt](url)、"
+        "data:image/base64 图片、[图片]/[Image] 等图片占位文字和图注；不要描述图片内容，"
+        "输出中不得出现任何图片引用或图片代码；同时删除 Brand Name、Place of Origin、HW、free、cost、fee、diesel、sale、discount、guarantee 等不合规内容；\n"
         "6) 只输出 HTML 片段，不要 Markdown 代码块围栏，不要解释。"
     ),
     "search_terms": (
@@ -535,6 +552,20 @@ def clean_bullet(text: str, limit: int = BULLET_MAX_CHARS) -> str:
     return truncate_words(s, limit)
 
 
+def _strip_image_references(text: str) -> str:
+    """删除描述里所有图片引用/代码：HTML、Markdown、URL、base64、占位文字。"""
+    s = str(text or "")
+    s = _HTML_COMMENT_RE.sub(" ", s)
+    s = _MARKDOWN_IMAGE_RE.sub(" ", s)
+    s = _IMAGE_LINK_RE.sub(" ", s)
+    s = _MEDIA_BLOCK_RE.sub(" ", s)
+    s = _MEDIA_TAG_RE.sub(" ", s)
+    s = _DATA_IMAGE_RE.sub(" ", s)
+    s = _IMAGE_URL_RE.sub(" ", s)
+    s = _IMAGE_PLACEHOLDER_RE.sub(" ", s)
+    return s
+
+
 def sanitize_description(text: str, max_bytes: int = DESCRIPTION_MAX_BYTES) -> str:
     """产品描述清洗：只保留 <p><ul><li><b><br>，纯文本自动包 <p>，按字节截断。
 
@@ -546,6 +577,7 @@ def sanitize_description(text: str, max_bytes: int = DESCRIPTION_MAX_BYTES) -> s
     """
     s = str(text or "").strip()
     s = _CODE_FENCE_RE.sub("", s)
+    s = _strip_image_references(s)
     if not s:
         return ""
     s = re.sub(r"<(script|style|iframe)\b[^>]*>[\s\S]*?</\1>", " ", s, flags=re.I)
@@ -564,11 +596,18 @@ def sanitize_description(text: str, max_bytes: int = DESCRIPTION_MAX_BYTES) -> s
     s = _ALLOWED_TAG_RE.sub(_stash, s)
     s = _HTML_TAG_RE.sub(" ", s)
     s = _html.unescape(s)
+    # unescape 后可能再次出现 &lt;img&gt; / data:image，再清一次
+    s = _strip_image_references(s)
     s = remove_emoji(s)
     for i, tag in enumerate(placeholders):
         s = s.replace(f"\x00TAG{i}\x00", tag)
     s = re.sub(r"[ \t]+", " ", s)
     s = re.sub(r"\n{2,}", "\n", s).strip()
+    # 移除图片/空段留下的空段落和空列表项，避免描述出现大量空行
+    s = re.sub(r"<p>\s*</p>", "", s, flags=re.I)
+    s = re.sub(r"<li>\s*</li>", "", s, flags=re.I)
+    s = re.sub(r"<ul>\s*</ul>", "", s, flags=re.I)
+    s = re.sub(r"\s{2,}", " ", s).strip()
 
     if not _HTML_TAG_RE.search(s):
         # 纯文本：按行/空行拆段，包 <p>

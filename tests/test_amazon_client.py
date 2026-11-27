@@ -544,6 +544,14 @@ class SaveProductTests(unittest.TestCase):
             data = json.loads(zf.read(SAVE_NAME).decode("utf-8"))
         self.assertEqual(data, payload)
 
+    def test_move_to_pending_uses_amazon_product_endpoint(self):
+        c = AmazonClient("a=1")
+        calls = install_responses(self, [ok({"bor": {"successList": [{"id": "1"}]}})])
+        result = c.move_to_pending("1", "9408005")
+        self.assertEqual(result.get("code"), 0)
+        self.assertIn("/api/amazonProduct/batchMoveToNoPublish.json", calls[0]["url"])
+        self.assertEqual(calls[0]["data"], {"ids": "1", "shopId": "9408005"})
+
     def test_save_rejects_empty_payload_and_bad_op(self):
         c = AmazonClient("a=1")
         with self.assertRaises(AmazonError):

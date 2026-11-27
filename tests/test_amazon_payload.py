@@ -423,13 +423,31 @@ class ValidateTests(unittest.TestCase):
         issues = validate_amazon_payload(payload, site_meta=site_meta("A2EUQ1WTGCTBG2"))
         self.assertTrue(any("产品描述为空" in i for i in issues))
 
-        payload = make_payload(description="x" * (DESCRIPTION_MAX_BYTES + 100))
+        payload = make_payload()
+        payload["description"] = "x" * (DESCRIPTION_MAX_BYTES + 100)
         issues = validate_amazon_payload(payload, site_meta=site_meta("A2EUQ1WTGCTBG2"))
         self.assertTrue(any("字节" in i for i in issues))
 
-        payload = make_payload(description="<p>ok</p><script>alert(1)</script>")
+        # build 阶段会自动清洗危险标签；直接改保存包验证校验器本身仍会拦截。
+        payload = make_payload()
+        payload["description"] = "<p>ok</p><script>alert(1)</script>"
         issues = validate_amazon_payload(payload, site_meta=site_meta("A2EUQ1WTGCTBG2"))
         self.assertTrue(any("危险标签" in i for i in issues))
+
+    def test_description_images_removed_even_without_ai(self):
+        # 未开启 AI 时也必须自动清理原商品描述里的图片引用/代码。
+        payload = make_payload(description=(
+            '<p>Good product</p><img src="https://x.test/a.jpg">'
+            '<figure><img src="https://x.test/b.png"><figcaption>图 1</figcaption></figure>'
+            '<p>![产品图](https://x.test/c.jpg)</p>'
+            '<p>data:image/png;base64,AAAA</p>'
+            '<p>https://x.test/d.webp</p><p>[图片] [Image]</p><ul><li>one</li></ul>'))
+        desc = payload["description"]
+        for bad in ("<img", "<figure", "data:image", ".jpg", ".png", ".webp",
+                    "![", "[图片]", "[Image]"):
+            self.assertNotIn(bad, desc)
+        issues = validate_amazon_payload(payload, site_meta=site_meta("A2EUQ1WTGCTBG2"))
+        self.assertFalse(any("普通产品描述仅支持文字" in i for i in issues), issues)
 
     def test_search_terms_limits(self):
         payload = make_payload(searchTerms="word " * 120)

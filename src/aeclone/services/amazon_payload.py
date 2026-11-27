@@ -27,7 +27,7 @@ from .amazon_prompts import (
     BULLET_MAX_CHARS, BULLET_MAX_ITEMS, BULLET_SUGGEST_CHARS,
     DESCRIPTION_MAX_BYTES, SEARCH_TERMS_MAX_BYTES, SEARCH_TERMS_MAX_CHARS,
     HIGHLIGHT_MAX, SITE_META, TITLE_MAX, has_chinese, is_chinese_site, remove_emoji,
-    site_meta as prompt_site_meta, strip_html,
+    sanitize_description, site_meta as prompt_site_meta, strip_html,
 )
 
 def random_amazon_sku(prefix: str, length: int = 9) -> str:
@@ -642,7 +642,8 @@ def build_amazon_payload(product: dict, cfg=None, overrides: dict | None = None,
     out["title"] = _text(title)
     out["bulletPoint"] = join_bullets(_override(ov, "bullets", p.get("bulletPoint")))
     desc = _override(ov, "description", p.get("description"))
-    out["description"] = _as_html_description(desc)
+    # 无论是否开启 AI，保存包里的描述都必须先清掉图片标签/链接/Markdown/base64。
+    out["description"] = sanitize_description(_as_html_description(desc))
     terms = _override(ov, "search_terms", p.get("searchTerms"))
     out["searchTerms"] = _text(terms)
 

@@ -264,8 +264,16 @@ def build(app, section):
             state["attrs"] = rows(make_client(app.cfg).attributes(cid, getattr(app.cfg, "shopee_shop_id", "")))
             refresh()
         for row in state["categories"]:
-            name = str(row.get("chineseName") or row.get("categoryName") or row.get("name") or row.get("categoryId"))
-            tree.append(ft.TextButton(name, on_click=lambda e, r=deepcopy(row): run("选择类目", lambda: pick(r))))
+            name = str(row.get("chineseName") or row.get("categoryName")
+                       or row.get("name") or row.get("categoryId"))
+            path = ""
+            for key in ("categoryPath", "nodePath", "path", "fullPath", "namePath"):
+                value = str(row.get(key) or "").strip()
+                if value:
+                    path = value.replace(">", " / ")
+                    break
+            label = (path or (name + f"（{row.get('categoryId') or ''}）"))
+            tree.append(ft.TextButton(label, on_click=lambda e, r=deepcopy(row): run("选择类目", lambda: pick(r))))
         def attrs():
             cid = ov.get("categoryId", product.get("categoryId"))
             if not cid:

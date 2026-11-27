@@ -81,6 +81,8 @@ class PromptBuilderTests(unittest.TestCase):
         self.assertIn("德语", text)
         self.assertIn("20000", text)
         self.assertIn("HTML", text)
+        self.assertIn("Markdown", text)
+        self.assertIn("data:image", text)
 
     def test_search_terms_prompt(self):
         text = build_search_terms_prompt(SAMPLE_PRODUCT, None, "A1VC38T7YXB528")

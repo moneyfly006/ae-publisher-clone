@@ -685,6 +685,13 @@ class AmazonClient:
                 pass
         return d
 
+    def move_to_pending(self, product_id: str, shop_id: str = "") -> dict:
+        """把已保存的 Amazon 草稿移入待发布（独立接口，不能只靠 add.json op=3）。"""
+        data = {"ids": str(product_id)}
+        if str(shop_id or "").strip():
+            data["shopId"] = str(shop_id)
+        return self._post("/api/amazonProduct/batchMoveToNoPublish.json", data)
+
     # 旧命名兼容
     def save(self, payload: dict, op: str = "1") -> dict:
         return self.save_product(payload, op)
@@ -738,6 +745,20 @@ def category_node_path(node: dict) -> str:
         if is_node_path(value):
             return value
     return ""
+
+
+def category_display_path(node: dict) -> str:
+    """类目展示路径（用于搜索结果），优先使用平台返回的完整路径。"""
+    node = node or {}
+    for key in ("nodePath", "categoryBrowsePath", "categoryPath", "path",
+                "fullPath", "namePath"):
+        value = str(node.get(key) or "").strip()
+        if value and not is_node_path(value):
+            return value.replace(">", " / ")
+    name = str(node.get("categoryName") or node.get("chineseName") or
+               node.get("name") or "").strip()
+    cid = str(node.get("categoryId") or node.get("id") or "").strip()
+    return f"{name}（{cid}）" if name and cid else (name or cid)
 
 
 def is_leaf_category(node: dict) -> bool:

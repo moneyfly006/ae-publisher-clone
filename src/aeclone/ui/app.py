@@ -5795,6 +5795,10 @@ class App:
         """
         self._dlg = dlg
         try:
+            self._bind_clipboard_fields()
+        except Exception:
+            pass
+        try:
             stack = getattr(self, "_dlg_stack", None)
             if stack is None:
                 stack = []
@@ -10264,12 +10268,79 @@ class App:
             pass
 
     def _attach_clipboard_shortcuts(self, field):
-        """让提示词输入框在页面级快捷键处理器下仍可用 Ctrl/Cmd+C/V。"""
+        """让输入框在页面级快捷键处理器下仍可用 Ctrl/Cmd+C/V。
+
+        页面级 on_keyboard_event 会截获组合键；必须记录当前获得焦点的
+        TextField，_on_key 才能把 c/v/x/a 转发给这个输入框。
+        """
         try:
-            field.on_focus = lambda e, _f=field: setattr(self, "_active_text_field", _f)
-            field.on_blur = lambda e: setattr(self, "_active_text_field", None)
+            if bool(getattr(field, "_aurora_clipboard_bound", False)):
+                return
+            old_focus = getattr(field, "on_focus", None)
+            old_blur = getattr(field, "on_blur", None)
+
+            def _focus(e, _f=field, _old=old_focus):
+                self._active_text_field = _f
+                if callable(_old):
+                    try:
+                        _old(e)
+                    except Exception:
+                        pass
+
+            def _blur(e, _old=old_blur):
+                if getattr(self, "_active_text_field", None) is field:
+                    self._active_text_field = None
+                if callable(_old):
+                    try:
+                        _old(e)
+                    except Exception:
+                        pass
+
+            field.on_focus = _focus
+            field.on_blur = _blur
+            field._aurora_clipboard_bound = True
         except Exception:
             pass
+
+    def _bind_clipboard_fields(self):
+        """给页面和弹窗里的所有 TextField 自动绑定焦点跟踪（含动态字段）。"""
+        if getattr(self, "_binding_clipboard", False):
+            return
+        self._binding_clipboard = True
+        try:
+            import flet as _ft
+            seen = set()
+            stack = []
+            try:
+                stack.extend(list(getattr(self.page, "controls", None) or []))
+                stack.extend(list(getattr(self.page, "overlay", None) or []))
+                if getattr(self.page, "dialog", None) is not None:
+                    stack.append(self.page.dialog)
+            except Exception:
+                pass
+            for _dlg in list(getattr(self, "_dlg_stack", None) or []):
+                stack.append(_dlg)
+            if getattr(self, "_dlg", None) is not None:
+                stack.append(self._dlg)
+            while stack:
+                ctrl = stack.pop()
+                if ctrl is None or id(ctrl) in seen:
+                    continue
+                seen.add(id(ctrl))
+                if isinstance(ctrl, _ft.TextField):
+                    self._attach_clipboard_shortcuts(ctrl)
+                for attr in ("controls", "content", "actions", "tabs",
+                             "title", "subtitle", "leading", "trailing"):
+                    try:
+                        child = getattr(ctrl, attr, None)
+                    except Exception:
+                        child = None
+                    if isinstance(child, (list, tuple)):
+                        stack.extend(child)
+                    elif child is not None and isinstance(child, _ft.Control):
+                        stack.append(child)
+        finally:
+            self._binding_clipboard = False
 
     def _set_textfield_value(self, field, value):
         try:
@@ -11480,7 +11551,14 @@ class App:
                     hits = client().search_categories(kw, max_nodes=160)
                     cat_box.controls = []
                     for h in hits[:30]:
-                        label = f"{h.get('nameZh') or ''} / {h.get('nameEn') or ''} · L{h.get('level')} · {h.get('categoryId')}"
+                        _path = str(h.get("nodePath") or h.get("categoryPath")
+                                    or h.get("path") or h.get("fullPath") or "").strip()
+                        _path = _path.replace(">", " / ")
+                        if not _path:
+                            _path = (f"{h.get('nameZh') or ''} / {h.get('nameEn') or ''}".strip(" /")
+                                     or str(h.get("categoryId") or ""))
+                            _path += f"（{h.get('categoryId') or ''}）"
+                        label = _path
                         def pick(ev, _h=h):
                             self.cfg.set("alibaba_category_id", str(_h.get("categoryId") or ""))
                             self.cfg.set("alibaba_category_name", f"{_h.get('nameZh')} / {_h.get('nameEn')}")
@@ -13526,94 +13604,122 @@ class App:
         return make_client(self.cfg)
 
     def _open_amazon_category_picker(self, keyword="", on_pick=None) -> None:
-        """Amazon 类目选择器：历史类目 + 可逐级展开的类目树。
+        """Amazon 关键词类目选择器：搜索结果直接显示完整路径，点一条即选中。
 
-        店小秘没有独立的类目关键词搜索 API；这里用采集标题/历史类目做筛选，
-        再逐级点选类目，避免手填 categoryId/path。
+        与店小秘的类目搜索一致：输入 Sprayers → 列出所有匹配的完整类目路径，
+        不再要求用户从顶级类目逐级点下去。
         """
         try:
-            from ..integrations.amazon import is_leaf_category
+            from ..integrations.amazon import (
+                category_display_path, category_node_path, is_leaf_category)
             c = self._amazon_client()
             site = str(getattr(self.cfg, "amazon_site_code", "") or "")
-            shop = str(getattr(self.cfg, "amazon_shop_id", "") or "")
             if not site:
                 self.toast("请先选择 Amazon 站点", False)
                 return
-            history = c.category_history(shop, site) or []
-            roots = c.category_roots(site) or []
+            history = c.category_history(
+                str(getattr(self.cfg, "amazon_shop_id", "") or ""), site) or []
         except Exception as ex:
             self.toast(f"读取 Amazon 类目失败：{str(ex)[:80]}", False)
             return
-        search_tf = ft.TextField(label="按标题/类目名筛选", value=str(keyword or ""),
-                                 bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
-                                 hint_text="输入商品标题关键词，例如 excavator")
-        list_box = ft.Column(spacing=2, height=330, scroll=ft.ScrollMode.AUTO)
-        crumb = ft.Text("Amazon 类目", size=12, color=ACCENT_2, selectable=True)
 
-        def _pick(node):
-            cid = str(node.get("categoryId") or node.get("id") or "").strip()
-            path = str(node.get("categoryBrowsePath") or node.get("nodePath")
-                       or node.get("path") or "").strip()
-            name = str(node.get("categoryName") or node.get("name") or cid).strip()
-            if not cid:
-                return
-            if callable(on_pick):
-                on_pick(cid, path, name)
+        search_tf = ft.TextField(
+            label="搜索类目关键词", value=str(keyword or ""), dense=True,
+            bgcolor=CARD_2, border_color=CARD_2, color=TEXT,
+            hint_text="输入关键词，例如 Sprayers / 喷雾器，回车搜索",
+            on_submit=lambda e: do_search())
+        result_box = ft.Column(spacing=2, height=360, scroll=ft.ScrollMode.AUTO)
+        crumb = ft.Text("输入关键词搜索 Amazon 类目", size=12.5,
+                        color=ACCENT_2, selectable=True)
+        status = ft.Text("", size=12, color=MUTED, selectable=True)
+
+        def _close():
             try:
                 self.page.close_dialog()
             except Exception:
                 try:
-                    self._close_dialog()
+                    self._close_dlg(dlg)
                 except Exception:
                     pass
 
-        def _row(node):
+        def _pick(node):
             cid = str(node.get("categoryId") or node.get("id") or "").strip()
-            name = str(node.get("categoryName") or node.get("name") or cid).strip()
-            path = str(node.get("categoryBrowsePath") or node.get("nodePath") or "").strip()
-            # /list.json 的 parentId 要内部 id；categoryId 是节点 id，混用会取不到子类目。
-            parent_id = node.get("id") or node.get("categoryId") or node.get("category_id") or cid
-            def click(e=None):
-                # 不再用“路径为空”推断叶子；始终请求一次子类目，有子类目就继续下钻。
-                try:
-                    children = c.category_children(site, parent_id) or []
-                except Exception as ex:
-                    self.toast(f"读取子类目失败：{str(ex)[:60]}", False)
-                    return
-                if not children:
-                    _pick(node)
-                    return
-                crumb.value = f"Amazon 类目 / {name}"
-                _render(children)
-                try: self._safe_update()
-                except Exception: pass
-            return ft.TextButton(f"{name}  ›", on_click=click)
+            if not cid:
+                return
+            path = category_node_path(node)
+            name = str(node.get("chineseName") or node.get("categoryName")
+                       or node.get("name") or cid).strip()
+            if callable(on_pick):
+                on_pick(cid, path, name)
+            _close()
 
-        def _render(nodes):
-            list_box.controls = [ft.Row([_row(n) for n in nodes], wrap=True, spacing=6)] if nodes else [muted("该层没有类目", 12)]
+        def _render(rows, title=""):
+            boxes = []
+            for node in rows:
+                if not isinstance(node, dict):
+                    continue
+                if not str(node.get("categoryId") or node.get("id") or "").strip():
+                    continue
+                full = category_display_path(node)
+                leaf = is_leaf_category(node)
+                label = full + ("" if leaf else "（非末级）")
+                btn = ft.TextButton(
+                    label, on_click=(lambda e, _n=node: _pick(_n)
+                                     if is_leaf_category(_n) else self.toast(
+                                         "该结果不是末级类目，请继续搜索更具体的类目", False)))
+                boxes.append(btn)
+            result_box.controls = boxes or [muted("没有匹配的类目，换个关键词试试", 12)]
+            crumb.value = title or f"搜索结果 {len(boxes)} 条"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
 
-        def _search(e=None):
-            q = str(search_tf.value or "").strip().lower()
-            rows = []
-            for h in history:
-                label = str(h.get("categoryName") or h.get("name") or "")
-                if not q or q in label.lower() or q in str(h.get("categoryId") or "").lower():
-                    rows.append(h)
+        def _history():
+            rows = [h for h in history if isinstance(h, dict)]
             if rows:
-                crumb.value = "历史类目" + (f" · 筛选：{q}" if q else "")
-                _render(rows)
+                _render(rows[:30], "最近使用类目")
             else:
-                crumb.value = "Amazon 顶级类目" + (f" · 未匹配历史，继续逐级选择" if q else "")
-                _render([r for r in roots if not q or q in str(r.get("name") or r.get("categoryName") or "").lower()] or roots)
-            try: self._safe_update()
-            except Exception: pass
+                _render([], "输入关键词搜索 Amazon 类目")
 
-        search_tf.on_change = _search
-        _search()
+        def do_search(e=None):
+            q = str(search_tf.value or "").strip()
+            if not q:
+                _history()
+                return
+            status.value = f"正在搜索「{q}」…"
+            try:
+                self._safe_update()
+            except Exception:
+                pass
+
+            def work():
+                try:
+                    rows = c.search_categories(site, q) or []
+                except Exception as ex:  # noqa: BLE001
+                    status.value = f"搜索失败：{str(ex)[:100]}"
+                    status.color = DANGER_C
+                    try:
+                        self._safe_update()
+                    except Exception:
+                        pass
+                    return
+                status.value = f"搜索到 {len(rows)} 个类目，点击完整路径直接选择"
+                status.color = SUCCESS_C if rows else WARN_C
+                _render(rows, f"搜索结果：{q}")
+            threading.Thread(target=work, daemon=True).start()
+
+        do_search()
         dlg = ft.AlertDialog(
-            modal=True, title=ft.Text("选择 Amazon 类目"),
-            content=ft.Column([search_tf, crumb, list_box], spacing=10, width=720),
-            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dialog())])
+            modal=True, title=ft.Text("搜索 Amazon 类目"),
+            content=ft.Column([
+                ft.Row([search_tf,
+                        ft.ElevatedButton("搜索", icon=ft.Icons.SEARCH,
+                                          bgcolor=ACCENT, color=ON_ACCENT,
+                                          on_click=lambda e: do_search())],
+                       spacing=8, wrap=True),
+                crumb, result_box, status], spacing=8, width=820),
+            actions=[ft.TextButton("关闭", on_click=lambda e: _close())])
         self._show_dlg(dlg)
 
     @staticmethod
@@ -13873,7 +13979,8 @@ class App:
         import json as _json
         from copy import deepcopy
         from ..integrations.amazon import (is_leaf_category, is_node_path,
-                                            category_node_path, product_scope_issue)
+                                            category_node_path, category_display_path,
+                                            product_scope_issue)
         from ..services.listing_failures import review_only
         view_token = object()
         if single:
@@ -15478,8 +15585,8 @@ class App:
                         name = str(n.get("chineseName") or n.get("categoryName") or cid)
                         en = str(n.get("categoryName") or "")
                         leaf = is_leaf_category(n)
-                        label = f"{name}" + (f" / {en}" if en and en != name else "")
-                        label += f"（{cid}）" + (" · 末级" if leaf else " · 有下级")
+                        full_path = category_display_path(n) or name
+                        label = full_path + (" · 末级" if leaf else " · 有下级")
                         def _choose(ev, _n=n, _leaf=leaf):
                             _pick_category_node(_n, _leaf)
                         boxes.append(ft.Row([
@@ -18800,9 +18907,16 @@ class App:
                 _leaf_raw = n.get("isLeaf")
                 is_leaf = (_leaf_raw is True or str(_leaf_raw) in ("1", "True", "true")
                            or bool(n.get("leafCategory")))
-                label = (str(n.get("categoryName") or n.get("transName") or nid) +
-                         f"（{n.get('categoryId') or nid}）" +
-                         (" · 末级" if is_leaf else ""))
+                _path = ""
+                for _k in ("categoryPath", "nodePath", "path", "fullPath", "namePath"):
+                    _v = str(n.get(_k) or "").strip()
+                    if _v and not str(_v).replace("/", "").isdigit():
+                        _path = _v.replace(">", " / ")
+                        break
+                if not _path:
+                    _path = (str(n.get("categoryName") or n.get("transName") or nid)
+                             + f"（{n.get('nodePathId') or n.get('categoryId') or nid}）")
+                label = _path + (" · 末级" if is_leaf else "")
 
                 def _choose(ev, _n=n, _leaf=is_leaf):
                     _pick_category_node(_n, _leaf)
@@ -22285,6 +22399,10 @@ class App:
         """
         if getattr(self, "_building_page", False) or getattr(self, "_page_dead", False):
             return
+        try:
+            self._bind_clipboard_fields()
+        except Exception:
+            pass
         lock = getattr(self, "_ui_lock", None)
         try:
             if lock is not None:
