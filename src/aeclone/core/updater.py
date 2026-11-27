@@ -208,7 +208,8 @@ def windows_setup_args(app_dir: Path) -> list[str]:
     只有目录里存在 unins000.exe（Inno 安装标记）时才带 /DIR，
     便携包解压到临时目录的情况不能把程序装到临时目录里。
     """
-    args = ["/SILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES"]
+    args = ["/SILENT", "/CLOSEAPPLICATIONS", "/SUPPRESSMSGBOXES",
+            "/RESTARTAPPLICATIONS"]
     p = Path(app_dir)
     try:
         if (p / "unins000.exe").exists():

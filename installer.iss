@@ -2,7 +2,7 @@
 ; 构建：先 pyinstaller --noconfirm --clean app.spec，再 ISCC.exe installer.iss
 
 #define MyAppName "AuroraList"
-#define MyAppVersion "1.0.23"
+#define MyAppVersion "1.0.24"
 #define MyAppPublisher "AuroraList"
 #define MyAppExeName "AuroraList.exe"
 
@@ -41,4 +41,5 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 ; 安装完刷新 Windows 图标缓存，避免覆盖安装后仍显示旧图标
 Filename: "{sys}\ie4uinit.exe"; Parameters: "-show"; Flags: runhidden nowait skipifsilent
-Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
+; 安装完成后自动启动；静默更新也必须拉起新版本，不能要求用户回桌面双击
+Filename: "{app}\{#MyAppExeName}"; Description: "启动 {#MyAppName}"; Flags: nowait

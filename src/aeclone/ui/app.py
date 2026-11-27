@@ -20539,6 +20539,9 @@ class App:
         url = str(info.get("url") or "").strip()
         notes = str(info.get("notes") or "").strip()
 
+        self._upd_installing = False
+        self._upd_auto_timer = None
+        self._upd_path = None
         self.upd_progress = ft.ProgressBar(value=0, color=ACCENT, bgcolor=CARD_2, height=8)
         self.upd_status = ft.Text("准备下载…", size=12.5, color=MUTED)
         self.upd_install_btn = ft.ElevatedButton(
@@ -20554,9 +20557,17 @@ class App:
             threading.Timer(0.3, lambda: _o._exit(0)).start()
 
         def install(e=None):
+            if getattr(self, "_upd_installing", False):
+                return
             path = getattr(self, "_upd_path", None)
             if not path:
                 return
+            self._upd_installing = True
+            try:
+                if self._upd_auto_timer is not None:
+                    self._upd_auto_timer.cancel()
+            except Exception:
+                pass
             self.upd_status.value = "正在安装，软件会自动关闭并重启…"
             try:
                 self._safe_update()
@@ -20564,10 +20575,24 @@ class App:
                 pass
             ok = _up.install_update(Path(path))
             if not ok:
-                self.toast("安装失败，请手动下载安装包", False)
+                self._upd_installing = False
+                self.upd_status.value = "安装启动失败，请手动下载安装包"
+                self.upd_status.color = DANGER_C
+                try:
+                    self._safe_update()
+                except Exception:
+                    pass
                 return
             self._log("更新安装器已启动，软件即将退出", "INFO")
             quit_app()
+
+        def auto_install():
+            # 下载完成后自动安装，不要求用户再点一次
+            if getattr(self, "_upd_installing", False):
+                return
+            if not getattr(self, "_upd_path", None):
+                return
+            install()
 
         self.upd_install_btn.on_click = install
         dlg = ft.AlertDialog(
@@ -20575,7 +20600,7 @@ class App:
             title=ft.Text(f"需要更新到 v{latest}"),
             content=ft.Column([
                 ft.Text(f"当前版本 v{_up.CURRENT} · 最新 v{latest}", size=13.5, color=TEXT),
-                ft.Text("检测到新版本，更新完成后才能继续使用；下载会在后台自动进行。",
+                ft.Text("下载和安装进度会显示在这里；完成后会自动安装、关闭并重启软件。",
                         size=12.5, color=WARN_C),
                 (ft.Container(content=ft.Text(notes[:500], size=12.5, color=MUTED, selectable=True),
                               height=120, bgcolor=CARD_2, border_radius=8, padding=8)
@@ -20620,10 +20645,14 @@ class App:
                     raise RuntimeError("安装包校验失败（SHA256 不一致）")
                 self._upd_path = path
                 self.upd_progress.value = 1
-                self.upd_status.value = f"下载完成（{path.name}），点「立即安装并重启」"
+                self.upd_status.value = f"下载完成（{path.name}），即将自动安装"
                 self.upd_status.color = ACCENT_2
                 self.upd_install_btn.disabled = False
                 self._log(f"更新包已下载：{path}", "INFO")
+                self.upd_status.value = "下载完成，3 秒后自动安装并重启…"
+                self._upd_auto_timer = threading.Timer(3.0, auto_install)
+                self._upd_auto_timer.daemon = True
+                self._upd_auto_timer.start()
                 self._safe_update()
             except Exception as ex:  # noqa: BLE001
                 self.upd_status.value = f"下载失败：{str(ex)[:90]}（可退出后重试）"
@@ -20637,49 +20666,36 @@ class App:
         threading.Thread(target=work, daemon=True).start()
 
     def _check_update(self):
-        r = updater.check(self.cfg.license_server)
-        if not r.get("ok"):
-            self.toast(f"检查失败：{r.get('error')}", False); return
-        if not r.get("has_update"):
-            self.toast(f"已是最新版本（v{updater.CURRENT}）")
-            self._log(f"更新检查：已是最新版本 v{updater.CURRENT}")
+        """设置页手动更新：检查后进入与启动更新相同的进度/自动安装流程。"""
+        if getattr(self, "_checking_update", False):
             return
-        notes = str(r.get("notes") or "").strip()
-        has_url = bool(str(r.get("url") or "").strip())
-        self._log(f"发现新版本 {r.get('latest')}（当前 v{updater.CURRENT}）")
-        dlg = ft.AlertDialog(
-            title=ft.Text(f"发现新版本 {r.get('latest')}"),
-            content=ft.Column([
-                ft.Text(f"当前版本：v{updater.CURRENT}", size=13.5, color=TEXT),
-                ft.Text(notes[:600] or "（服务器未提供更新说明）", size=12.5, color=MUTED, selectable=True),
-                ft.Text("" if has_url else "服务器还没有配置安装包下载地址，请联系管理员。",
-                        size=12.5, color=WARN_C),
-            ], spacing=8, width=460),
-            actions=[ft.TextButton("关闭", on_click=lambda e: self._close_dlg(dlg)),
-                     ft.ElevatedButton("下载并安装", bgcolor=ACCENT, color=ON_ACCENT, disabled=not has_url,
-                                       on_click=lambda e: do_download(e))],
-        )
-        self._show_dlg(dlg)
+        self._checking_update = True
+        self.toast("正在检查更新…")
+        try:
+            self._log("更新检查：正在连接 GitHub Releases…", "INFO")
+        except Exception:
+            pass
 
-        def do_download(e):
-            self._close_dlg(dlg)
-            self.toast("开始下载安装包…")
+        def work():
+            try:
+                r = updater.check(self.cfg.license_server)
+                if not r.get("ok"):
+                    self._log(f"更新检查失败：{r.get('error')}", "WARN")
+                    self.toast(f"检查失败：{r.get('error')}", False)
+                    return
+                if not r.get("has_update"):
+                    self._log(f"更新检查：已是最新版本 v{updater.CURRENT}", "INFO")
+                    self.toast(f"已是最新版本（v{updater.CURRENT}）")
+                    return
+                self._log(f"更新检查：发现 v{r.get('latest')}（当前 v{updater.CURRENT}）", "WARN")
+                self._show_update_gate(r)
+            except Exception as ex:  # noqa: BLE001
+                self._log(f"更新检查失败：{ex}", "WARN")
+                self.toast(f"检查更新失败：{str(ex)[:70]}", False)
+            finally:
+                self._checking_update = False
 
-            def go():
-                try:
-                    path = updater.download(str(r["url"]))
-                    if not updater.looks_like_installer(path):
-                        raise RuntimeError("下载到的不是有效安装包（可能被网络拦截），请重试")
-                    want = str(r.get("sha256") or "").lower()
-                    if want and updater.sha256(path).lower() != want:
-                        raise RuntimeError("安装包校验失败（SHA256 不一致）")
-                    self._log(f"更新包已下载：{path}")
-                    self.toast("下载完成，正在启动安装程序…")
-                    updater.launch_installer(path)
-                except Exception as ex:  # noqa: BLE001
-                    self._log(f"更新下载失败：{ex}", "ERROR")
-                    self.toast(f"更新失败：{str(ex)[:80]}", False)
-            threading.Thread(target=go, daemon=True).start()
+        threading.Thread(target=work, daemon=True).start()
 
     # ---------- 授权（账号制 token，契约 §10） ----------
     def _check_license(self):
