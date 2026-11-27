@@ -567,8 +567,11 @@ def _sanitize_payload(p: dict, cfg=None, action: str = "save_only") -> None:
             if a.get("attrNameId") or a.get("attrValueId"):
                 kept_props.append(a)
                 continue
-            name = _rs.sub(r"[^A-Za-z0-9㎡≤≥‰±℃℉ΜΩé]", "", str(a.get("attrName") or ""))
-            value = _rs.sub(r"[^A-Za-z0-9㎡≤≥‰±℃℉ΜΩé]", "", str(a.get("attrValue") or ""))
+            # 保留单词间空格（客户要求）；只删除平台不允许的特殊字符，并压缩连续空格。
+            name = _rs.sub(r"[^A-Za-z0-9 ㎡≤≥‰±℃℉ΜΩé]", "", str(a.get("attrName") or ""))
+            value = _rs.sub(r"[^A-Za-z0-9 ㎡≤≥‰±℃℉ΜΩé]", "", str(a.get("attrValue") or ""))
+            name = _rs.sub(r"\s{2,}", " ", name).strip()
+            value = _rs.sub(r"\s{2,}", " ", value).strip()
             if not name:
                 continue
             a["attrName"] = name

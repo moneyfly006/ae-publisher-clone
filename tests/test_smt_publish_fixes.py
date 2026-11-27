@@ -155,6 +155,19 @@ class AttrSanitizeTests(unittest.TestCase):
         self.assertIn("m2", values)
         self.assertNotIn("㎡", values)
 
+    def test_custom_attr_preserves_word_spaces(self):
+        product = {
+            "id": "1", "subject": "T", "categoryId": "100007204",
+            "aeopAeProductPropertys": '[]',
+            "imageURLs": "https://x.example/a.jpg",
+        }
+        p = api_save.build_save_payload(product, {"aeopAeProductPropertys": "[]"},
+                                        custom_attributes=["Power Voltage=380V three phase 50HZ"])
+        import json
+        props = json.loads(p["aeopAeProductPropertys"])
+        value = next(x["attrValue"] for x in props if x.get("attrName") == "Power Voltage")
+        self.assertEqual(value, "380V three phase 50HZ")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
