@@ -986,6 +986,188 @@ def merge_attributes(existing: Any, fill: FillResult, *,
     return result
 
 
+# ---------------- SKU 规格与类目兼容性修复（纯函数） ----------------
+#: 颜色关键词 → 类目枚举名里可接受的英文/中文写法（用于把历史遗留的规格值
+#: 纠正为当前类目存在的候选值，避免平台报 sku::CHK_BASIC_ONEOF）。
+_COLOR_ENUM_WORDS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("transparent", "clear", "see-through", "see through", "透明"),
+     ("clear", "transparent", "透明")),
+    (("black", "黑色", "黑"), ("black", "黑色")),
+    (("white", "白色", "白"), ("white", "白色")),
+    (("red", "红色", "红"), ("red", "红色")),
+    (("blue", "蓝色", "蓝"), ("blue", "蓝色")),
+    (("green", "绿色", "绿"), ("green", "绿色")),
+    (("brown", "棕色", "咖啡"), ("brown", "棕色", "coffee", "咖啡")),
+    (("grey", "gray", "灰色", "灰"), ("gray", "grey", "灰色")),
+    (("silver", "银色"), ("silver", "银色")),
+    (("gold", "金色"), ("gold", "金色")),
+    (("yellow", "黄色"), ("yellow", "黄色")),
+    (("pink", "粉色"), ("pink", "粉色")),
+    (("purple", "紫色"), ("purple", "紫色")),
+    (("orange", "橙色"), ("orange", "橙色")),
+    (("beige", "米色"), ("beige", "米色")),
+    (("multicolor", "multi", "多色"), ("multi", "multicolor", "多色")),
+)
+
+
+def _enum_display(enum: "EnumValue") -> str:
+    return str(enum.name_en or enum.name_zh or enum.id or "").strip()
+
+
+def _pick_enum_value(attr: "CategoryAttribute", haystack: str) -> "EnumValue | None":
+    """按「标题/商品属性值里出现的词」在类目枚举里挑一个候选值；挑不到返回 None。"""
+    hay = str(haystack or "").lower()
+    if not hay or not attr.values:
+        return None
+    # 1) 候选枚举英文/中文名直接出现在标题/属性值里
+    for enum in attr.values:
+        name = _enum_display(enum).lower()
+        if name and len(name) >= 3 and re.search(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", hay):
+            return enum
+    # 2) 颜色属性：按颜色关键词匹配
+    attr_key = normalize_name(attr.name_en or attr.name_zh or "")
+    if any(w in attr_key for w in ("color", "colour", "颜色")):
+        for triggers, targets in _COLOR_ENUM_WORDS:
+            if any(t in hay for t in triggers):
+                for enum in attr.values:
+                    name = _enum_display(enum).lower()
+                    if any(t in name for t in targets):
+                        return enum
+    # 3) 枚举名里的长单词出现在标题里（如 "3m" / "8 person" / "star"）
+    for enum in attr.values:
+        for word in re.split(r"[^a-z0-9]+", _enum_display(enum).lower()):
+            if len(word) >= 3 and re.search(r"(?<![a-z0-9])" + re.escape(word) + r"(?![a-z0-9])", hay):
+                return enum
+    return None
+
+
+def _safe_default_enum(attr: "CategoryAttribute") -> "EnumValue":
+    """必填规格兜底：优先中性候选（透明/无色/白色/如图），否则枚举第一个。"""
+    for enum in attr.values:
+        name = _enum_display(enum).lower()
+        if any(w in name for w in ("clear", "transparent", "white", "as picture",
+                                   "as shown", "no color", "none", "other", "multi",
+                                   "如图", "其他", "透明", "白色")):
+            return enum
+    return attr.values[0]
+
+
+def repair_sku_compatibility(category_attrs: Any, skus: Any, *,
+                             title: str = "", attribute_values: Iterable[str] | None = None,
+                             has_plug: bool | None = None) -> tuple[list[dict], list[dict]]:
+    """把 SKU 规格修正到当前类目可接受的候选值（纯函数，不写平台）。
+
+    背景（实测 2026-11-28）：采集商品的 SKU 里常带别的类目的旧属性值 id，
+    或带母类目才有的插件库属性（Voltage/Plug），平台发布时报
+    ``isv.7CHK_BASIC_ONEOF, sku::Input value not in candidate list``。
+
+    修复策略（只做保守变换）：
+    - 类目属性定义里存在的 SKU 属性：值 id 不在候选 → 先按标题/商品属性值匹配候选；
+      匹配不到且非必填 → 删掉该规格；必填 → 用候选列表第一个值兜底（保证 id 合法）；
+    - 类目属性定义里不存在的 SKU 属性：类目 ``hasPlugAttribute`` 为 False 且该属性
+      带插件父级（Voltage/Plug）→ 删除；其它情况保留（可能是模板插件库属性）。
+    返回 ``(新的 skus, changes)``；``changes`` 供界面记录「规格修复」步骤。
+    """
+    defs: dict[str, CategoryAttribute] = {}
+    for attr in (parse_category_attributes(category_attrs)
+                 if not (isinstance(category_attrs, list)
+                         and all(isinstance(x, CategoryAttribute) for x in category_attrs))
+                 else list(category_attrs)):
+        if attr.name_id:
+            defs[str(attr.name_id)] = attr
+    rows = skus
+    if isinstance(rows, str):
+        try:
+            rows = json.loads(rows or "[]")
+        except (TypeError, ValueError):
+            rows = []
+    if not isinstance(rows, list) or not defs:
+        return (rows if isinstance(rows, list) else []), []
+
+    haystack = " ".join([str(title or "")] + [str(x or "") for x in (attribute_values or [])])
+    changes: list[dict] = []
+    out: list[dict] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        props = row.get("aeopSKUProperty")
+        if not isinstance(props, list):
+            out.append(row)
+            continue
+        new_props: list[dict] = []
+        changed = False
+        for prop in props:
+            if not isinstance(prop, dict):
+                continue
+            pid = str(prop.get("skuPropertyId") or "").strip()
+            vid = str(prop.get("propertyValueId") or "").strip()
+            parent = (prop.get("parentPropertyId") or prop.get("plug_parent_property_id"))
+            attr = defs.get(pid)
+            if attr is None:
+                if parent and has_plug is False:
+                    changes.append({"action": "drop", "skuPropertyId": pid,
+                                    "reason": "类目未开通插件库规格（Voltage/Plug），已移除"})
+                    changed = True
+                    continue
+                new_props.append(prop)
+                continue
+            valid_ids = {str(v.id) for v in attr.values if str(v.id or "").strip()}
+            if not valid_ids or vid in valid_ids:
+                new_props.append(prop)
+                continue
+            pick = _pick_enum_value(attr, haystack)
+            if pick is None and not attr.required:
+                changes.append({"action": "drop", "skuPropertyId": pid,
+                                "attr": attr.display_name, "old": vid,
+                                "reason": "规格值已不在当前类目候选中，非必填已移除"})
+                changed = True
+                continue
+            if pick is None:
+                # 必填规格又匹配不到标题/属性值：优先用「无色/透明/白色/如图」这类
+                # 中性候选，避免直接拿枚举第一个（可能是 Laser、Gold 等离谱颜色）。
+                pick = _safe_default_enum(attr)
+                changes.append({"action": "replace", "skuPropertyId": pid,
+                                "attr": attr.display_name, "old": vid, "new": str(pick.id),
+                                "reason": "必填规格值不在当前类目候选中，已用类目默认候选兜底"})
+            else:
+                changes.append({"action": "replace", "skuPropertyId": pid,
+                                "attr": attr.display_name, "old": vid, "new": str(pick.id),
+                                "reason": f"规格值不在当前类目候选中，已按标题/属性值匹配为「{_enum_display(pick)}」"})
+            fixed = dict(prop)
+            try:
+                fixed["propertyValueId"] = int(pick.id) if str(pick.id).isdigit() else pick.id
+            except Exception:
+                fixed["propertyValueId"] = pick.id
+            fixed["propertyValueDefinitionName"] = _enum_display(pick)
+            new_props.append(fixed)
+            changed = True
+        # ★ 补齐类目必填的 SKU 规格（Color / Ballon Size 等）：缺了编辑器显示必填缺失，
+        # 发布也会被平台拒绝；按标题/属性值选候选，选不到用中性候选兜底。
+        _have = {str(p.get("skuPropertyId")) for p in new_props if isinstance(p, dict)}
+        for _attr in defs.values():
+            if not (_attr.sku and _attr.required and _attr.values):
+                continue
+            if str(_attr.name_id) in _have:
+                continue
+            _pick = _pick_enum_value(_attr, haystack) or _safe_default_enum(_attr)
+            _pid = int(_attr.name_id) if str(_attr.name_id).isdigit() else _attr.name_id
+            _vid = int(_pick.id) if str(_pick.id).isdigit() else _pick.id
+            new_props.append({"skuPropertyId": _pid, "propertyValueId": _vid,
+                              "propertyValueDefinitionName": _enum_display(_pick)})
+            changes.append({"action": "add", "skuPropertyId": str(_attr.name_id),
+                            "attr": _attr.display_name, "new": str(_pick.id),
+                            "reason": f"补齐类目必填规格「{_attr.display_name}」"})
+            changed = True
+        if changed:
+            row = dict(row)
+            row["aeopSKUProperty"] = new_props
+            row["id"] = ";".join(f"{p.get('skuPropertyId')}:{p.get('propertyValueId')}"
+                                 for p in new_props
+                                 if p.get("skuPropertyId") and p.get("propertyValueId"))
+        out.append(row)
+    return out, changes
+
+
 def repair_product_attributes(product: Mapping[str, Any], category_attrs: Any, *,
                               template_props: Sequence[ProductAttribute] | None = None,
                               template_skus: Sequence[Mapping[str, Any]] | None = None,
@@ -1020,7 +1202,93 @@ def repair_product_attributes(product: Mapping[str, Any], category_attrs: Any, *
         payload.get("aeopAeProductPropertys") if isinstance(payload, Mapping) else payload)
     fill = fill_attributes(attrs, product_attrs, template_props=template_props,
                            defaults=defaults, key=key)
-    merged = merge_attributes(payload, fill, drop_names=drop_names)
+    # ★ 所有类目系统属性的英文/中文名都加入「自定义属性删除名单」：
+    # 采集商品常把 Model Number / Type / Material / Weight 等当作自定义属性带来，
+    # 平台会报 CHK_CUSTOM_PROP_NAME_DUPLICATE_CAT_PROP。之前只对「本次补全过」的
+    # 属性去重，非必填的系统属性没被覆盖 → 仍然发布失败。
+    _drops: set[str] = set()
+    for _item in (drop_names or []):
+        _k = normalize_name(_item)
+        if _k:
+            _drops.add(_k)
+    for _attr in attrs:
+        for _name in (_attr.name_en, _attr.name_zh):
+            _k = normalize_name(_name)
+            if _k:
+                _drops.add(_k)
+    merged = merge_attributes(payload, fill, drop_names=_drops)
+    # 二次兜底：fill_attributes 会把「类目里的自由文本属性」（Model Number /
+    # Weight / Dimensions 等）产出为自定义属性 {attrName, attrValue}；但平台把
+    # 这些名字视为系统属性，发出去就报 CHK_CUSTOM_PROP_NAME_DUPLICATE_CAT_PROP。
+    # 这些属性没有枚举 id、无法按系统属性提交（平台只认 attrNameId+attrValueId），
+    # 因此保存时删除同名的自定义属性；非必填属性留空不影响发布。
+    _kept_props: list[dict] = []
+    for _prop in merged.props:
+        if not is_valid_id(_prop.get("attrNameId")):
+            _pkey = normalize_name(_prop.get("attrName"))
+            if _pkey and _pkey in _drops:
+                merged.removed.append({"prop": _prop, "reason": "与类目系统属性同名（自由文本属性）"})
+                continue
+        _kept_props.append(_prop)
+    if len(_kept_props) != len(merged.props):
+        merged.props = _kept_props
+        try:
+            merged.stats["custom"] = sum(1 for x in merged.props if not is_valid_id(x.get("attrNameId")))
+            merged.stats["total"] = len(merged.props)
+        except Exception:
+            pass
+    # ★ 必填系统属性：类目要求但商品里没有/值不在候选的，按标题与已有属性值匹配枚举后补上。
+    # 实测：产品 220114600917617864（气球类目）缺 Color / Ballon Size，编辑器显示必填缺失。
+    try:
+        _hay = " ".join([str(product.get("subject") or product.get("title") or "")]
+                        + [str(x.value or "") for x in product_attrs])
+        _by_id = {str(x.get("attrNameId")): x for x in merged.props
+                  if is_valid_id(x.get("attrNameId"))}
+        _def_ids = {a.name_id for a in attrs if a.name_id}
+        # 先删掉 attrNameId 已不在当前类目定义里的「旧系统属性」
+        _valid_props: list[dict] = []
+        for _prop in merged.props:
+            _nid = str(_prop.get("attrNameId") or "")
+            if is_valid_id(_nid) and _nid not in _def_ids:
+                merged.removed.append({"prop": _prop, "reason": "系统属性 id 不属于当前类目"})
+                continue
+            _valid_props.append(_prop)
+        if len(_valid_props) != len(merged.props):
+            merged.props = _valid_props
+        _by_id = {str(x.get("attrNameId")): x for x in merged.props
+                  if is_valid_id(x.get("attrNameId"))}
+        for _attr in attrs:
+            if not _attr.required or not _attr.name_id or not _attr.values:
+                continue
+            _ids = {str(v.id) for v in _attr.values if str(v.id or "").strip()}
+            _cur = _by_id.get(str(_attr.name_id))
+            if _cur is not None:
+                if str(_cur.get("attrValueId")) in _ids:
+                    continue
+                _pick = _pick_enum_value(_attr, _hay) or _safe_default_enum(_attr)
+                _old = dict(_cur)
+                try:
+                    _cur["attrValueId"] = int(_pick.id) if str(_pick.id).isdigit() else _pick.id
+                except Exception:
+                    _cur["attrValueId"] = _pick.id
+                _cur["attrValueId"] = str(_cur["attrValueId"])
+                _cur["attrName"] = _attr.display_name
+                merged.renamed.append({"attrNameId": str(_attr.name_id), "attrName": _attr.display_name,
+                                       "old_value_id": str(_old.get("attrValueId")),
+                                       "new_value_id": str(_pick.id)})
+                continue
+            _pick = _pick_enum_value(_attr, _hay) or _safe_default_enum(_attr)
+            _prop = {"attrNameId": str(_attr.name_id),
+                     "attrValueId": str(_pick.id) if str(_pick.id).isdigit() else _pick.id,
+                     "attrName": _attr.display_name}
+            merged.props.append(_prop)
+            merged.added.append(_prop)
+            _by_id[str(_attr.name_id)] = _prop
+        merged.stats["total"] = len(merged.props)
+        merged.stats["system"] = sum(1 for x in merged.props if is_valid_id(x.get("attrNameId")))
+        merged.stats["custom"] = sum(1 for x in merged.props if not is_valid_id(x.get("attrNameId")))
+    except Exception:
+        pass
     issues = detect_missing(product, attrs, template_props=template_props,
                             template_skus=template_skus,
                             extra_sku_property_ids=extra_sku_property_ids)

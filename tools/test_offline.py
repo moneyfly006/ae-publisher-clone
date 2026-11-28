@@ -46,6 +46,7 @@ MODULES = (
     "test_media_actions",
     "test_collect_automation", "test_collect_ui", "test_listing_recovery", "test_conflict_effectiveness", "test_collect_ai", "test_navigation_operations",
     "test_ui_redesign", "test_ui_function_dedup", "test_logs_compact_layout",
+    "test_ae_publish_failure_repairs",
     "test_collect_runtime", "test_collect_optimization",
     "test_platforms",
     "test_model_selection", "test_image_result_payload",

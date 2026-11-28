@@ -2444,6 +2444,7 @@ class Publisher:
         target = self._dedupe_product_skus(target, res)
         target = self._resolve_auto_category(target, res)
         target = self._repair_origin_attribute(target, res)
+        target = self._repair_sku_compat(target, res)
         # 发布失败重试也必须走运费模板预审/安全模板切换，否则 DAILY_TPL 会一直失败。
         self._smt_shipping_preflight(target, res, tpl)
         _attr_ov = self._smt_attr_overrides(target, tpl, res)
@@ -2913,6 +2914,64 @@ class Publisher:
                 except Exception:
                     pass
         return target
+
+    def _repair_sku_compat(self, target: dict, res=None) -> dict:
+        """按最终类目的属性候选修复 SKU 规格值，避免平台 sku::CHK_BASIC_ONEOF。
+
+        实测（2026-11-28，速卖通店铺）：发布失败的 16 个商品里，6 个报
+        ``sku::Input value not in candidate list`` —— 采集来的 SKU 值 id 属于旧类目/
+        其它类目（如颜色 Brown=350686 在当前类目不存在），或带着类目未开通的
+        插件库规格（Voltage/Plug）。这里在保存/发布前做一次保守修复：
+        能按标题/属性值匹配到类目候选的改 id，非必填且匹配不到的删掉，
+        类目未开通插件库时删掉插件规格；所有变更都会记录到「规格修复」步骤。
+        """
+        if self.dxm is None or not isinstance(target, dict):
+            return target
+        try:
+            import json as _j
+            from .smt_attributes import repair_sku_compatibility
+            cid = str(target.get("categoryId") or "").strip()
+            if not cid or cid in ("0", "-1", "None", "null"):
+                return target
+            attrs = self.dxm.category_attributes(cid) or []
+            if not attrs:
+                return target
+            det = {}
+            try:
+                det = self.dxm.category_detail(cid) or {}
+            except Exception:
+                det = {}
+            has_plug = None
+            if isinstance(det, dict) and "hasPlugAttribute" in det:
+                has_plug = str(det.get("hasPlugAttribute")).strip().lower() in ("1", "true", "yes")
+            raw = target.get("aeopAeProductSKUs")
+            skus = _j.loads(raw) if isinstance(raw, str) else raw
+            if not isinstance(skus, list) or not skus:
+                return target
+            _vals: list[str] = []
+            try:
+                props = target.get("aeopAeProductPropertys")
+                props = _j.loads(props) if isinstance(props, str) else (props or [])
+                _vals = [str(x.get("attrValue") or "") for x in props if isinstance(x, dict)]
+            except Exception:
+                _vals = []
+            fixed, changes = repair_sku_compatibility(
+                attrs, skus, title=str(target.get("subject") or ""),
+                attribute_values=_vals, has_plug=has_plug)
+            if not changes:
+                return target
+            out = dict(target)
+            out["aeopAeProductSKUs"] = _j.dumps(fixed, ensure_ascii=False)
+            try:
+                _detail = "；".join(str(c.get("reason") or "") for c in changes[:3])
+                if len(changes) > 3:
+                    _detail += f" 等 {len(changes)} 项"
+                add_step(res, "规格修复", True, _detail)
+            except Exception:
+                pass
+            return out
+        except Exception:
+            return target
 
     def _smt_attr_overrides(self, target: dict, tpl: dict | None, res) -> dict:
         """保存/发布前补齐速卖通类目必填属性（只补缺失、不覆盖已有；纯本地规则）。
@@ -3422,6 +3481,18 @@ class Publisher:
             target = self._dedupe_product_skus(target, res)
             target = self._resolve_auto_category(target, res)
             target = self._repair_origin_attribute(target, res)
+            target = self._repair_sku_compat(target, res)
+            # AI 覆盖里重建过 SKU（build_ai_overrides → merge_skus）时，也要按最终类目修复；
+            # 否则修复后的 target SKU 会被 overrides 里的旧 SKU 覆盖回去。
+            try:
+                if isinstance(overrides, dict) and overrides.get("aeopAeProductSKUs"):
+                    _sku_target = dict(target)
+                    _sku_target["aeopAeProductSKUs"] = overrides["aeopAeProductSKUs"]
+                    _sku_fixed = self._repair_sku_compat(_sku_target, res)
+                    overrides["aeopAeProductSKUs"] = _sku_fixed.get(
+                        "aeopAeProductSKUs", overrides["aeopAeProductSKUs"])
+            except Exception:
+                pass
             # 自动类目可能在上面的属性补全之后才切换；必须按最终类目再补一次，
             # 否则新类目的必填属性为空，发布会被平台拒绝（日志：产品必填属性不能为空）。
             try:

@@ -713,6 +713,28 @@ def build_save_payload(product: dict, template: dict | None = None,
     for _s in _sku_list_all:
         if not str(_s.get("cargoPrice") or "").strip():
             _s["cargoPrice"] = _cv
+    # ★ 价格兜底：商品级与 SKU 级价格都不能为空，否则编辑器会显示「价格缺失」，
+    # 发布也会被平台拒绝。SKU 缺价用商品价补；商品价缺用第一个有效 SKU 价补。
+    try:
+        _valid_prices = []
+        for _s in _sku_list_all:
+            try:
+                _v = float(str(_s.get("skuPrice") or "0").strip() or 0)
+            except Exception:
+                _v = 0.0
+            if _v > 0:
+                _valid_prices.append(str(_s.get("skuPrice")).strip())
+        _first_price = _valid_prices[0] if _valid_prices else ""
+        if not str(p.get("productMinPrice") or "").strip() and _first_price:
+            p["productMinPrice"] = _first_price
+        if not str(p.get("productMaxPrice") or "").strip():
+            p["productMaxPrice"] = str(p.get("productMinPrice") or _first_price or "")
+        _fill_price = str(p.get("productMinPrice") or _first_price or "").strip()
+        for _s in _sku_list_all:
+            if not str(_s.get("skuPrice") or "").strip() and _fill_price:
+                _s["skuPrice"] = _fill_price
+    except Exception:
+        pass
     p["aeopAeProductSKUs"] = json.dumps(_sku_list_all, ensure_ascii=False)
 
     # 无线端描述：为空或被 CSS 污染 → 从 PC 详情重新生成
